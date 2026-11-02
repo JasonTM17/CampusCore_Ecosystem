@@ -1,4 +1,5 @@
 import type { Enrollment, Semester } from '@/types/api';
+import { getMessages } from '@/i18n/messages';
 import { isActiveEnrollment } from './enrollment-status';
 
 export interface IcsEvent {
@@ -136,6 +137,7 @@ export function buildScheduleIcsEvents(
   locale: 'vi' | 'en' = 'vi',
 ): IcsEvent[] {
   const events: IcsEvent[] = [];
+  const icsMessages = getMessages(locale).studentPages.ics;
 
   // Determine semester start date or fallback to today in Vietnam. All
   // downstream math stays in UTC fields so the exported times are Vietnam
@@ -194,24 +196,17 @@ export function buildScheduleIcsEvents(
 
       const building = schedule.classroom?.building;
       const room = schedule.classroom?.roomNumber;
-      const location = [room ? (locale === 'vi' ? `Phòng ${room}` : `Room ${room}`) : '', building]
+      const location = [room ? icsMessages.locationRoomPrefix.replace('{room}', () => room) : '', building]
         .filter(Boolean)
         .join(', ');
 
       const descLines: string[] = [];
-      if (locale === 'vi') {
-        descLines.push(`Môn học: ${courseName} (${courseCode})`);
-        descLines.push(`Lớp học phần: ${sectionNumber}`);
-        if (credits > 0) descLines.push(`Số tín chỉ: ${credits}`);
-        if (lecturerName) descLines.push(`Giảng viên: ${lecturerName}`);
-        if (location) descLines.push(`Địa điểm: ${location}`);
-      } else {
-        descLines.push(`Course: ${courseName} (${courseCode})`);
-        descLines.push(`Section: ${sectionNumber}`);
-        if (credits > 0) descLines.push(`Credits: ${credits}`);
-        if (lecturerName) descLines.push(`Lecturer: ${lecturerName}`);
-        if (location) descLines.push(`Location: ${location}`);
-      }
+      const description = icsMessages.description;
+      descLines.push(description.course.replace('{courseName}', () => courseName).replace('{courseCode}', () => courseCode));
+      descLines.push(description.section.replace('{sectionNumber}', () => sectionNumber));
+      if (credits > 0) descLines.push(description.credits.replace('{credits}', String(credits)));
+      if (lecturerName) descLines.push(description.lecturer.replace('{lecturerName}', () => lecturerName));
+      if (location) descLines.push(description.location.replace('{location}', () => location));
 
       const summary = `[${courseCode}] ${courseName} - ${sectionNumber}`;
       const uid = `schedule-${enrollment.id}-${schedule.id || i}@campuscore.edu`;
@@ -236,7 +231,7 @@ export function buildScheduleIcsEvents(
  */
 export function generateIcsCalendar(
   events: IcsEvent[],
-  calendarName = 'CampusUTE Timetable',
+  calendarName = getMessages('en').studentPages.ics.defaultCalendarName,
 ): string {
   const dtstamp = formatIcsUtcDateTime(new Date());
   const lines: string[] = [

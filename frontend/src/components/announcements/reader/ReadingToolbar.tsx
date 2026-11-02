@@ -107,6 +107,7 @@ export function ReadingToolbar({
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
           )}
           title={isVi ? 'Giao diện Báo chí Học thuật' : 'Academic Magazine View'}
+          aria-pressed={preferences.mode === 'EDITORIAL'}
         >
           <BookOpen className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{isVi ? 'Dạng Bản tin' : 'Magazine'}</span>
@@ -122,6 +123,7 @@ export function ReadingToolbar({
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
           )}
           title={isVi ? 'Giao diện Công văn Hành chính e-Office' : 'Official Institutional Dispatch'}
+          aria-pressed={preferences.mode === 'OFFICIAL'}
         >
           <FileText className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{isVi ? 'Công văn' : 'Dispatch'}</span>

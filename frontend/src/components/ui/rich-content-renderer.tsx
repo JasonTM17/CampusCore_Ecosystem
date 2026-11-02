@@ -452,6 +452,7 @@ function AlertCallout({ type, children }: { type: AlertType; children: React.Rea
 
 // Table renderer
 function MarkdownTable({ rows }: { rows: string[] }) {
+  const { messages } = useI18n();
   if (rows.length < 2) return null;
 
   // Split cell by pipe '|'
@@ -468,11 +469,13 @@ function MarkdownTable({ rows }: { rows: string[] }) {
   return (
     <div className="my-4 overflow-x-auto rounded-lg border border-border/70 shadow-sm">
       <table className="w-full border-collapse text-left text-sm">
+        <caption className="sr-only">{messages.common.states.dataTable}</caption>
         <thead className="border-b border-border/80 bg-secondary/70">
           <tr>
             {headerCells.map((cell, idx) => (
               <th
-                key={idx}
+                key={`${cell}-${idx}`}
+                scope="col"
                 className="px-4 py-2.5 font-semibold text-foreground tracking-wide"
               >
                 {renderInline(cell)}

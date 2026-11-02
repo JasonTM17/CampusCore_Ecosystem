@@ -456,6 +456,31 @@ const TINYMCE_TEMPLATES = [
   },
 ];
 
+/**
+ * WAI-ARIA menu keyboard contract: opening lands on the first item (or the
+ * last when opened with ArrowUp), arrow keys wrap, and Home/End jump to the
+ * ends. Returns null when the key is not a menu-navigation key.
+ */
+export function nextTemplateMenuItemIndex(
+  currentIndex: number,
+  itemCount: number,
+  key: string,
+): number | null {
+  if (itemCount <= 0) return null;
+  switch (key) {
+    case 'ArrowDown':
+      return currentIndex < 0 ? 0 : (currentIndex + 1) % itemCount;
+    case 'ArrowUp':
+      return currentIndex < 0 ? itemCount - 1 : (currentIndex + itemCount - 1) % itemCount;
+    case 'Home':
+      return 0;
+    case 'End':
+      return itemCount - 1;
+    default:
+      return null;
+  }
+}
+
 export function TinyMceEditor({
   value,
   onChange,
@@ -536,12 +561,34 @@ export function TinyMceEditor({
 
   // Close the templates popover with Escape and return focus to its trigger.
   const templatesTriggerRef = useRef<HTMLButtonElement>(null);
+  const templatesMenuRef = useRef<HTMLDivElement>(null);
+
+  // Opening the menu moves focus to its first item; the arrow keys walk the
+  // items and Escape returns focus to the trigger (WAI-ARIA menu contract).
+  useEffect(() => {
+    if (!templatesOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      templatesMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [templatesOpen]);
+
   const handleTemplatesKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape' && templatesOpen) {
+    if (!templatesOpen) return;
+    if (event.key === 'Escape') {
       event.stopPropagation();
       setTemplatesOpen(false);
       templatesTriggerRef.current?.focus();
+      return;
     }
+    const items = Array.from(
+      templatesMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = nextTemplateMenuItemIndex(currentIndex, items.length, event.key);
+    if (nextIndex === null) return;
+    event.preventDefault();
+    items[nextIndex]?.focus();
   };
 
   // Copy HTML to clipboard — a rejected write must surface, not leave the
@@ -619,6 +666,7 @@ export function TinyMceEditor({
                     aria-hidden="true"
                   />
                   <div
+                    ref={templatesMenuRef}
                     role="menu"
                     aria-label={isVi ? 'Mẫu văn bản học vụ' : 'Academic templates'}
                     className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-popover p-2 shadow-xl animate-in fade-in zoom-in-95"
@@ -632,6 +680,7 @@ export function TinyMceEditor({
                         key={idx}
                         type="button"
                         role="menuitem"
+                        tabIndex={-1}
                         onClick={() => handleInsertTemplate(tmpl.content)}
                         className="w-full text-left rounded p-2 text-xs transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                       >

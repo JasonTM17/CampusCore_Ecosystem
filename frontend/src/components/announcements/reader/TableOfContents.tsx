@@ -111,7 +111,8 @@ export function TableOfContents({
       // with the reading position moved out from under them.
       element.tabIndex = -1;
       element.focus({ preventScroll: true });
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
       setActiveId(id);
     }
   };

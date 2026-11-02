@@ -498,6 +498,9 @@ function loadMessages() {
     '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
     '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
     '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
+    '@/i18n/messages-teaching-pages': loadModule('src/i18n/messages-teaching-pages.ts'),
+    '@/i18n/messages-admin-pages': loadModule('src/i18n/messages-admin-pages.ts'),
+    '@/i18n/messages-student-pages': loadModule('src/i18n/messages-student-pages.ts'),
   }).en;
 }
 
@@ -715,7 +718,7 @@ test('council defense report links render only absolute http(s) URLs', () => {
   assert.match(workspace, /import \{ isHttpUrl \} from '@\/lib\/safe-url'/, 'the workspace imports the guard');
   assert.match(
     workspace,
-    /topicReports\[tid\]\?\.url && isHttpUrl\(topicReports\[tid\]\?\.url\)/,
+    /topicReports\[tid\]\?\.url \? \([\s\S]*?isHttpUrl\(topicReports\[tid\]\?\.url\) \? \([\s\S]*?<a[\s\S]*?rel="noopener noreferrer"[\s\S]*?<\/a>\s*\) : \([\s\S]*?<span[\s\S]*?pageCopy\.thesisDocumentLabel/,
     'the report href is gated on an absolute http(s) URL',
   );
   assert.match(workspace, /rel="noopener noreferrer"/, 'noopener also closes the window.opener path');

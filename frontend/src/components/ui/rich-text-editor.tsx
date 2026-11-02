@@ -34,12 +34,12 @@ import {
   Strikethrough,
   Table,
   Undo2,
-  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { en } from '@/i18n/messages';
 import { RichContentRenderer } from './rich-content-renderer';
 import { useRovingTabs } from './use-roving-tabs';
+import { Modal } from './modal';
 
 // Single brand source: every visible mention reads the canonical site name
 // from the dictionary instead of a literal.
@@ -771,7 +771,7 @@ export function RichTextEditor({
             readOnly={readOnly}
             aria-label={ariaLabel || (isVi ? 'Vùng soạn thảo nội dung' : 'Content editor area')}
             style={{ minHeight: isFullscreen ? '100%' : minHeight }}
-            className="w-full resize-y rounded-b-md bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 border-none"
+            className="w-full resize-y rounded-b-md border-none bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           />
         ) : null}
 
@@ -793,7 +793,7 @@ export function RichTextEditor({
                 readOnly={readOnly}
                 aria-label={ariaLabel || (isVi ? 'Vùng soạn thảo nội dung' : 'Content editor area')}
                 style={{ minHeight: isFullscreen ? '100%' : minHeight }}
-                className="w-full flex-1 resize-none bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none border-none"
+                className="w-full flex-1 resize-none border-none bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               />
             </div>
             <div className="flex flex-col overflow-y-auto bg-card/40">
@@ -851,126 +851,95 @@ export function RichTextEditor({
 
       {/* Link Insertion Dialog */}
       {linkDialogOpen ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setLinkDialogOpen(false);
-          }}
+        <Modal
+          isOpen={linkDialogOpen}
+          onClose={() => setLinkDialogOpen(false)}
+          title={isVi ? 'Chèn liên kết đường dẫn' : 'Insert Hyperlink'}
+          className="max-w-md"
         >
-          <div className="w-full max-w-md rounded-lg border border-border/80 bg-card p-5 shadow-xl">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <h3 className="font-semibold text-foreground">
-                {isVi ? 'Chèn liên kết đường dẫn' : 'Insert Hyperlink'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setLinkDialogOpen(false)}
-                className="rounded p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          <div className="space-y-3 text-sm">
+            <div>
+              <label htmlFor="rich-text-link-text" className="block font-medium text-foreground mb-1">
+                {isVi ? 'Văn bản hiển thị' : 'Link Text'}
+              </label>
+              <input
+                id="rich-text-link-text"
+                type="text"
+                value={linkText}
+                onChange={(e) => setLinkText(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder={`${SITE_NAME} Portal`}
+              />
             </div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div>
-                <label htmlFor="rich-text-link-text" className="block font-medium text-foreground mb-1">
-                  {isVi ? 'Văn bản hiển thị' : 'Link Text'}
-                </label>
-                <input
-                  id="rich-text-link-text"
-                  type="text"
-                  value={linkText}
-                  onChange={(e) => setLinkText(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder={`${SITE_NAME} Portal`}
-                />
-              </div>
-              <div>
-                <label htmlFor="rich-text-link-url" className="block font-medium text-foreground mb-1">
-                  {isVi ? 'Địa chỉ URL' : 'Link URL'}
-                </label>
-                <input
-                  id="rich-text-link-url"
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setLinkDialogOpen(false)}
-                className="rounded-md border border-border/80 px-3 py-1.5 text-sm font-medium hover:bg-secondary"
-              >
-                {isVi ? 'Hủy' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={applyLink}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                {isVi ? 'Chèn liên kết' : 'Insert Link'}
-              </button>
+            <div>
+              <label htmlFor="rich-text-link-url" className="block font-medium text-foreground mb-1">
+                {isVi ? 'Địa chỉ URL' : 'Link URL'}
+              </label>
+              <input
+                id="rich-text-link-url"
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="https://..."
+              />
             </div>
           </div>
-        </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setLinkDialogOpen(false)}
+              className="rounded-md border border-border/80 px-3 py-1.5 text-sm font-medium hover:bg-secondary"
+            >
+              {isVi ? 'Hủy' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={applyLink}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              {isVi ? 'Chèn liên kết' : 'Insert Link'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {/* Help / Shortcuts Dialog */}
       {helpDialogOpen ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setHelpDialogOpen(false);
-          }}
+        <Modal
+          isOpen={helpDialogOpen}
+          onClose={() => setHelpDialogOpen(false)}
+          title={isVi ? 'Cẩm nang định dạng soạn thảo học vụ' : 'Editor Markdown & Formatting Guide'}
+          className="max-w-lg"
         >
-          <div className="w-full max-w-lg rounded-lg border border-border/80 bg-card p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <HelpCircle className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-foreground">
-                  {isVi ? 'Cẩm nang định dạng soạn thảo học vụ' : 'Editor Markdown & Formatting Guide'}
-                </h3>
+          <div className="max-h-96 space-y-3 overflow-y-auto text-xs text-foreground/90 leading-relaxed pr-2">
+            <div className="grid grid-cols-2 gap-2 border-b border-border/60 pb-2">
+              <span className="font-semibold text-primary">{isVi ? 'Cú pháp' : 'Syntax'}</span>
+              <span className="font-semibold text-primary">{isVi ? 'Kết quả hiển thị' : 'Result'}</span>
+            </div>
+            {(isVi ? HELP_EXAMPLES_VI : HELP_EXAMPLES_EN).map(([syntax, result, style]) => (
+              <div className="grid grid-cols-2 gap-2" key={syntax}>
+                <code>{syntax}</code>
+                {style === 'strong' ? (
+                  <strong>{result}</strong>
+                ) : style === 'em' ? (
+                  <em>{result}</em>
+                ) : (
+                  <span>{result}</span>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setHelpDialogOpen(false)}
-                className="rounded p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-4 max-h-96 space-y-3 overflow-y-auto text-xs text-foreground/90 leading-relaxed pr-2">
-              <div className="grid grid-cols-2 gap-2 border-b border-border/60 pb-2">
-                <span className="font-semibold text-primary">{isVi ? 'Cú pháp' : 'Syntax'}</span>
-                <span className="font-semibold text-primary">{isVi ? 'Kết quả hiển thị' : 'Result'}</span>
-              </div>
-              {(isVi ? HELP_EXAMPLES_VI : HELP_EXAMPLES_EN).map(([syntax, result, style]) => (
-                <div className="grid grid-cols-2 gap-2" key={syntax}>
-                  <code>{syntax}</code>
-                  {style === 'strong' ? (
-                    <strong>{result}</strong>
-                  ) : style === 'em' ? (
-                    <em>{result}</em>
-                  ) : (
-                    <span>{result}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setHelpDialogOpen(false)}
-                className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-              >
-                {isVi ? 'Đã hiểu' : 'Got it'}
-              </button>
-            </div>
+            ))}
           </div>
-        </div>
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setHelpDialogOpen(false)}
+              className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              {isVi ? 'Đã hiểu' : 'Got it'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

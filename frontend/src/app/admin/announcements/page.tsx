@@ -206,10 +206,6 @@ function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
-function actorDescription(locale: 'vi' | 'en') {
-  return locale === 'vi' ? 'Tài khoản quản trị đã ghi nhận' : 'Recorded by an administrator';
-}
-
 interface ReorderGuardNoticeProps {
   copy: ReorderCopy;
   blockedBy: ReorderBlockReason[];
@@ -239,9 +235,9 @@ function ReorderGuardNotice({ copy, blockedBy, extra }: ReorderGuardNoticeProps)
 export default function AdminAnnouncementsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
   const { href, locale, formatDateTime, formatNumber, messages } = useI18n();
+  const { announcements: copy } = messages.adminPages;
   const router = useRouter();
   const { confirm, confirmationDialog } = useConfirmationDialog();
-  const vi = locale === 'vi';
 
   const [items, setItems] = useState<AnnouncementRecord[]>([]);
   const orderedItems = useOrderedPosts(items);
@@ -291,7 +287,11 @@ export default function AdminAnnouncementsPage() {
     announcementsEpoch.invalidate();
   }, [announcementsEpoch]);
 
-  const reorderCopy = vi ? reorderCopyVi : reorderCopyEn;
+  const reorderCopy = { en: reorderCopyEn, vi: reorderCopyVi }[locale];
+  const formatPageSummary = (current: number, total: number) =>
+    copy.page
+      .replace('{current}', () => String(current))
+      .replace('{total}', () => String(total));
   const reorderGuard = useMemo(() => canReorder({ page, filters }), [filters, page]);
   const canDragReorder = reorderGuard.allowed;
 
@@ -364,175 +364,6 @@ export default function AdminAnnouncementsPage() {
   };
 
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
-  const copy = vi
-    ? {
-        title: 'Quản trị thông báo',
-        description: 'Chỉnh sửa, lập lịch và lưu trữ thông báo với lịch sử rõ ràng.',
-        refresh: 'Làm mới',
-        create: 'Thông báo mới',
-        active: 'Đang hiển thị',
-        archived: 'Đã lưu trữ',
-        all: 'Tất cả',
-        semester: 'Học kỳ',
-        priority: 'Mức ưu tiên',
-        status: 'Trạng thái',
-        feed: 'Danh sách thông báo',
-        empty: 'Chưa có thông báo phù hợp',
-        emptyDescription: 'Tạo thông báo đầu tiên hoặc đổi bộ lọc để xem bản ghi khác.',
-        edit: 'Chỉnh sửa',
-        archive: 'Lưu trữ',
-        restore: 'Khôi phục',
-        history: 'Lịch sử thay đổi',
-        reason: 'Lý do thay đổi',
-        reasonHint: 'Lý do được lưu cùng lịch sử để các quản trị viên khác dễ theo dõi.',
-        save: 'Lưu thay đổi',
-        createSave: 'Phát hành thông báo',
-        cancel: 'Hủy',
-        close: 'Đóng',
-        preview: 'Xem trước theo vai trò',
-        previewStudent: 'Sinh viên',
-        previewLecturer: 'Giảng viên',
-        updated: 'Đã cập nhật',
-        schedule: 'Lịch hiển thị',
-        audience: 'Đối tượng nhận',
-        global: 'Toàn trường',
-        targeted: 'Chọn nhóm cụ thể',
-        targetYears: 'Năm học sinh viên',
-        targetYearsHint: 'Nhập các năm, cách nhau bằng dấu phẩy. Để trống nếu áp dụng cho mọi năm.',
-        section: 'Lớp học phần',
-        lecturer: 'Giảng viên phụ trách',
-        noSelection: 'Không gán',
-        selectionUnavailable: 'Mục học vụ không còn trong danh mục',
-        sectionHint: 'Chọn lớp học phần để giới hạn thông báo theo lớp.',
-        lecturerHint: 'Có thể giới hạn thông báo cho lớp do giảng viên phụ trách.',
-        originalAuthor: 'Tác giả gốc được giữ nguyên',
-        revision: 'Lần cập nhật',
-        publishAt: 'Bắt đầu hiển thị',
-        expiresAt: 'Ngừng hiển thị',
-        noEnd: 'Không đặt ngày kết thúc',
-        required: 'Bắt buộc',
-        unsavedTitle: 'Bản nháp chưa được lưu',
-        unsavedMessage: 'Bạn có muốn đóng và bỏ các thay đổi đang nhập không?',
-        archiveTitle: 'Lưu trữ thông báo?',
-        restoreTitle: 'Khôi phục thông báo?',
-        archiveMessage: 'Thông báo sẽ rời khỏi bảng tin sinh viên và giảng viên cho đến khi được khôi phục.',
-        restoreMessage: 'Thông báo quay về bản nháp và phải được duyệt lại trước khi xuất hiện trên bảng tin.',
-        confirmArchive: 'Lưu trữ',
-        confirmRestore: 'Khôi phục',
-        changeReason: 'Nhập lý do để tiếp tục.',
-        missingRequired: 'Hãy điền tiêu đề và nội dung.',
-        missingAudience: 'Hãy chọn ít nhất một nhóm nhận hoặc bật Toàn trường.',
-        invalidYears: 'Năm học phải là các số nguyên dương, cách nhau bằng dấu phẩy.',
-        invalidDates: 'Ngày kết thúc phải sau ngày bắt đầu.',
-        contentTooLong: (excess: number, limit: number) =>
-          `Nội dung vượt quá giới hạn ${formatNumber(limit)} ký tự (cần bỏ bớt ${formatNumber(excess)} ký tự). Hãy rút gọn văn bản hoặc bỏ bớt hình ảnh trước khi lưu.`,
-        conflict: 'Bản ghi đã thay đổi. Hãy tải lại và thử lại để không ghi đè dữ liệu mới.',
-        archivedEdit: 'Thông báo đã lưu trữ. Hãy khôi phục trước khi chỉnh sửa.',
-        genericError: 'Hiện chưa thể hoàn tất thao tác. Hãy thử lại sau.',
-        created: 'Đã phát hành thông báo.',
-        saved: 'Đã lưu thay đổi.',
-        transitioned: 'Đã cập nhật trạng thái thông báo.',
-        historyUnavailable: 'Hiện chưa thể tải lịch sử thay đổi.',
-        historyEmpty: 'Chưa có lịch sử thay đổi.',
-        noFieldChange: 'Không có nội dung hiển thị nào thay đổi trong lần này.',
-        changedFields: 'Nội dung đã thay đổi',
-        before: 'Trước',
-        after: 'Sau',
-        actor: 'Người thực hiện',
-        version: 'Lần thay đổi',
-        statusArchived: 'Đã lưu trữ',
-        statusVisible: 'Đang hiển thị',
-        notVisible: 'Không hiển thị với vai trò này',
-        visible: 'Sẽ hiển thị với vai trò này',
-        studentYear: 'Năm học xem trước',
-        loading: 'Đang tải thông báo',
-        referenceUnavailable: 'Một số danh sách học vụ chưa sẵn sàng; bạn vẫn có thể lưu nội dung và đối tượng.',
-        page: (current: number, total: number) => `Trang ${current} / ${total}`,
-      }
-    : {
-        title: 'Manage announcements',
-        description: 'Edit, schedule, and store announcements with a clear change history.',
-        refresh: 'Refresh',
-        create: 'New announcement',
-        active: 'Visible',
-        archived: 'Archived',
-        all: 'All',
-        semester: 'Semester',
-        priority: 'Priority',
-        status: 'Status',
-        feed: 'Announcements',
-        empty: 'No matching announcements',
-        emptyDescription: 'Create the first notice or change the filters to see another record.',
-        edit: 'Edit',
-        archive: 'Archive',
-        restore: 'Restore',
-        history: 'Change history',
-        reason: 'Reason for change',
-        reasonHint: 'The reason is stored with the history so other administrators can follow the decision.',
-        save: 'Save changes',
-        createSave: 'Publish announcement',
-        cancel: 'Cancel',
-        close: 'Close',
-        preview: 'Role preview',
-        previewStudent: 'Student',
-        previewLecturer: 'Lecturer',
-        updated: 'Updated',
-        schedule: 'Visibility schedule',
-        audience: 'Audience',
-        global: 'Campus-wide',
-        targeted: 'Choose specific groups',
-        targetYears: 'Student years',
-        targetYearsHint: 'Enter years separated by commas. Leave empty for every year.',
-        section: 'Class section',
-        lecturer: 'Responsible lecturer',
-        noSelection: 'Not assigned',
-        selectionUnavailable: 'Academic item is no longer in the catalogue',
-        sectionHint: 'Choose a class section to limit the notice to that class.',
-        lecturerHint: 'Optionally limit the notice to a lecturer’s assigned class.',
-        originalAuthor: 'Original author is preserved',
-        revision: 'Update',
-        publishAt: 'Starts showing',
-        expiresAt: 'Stops showing',
-        noEnd: 'No end date',
-        required: 'Required',
-        unsavedTitle: 'Unsaved draft',
-        unsavedMessage: 'Close the editor and discard the changes you are entering?',
-        archiveTitle: 'Archive announcement?',
-        restoreTitle: 'Restore announcement?',
-        archiveMessage: 'The notice will leave student and lecturer feeds until it is restored.',
-        restoreMessage: 'The notice returns to draft and must be reviewed again before it can appear in feeds.',
-        confirmArchive: 'Archive',
-        confirmRestore: 'Restore',
-        changeReason: 'Enter a reason to continue.',
-        missingRequired: 'Add a title and content.',
-        missingAudience: 'Choose at least one audience group or enable Campus-wide.',
-        invalidYears: 'Student years must be positive integers separated by commas.',
-        invalidDates: 'The end date must be after the start date.',
-        contentTooLong: (excess: number, limit: number) =>
-          `The content exceeds the ${limit.toLocaleString('en-US')} character limit by ${excess.toLocaleString('en-US')} characters. Shorten the text or remove an image before saving.`,
-        conflict: 'This record changed. Refresh and retry so newer work is not overwritten.',
-        archivedEdit: 'This notice is archived. Restore it before editing.',
-        genericError: 'The action could not be completed. Try again in a moment.',
-        created: 'Announcement published.',
-        saved: 'Changes saved.',
-        transitioned: 'Announcement status updated.',
-        historyUnavailable: 'Change history is not available right now.',
-        historyEmpty: 'No changes have been recorded yet.',
-        noFieldChange: 'No visible details changed in this entry.',
-        changedFields: 'What changed',
-        before: 'Before',
-        after: 'After',
-        actor: 'Changed by',
-        version: 'Change',
-        statusArchived: 'Archived',
-        statusVisible: 'Visible',
-        notVisible: 'Not visible for this role',
-        visible: 'Will be visible for this role',
-        studentYear: 'Preview student year',
-        loading: 'Loading announcements',
-        referenceUnavailable: 'Some academic lists are not ready; content and audience can still be saved.',
-        page: (current: number, total: number) => `Page ${current} of ${total}`,
-      };
 
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
@@ -708,7 +539,11 @@ export default function AdminAnnouncementsPage() {
     // the request: this surface authors through an editor with no per-image cap, so
     // the document length is the only bound on what it can compose.
     const overflow = findAnnouncementLengthViolation(draft.content);
-    if (overflow) return copy.contentTooLong(overflow.excessChars, overflow.limit);
+    if (overflow) {
+      return copy.contentTooLong
+        .replace('{limit}', () => formatNumber(overflow.limit))
+        .replace('{excess}', () => formatNumber(overflow.excessChars));
+    }
     if (!draft.isGlobal && draft.targetRoles.length === 0) return copy.missingAudience;
     if (parseYears(draft.targetYears).invalid) return copy.invalidYears;
     if (draft.publishAt && draft.expiresAt) {
@@ -869,23 +704,7 @@ export default function AdminAnnouncementsPage() {
     previewLecturer?.user ? `${previewLecturer.user.lastName ?? ''} ${previewLecturer.user.firstName ?? ''}`.trim() : '',
   ].filter(Boolean);
 
-  const historyFieldLabel = (field: HistoryField) => {
-    const labels: Record<HistoryField, [string, string]> = {
-      title: ['Tiêu đề', 'Title'],
-      content: ['Nội dung', 'Content'],
-      priority: ['Mức ưu tiên', 'Priority'],
-      isGlobal: ['Đối tượng', 'Audience'],
-      targetRoles: ['Nhóm nhận', 'Audience groups'],
-      targetYears: ['Năm học', 'Student years'],
-      publishAt: ['Bắt đầu hiển thị', 'Starts showing'],
-      expiresAt: ['Ngừng hiển thị', 'Stops showing'],
-      semesterId: ['Học kỳ', 'Semester'],
-      sectionId: ['Lớp học phần', 'Class section'],
-      lecturerId: ['Giảng viên', 'Lecturer'],
-      archivedAt: ['Trạng thái', 'Status'],
-    };
-    return labels[field][vi ? 0 : 1];
-  };
+  const historyFieldLabel = (field: HistoryField) => copy.historyFields[field];
 
   const historyValue = (
     field: HistoryField,
@@ -1003,16 +822,16 @@ export default function AdminAnnouncementsPage() {
                     })}
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground" aria-live="polite">{copy.page(page, totalPages)}</p>
+                <p className="text-sm text-muted-foreground" aria-live="polite">{formatPageSummary(page, totalPages)}</p>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <label htmlFor="announcement-filter-search" className="mb-1 block text-sm font-medium text-foreground">{vi ? 'Tìm kiếm' : 'Search'}</label>
+                  <label htmlFor="announcement-filter-search" className="mb-1 block text-sm font-medium text-foreground">{copy.searchLabel}</label>
                   <Input
                     id="announcement-filter-search"
-                    aria-label={vi ? 'Tìm kiếm' : 'Search'}
+                    aria-label={copy.searchLabel}
                     value={searchInput}
-                    placeholder={vi ? 'Tiêu đề, nội dung, môn học, giảng viên…' : 'Title, content, course, lecturer…'}
+                    placeholder={copy.searchPlaceholder}
                     onChange={(event) => setSearchInput(event.target.value)}
                   />
                 </div>
@@ -1042,13 +861,13 @@ export default function AdminAnnouncementsPage() {
           ) : null}
 
           {error ? (
-            <ErrorState title={vi ? 'Không thể tải thông báo' : 'Announcements unavailable'} description={error} onRetry={() => void fetchAnnouncements()} />
+            <ErrorState title={copy.loadUnavailableTitle} description={error} onRetry={() => void fetchAnnouncements()} />
           ) : isLoading ? (
             <LoadingState label={copy.loading} />
           ) : orderedItems.length === 0 ? (
             <EmptyState icon={Bell} title={copy.empty} description={copy.emptyDescription} action={<Button onClick={openCreate}>{copy.create}</Button>} />
           ) : (
-            <AdminTableCard title={copy.feed} contentClassName="space-y-4" footer={<AdminPaginationFooter summary={copy.page(page, totalPages)} page={page} totalPages={totalPages} previousLabel={vi ? 'Trước' : 'Previous'} nextLabel={vi ? 'Sau' : 'Next'} onPrevious={() => setPage((current) => Math.max(1, current - 1))} onNext={() => setPage((current) => Math.min(totalPages, current + 1))} className="mt-0" />}>
+            <AdminTableCard title={copy.feed} contentClassName="space-y-4" footer={<AdminPaginationFooter summary={formatPageSummary(page, totalPages)} page={page} totalPages={totalPages} previousLabel={copy.previousPage} nextLabel={copy.nextPage} onPrevious={() => setPage((current) => Math.max(1, current - 1))} onNext={() => setPage((current) => Math.min(totalPages, current + 1))} className="mt-0" />}>
               {orderedItems.map((item) => {
                 const updated = announcementIsUpdated(item);
                 const tone = statusToneClass(announcementPriorityTone(item.priority));
@@ -1152,11 +971,11 @@ export default function AdminAnnouncementsPage() {
           <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void save(); }}>
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-5">
-                <AdminFormSection title={vi ? 'Nội dung chính' : 'Core content'} description={vi ? 'Giữ tiêu đề ngắn gọn và nội dung dễ đọc trên mọi vai trò.' : 'Keep the title concise and the message readable for every role.'}>
-                  <AdminFormField label={`${vi ? 'Tiêu đề' : 'Title'} · ${copy.required}`}>
+                <AdminFormSection title={copy.coreContentTitle} description={copy.coreContentDescription}>
+                  <AdminFormField label={`${copy.titleLabel} · ${copy.required}`}>
                     <Input autoFocus value={draft.title} maxLength={240} required onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
                   </AdminFormField>
-                  <AdminFormField label={`${vi ? 'Nội dung' : 'Content'} · ${copy.required}`} description={vi ? 'Nội dung cập nhật ngay trên bảng tin; hỗ trợ trình soạn thảo TinyMCE WYSIWYG chuyên sâu hoặc Markdown bảng biểu, liên kết và hộp ghi chú callout.' : 'Changes appear in the feed immediately; supports TinyMCE visual editor or Markdown with tables and callouts.'}>
+                  <AdminFormField label={`${copy.contentLabel} · ${copy.required}`} description={copy.contentDescription}>
                     <div className="mb-2 flex items-center justify-between border-b border-border/60 pb-2">
                       <div className="inline-flex rounded-lg border border-border/80 bg-muted/40 p-0.5 text-xs">
                         <button
@@ -1170,7 +989,7 @@ export default function AdminAnnouncementsPage() {
                           )}
                         >
                           <Sparkles aria-hidden className="mr-1 inline size-3.5" />
-                          {vi ? 'Trực quan TinyMCE' : 'TinyMCE Visual'}
+                          {copy.tinyMceLabel}
                         </button>
                         <button
                           type="button"
@@ -1183,13 +1002,13 @@ export default function AdminAnnouncementsPage() {
                           )}
                         >
                           <FileText aria-hidden className="mr-1 inline size-3.5" />
-                          {vi ? 'Markdown & Khối' : 'Markdown & Blocks'}
+                          {copy.markdownLabel}
                         </button>
                       </div>
                       <span className="text-[11px] text-muted-foreground">
                         {editorEngine === 'tinymce'
-                          ? (vi ? 'Chuẩn xuất bản học thuật HCMUTE' : 'HCMUTE Academic Publishing')
-                          : (vi ? 'Hỗ trợ phím tắt và mẫu nhanh' : 'Keyboard shortcuts & templates')}
+                          ? (copy.tinyMceHint)
+                          : (copy.markdownHint)}
                       </span>
                     </div>
 
@@ -1202,9 +1021,7 @@ export default function AdminAnnouncementsPage() {
                           locale={locale}
                           height={360}
                           placeholder={
-                            vi
-                              ? 'Soạn thảo nội dung thông báo chuẩn học thuật HCMUTE (hỗ trợ bảng biểu, định dạng, danh sách)...'
-                              : 'Compose academic announcement body...'
+                            copy.tinyMcePlaceholder
                           }
                         />
                       </div>
@@ -1216,13 +1033,13 @@ export default function AdminAnnouncementsPage() {
                         onChange={(newContent) => setDraft((current) => ({ ...current, content: newContent }))}
                         locale={locale}
                         minHeight="220px"
-                        placeholder={vi ? 'Soạn thảo nội dung thông báo... (Hỗ trợ tiêu đề, in đậm, bảng biểu, ghi chú khẩn)' : 'Compose announcement body... (Supports headings, bold, tables, alert callouts)'}
+                        placeholder={copy.markdownPlaceholder}
                       />
                     </div>
                   </AdminFormField>
                 </AdminFormSection>
 
-                <AdminFormSection title={copy.audience} description={vi ? 'Chọn Toàn trường hoặc nhóm cụ thể. Xem trước bên cạnh sẽ phản ánh lựa chọn này.' : 'Choose Campus-wide or specific groups. The preview reflects this choice.'}>
+                <AdminFormSection title={copy.audience} description={copy.audienceDescription}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label htmlFor="announcement-editor-priority" className="mb-1 block text-sm font-medium text-foreground">{copy.priority}</label>
@@ -1269,11 +1086,11 @@ export default function AdminAnnouncementsPage() {
                     </fieldset>
                   ) : null}
                   <AdminFormField label={copy.targetYears} description={copy.targetYearsHint}>
-                    <Input inputMode="numeric" value={draft.targetYears} placeholder={vi ? 'Ví dụ: 1, 2, 3' : 'For example: 1, 2, 3'} onChange={(event) => setDraft((current) => ({ ...current, targetYears: event.target.value }))} />
+                    <Input inputMode="numeric" value={draft.targetYears} placeholder={copy.targetYearsPlaceholder} onChange={(event) => setDraft((current) => ({ ...current, targetYears: event.target.value }))} />
                   </AdminFormField>
                 </AdminFormSection>
 
-                <AdminFormSection title={vi ? 'Phạm vi học vụ' : 'Academic scope'} description={vi ? 'Các lựa chọn này giúp thông báo đi đúng học kỳ, lớp và giảng viên.' : 'These choices keep the notice aligned with a semester, class, and lecturer.'}>
+                <AdminFormSection title={copy.academicScopeTitle} description={copy.academicScopeDescription}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label htmlFor="announcement-editor-semester" className="mb-1 block text-sm font-medium text-foreground">{copy.semester}</label>
@@ -1294,7 +1111,7 @@ export default function AdminAnnouncementsPage() {
                   <p className="text-sm text-muted-foreground">{copy.sectionHint} {copy.lecturerHint}</p>
                 </AdminFormSection>
 
-                <AdminFormSection title={copy.schedule} description={vi ? 'Bỏ trống ngày kết thúc nếu thông báo không có hạn.' : 'Leave the end date empty when the notice has no expiry.'}>
+                <AdminFormSection title={copy.schedule} description={copy.scheduleDescription}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <AdminFormField label={copy.publishAt}>
                       <Input type="datetime-local" value={draft.publishAt} onChange={(event) => setDraft((current) => ({ ...current, publishAt: event.target.value }))} />
@@ -1322,7 +1139,7 @@ export default function AdminAnnouncementsPage() {
                       <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
                       <CardTitle>{copy.preview}</CardTitle>
                     </div>
-                    <CardDescription>{vi ? 'Kiểm tra nhanh nội dung sẽ xuất hiện với từng vai trò.' : 'Check how the notice will appear for each role.'}</CardDescription>
+                    <CardDescription>{copy.previewDescription}</CardDescription>
                     <div className="mt-3 grid grid-cols-2 gap-2" role="tablist" aria-label={copy.preview}>
                       {(['STUDENT', 'LECTURER'] as const).map((role, roleIndex) => (
                         <button key={role} ref={previewRoleTabs.tabRef(role)} type="button" role="tab" aria-selected={previewRole === role} tabIndex={previewRoleTabs.tabIndex(role)} onKeyDown={(event) => previewRoleTabs.onKeyDown(event, roleIndex)} className={`min-h-11 rounded-md border px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${previewRole === role ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background text-foreground hover:bg-secondary'}`} onClick={() => setPreviewRole(role)}>
@@ -1345,7 +1162,7 @@ export default function AdminAnnouncementsPage() {
                       <div className="mt-3">
                         <RichContentRenderer
                           content={draft.content}
-                          fallbackText={vi ? 'Nội dung xem trước sẽ hiển thị tại đây.' : 'Preview content will appear here.'}
+                          fallbackText={copy.previewFallback}
                         />
                       </div>
                       {previewMeta.length > 0 ? <p className="mt-3 text-xs text-muted-foreground">{previewMeta.join(' · ')}</p> : null}
@@ -1364,7 +1181,7 @@ export default function AdminAnnouncementsPage() {
             <div className="sticky bottom-4 z-10 -mx-5 bg-card px-5">
               <AdminDialogFooter className="border-t border-border/70 pt-4">
                 <Button type="button" variant="outline" onClick={closeModal} disabled={busy}>{copy.cancel}</Button>
-                <Button type="submit" disabled={busy}>{busy ? (vi ? 'Đang lưu…' : 'Saving…') : editorMode === 'edit' ? copy.save : copy.createSave}</Button>
+                <Button type="submit" disabled={busy}>{busy ? (copy.saving) : editorMode === 'edit' ? copy.save : copy.createSave}</Button>
               </AdminDialogFooter>
             </div>
           </form>
@@ -1415,7 +1232,7 @@ export default function AdminAnnouncementsPage() {
               <Button type="button" variant="outline" onClick={closeModal} disabled={busy}>{copy.cancel}</Button>
               <Button type="submit" disabled={busy}>
                 {busy
-                  ? vi ? 'Đang xử lý…' : 'Working…'
+                  ? copy.working
                   : lifecycle.action === 'archive'
                     ? copy.confirmArchive
                     : lifecycle.action === 'return'
@@ -1445,7 +1262,7 @@ export default function AdminAnnouncementsPage() {
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-semibold text-foreground">{announcementHistoryActionLabel(entry.action, locale)}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{copy.actor}: {entry.actorLabel?.trim() || actorDescription(locale)} · {copy.version} {entry.version} · {formatDateTime(entry.createdAt)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{copy.actor}: {entry.actorLabel?.trim() || copy.actorFallback} · {copy.version} {entry.version} · {formatDateTime(entry.createdAt)}</p>
                         </div>
                         <span className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">{announcementHistoryReason(entry.reason, entry.action, locale)}</span>
                       </div>
@@ -1481,7 +1298,7 @@ export default function AdminAnnouncementsPage() {
         <Modal
           isOpen
           onClose={closeModal}
-          title={vi ? 'Sắp xếp thứ tự hiển thị thông báo' : 'Reorder Announcement Feed'}
+          title={copy.reorderTitle}
           closeLabel={copy.cancel}
           className="max-w-2xl"
         >
@@ -1541,9 +1358,7 @@ export default function AdminAnnouncementsPage() {
                           <span>•</span>
                           <span>
                             {item.isGlobal
-                              ? vi
-                                ? 'Toàn trường'
-                                : 'All'
+                              ? copy.reorderGlobal
                               : announcementAudienceLabel(item, locale)}
                           </span>
                         </div>

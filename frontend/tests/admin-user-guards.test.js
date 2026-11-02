@@ -18,6 +18,18 @@ async function loadGuardsModule() {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
 
+function loadFragment(relativePath) {
+  const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+  const output = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
+const { adminPagesEn } = loadFragment('src/i18n/messages-admin-pages.ts');
+
 test('student and lecturer accounts are manageable by a plain administrator', async () => {
   const { isPrivilegedAccountTarget } = await loadGuardsModule();
   assert.equal(isPrivilegedAccountTarget(['STUDENT']), false);
@@ -110,7 +122,7 @@ async function submitExistingUser({ roles, nextRole, self = false, needsLecturer
     setIsSaving: noop, setFieldErrors: value => { if (Object.keys(value).length) errors.push(value); },
     usersApi: { update: async (id, payload) => updates.push({ id, payload }) },
     toast: { success: noop, error: noop },
-    copy: { updated: 'Updated', saveFailed: 'Failed', errors: { employeeIdRequired: 'Employee ID required', departmentRequired: 'Department required' } },
+    copy: adminPagesEn.users,
     locale: 'en', departments: [], curricula: [], closeFormModal: noop, fetchUsers: async () => {},
     campusErrorMessage: () => 'Failed', messages: { common: { campusErrors: {} } },
   };
@@ -154,7 +166,10 @@ test('explicit account role change still sends the selected conversion', async (
 test('role conversion missing official lecturer fields stays blocked before update', async () => {
   const { updates, errors } = await submitExistingUser({ roles: ['STUDENT'], nextRole: 'LECTURER', needsLecturerProfile: true });
   assert.deepEqual(updates, []);
-  assert.deepEqual(errors, [{ employeeId: 'Employee ID required', departmentId: 'Department required' }]);
+  assert.deepEqual(errors, [{
+    employeeId: adminPagesEn.users.errors.employeeIdRequired,
+    departmentId: adminPagesEn.users.errors.departmentRequired,
+  }]);
 });
 
 test('self role change stays blocked before update', async () => {

@@ -412,3 +412,17 @@ test('registration page diagnostics oracle permits academic course names but blo
     assert.match(denied, INTERNAL_DIAGNOSTICS, `internal diagnostic text must be flagged: ${denied}`);
   }
 });
+
+test('home identity tabs follow the WAI-ARIA tabs keyboard contract', () => {
+  const board = read('src/components/home/HomeIdentityBoard.tsx');
+
+  assert.match(board, /useRovingTabs/);
+  assert.match(board, /role="tablist"/);
+  assert.match(board, /role="tab"/);
+  assert.match(board, /aria-selected=\{selected\}/);
+  assert.match(board, /tabIndex=\{identityTabs\.tabIndex\(String\(index\)\)\}/);
+  assert.match(board, /onKeyDown=\{\(event\) => identityTabs\.onKeyDown\(event, index\)\}/);
+  assert.match(board, /aria-controls="home-identity-panel"/);
+  assert.match(board, /role="tabpanel"/);
+  assert.match(board, /aria-labelledby=\{`home-identity-tab-\$\{activeIndex\}`\}/);
+});

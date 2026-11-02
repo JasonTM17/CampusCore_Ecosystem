@@ -14,8 +14,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 // Render the real module under test with its imports replaced by stubs; the
 // same TypeScript transpile harness the thesis council tests use.
-function loadModule(relative, aliases = {}) {
-  const output = ts.transpileModule(read(relative), {
+function loadModule(relative, aliases = {}, sourceRoot = root) {
+  const output = ts.transpileModule(fs.readFileSync(path.join(sourceRoot, relative), 'utf8'), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
@@ -324,6 +324,7 @@ test('a stale users completion cannot overwrite the newer filtered list', async 
   const first = deferred();
   let call = 0;
   const fetchUsers = pageFunction('app/admin/users/page.tsx', 'fetchUsers', {
+    copy: { forbidden: 'forbidden', loadFailed: 'failed' },
     locale: 'en',
     page: 1,
     search: '',
@@ -352,13 +353,18 @@ test('a stale users completion cannot overwrite the newer filtered list', async 
 
 // ---------- lecturer grading section-scoped guards ----------
 
-const gradesCopy = { loadFailed: 'LOAD_FAILED', missingSection: 'MISSING', saved: 'SAVED' };
+const { teachingPagesEn } = loadModule(
+  'src/i18n/messages-teaching-pages.ts',
+  {},
+  path.resolve(__dirname, '..'),
+);
+const gradesCopy = teachingPagesEn.gradeEntry;
 
 function gradingDeps(overrides, sharedCalls) {
   const calls = sharedCalls || recorder();
   const deps = {
     sectionId: 'section-a',
-    copy: gradesCopy,
+    gradeEntry: gradesCopy,
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_err, _dict, fallback) => fallback,
     publishGuard: { current: { sectionId: '', ready: false } },
@@ -503,7 +509,7 @@ test('a save completing after navigation cannot refetch or touch the new sheet',
     sectionsApi: { updateSectionGrades: async () => { await new Promise((r) => setImmediate(r)); } },
     fetchSectionGrades: async (...args) => { refetch.push(args); },
     toast: { success: () => {}, warning: () => {}, error: () => {} },
-    copy: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
+    gradeEntry: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
     formatNumber: (n) => String(n),
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_e, _d, f) => f,
@@ -541,7 +547,7 @@ function saveDeps(shared, overrides = {}) {
     sectionsApi: { updateSectionGrades: async () => {} },
     fetchSectionGrades: async () => {},
     toast: { success: () => {}, warning: () => {}, error: () => {} },
-    copy: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
+    gradeEntry: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
     formatNumber: (n) => String(n),
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_e, _d, f) => f,
@@ -717,7 +723,7 @@ test('a publish confirmed after navigation must not reach the API', async () => 
     currentSectionRef: shared.currentSectionRef,
     gradeMutationRef: shared.gradeMutationRef,
     confirm: () => confirmGate.promise,
-    copy: { ...gradesCopy, publishTitle: 'T', publishMessage: 'M', publishGrades: 'P', published: 'DONE', publishFailed: 'FAIL' },
+    gradeEntry: { ...gradesCopy, publishTitle: 'T', publishMessage: 'M', publishGrades: 'P', published: 'DONE', publishFailed: 'FAIL' },
     sectionsApi: { publishSectionGrades: async (id) => { publishes.push(id); } },
     fetchSectionGrades: async () => {},
     toast: { success: calls.record('success'), error: calls.record('toastError') },
@@ -845,6 +851,60 @@ test('the review queue pages past item 50 and appends only unseen rows', async (
   const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
   assert.match(source, /fetchQueue\(queuePage \+ 1\)/, 'the load-more control requests the next page');
   assert.match(source, /hasNextPage\(queuePage, queueTotalPages\)/, 'the control appears only while older pages exist');
+});
+
+test('a slower lecturer feed response cannot replace the newest feed request', async () => {
+  const requests = [deferred(), deferred()];
+  let requestIndex = 0;
+  let items = [];
+  let currentEpoch = 0;
+  const feedEpoch = {
+    begin() { currentEpoch += 1; return currentEpoch; },
+    isCurrent(epoch) { return epoch === currentEpoch; },
+    invalidate() { currentEpoch += 1; },
+  };
+  const fetchFeed = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchFeed', {
+    announcementsApi: { getMy: () => requests[requestIndex++].promise },
+    copy: { loadFailed: 'failed' },
+    feedEpoch,
+    feedAccountId: 'lecturer-a',
+    feedAccountIdRef: { current: 'lecturer-a' },
+    setIsLoading: () => {},
+    setError: () => {},
+    setIsLoadingMore: () => {},
+    setLoadMoreError: () => {},
+    setItems: (update) => { items = update(items); },
+    setTotalPages: () => {},
+    setPage: () => {},
+  });
+
+  const olderRequest = fetchFeed();
+  const newerRequest = fetchFeed();
+  requests[1].resolve({ data: [{ id: 'new' }], meta: { totalPages: 1 } });
+  await newerRequest;
+  requests[0].resolve({ data: [{ id: 'old' }], meta: { totalPages: 1 } });
+  await olderRequest;
+
+  assert.deepEqual(items, [{ id: 'new' }],
+    'an older announcement response must not overwrite the latest feed');
+});
+
+test('the lecturer feed epoch retires when the page unmounts', () => {
+  let invalidations = 0;
+  const setup = pageEffect(
+    'app/dashboard/lecturer/announcements/page.tsx',
+    'feedEpoch.invalidate()',
+    { feedEpoch: { invalidate: () => { invalidations += 1; } } },
+  );
+  const cleanup = setup();
+  assert.equal(typeof cleanup, 'function');
+  cleanup();
+  assert.equal(invalidations, 1);
+});
+
+test('lecturer announcement page-local state is keyed to the authenticated user', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /<LecturerAnnouncementsWorkspace key=\{auth\.user\?\.id \?\? 'anonymous'\} auth=\{auth\} \/>/);
 });
 
 test('editor publish ignores a re-entrant invocation while a publish is in flight', async () => {

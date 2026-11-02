@@ -70,7 +70,8 @@ export default function StudentAnnouncementsPage() {
   const isAdmin = Boolean(
     user?.roles?.some((role) => role === 'ADMIN' || role === 'SUPER_ADMIN'),
   );
-  const { locale, formatDateTime, href } = useI18n();
+  const { locale, formatDateTime, href, messages } = useI18n();
+  const announcementMessages = messages.studentPages.announcements;
   const [items, setItems] = useState<AnnouncementRecord[]>([]);
   const orderedItems = useOrderedPosts(items);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,73 +89,6 @@ export default function StudentAnnouncementsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('magazine');
   const [readingNotice, setReadingNotice] = useState<AnnouncementRecord | null>(null);
-
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM • CỔNG THÔNG TIN HỌC VỤ',
-          title: 'Bảng Tin & Thông Báo Đại Học',
-          tabLabel: 'Thông báo',
-          description:
-            'Kênh tin tức học thuật, nghiên cứu, hướng nghiệp và công văn học vụ chính thức của Nhà trường.',
-          refresh: 'Làm mới',
-          loading: 'Đang tải thông báo học vụ',
-          unavailableTitle: 'Thông báo chưa sẵn sàng',
-          emptyTitle: 'Không tìm thấy thông báo phù hợp',
-          emptyDescription:
-            'Không có thông báo nào khớp với danh mục hoặc từ khóa tìm kiếm của bạn.',
-          returnDashboard: 'Quay lại trang tổng quan',
-          recentNotices: 'Bảng Tin Thông Báo Chính Thức',
-          semesterPrefix: 'Học kỳ',
-          sectionPrefix: 'Lớp học phần',
-          loadFailed: 'Hiện chưa thể tải thông báo từ máy chủ đào tạo.',
-          searchPlaceholder: 'Tìm kiếm tin tức, công văn, sự kiện, học bổng...',
-          filterAll: 'Tất cả tin bài',
-          filterGlobal: '🌐 Thông báo toàn trường',
-          filterStudentOnly: '🎓 Dành riêng Sinh viên',
-          filterRegistration: 'Đăng ký môn học',
-          filterThesis: 'Đề tài & Luận văn',
-          filterScholarship: 'Học bổng & ĐRL',
-          filterExam: 'Thi cử & Khảo thí',
-          readFull: 'Đọc toàn văn',
-          viewMagazine: 'Dạng Bản tin',
-          viewDispatch: 'Dạng Công văn',
-          loadMore: 'Tải thêm thông báo',
-          loadingMore: 'Đang tải thêm…',
-          loadMoreFailed: 'Chưa tải thêm được — nhấn lại để thử.',
-        }
-      : {
-          eyebrow: 'HCMUTE • ACADEMIC AFFAIRS DEPARTMENT',
-          title: 'Campus News & Academic Notices',
-          tabLabel: 'Notices',
-          description:
-            'Official channel for research news, career opportunities, scholarships, and administrative dispatches.',
-          refresh: 'Refresh',
-          loading: 'Loading announcements',
-          unavailableTitle: 'Announcements unavailable',
-          emptyTitle: 'No matching notices found',
-          emptyDescription:
-            'There are no announcements matching your selected category or search query.',
-          returnDashboard: 'Return to dashboard',
-          recentNotices: 'Official Notice Feed',
-          semesterPrefix: 'Semester',
-          sectionPrefix: 'Class',
-          loadFailed: 'Could not load notices from academic server right now.',
-          searchPlaceholder: 'Search news, dispatches, events, scholarships...',
-          filterAll: 'All notices',
-          filterGlobal: '🌐 Campus-wide',
-          filterStudentOnly: '🎓 Student dedicated',
-          filterRegistration: 'Course registration',
-          filterThesis: 'Thesis & Topics',
-          filterScholarship: 'Scholarship & Conduct',
-          filterExam: 'Exams & Grading',
-          readFull: 'Read full notice',
-          viewMagazine: 'Magazine Feed',
-          viewDispatch: 'Official Dispatches',
-          loadMore: 'Load more notices',
-          loadingMore: 'Loading more…',
-          loadMoreFailed: 'Could not load more — press again to retry.',
-        };
 
   const fetchFeed = useCallback(async (nextPage = 1) => {
     if (nextPage === 1) {
@@ -186,7 +120,7 @@ export default function StudentAnnouncementsPage() {
         // A failed load must never be papered over with fabricated official
         // notices: surface the real error and let the student retry.
         setItems([]);
-        setError(copy.loadFailed);
+        setError(announcementMessages.loadFailed);
       } else {
         setLoadMoreError(true);
       }
@@ -197,7 +131,7 @@ export default function StudentAnnouncementsPage() {
         setIsLoadingMore(false);
       }
     }
-  }, [copy.loadFailed]);
+  }, [announcementMessages.loadFailed]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -300,7 +234,7 @@ export default function StudentAnnouncementsPage() {
   }, [orderedItems, selectedCategory, searchQuery]);
 
   if (authLoading) {
-    return <LoadingState label={copy.loading} />;
+    return <LoadingState label={announcementMessages.loading} />;
   }
 
   if (isForbidden || !hasAccess) {
@@ -314,10 +248,10 @@ export default function StudentAnnouncementsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
-        title={copy.title}
-        tabLabel={copy.tabLabel}
-        description={copy.description}
+        eyebrow={<SectionEyebrow>{announcementMessages.eyebrow}</SectionEyebrow>}
+        title={announcementMessages.title}
+        tabLabel={announcementMessages.tabLabel}
+        description={announcementMessages.description}
         actions={
           <div className="flex items-center gap-2">
             {/* View Mode Toggle Button */}
@@ -331,12 +265,12 @@ export default function StudentAnnouncementsPage() {
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70',
                 )}
-                title={copy.viewMagazine}
-                aria-label={copy.viewMagazine}
+                title={announcementMessages.viewMagazine}
+                aria-label={announcementMessages.viewMagazine}
                 aria-pressed={viewMode === 'magazine'}
               >
                 <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">{copy.viewMagazine}</span>
+                <span className="hidden sm:inline">{announcementMessages.viewMagazine}</span>
               </button>
               <button
                 type="button"
@@ -347,12 +281,12 @@ export default function StudentAnnouncementsPage() {
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70',
                 )}
-                title={copy.viewDispatch}
-                aria-label={copy.viewDispatch}
+                title={announcementMessages.viewDispatch}
+                aria-label={announcementMessages.viewDispatch}
                 aria-pressed={viewMode === 'dispatch'}
               >
                 <List className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">{copy.viewDispatch}</span>
+                <span className="hidden sm:inline">{announcementMessages.viewDispatch}</span>
               </button>
             </div>
 
@@ -367,7 +301,7 @@ export default function StudentAnnouncementsPage() {
                 className={`mr-2 h-4 w-4 motion-reduce:animate-none ${isLoading ? 'animate-spin' : ''}`}
                 aria-hidden="true"
               />
-              {copy.refresh}
+              {announcementMessages.refresh}
             </Button>
           </div>
         }
@@ -379,17 +313,13 @@ export default function StudentAnnouncementsPage() {
           <div className="md:col-span-8 space-y-2.5">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
               <Megaphone className="h-3.5 w-3.5" />
-              <span>{locale === 'vi' ? 'TRUNG TÂM THÔNG BÁO CHÍNH THỨC HCMUTE' : 'HCMUTE OFFICIAL NOTIFICATION CENTER'}</span>
+              <span>{announcementMessages.banner.eyebrow}</span>
             </div>
             <h2 className="text-xl font-bold text-foreground sm:text-2xl">
-              {locale === 'vi'
-                ? 'Thông Báo Học Vụ, Kế Hoạch Đào Tạo & Khóa Luận'
-                : 'Academic Affairs, Course Registration & Thesis Bulletin'}
+              {announcementMessages.banner.title}
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground max-w-xl sm:text-sm">
-              {locale === 'vi'
-                ? 'Tất cả văn bản chỉ đạo, lịch đăng ký học phần, quyết định giao đề tài và hướng dẫn quy chế đào tạo được xác thực trực tiếp từ Phòng Đào tạo và các Khoa chuyên môn.'
-                : 'Official academic dispatches, semester schedules, thesis milestone approvals, and institutional regulations published directly by Academic Affairs and Academic Departments.'}
+              {announcementMessages.banner.description}
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted-foreground">
               <span className="flex items-center gap-1 font-semibold text-foreground">
@@ -399,7 +329,7 @@ export default function StudentAnnouncementsPage() {
               <span>•</span>
               <span className="flex items-center gap-1 text-status-success-foreground font-semibold">
                 <span className="h-2 w-2 rounded-full bg-status-success animate-pulse" />
-                {locale === 'vi' ? 'Kênh trực tuyến mở' : 'Active Channel'}
+                {announcementMessages.banner.channelOpen}
               </span>
             </div>
           </div>
@@ -409,7 +339,7 @@ export default function StudentAnnouncementsPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/banners/campus_academic_banner.jpg"
-                alt="HCMUTE Campus Banner"
+                alt={announcementMessages.banner.imageAlt}
                 width={1376}
                 height={768}
                 className="h-full w-full object-cover object-center"
@@ -417,7 +347,7 @@ export default function StudentAnnouncementsPage() {
             </picture>
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
             <div className="absolute bottom-2 left-3 rounded-md bg-background/80 px-2 py-0.5 text-[11px] font-bold text-foreground backdrop-blur-xs">
-              HCMUTE Campus Portal
+              {announcementMessages.banner.campusPortal}
             </div>
           </div>
         </div>
@@ -428,13 +358,13 @@ export default function StudentAnnouncementsPage() {
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              { id: 'ALL', label: copy.filterAll },
-              { id: 'GLOBAL', label: copy.filterGlobal },
-              { id: 'STUDENT_ONLY', label: copy.filterStudentOnly },
-              { id: 'REGISTRATION', label: copy.filterRegistration },
-              { id: 'THESIS', label: copy.filterThesis },
-              { id: 'SCHOLARSHIP', label: copy.filterScholarship },
-              { id: 'EXAM', label: copy.filterExam },
+              { id: 'ALL', label: announcementMessages.filterAll },
+              { id: 'GLOBAL', label: announcementMessages.filterGlobal },
+              { id: 'STUDENT_ONLY', label: announcementMessages.filterStudentOnly },
+              { id: 'REGISTRATION', label: announcementMessages.filterRegistration },
+              { id: 'THESIS', label: announcementMessages.filterThesis },
+              { id: 'SCHOLARSHIP', label: announcementMessages.filterScholarship },
+              { id: 'EXAM', label: announcementMessages.filterExam },
             ] as const
           ).map((tab) => (
             <button
@@ -459,8 +389,8 @@ export default function StudentAnnouncementsPage() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={copy.searchPlaceholder}
-            aria-label={copy.searchPlaceholder}
+            placeholder={announcementMessages.searchPlaceholder}
+            aria-label={announcementMessages.searchPlaceholder}
             className="h-9 rounded-lg pl-9 text-xs"
           />
         </div>
@@ -468,17 +398,17 @@ export default function StudentAnnouncementsPage() {
 
       {error && items.length === 0 ? (
         <ErrorState
-          title={copy.unavailableTitle}
+          title={announcementMessages.unavailableTitle}
           description={error}
           onRetry={() => void fetchFeed()}
         />
       ) : isLoading && items.length === 0 ? (
-        <LoadingState label={copy.loading} />
+        <LoadingState label={announcementMessages.loading} />
       ) : filteredNotices.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title={copy.emptyTitle}
-          description={copy.emptyDescription}
+          title={announcementMessages.emptyTitle}
+          description={announcementMessages.emptyDescription}
           action={
             <Button
               variant="outline"
@@ -488,7 +418,7 @@ export default function StudentAnnouncementsPage() {
               }}
               className="rounded-lg"
             >
-              {copy.filterAll}
+              {announcementMessages.filterAll}
             </Button>
           }
         />
@@ -526,7 +456,7 @@ export default function StudentAnnouncementsPage() {
         <div className="space-y-4">
           {filteredNotices.map((announcement) => {
             const isUrgent = announcement.priority === 'HIGH' || announcement.priority === 'URGENT';
-            const semesterLabel = formatAnnouncementSemester(announcement, locale, copy.semesterPrefix);
+            const semesterLabel = formatAnnouncementSemester(announcement, locale, announcementMessages.semesterPrefix);
             return (
               <article
                 key={announcement.id}
@@ -564,7 +494,7 @@ export default function StudentAnnouncementsPage() {
                       </span>
                       {announcementIsUpdated(announcement) ? (
                         <span className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                          {locale === 'vi' ? 'Đã cập nhật' : 'Updated'}
+                          {announcementMessages.banner.updated}
                         </span>
                       ) : null}
                     </div>
@@ -592,7 +522,7 @@ export default function StudentAnnouncementsPage() {
                         ) : null}
                         {announcementSectionLabel(announcement) ? (
                           <span className="rounded bg-secondary/70 px-2 py-0.5 font-medium">
-                            {copy.sectionPrefix}: {announcementSectionLabel(announcement)}
+                            {announcementMessages.sectionPrefix}: {announcementSectionLabel(announcement)}
                           </span>
                         ) : null}
                       </div>
@@ -608,15 +538,15 @@ export default function StudentAnnouncementsPage() {
                               router.push(href(`/admin/editor?editId=${encodeURIComponent(announcement.id)}`));
                             }}
                             className="h-7 px-2.5 text-[11px] gap-1 bg-status-info/10 text-status-info border-status-info/30 hover:bg-status-info/15 font-semibold"
-                            title={locale === 'vi' ? 'Chỉnh sửa trong Studio' : 'Edit in Studio'}
+                            title={announcementMessages.banner.editTitle}
                           >
                             <FileEdit className="h-3 w-3" />
-                            <span>{locale === 'vi' ? 'Chỉnh sửa' : 'Edit'}</span>
+                            <span>{announcementMessages.banner.edit}</span>
                           </Button>
                         )}
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary group-hover:underline">
                           <BookOpen className="h-3.5 w-3.5" />
-                          {copy.readFull}
+                          {announcementMessages.readFull}
                           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                         </span>
                       </div>
@@ -649,10 +579,10 @@ export default function StudentAnnouncementsPage() {
               className={`mr-2 h-4 w-4 motion-reduce:animate-none ${isLoadingMore ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
-            {isLoadingMore ? copy.loadingMore : copy.loadMore}
+            {isLoadingMore ? announcementMessages.loadingMore : announcementMessages.loadMore}
           </Button>
           {loadMoreError ? (
-            <p className="text-xs text-destructive" role="alert">{copy.loadMoreFailed}</p>
+            <p className="text-xs text-destructive" role="alert">{announcementMessages.loadMoreFailed}</p>
           ) : null}
         </div>
       ) : null}

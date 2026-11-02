@@ -98,21 +98,25 @@ export function StudentLearningPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [workAssignment, setWorkAssignment] = useState<LearningAssignment | null>(null);
+  const sectionsListEpoch = useRef(createRequestEpoch()).current;
   const sectionEpoch = useRef(createRequestEpoch()).current;
 
   const loadSections = useCallback(async () => {
+    const epoch = sectionsListEpoch.begin();
     setIsLoading(true);
     setError('');
     try {
       const rows = await learningApi.mySections();
+      if (!sectionsListEpoch.isCurrent(epoch)) return;
       setSections(rows);
       setSectionId((current) => (rows.some((row) => row.sectionId === current) ? current : rows[0]?.sectionId ?? ''));
     } catch (cause) {
+      if (!sectionsListEpoch.isCurrent(epoch)) return;
       setError(friendlyError(copy, cause));
     } finally {
-      setIsLoading(false);
+      if (sectionsListEpoch.isCurrent(epoch)) setIsLoading(false);
     }
-  }, [copy]);
+  }, [copy, sectionsListEpoch]);
 
   const loadSection = useCallback(async (id: string) => {
     const epoch = sectionEpoch.begin();
@@ -139,6 +143,7 @@ export function StudentLearningPage() {
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
+  useEffect(() => () => { sectionsListEpoch.invalidate(); }, [sectionsListEpoch]);
   useEffect(() => () => { sectionEpoch.invalidate(); }, [sectionEpoch]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;

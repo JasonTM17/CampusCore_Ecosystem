@@ -6,6 +6,9 @@ import {
   attendanceGeofenceEn,
   attendanceGeofenceVi,
 } from '@/i18n/messages-attendance-geofence';
+import { teachingPagesEn, teachingPagesVi } from '@/i18n/messages-teaching-pages';
+import { adminPagesEn, adminPagesVi } from '@/i18n/messages-admin-pages';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 
 export const en = {
   common: {
@@ -2878,6 +2881,9 @@ export const en = {
   deanOverview: deanOverviewEn,
   content: contentEn,
   attendanceGeofence: attendanceGeofenceEn,
+  teachingPages: teachingPagesEn,
+  adminPages: adminPagesEn,
+  studentPages: studentPagesEn,
   attendance: {
     eyebrow: 'Student area',
     title: 'Attendance',
@@ -5891,6 +5897,9 @@ export const vi: I18nMessages = {
   deanOverview: deanOverviewVi,
   content: contentVi,
   attendanceGeofence: attendanceGeofenceVi,
+  teachingPages: teachingPagesVi,
+  adminPages: adminPagesVi,
+  studentPages: studentPagesVi,
   attendance: {
     eyebrow: 'Khu vực Sinh viên',
     title: 'Điểm danh',

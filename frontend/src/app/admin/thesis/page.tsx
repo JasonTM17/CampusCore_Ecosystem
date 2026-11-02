@@ -64,17 +64,25 @@ function getThesisErrorCode(error: unknown): string {
  * Round window timestamps follow the ACTIVE app locale, not the browser's:
  * a Vietnamese page must never render "9/15/2026, 7:00:00 AM".
  */
-function formatRoundWindow(locale: string, startIso: string, endIso: string): string {
-  const tag = locale === 'vi' ? 'vi-VN' : 'en-US';
-  const formatter = new Intl.DateTimeFormat(tag, {
+function formatRoundWindow(
+  formatDateTime: ReturnType<typeof useI18n>['formatDateTime'],
+  startIso: string,
+  endIso: string,
+): string {
+  const options: Intl.DateTimeFormatOptions = {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  });
-  return `${formatter.format(new Date(startIso))} → ${formatter.format(new Date(endIso))}`;
+  };
+  const startDate = new Date(startIso);
+  const endDate = new Date(endIso);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    throw new RangeError('Invalid time value');
+  }
+  return `${formatDateTime(startDate, options)} → ${formatDateTime(endDate, options)}`;
 }
 
 export default function AdminThesisPage() {
@@ -87,7 +95,7 @@ export default function AdminThesisPage() {
     isLoggingOut,
     isSuperAdmin,
   } = useAuth();
-  const { locale, messages } = useI18n();
+  const { formatDateTime, messages } = useI18n();
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
   const [groups, setGroups] = useState<ThesisGroup[]>([]);
@@ -460,12 +468,12 @@ export default function AdminThesisPage() {
   const transitionConfirmCopy = (
     action: 'open' | 'close' | 'publish' | 'open-proposals' | 'publish-results',
   ): string => {
-    const copy = messages.thesis.admin.transitionConfirm;
-    if (action === 'open-proposals') return copy.openProposals;
-    if (action === 'open') return copy.openRegistration;
-    if (action === 'close') return copy.closeRegistration;
-    if (action === 'publish') return copy.publishProposals;
-    return copy.publishResults;
+    const transitionCopy = messages.thesis.admin.transitionConfirm;
+    if (action === 'open-proposals') return transitionCopy.openProposals;
+    if (action === 'open') return transitionCopy.openRegistration;
+    if (action === 'close') return transitionCopy.closeRegistration;
+    if (action === 'publish') return transitionCopy.publishProposals;
+    return transitionCopy.publishResults;
   };
 
 
@@ -774,7 +782,7 @@ export default function AdminThesisPage() {
                         <div>
                           <CardTitle className="text-lg">{round.name}</CardTitle>
                           <CardDescription className="mt-1">
-                            {messages.thesis.admin.thesisTypeOptions[round.thesisType as keyof typeof messages.thesis.admin.thesisTypeOptions] ?? round.thesisType} · {formatRoundWindow(locale, round.registrationStart, round.registrationEnd)}
+                            {messages.thesis.admin.thesisTypeOptions[round.thesisType as keyof typeof messages.thesis.admin.thesisTypeOptions] ?? round.thesisType} · {formatRoundWindow(formatDateTime, round.registrationStart, round.registrationEnd)}
                           </CardDescription>
                         </div>
                       </div>
@@ -865,14 +873,14 @@ export default function AdminThesisPage() {
                             className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 hover:border-primary transition-all shadow-2xs"
                           >
                             <Archive className="h-3.5 w-3.5" />
-                            <span>{locale === 'vi' ? 'Kho lưu trữ luận án & báo cáo →' : 'Thesis & Report Archive →'}</span>
+                            <span>{messages.teachingPages.thesisLinks.archive}</span>
                           </LocalizedLink>
                           <LocalizedLink
                             href={`/dashboard/thesis?roundId=${round.id}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 py-1.5 text-xs font-semibold text-primary hover:bg-secondary/60 hover:border-primary/40 transition-all shadow-2xs"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
-                            <span>{locale === 'vi' ? 'Quản lý Đề tài & Nhóm trong Workspace →' : 'Manage Topics & Groups in Workspace →'}</span>
+                            <span>{messages.teachingPages.thesisLinks.workspaceTopics}</span>
                           </LocalizedLink>
                         </div>
                       </div>

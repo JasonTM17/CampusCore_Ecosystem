@@ -288,6 +288,9 @@ test('milestone 2: meta.defaults.keywords array length parity between en and vi'
     'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
     'messages-content': 'src/i18n/messages-content.ts',
     'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
+    'messages-teaching-pages': 'src/i18n/messages-teaching-pages.ts',
+    'messages-admin-pages': 'src/i18n/messages-admin-pages.ts',
+    'messages-student-pages': 'src/i18n/messages-student-pages.ts',
   };
   const customRequire = (id) => {
     const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));
@@ -490,6 +493,9 @@ test('the schedule message group carries both locales with the audited strings',
     'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
     'messages-content': 'src/i18n/messages-content.ts',
     'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
+    'messages-teaching-pages': 'src/i18n/messages-teaching-pages.ts',
+    'messages-admin-pages': 'src/i18n/messages-admin-pages.ts',
+    'messages-student-pages': 'src/i18n/messages-student-pages.ts',
   };
   const customRequire = (id) => {
     const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));
@@ -538,4 +544,87 @@ test('the schedule message group carries both locales with the audited strings',
   for (const key of ['catalogBannerBadge', 'topicDetailBannerBadge']) {
     assert.ok(VI.test(vi.thesis[key]), `vi.thesis.${key} must be Vietnamese, got: ${vi.thesis[key]}`);
   }
+});
+
+test('new page fragments are mounted by identity with recursive locale key parity', () => {
+  const ts = require('typescript');
+  const fragmentPaths = [
+    ['@/i18n/messages-thesis-workflow', 'src/i18n/messages-thesis-workflow.ts'],
+    ['@/i18n/messages-dean-overview', 'src/i18n/messages-dean-overview.ts'],
+    ['@/i18n/messages-content', 'src/i18n/messages-content.ts'],
+    ['@/i18n/messages-attendance-geofence', 'src/i18n/messages-attendance-geofence.ts'],
+    ['@/i18n/messages-teaching-pages', 'src/i18n/messages-teaching-pages.ts'],
+    ['@/i18n/messages-admin-pages', 'src/i18n/messages-admin-pages.ts'],
+    ['@/i18n/messages-student-pages', 'src/i18n/messages-student-pages.ts'],
+  ];
+  const fragments = new Map(fragmentPaths.map(([specifier, relativePath]) => {
+    const output = ts.transpileModule(read(relativePath), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+    const moduleRecord = { exports: {} };
+    Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+    return [specifier, moduleRecord.exports];
+  }));
+  const aliases = { '@/i18n/config': {} };
+  for (const [specifier, fragment] of fragments) aliases[specifier] = fragment;
+  const output = ts.transpileModule(read('src/i18n/messages.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const rootModule = { exports: {} };
+  const resolve = (specifier) =>
+    Object.hasOwn(aliases, specifier) ? aliases[specifier] : require(specifier);
+  Function('module', 'exports', 'require', output)(rootModule, rootModule.exports, resolve);
+  const { en, vi } = rootModule.exports;
+
+  const keyPaths = (value, prefix = '') => {
+    if (Array.isArray(value)) {
+      return value.flatMap((item, index) => keyPaths(item, `${prefix}[${index}]`)).sort();
+    }
+    if (value !== null && typeof value === 'object') {
+      return Object.entries(value)
+        .flatMap(([key, child]) => keyPaths(child, prefix ? `${prefix}.${key}` : key))
+        .sort();
+    }
+    return prefix ? [prefix] : [];
+  };
+  for (const [namespace, fragmentSpecifier] of [
+    ['teachingPages', '@/i18n/messages-teaching-pages'],
+    ['adminPages', '@/i18n/messages-admin-pages'],
+    ['studentPages', '@/i18n/messages-student-pages'],
+  ]) {
+    const fragment = fragments.get(fragmentSpecifier);
+    assert.equal(Object.hasOwn(en, namespace), true, `en must expose ${namespace}`);
+    assert.equal(Object.hasOwn(vi, namespace), true, `vi must expose ${namespace}`);
+    assert.deepEqual(
+      keyPaths(en[namespace]),
+      keyPaths(vi[namespace]),
+      `${namespace} en/vi key paths must match`,
+    );
+    assert.strictEqual(
+      en[namespace],
+      fragment[`${namespace}En`],
+      `en.${namespace} must mount its fragment object`,
+    );
+    assert.strictEqual(
+      vi[namespace],
+      fragment[`${namespace}Vi`],
+      `vi.${namespace} must mount its fragment object`,
+    );
+  }
+});
+
+test('thesis workflow stepper exposes its disclosure and stage tabs to assistive tech', () => {
+  const stepper = read('src/components/thesis/ThesisWorkflowStepper.tsx');
+
+  assert.match(stepper, /aria-expanded=\{isDetailExpanded\}/);
+  assert.match(stepper, /const STAGE_PANEL_ID = 'thesis-stage-panel'/);
+  assert.match(stepper, /aria-controls=\{STAGE_PANEL_ID\}/);
+  assert.match(stepper, /id=\{STAGE_PANEL_ID\}/);
+  assert.match(stepper, /role="tablist"/);
+  assert.match(stepper, /role="tab"/);
+  assert.match(stepper, /aria-selected=\{isSelected\}/);
+  assert.match(stepper, /tabIndex=\{stageTabs\.tabIndex\(String\(stage\.step\)\)\}/);
+  assert.match(stepper, /onKeyDown=\{\(event\) => stageTabs\.onKeyDown\(event, stage\.step - 1\)\}/);
+  assert.match(stepper, /role="tabpanel"/);
+  assert.match(stepper, /animate-ping[^"]*motion-reduce:animate-none/);
 });

@@ -293,17 +293,32 @@ export function AdminFormField({
   className,
 }: AdminFormFieldProps) {
   const generatedId = `admin-field-${React.useId().replace(/:/g, '')}`;
+  const errorId = `${generatedId}-error`;
+  const descriptionId = `${generatedId}-description`;
   const childNodes = React.Children.toArray(children);
   const child = childNodes.length === 1 ? childNodes[0] : null;
   const control = React.isValidElement(child)
     ? (() => {
-        const element = child as React.ReactElement<{ id?: string; 'aria-invalid'?: boolean }>;
+        const element = child as React.ReactElement<{
+          id?: string;
+          'aria-invalid'?: boolean;
+          'aria-describedby'?: string;
+        }>;
         const controlId = element.props.id ?? generatedId;
+        const describedBy = [
+          element.props['aria-describedby'],
+          error ? errorId : null,
+          description ? descriptionId : null,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
         return {
           id: controlId,
           node: React.cloneElement(element, {
             id: controlId,
             'aria-invalid': error ? true : undefined,
+            'aria-describedby': describedBy || undefined,
           }),
         };
       })()
@@ -319,12 +334,12 @@ export function AdminFormField({
       </label>
       {control?.node ?? children}
       {error ? (
-        <p role="alert" className="text-sm font-medium text-destructive">
+        <p id={errorId} role="alert" className="text-sm font-medium text-destructive">
           {error}
         </p>
       ) : null}
       {description ? (
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p id={descriptionId} className="text-sm text-muted-foreground">{description}</p>
       ) : null}
     </div>
   );

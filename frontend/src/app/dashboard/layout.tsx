@@ -284,6 +284,7 @@ export default function DashboardLayout({
   // Set by the trigger's ArrowUp so the open effect focuses the last item.
   const profileFocusLastRef = useRef(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const notificationsTriggerRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarCloseRef = useRef<HTMLButtonElement>(null);
   const openSidebarButtonRef = useRef<HTMLButtonElement>(null);
@@ -627,6 +628,7 @@ export default function DashboardLayout({
         profileTriggerRef.current?.focus();
       } else if (notificationsOpen) {
         setNotificationsOpen(false);
+        notificationsTriggerRef.current?.focus();
       } else if (sidebarOpen) {
         setSidebarOpen(false);
         window.requestAnimationFrame(() => openSidebarButtonRef.current?.focus());
@@ -1267,6 +1269,7 @@ export default function DashboardLayout({
 
               <div className="relative" ref={notificationsRef}>
                 <Button
+                  ref={notificationsTriggerRef}
                   type="button"
                   variant="ghost"
                   size="icon"

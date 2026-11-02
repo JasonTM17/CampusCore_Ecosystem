@@ -20,6 +20,7 @@ import type { I18nMessages } from '@/i18n/messages';
 import type { Locale } from '@/i18n/config';
 import { type ThesisRepositoryReport } from '@/lib/thesis-api';
 import { fillCopy, formatReportFileSize } from '@/features/thesis/components/thesis-helpers';
+import { isHttpUrl } from '@/lib/safe-url';
 
 interface ThesisRepositoryWorkspaceProps {
   messages: I18nMessages;
@@ -287,17 +288,24 @@ export default function ThesisRepositoryWorkspace({
                           </span>
                         )}
 
-                        {report.url && (
-                          <a
-                            href={report.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            <span>{pageCopy.openExternalLink}</span>
-                          </a>
-                        )}
+                        {report.url ? (
+                          isHttpUrl(report.url) ? (
+                            <a
+                              href={report.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>{pageCopy.openExternalLink}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>{pageCopy.openExternalLink}</span>
+                            </span>
+                          )
+                        ) : null}
                       </div>
 
                       <div className="text-[11px] text-muted-foreground">

@@ -227,19 +227,25 @@ export default function CouncilDefenseWorkspace({
                               </div>
                             ) : topicReports[tid] ? (
                               <div className="pt-1.5 flex flex-wrap items-center gap-2">
-                                {/* A report is a link, an attached document,
-                                    or both (feedback item 7). */}
-                                {topicReports[tid]?.url && isHttpUrl(topicReports[tid]?.url) ? (
-                                  <a
-                                    href={topicReports[tid]?.url ?? undefined}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline"
-                                  >
-                                    <FileText className="h-3.5 w-3.5" />
-                                    <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
+                                {/* A report link is shown only for a safe URL, alongside any attached document (feedback item 7). */}
+                                {topicReports[tid]?.url ? (
+                                  isHttpUrl(topicReports[tid]?.url) ? (
+                                    <a
+                                      href={topicReports[tid]?.url ?? undefined}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline"
+                                    >
+                                      <FileText className="h-3.5 w-3.5" />
+                                      <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                      <FileText className="h-3.5 w-3.5" />
+                                      <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
+                                    </span>
+                                  )
                                 ) : null}
                                 {topicReports[tid]?.fileName ? (
                                   <button

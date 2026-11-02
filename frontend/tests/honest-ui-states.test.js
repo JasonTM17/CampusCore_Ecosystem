@@ -107,8 +107,11 @@ test('conduct activity record uses only real fields and claims no issuance', () 
   // Real fields only, guarded em-dash otherwise.
   assert.match(source, /displayLabel\(summary\?\.studentCode\)/);
   // Explicitly labelled as a preview record.
-  assert.match(source, /copy\.previewTitle/);
-  assert.match(source, /copy\.previewNote/);
+  assert.match(source, /conductMessages\.previewTitle/);
+  assert.match(source, /conductMessages\.previewNote/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("previewTitle: 'Activity record — unofficial preview'"), 'the preview title lives in the catalogue');
+  assert.ok(catalog.includes('not an issued certificate'), 'the preview note lives in the catalogue');
 });
 
 // ---------------------------------------------------------------------------
@@ -122,7 +125,8 @@ test('announcements page renders no fabricated notices on error or empty feed', 
   assert.doesNotMatch(source, /notice-official-/);
 
   // The catch surfaces the real failure; the shared ErrorState retries it.
-  assert.match(source, /setError\(copy\.loadFailed\)/);
+  assert.match(source, /setError\(announcementMessages\.loadFailed\)/);
+  assert.match(read('src/i18n/messages-student-pages.ts'), /loadFailed: 'Could not load notices from academic server right now\.'/, 'the failure copy lives in the catalogue');
   assert.match(source, /setItems\(\[\]\)/);
   assert.match(source, /<ErrorState/);
   assert.match(source, /onRetry=\{\(\) => void fetchFeed\(\)\}/);
@@ -142,18 +146,22 @@ test('conduct badges and claims follow the status and score the API returned', (
   assert.match(source, /statusView\(activeSemesterScore\?\.status\)/);
   assert.match(source, /statusView\(item\.status\)/);
   // No unconditional "approved" badge renders anywhere.
-  assert.doesNotMatch(source, />\{copy\.approvedBadge\}</);
-  assert.match(source, /semesterStatus\.approved \? copy\.approvedBadge/);
+  assert.doesNotMatch(source, />\{conductMessages\.approvedBadge\}</);
+  assert.match(source, /semesterStatus\.approved \? conductMessages\.approvedBadge/);
 
   // Unknown or blank classifications never read as a passing rank.
-  assert.match(source, /copy\.notClassified/);
-  assert.doesNotMatch(source, /return fallback \|\| copy\.good/);
+  assert.match(source, /conductMessages\.notClassified/);
+  assert.doesNotMatch(source, /return fallback \|\| conductMessages\.good/);
   // No default-to-TOT badge class.
   assert.doesNotMatch(source, /getRankBadgeClass\(activeSemesterScore\?\.classification \|\| 'TOT'\)/);
 
   // Scholarship claim is gated on the real score (>= 70).
   assert.match(source, /cumulativeScore >= 70/);
-  assert.match(source, /copy\.scholarshipBelow/);
+  assert.match(source, /conductMessages\.scholarshipBelow/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("approvedBadge: 'Approved'"), 'the approved badge lives in the catalogue');
+  assert.ok(catalog.includes("notClassified: 'Not yet classified'"), 'the unclassified label lives in the catalogue');
+  assert.ok(catalog.includes("scholarshipBelow: 'Below requirement'"), 'the scholarship label lives in the catalogue');
 });
 
 // ---------------------------------------------------------------------------
@@ -235,10 +243,11 @@ test('conduct controller no longer aliases literal demo ids to a real student', 
 
 test('grade component inputs have distinct screen-reader labels', () => {
   const source = read('src/app/dashboard/lecturer/grades/[id]/page.tsx');
-  assert.match(source, /processScoreLabel:/);
-  assert.match(source, /finalExamScoreLabel:/);
-  assert.match(source, /aria-label=\{copy\.processScoreLabel\(/);
-  assert.match(source, /aria-label=\{copy\.finalExamScoreLabel\(/);
+  const catalog = read('src/i18n/messages-teaching-pages.ts');
+  assert.ok(catalog.includes("processScoreLabel: 'Process score (50%) for {studentName}'"));
+  assert.ok(catalog.includes("finalExamScoreLabel: 'Final exam score (50%) for {studentName}'"));
+  assert.match(source, /aria-label=\{gradeEntry\.processScoreLabel\.replace\(/);
+  assert.match(source, /aria-label=\{gradeEntry\.finalExamScoreLabel\.replace\(/);
   assert.doesNotMatch(source, /finalScoreLabel/);
 });
 
@@ -267,8 +276,10 @@ test('removing a supervised group member asks for confirmation', () => {
 
 test('transcript header and GPA card describe the cumulative figure', () => {
   const source = read('src/app/dashboard/transcript/page.tsx');
-  assert.match(source, /Cumulative GPA, all semesters \(4\.0 scale\)/);
-  assert.match(source, /GPA hệ 4 tích lũy toàn khóa/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("cumulativeGpa: 'Cumulative GPA, all semesters (4.0 scale)'"));
+  assert.ok(catalog.includes("cumulativeGpa: 'GPA hệ 4 tích lũy toàn khóa'"));
+  assert.match(source, /transcriptMessages\.cumulativeGpa/);
   // The page description no longer claims a per-semester GPA.
   assert.doesNotMatch(source, /GPA, tín chỉ và kết quả môn học cho \$\{selectedSemesterName\}/);
   assert.doesNotMatch(source, /GPA, credits, and course outcomes for \$\{selectedSemesterName\}/);
@@ -546,4 +557,68 @@ test('the event create dialog names every input for screen readers', () => {
   ]) {
     assert.match(source, new RegExp(`aria-label=\\{${label.replace('.', '\\.')}\\}`), label);
   }
+});
+
+test('the lecturer review-queue error offers retry', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(
+    source,
+    /queueError \? \([\s\S]*?<ErrorState[\s\S]*?onRetry=\{\(\) => void fetchQueue\(\)\}/,
+    'the queue error branch retries only the review queue',
+  );
+});
+
+test('lecturer announcement mutations have keyed pending state and synchronous guards', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /const queueMutationRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[queueMutationKey, setQueueMutationKey\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(queueMutationRef\.current !== null\) return false;/);
+  assert.match(source, /if \(!beginQueueMutation\(actionKey\)\) return;/);
+  assert.match(source, /const actionKey = `return:\$\{returnTarget\.id\}`;\s*if \(!beginQueueMutation\(actionKey\)\) return;/);
+  assert.match(source, /const actionKey = `archive:\$\{announcement\.id\}`;\s*if \(!beginQueueMutation\(actionKey\)\) return;/);
+  for (const action of ['submit', 'approve', 'return', 'archive']) {
+    assert.ok(
+      source.includes(`disabled={queueMutationKey === \`${action}:`),
+      `${action} is disabled while its request is pending`,
+    );
+  }
+});
+
+test('a conduct summary failure keeps the certificate preview usable and offers source-only retry', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.ok(source.includes('const [conductError, setConductError] = useState(false)'),
+    'conduct failures have a retryable degraded state');
+  assert.match(source, /const \[conductReloadToken, setConductReloadToken\] = useState\(0\)/);
+  assert.match(source, /if \(!cancelled\) setConductError\(true\)/);
+  assert.match(source, /conductError \? \([\s\S]*?sectionErrorDescription[\s\S]*?onRetry=\{\(\) => setConductReloadToken/);
+  assert.match(source, /\}, \[hasAccess, conductReloadToken\]\);/);
+});
+
+test('student learning section-list loads are retired on unmount', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  const loadStart = source.indexOf('const loadSections = useCallback', source.indexOf('export function StudentLearningPage'));
+  const loadEnd = source.indexOf('const loadSection = useCallback', loadStart);
+  const loadSections = source.slice(loadStart, loadEnd);
+  assert.match(loadSections, /const epoch = sectionsListEpoch\.begin\(\)/);
+  assert.equal((loadSections.match(/if \(!sectionsListEpoch\.isCurrent\(epoch\)\) return;/g) || []).length, 2);
+  assert.match(loadSections, /if \(sectionsListEpoch\.isCurrent\(epoch\)\) setIsLoading\(false\)/);
+  assert.match(source, /useEffect\(\(\) => \(\) => \{\s*sectionsListEpoch\.invalidate\(\);\s*\}, \[sectionsListEpoch\]\)/);
+});
+
+test('event staff lifecycle mutations use per-action pending state and reject re-entry', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  assert.match(source, /const pendingStaffActionRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[pendingStaffActionKey, setPendingStaffActionKey\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(pendingStaffActionRef\.current !== null\) return;/);
+  assert.match(source, /runStaffAction\(\s*`publish:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`open:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`close:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`complete:\$\{event\.id\}`/);
+  for (const action of ['publish', 'open', 'close', 'complete']) {
+    assert.ok(source.includes(`disabled={pendingStaffActionKey === \`${action}:`),
+      `${action} is disabled while pending`);
+  }
+  assert.match(source, /runStaffAction\('create',/);
+  assert.match(source, /runStaffAction\(\s*`attendance:/);
+  assert.match(source, /runStaffAction\(\s*`cancel:/);
 });

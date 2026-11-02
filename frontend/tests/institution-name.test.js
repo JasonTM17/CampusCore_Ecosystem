@@ -4,14 +4,41 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-function loadExport(file) {
-  const source = fs.readFileSync(path.join(__dirname, '../src/lib', file), 'utf8');
+const root = path.resolve(__dirname, '..');
+
+function loadModule(relativePath, aliases = {}) {
+  const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
   const js = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const mod = { exports: {} };
-  new Function('module', 'exports', 'require', js)(mod, mod.exports, require);
+  const resolve = (specifier) =>
+    Object.hasOwn(aliases, specifier) ? aliases[specifier] : require(specifier);
+  new Function('module', 'exports', 'require', js)(mod, mod.exports, resolve);
   return mod.exports;
+}
+
+const fragments = [
+  ['@/i18n/messages-thesis-workflow', 'src/i18n/messages-thesis-workflow.ts'],
+  ['@/i18n/messages-dean-overview', 'src/i18n/messages-dean-overview.ts'],
+  ['@/i18n/messages-content', 'src/i18n/messages-content.ts'],
+  ['@/i18n/messages-attendance-geofence', 'src/i18n/messages-attendance-geofence.ts'],
+  ['@/i18n/messages-teaching-pages', 'src/i18n/messages-teaching-pages.ts'],
+  ['@/i18n/messages-admin-pages', 'src/i18n/messages-admin-pages.ts'],
+  ['@/i18n/messages-student-pages', 'src/i18n/messages-student-pages.ts'],
+];
+
+function loadMessages() {
+  const aliases = { '@/i18n/config': {} };
+  for (const [specifier, relativePath] of fragments) {
+    aliases[specifier] = loadModule(relativePath);
+  }
+  return loadModule('src/i18n/messages.ts', aliases);
+}
+
+function loadExport(file) {
+  const aliases = { '@/i18n/messages': loadMessages() };
+  return loadModule(`src/lib/${file}`, aliases);
 }
 
 const { generateGradeCsv } = loadExport('grade-export.ts');

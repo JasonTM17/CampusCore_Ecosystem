@@ -118,7 +118,6 @@ export function AnnouncementFeedCard({
     const isVertical = layout === 'vertical';
     return (
       <article
-        onClick={onClick}
         className={cn(
           'group relative flex overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-all hover:border-primary/50 hover:shadow-lg cursor-pointer focus-within:ring-2 focus-within:ring-primary',
           isVertical ? 'flex-col' : 'flex-col md:flex-row',
@@ -206,11 +205,8 @@ export function AnnouncementFeedCard({
             <h3>
               <button
                 type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onClick();
-                }}
-                className="text-left text-xl sm:text-2xl font-bold text-foreground group-hover:text-primary transition-colors leading-snug"
+                onClick={onClick}
+                className="text-left text-xl sm:text-2xl font-bold text-foreground group-hover:text-primary transition-colors leading-snug after:absolute after:inset-0"
               >
                 {announcement.title}
               </button>
@@ -241,7 +237,7 @@ export function AnnouncementFeedCard({
               <button
                 type="button"
                 onClick={handleShare}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 title={isVi ? 'Sao chép liên kết' : 'Copy link'}
                 aria-label={isVi ? 'Chia sẻ' : 'Share'}
               >
@@ -262,9 +258,8 @@ export function AnnouncementFeedCard({
   // Standard Card
   return (
     <article
-      onClick={onClick}
       className={cn(
-        'group flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md cursor-pointer focus-within:ring-2 focus-within:ring-primary',
+        'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md cursor-pointer focus-within:ring-2 focus-within:ring-primary',
         className,
       )}
     >
@@ -342,11 +337,8 @@ export function AnnouncementFeedCard({
           <h4>
             <button
               type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onClick();
-              }}
-              className="text-left text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2"
+              onClick={onClick}
+              className="text-left text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2 after:absolute after:inset-0"
             >
               {announcement.title}
             </button>
@@ -367,7 +359,7 @@ export function AnnouncementFeedCard({
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               title={isVi ? 'Sao chép liên kết' : 'Copy link'}
               aria-label={isVi ? 'Chia sẻ' : 'Share'}
             >

@@ -37,6 +37,9 @@ const messageFragments = {
     attendanceGeofenceEn: {},
     attendanceGeofenceVi: {},
   },
+  '@/i18n/messages-teaching-pages': { teachingPagesEn: {}, teachingPagesVi: {} },
+  '@/i18n/messages-admin-pages': { adminPagesEn: {}, adminPagesVi: {} },
+  '@/i18n/messages-student-pages': { studentPagesEn: {}, studentPagesVi: {} },
 };
 
 function loadCatalog() {

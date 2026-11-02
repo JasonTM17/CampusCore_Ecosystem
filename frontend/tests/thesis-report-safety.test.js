@@ -325,3 +325,38 @@ test('the below-average badge keeps AA contrast in the light theme', () => {
   assert.match(page, /BELOW_AVERAGE: '[^']*text-yellow-800/);
   assert.doesNotMatch(page, /BELOW_AVERAGE: '[^']*text-yellow-700/);
 });
+
+test('thesis report URLs render as safe links or readable plain-text labels', () => {
+  const cases = [
+    {
+      file: 'src/features/thesis/components/SupervisedGroupList.tsx',
+      url: /isHttpUrl\(reportsByGroup\[group\.id\]\?\.url\)/,
+      label: 'pageCopy\.thesisReportLabel',
+      name: 'SupervisedGroupList',
+    },
+    {
+      file: 'src/features/thesis/components/ThesisRepositoryWorkspace.tsx',
+      url: /isHttpUrl\(report\.url\)/,
+      label: 'pageCopy\.openExternalLink',
+      name: 'ThesisRepositoryWorkspace',
+    },
+    {
+      file: 'src/features/thesis/components/CouncilDefenseWorkspace.tsx',
+      url: /isHttpUrl\(topicReports\[tid\]\?\.url\)/,
+      label: 'pageCopy\.thesisDocumentLabel',
+      name: 'CouncilDefenseWorkspace',
+    },
+  ];
+
+  for (const item of cases) {
+    const source = read(item.file);
+    assert.ok(item.url.test(source), `${item.name} checks the URL protocol before rendering a link`);
+    assert.match(source, /rel="noopener noreferrer"/, `${item.name} protects new tabs`);
+    const guardedLink = source.slice(source.search(item.url), source.search(item.url) + 1800);
+    assert.match(
+      guardedLink,
+      new RegExp(`</a>\\s*\\)\\s*:\\s*\\(\\s*<span[\\s\\S]{0,500}${item.label}`),
+      `${item.name} keeps an unsafe report label as plain text`,
+    );
+  }
+});

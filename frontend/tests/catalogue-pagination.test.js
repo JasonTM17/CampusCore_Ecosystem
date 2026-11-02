@@ -171,3 +171,28 @@ test('shared pager math clamps pages and stops at the last page', () => {
   assert.equal(hasNextPage(1, 1), false);
   assert.equal(hasNextPage(4, 0), false);
 });
+
+test('public news and docs return to the last valid page when the server total shrinks', () => {
+  const pages = [
+    { file: 'src/app/news/news-list-client.tsx', name: 'news' },
+    { file: 'src/app/docs/page.tsx', name: 'docs' },
+  ];
+
+  for (const item of pages) {
+    const source = read(item.file);
+    assert.ok(source.includes('useEffect'), `${item.name} corrects the page after a response`);
+    assert.match(
+      source,
+      /if \(!query\.data \|\| query\.isFetching \|\| query\.isError\) return;\s*const correctedPage = clampPage\(page, totalPages\);\s*if \(correctedPage !== page\) setPage\(correctedPage\);/,
+      `${item.name} clamps and requests the last page reported by the response`,
+    );
+  }
+
+  const output = ts.transpileModule(read('src/lib/pager.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  assert.equal(moduleRecord.exports.clampPage(5, 3), 3,
+    'a previously valid page clamps to the last page after the total shrinks');
+});

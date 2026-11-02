@@ -64,7 +64,12 @@ type LecturerNoticeCategory =
 type QueueStatusFilter = 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
 
 export default function LecturerAnnouncementsPage() {
-  const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth(['LECTURER']);
+  const auth = useRequireAuth(['LECTURER']);
+  return <LecturerAnnouncementsWorkspace key={auth.user?.id ?? 'anonymous'} auth={auth} />;
+}
+
+function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useRequireAuth> }) {
+  const { user, hasAccess, isLoading: authLoading, isForbidden } = auth;
   const { locale, formatDateTime, messages } = useI18n();
   const lifecycleCopy = messages.content.lifecycle;
   const [items, setItems] = useState<AnnouncementRecord[]>([]);
@@ -94,11 +99,17 @@ export default function LecturerAnnouncementsPage() {
   const [queueTotalPages, setQueueTotalPages] = useState(1);
   const [queueLoadingMore, setQueueLoadingMore] = useState(false);
   const [queueLoadMoreError, setQueueLoadMoreError] = useState(false);
-  const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
+  const queueMutationRef = useRef<string | null>(null);
+  const [queueMutationKey, setQueueMutationKey] = useState<string | null>(null);
   const [returnTarget, setReturnTarget] = useState<AnnouncementRecord | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const feedEpoch = useRef(createRequestEpoch()).current;
   const queueEpoch = useRef(createRequestEpoch()).current;
   const { confirm, confirmationDialog } = useConfirmationDialog();
+
+  useEffect(() => () => {
+    feedEpoch.invalidate();
+  }, [feedEpoch]);
 
   useEffect(() => () => {
     queueEpoch.invalidate();
@@ -176,8 +187,11 @@ export default function LecturerAnnouncementsPage() {
         };
 
   const fetchFeed = useCallback(async (nextPage = 1) => {
+    const epoch = feedEpoch.begin();
     if (nextPage === 1) {
       setIsLoading(true);
+      setIsLoadingMore(false);
+      setLoadMoreError(false);
       setError('');
     } else {
       setIsLoadingMore(true);
@@ -186,6 +200,7 @@ export default function LecturerAnnouncementsPage() {
 
     try {
       const response = await announcementsApi.getMy({ page: nextPage, limit: 25 });
+      if (!feedEpoch.isCurrent(epoch)) return;
       const data = response.data ?? [];
       // Page 1 replaces the feed; later pages append so the reader keeps what
       // is already on screen. Dedupe by id — offset pagination shifts when a
@@ -198,19 +213,21 @@ export default function LecturerAnnouncementsPage() {
       setTotalPages(Math.max(response.meta?.totalPages ?? 1, 1));
       setPage(nextPage);
     } catch {
+      if (!feedEpoch.isCurrent(epoch)) return;
       if (nextPage === 1) {
         setError(copy.loadFailed);
       } else {
         setLoadMoreError(true);
       }
     } finally {
+      if (!feedEpoch.isCurrent(epoch)) return;
       if (nextPage === 1) {
         setIsLoading(false);
       } else {
         setIsLoadingMore(false);
       }
     }
-  }, [copy.loadFailed]);
+  }, [copy.loadFailed, feedEpoch]);
 
   const fetchQueue = useCallback(async (nextPage = 1) => {
     const epoch = queueEpoch.begin();
@@ -260,12 +277,26 @@ export default function LecturerAnnouncementsPage() {
     }
   }, [fetchFeed, fetchQueue, hasAccess]);
 
+  const beginQueueMutation = (actionKey: string) => {
+    if (queueMutationRef.current !== null) return false;
+    queueMutationRef.current = actionKey;
+    setQueueMutationKey(actionKey);
+    return true;
+  };
+
+  const finishQueueMutation = (actionKey: string) => {
+    if (queueMutationRef.current !== actionKey) return;
+    queueMutationRef.current = null;
+    setQueueMutationKey(null);
+  };
+
   /** DRAFT -> IN_REVIEW (own posts) or IN_REVIEW -> PUBLISHED (others'). */
   const runQueueWorkflow = async (
     item: AnnouncementRecord,
     action: 'submit' | 'approve',
   ) => {
-    setQueueBusyId(item.id);
+    const actionKey = `${action}:${item.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     try {
       if (action === 'submit') {
         await announcementsApi.submit(item.id);
@@ -282,7 +313,7 @@ export default function LecturerAnnouncementsPage() {
           : 'Could not transition the notice. Please try again.',
       );
     } finally {
-      setQueueBusyId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -292,7 +323,8 @@ export default function LecturerAnnouncementsPage() {
       toast.error(lifecycleCopy.returnReasonRequired);
       return;
     }
-    setQueueBusyId(returnTarget.id);
+    const actionKey = `return:${returnTarget.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     try {
       await announcementsApi.returnForRework(returnTarget.id, { reason: returnReason.trim() });
       toast.success(lifecycleCopy.returned);
@@ -306,7 +338,7 @@ export default function LecturerAnnouncementsPage() {
           : 'Could not return the notice to draft. Please try again.',
       );
     } finally {
-      setQueueBusyId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -322,27 +354,32 @@ export default function LecturerAnnouncementsPage() {
   }, [filterActive, isLoading, isLoadingMore, loadMoreError, page, totalPages, fetchFeed]);
 
   const handleArchiveOwn = async (announcement: AnnouncementRecord) => {
+    const actionKey = `archive:${announcement.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     const isVi = locale === 'vi';
-    const confirmed = await confirm({
-      title: isVi ? 'Lưu trữ thông báo?' : 'Archive this notice?',
-      message: isVi
-        ? 'Thông báo sẽ được đưa vào lưu trữ và sinh viên không còn thấy trên bảng tin.'
-        : 'The notice will be archived and students will no longer see it in the feed.',
-      confirmText: isVi ? 'Lưu trữ' : 'Archive',
-      cancelText: isVi ? 'Hủy' : 'Cancel',
-      variant: 'destructive',
-    });
-    if (!confirmed) return;
-    setArchivingId(announcement.id);
     try {
-      await announcementsApi.delete(announcement.id);
-      toast.success(isVi ? 'Đã lưu trữ thông báo' : 'Notice archived');
-      await fetchFeed(1);
-      await fetchQueue();
-    } catch {
-      toast.error(isVi ? 'Không thể lưu trữ thông báo. Vui lòng thử lại.' : 'Could not archive the notice. Please try again.');
+      const confirmed = await confirm({
+        title: isVi ? 'Lưu trữ thông báo?' : 'Archive this notice?',
+        message: isVi
+          ? 'Thông báo sẽ được đưa vào lưu trữ và sinh viên không còn thấy trên bảng tin.'
+          : 'The notice will be archived and students will no longer see it in the feed.',
+        confirmText: isVi ? 'Lưu trữ' : 'Archive',
+        cancelText: isVi ? 'Hủy' : 'Cancel',
+        variant: 'destructive',
+      });
+      if (!confirmed) return;
+      setArchivingId(announcement.id);
+      try {
+        await announcementsApi.delete(announcement.id);
+        toast.success(isVi ? 'Đã lưu trữ thông báo' : 'Notice archived');
+        await fetchFeed(1);
+        await fetchQueue();
+      } catch {
+        toast.error(isVi ? 'Không thể lưu trữ thông báo. Vui lòng thử lại.' : 'Could not archive the notice. Please try again.');
+      }
     } finally {
       setArchivingId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -512,7 +549,11 @@ export default function LecturerAnnouncementsPage() {
               {copy.loading}
             </div>
           ) : queueError ? (
-            <p className="py-4 text-sm text-destructive">{copy.queueLoadFailed}</p>
+            <ErrorState
+              title={copy.unavailableTitle}
+              description={copy.queueLoadFailed}
+              onRetry={() => void fetchQueue()}
+            />
           ) : queueItems.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">{copy.queueEmpty}</p>
           ) : (
@@ -563,9 +604,9 @@ export default function LecturerAnnouncementsPage() {
                           onClick={() => void runQueueWorkflow(item, 'submit')}
                           aria-label={`${lifecycleCopy.actions.submit}: ${item.title}`}
                           title={lifecycleCopy.actions.submit}
-                          disabled={queueBusyId === item.id}
+                          disabled={queueMutationKey === `submit:${item.id}`}
                         >
-                          {queueBusyId === item.id
+                          {queueMutationKey === `submit:${item.id}`
                             ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                             : <Send className="h-4 w-4" aria-hidden="true" />}
                         </Button>
@@ -579,7 +620,7 @@ export default function LecturerAnnouncementsPage() {
                             onClick={() => void runQueueWorkflow(item, 'approve')}
                             aria-label={`${lifecycleCopy.actions.approve}: ${item.title}`}
                             title={lifecycleCopy.actions.approve}
-                            disabled={queueBusyId === item.id}
+                            disabled={queueMutationKey === `approve:${item.id}`}
                           >
                             <CheckCircle className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -593,7 +634,7 @@ export default function LecturerAnnouncementsPage() {
                             }}
                             aria-label={`${lifecycleCopy.actions.returnForRework}: ${item.title}`}
                             title={lifecycleCopy.actions.returnForRework}
-                            disabled={queueBusyId === item.id}
+                            disabled={queueMutationKey === `return:${item.id}`}
                           >
                             <Undo2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -603,7 +644,7 @@ export default function LecturerAnnouncementsPage() {
                         <button
                           type="button"
                           onClick={() => void handleArchiveOwn(item)}
-                          disabled={archivingId === item.id}
+                          disabled={queueMutationKey === `archive:${item.id}`}
                           className="inline-flex items-center gap-1.5 px-2 text-xs font-bold text-destructive/80 hover:text-destructive hover:underline disabled:opacity-50"
                         >
                           <Archive className="h-3.5 w-3.5" />
@@ -741,7 +782,7 @@ export default function LecturerAnnouncementsPage() {
                               e.stopPropagation();
                               void handleArchiveOwn(announcement);
                             }}
-                            disabled={archivingId === announcement.id}
+                            disabled={queueMutationKey === `archive:${announcement.id}`}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-destructive/80 hover:text-destructive hover:underline disabled:opacity-50"
                           >
                             <Archive className="h-3.5 w-3.5" />
@@ -819,11 +860,11 @@ export default function LecturerAnnouncementsPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setReturnTarget(null)}
-                disabled={queueBusyId === returnTarget.id}
+                disabled={queueMutationKey === `return:${returnTarget.id}`}
               >
                 {copy.queueCancel}
               </Button>
-              <Button type="submit" disabled={queueBusyId === returnTarget.id}>
+              <Button type="submit" disabled={queueMutationKey === `return:${returnTarget.id}`}>
                 {lifecycleCopy.actions.returnForRework}
               </Button>
             </div>

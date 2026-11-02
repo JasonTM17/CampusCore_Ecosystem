@@ -8,11 +8,23 @@ export interface TextareaProps
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, error, hint, ...props }, ref) => {
+  ({ className, error, hint, 'aria-describedby': externalDescribedBy, ...props }, ref) => {
+    const generatedId = React.useId().replace(/:/g, '');
+    const errorId = `textarea-error-${generatedId}`;
+    const hintId = `textarea-hint-${generatedId}`;
+    const describedBy = [
+      externalDescribedBy,
+      error ? errorId : hint ? hintId : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
     return (
       <div className="w-full">
         <textarea
           ref={ref}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy || undefined}
           className={cn(
             'flex min-h-[132px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background transition-[border-color,box-shadow,background-color] placeholder:text-muted-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
             error && 'border-destructive focus-visible:ring-destructive',
@@ -20,9 +32,9 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           )}
           {...props}
         />
-        {error ? <p className="mt-1 text-sm text-destructive">{error}</p> : null}
+        {error ? <p id={errorId} className="mt-1 text-sm text-destructive">{error}</p> : null}
         {!error && hint ? (
-          <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
+          <p id={hintId} className="mt-1 text-sm text-muted-foreground">{hint}</p>
         ) : null}
       </div>
     );
