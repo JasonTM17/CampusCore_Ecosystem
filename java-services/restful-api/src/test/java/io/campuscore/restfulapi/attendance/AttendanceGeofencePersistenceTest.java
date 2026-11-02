@@ -147,6 +147,25 @@ class AttendanceGeofencePersistenceTest {
         assertThat(store.session(id,false)).isNotNull();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" WHERE \"entityType\"='AttendanceGeofence'",Integer.class)).isGreaterThanOrEqualTo(2);
     }
+    @Test void metadataEditWithoutActiveFlagPreservesDeactivation() throws Exception {
+        String base="/api/v1/admin/attendance/geofences";
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"verified campus\",\"campusCode\":\"UTE\",\"centerLat\":10,\"centerLng\":106,\"radiusMeters\":150,\"isActive\":false}"))
+                .andExpect(status().isOk());
+        assertThat(store.geofence("ute-main-placeholder",false).isActive()).isFalse();
+
+        // A metadata-only edit that omits isActive must not re-enable the fence.
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"renamed campus\",\"campusCode\":\"UTE\",\"centerLat\":10,\"centerLng\":106,\"radiusMeters\":180}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isActive").value(false))
+                .andExpect(jsonPath("$.radiusMeters").value(180));
+        assertThat(store.geofence("ute-main-placeholder",false)).satisfies(g->{
+            assertThat(g.isActive()).isFalse();
+            assertThat(g.name()).isEqualTo("renamed campus");
+            assertThat(g.radiusMeters()).isEqualTo(180);
+        });
+    }
     @Test void otherLecturerCannotReadCodeCountsOrReviewAndAdminCanRead() throws Exception {
         for(String suffix:new String[]{"","/code","/checkins"})
             mvc.perform(get("/api/v1/attendance/sessions/"+id+suffix).with(lecturer(true))).andExpect(status().isForbidden());
