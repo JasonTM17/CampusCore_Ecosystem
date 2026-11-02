@@ -8,6 +8,7 @@ import {
   type WeeklyGridItem,
 } from '@/lib/weekly-grid';
 import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 import type { Locale } from '@/i18n/config';
 import { cn } from '@/lib/utils';
 
@@ -16,45 +17,13 @@ import { cn } from '@/lib/utils';
  * Shared with the registration page so schedule chips and the timetable grid
  * never disagree about a day number.
  */
-export const DAY_LABELS_VI: Record<number, string> = {
-  1: 'Chủ Nhật',
-  2: 'Thứ Hai',
-  3: 'Thứ Ba',
-  4: 'Thứ Tư',
-  5: 'Thứ Năm',
-  6: 'Thứ Sáu',
-  7: 'Thứ Bảy',
-};
+export const DAY_LABELS_VI: Record<number, string> = studentPagesVi.schedule.grid.dayLabels;
 
-export const DAY_LABELS_EN: Record<number, string> = {
-  1: 'Sunday',
-  2: 'Monday',
-  3: 'Tuesday',
-  4: 'Wednesday',
-  5: 'Thursday',
-  6: 'Friday',
-  7: 'Saturday',
-};
+export const DAY_LABELS_EN: Record<number, string> = studentPagesEn.schedule.grid.dayLabels;
 
-export const SHORT_DAY_LABELS_VI: Record<number, string> = {
-  1: 'CN',
-  2: 'T2',
-  3: 'T3',
-  4: 'T4',
-  5: 'T5',
-  6: 'T6',
-  7: 'T7',
-};
+export const SHORT_DAY_LABELS_VI: Record<number, string> = studentPagesVi.schedule.grid.shortDayLabels;
 
-export const SHORT_DAY_LABELS_EN: Record<number, string> = {
-  1: 'Sun',
-  2: 'Mon',
-  3: 'Tue',
-  4: 'Wed',
-  5: 'Thu',
-  6: 'Fri',
-  7: 'Sat',
-};
+export const SHORT_DAY_LABELS_EN: Record<number, string> = studentPagesEn.schedule.grid.shortDayLabels;
 
 // Standard academic week display order: Monday to Sunday
 export const ORDERED_DAYS = [2, 3, 4, 5, 6, 7, 1];
@@ -62,13 +31,13 @@ export const ORDERED_DAYS = [2, 3, 4, 5, 6, 7, 1];
 export function dayLabel(locale: Locale, day: number): string {
   const normalized = day === 0 ? 1 : day;
   return (locale === 'vi' ? DAY_LABELS_VI[normalized] : DAY_LABELS_EN[normalized])
-    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
+    ?? (locale === 'vi' ? studentPagesVi.schedule.grid.unknownDay : studentPagesEn.schedule.grid.unknownDay);
 }
 
 export function shortDayLabel(locale: Locale, day: number): string {
   const normalized = day === 0 ? 1 : day;
   return (locale === 'vi' ? SHORT_DAY_LABELS_VI[normalized] : SHORT_DAY_LABELS_EN[normalized])
-    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
+    ?? (locale === 'vi' ? studentPagesVi.schedule.grid.unknownDay : studentPagesEn.schedule.grid.unknownDay);
 }
 
 /**
@@ -248,7 +217,7 @@ export function WeeklyGrid({
           aria-label={labels.gridAriaLabel}
         >
           <div role="row" className="contents">
-          <div role="columnheader" aria-label={locale === 'vi' ? 'Giờ' : 'Time'} style={{ gridColumn: 1, gridRow: 1 }} />
+          <div role="columnheader" aria-label={locale === 'vi' ? studentPagesVi.schedule.grid.hourLabel : studentPagesEn.schedule.grid.hourLabel} style={{ gridColumn: 1, gridRow: 1 }} />
           {ORDERED_DAYS.map((dayNum, colIndex) => {
             const dayName = dayLabel(locale, dayNum);
             const isToday = dayNum === effectiveTodayDow;
@@ -352,10 +321,10 @@ export function WeeklyGrid({
                         (item.startTime || '').localeCompare('12:00') >= 0
                         && (item.startTime || '').localeCompare('18:00') < 0;
                       const shiftBadge = isMorning
-                        ? (locale === 'vi' ? 'Sáng' : 'AM')
+                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.morningLabel : 'AM')
                         : isAfternoon
-                        ? (locale === 'vi' ? 'Chiều' : 'PM')
-                        : (locale === 'vi' ? 'Tối' : 'Eve');
+                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.afternoonLabel : 'PM')
+                        : (locale === 'vi' ? studentPagesVi.schedule.grid.eveningLabel : 'Eve');
 
                       if (compact) {
                         const room = item.roomNumber

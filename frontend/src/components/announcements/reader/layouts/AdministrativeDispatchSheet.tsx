@@ -25,6 +25,10 @@ import {
 import { DocumentAttachmentsList } from '../DocumentAttachmentsList';
 import { TableOfContents } from '../TableOfContents';
 import type { ReadingPreferences } from '../ReadingToolbar';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface AdministrativeDispatchSheetProps {
   announcement: AnnouncementRecord;
@@ -76,39 +80,19 @@ export function AdministrativeDispatchSheet({
   const docRefSuffix = isRectorDoc ? 'TB-ĐHCNKT' : isFacultyDoc ? 'TB-CNTT' : 'TB-ĐHCNKT-ĐT';
   const docRefNumber = `${docHash}/${docRefSuffix}`;
 
-  const copy = isVi
-    ? {
-        ministryName: 'BỘ GIÁO DỤC VÀ ĐÀO TẠO',
-        universityName: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
-        departmentName: 'KHOA CÔNG NGHỆ THÔNG TIN & PHÒNG ĐÀO TẠO',
-        nationalMotto1: 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',
-        nationalMotto2: 'Độc lập - Tự do - Hạnh phúc',
-        datePrefix: `TP. Hồ Chí Minh, ngày ${proseDay} ${proseMonth} năm ${proseYear}`,
-        docRef: `Số: ${docRefNumber}`,
-        officialDocBadge: 'VĂN BẢN ĐIỆN TỬ',
-        noticeHeader: 'THÔNG BÁO',
-        audience: 'Đối tượng áp dụng',
-        section: 'Lớp học phần',
-        salutation: 'Kính gửi',
-        issuedByLabel: 'Đơn vị ban hành',
-        signOffHint: 'Thông báo được ban hành điện tử trên Cổng học vụ',
-      }
-    : {
-        ministryName: 'MINISTRY OF EDUCATION AND TRAINING',
-        universityName: 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING',
-        departmentName: 'FACULTY OF IT & ACADEMIC AFFAIRS OFFICE',
-        nationalMotto1: 'SOCIALIST REPUBLIC OF VIETNAM',
-        nationalMotto2: 'Independence - Freedom - Happiness',
-        datePrefix: `Ho Chi Minh City, ${formatDate(dateObj)}`,
-        docRef: `Ref: ${docRefNumber}`,
-        officialDocBadge: 'OFFICIAL DOCUMENT',
-        noticeHeader: 'ANNOUNCEMENT',
-        audience: 'Target audience',
-        section: 'Section',
-        salutation: 'To',
-        issuedByLabel: 'Issuing unit',
-        signOffHint: 'Published electronically on the Campus Portal',
-      };
+  const dispatchCopy = {
+    en: announcementWorkspaceEn,
+    vi: announcementWorkspaceVi,
+  }[locale].reader.dispatch;
+  const proseDate = `${proseDay} ${proseMonth} năm ${proseYear}`;
+  const copy = {
+    ...dispatchCopy,
+    datePrefix: dispatchCopy.datePrefix.replace(
+      '{date}',
+      isVi ? proseDate : formatDate(dateObj),
+    ),
+    docRef: dispatchCopy.docRef.replace('{ref}', docRefNumber),
+  };
 
   const publisherName = formatAnnouncementPublisher(
     announcement.publishedBy,

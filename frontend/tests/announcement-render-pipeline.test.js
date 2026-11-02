@@ -67,10 +67,13 @@ const lucideStub = new Proxy(
 const utilsStub = { cn: (...args) => args.filter(Boolean).join(' ') };
 
 const sanitizer = loadTs('src/lib/html-sanitizer.ts');
+const announcementWorkspace = loadTs('src/i18n/messages-announcements.ts');
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
 const presentation = loadTs('src/lib/announcement-presentation.ts', {
   '@/lib/html-sanitizer': sanitizer,
   '@/lib/api': {},
   '@/i18n/config': {},
+  '@/i18n/messages-announcements': announcementWorkspace,
 });
 const FIXTURE = JSON.parse(read('tests/fixtures/announcement-content-policy.json'));
 
@@ -87,6 +90,8 @@ function rendererStubs() {
         messages: { common: { states: { dataTable: 'Bảng dữ liệu' } } },
       }),
     },
+    '@/i18n/config': { localeCodes: { vi: 'vi-VN', en: 'en-US' } },
+    '@/i18n/messages-editor': editorSurfaces,
   };
 }
 
@@ -98,6 +103,7 @@ function loadToc(renderer) {
   return loadTsModule('src/components/announcements/reader/TableOfContents.tsx', {
     ...rendererStubs(),
     '@/components/ui/rich-content-renderer': renderer,
+    '@/i18n/messages-announcements': announcementWorkspace,
   });
 }
 
@@ -282,6 +288,7 @@ function loadMagazine() {
     '../TableOfContents': { TableOfContents: dummyComponent },
     '../RelatedAnnouncements': { RelatedAnnouncements: dummyComponent },
     '@/components/announcements/ViContentBadge': { ViContentBadge: dummyComponent },
+    '@/i18n/messages-announcements': announcementWorkspace,
   });
 }
 
@@ -412,12 +419,14 @@ test('RT-P3-d an inlined SVG really is unpublishable, so the editor must refuse 
     'the MIME allowlist must run before the file is read',
   );
 
-  // The rejection is visible and localized, like the size rejection beside it.
-  const message = /const svgRejected = isVi\n\s*\? '([^']+)'\n\s*: '([^']+)';/.exec(source);
-  assert.ok(message, 'the rejection must be a vi/en ternary');
-  assert.match(message[1], /SVG/);
-  assert.match(message[2], /SVG/);
-  assert.notEqual(message[1], message[2], 'the two locales must carry different text');
+  // The rejection is visible and localized through the directly imported
+  // editor fragment, like the size rejection beside it.
+  assert.match(source, /const svgRejected = copy\.svgRejected;/);
+  const viMessage = editorSurfaces.editorSurfacesVi.tinyMce.svgRejected;
+  const enMessage = editorSurfaces.editorSurfacesEn.tinyMce.svgRejected;
+  assert.match(viMessage, /SVG/);
+  assert.match(enMessage, /SVG/);
+  assert.notEqual(viMessage, enMessage, 'the two locales must carry different text');
   assert.ok(
     /toast\.error\([\s\S]*?svgRejected/.test(source.slice(source.indexOf('file_picker_callback'))),
     'the picker path must surface the rejection to the author',

@@ -133,7 +133,7 @@ export function AnnouncementReaderModal({
         {/* Reading Progress Indicator (Top Micro-bar) */}
         <ReadingProgressBar
           progress={scrollProgress}
-          ariaLabel={locale === 'vi' ? 'Tiến trình đọc bài viết' : 'Reading progress'}
+          locale={locale}
           tone={
             domain.domain === 'EDITORIAL_ARTICLE'
               ? 'from-blue-600 via-indigo-500 to-primary'

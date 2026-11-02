@@ -13,6 +13,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { useI18n } from '@/i18n';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
@@ -79,16 +80,15 @@ const blankForm: AssistantKnowledgeRequest = {
 };
 
 function actionError(error: unknown, locale: 'en' | 'vi') {
+  const opsCopy = locale === 'vi' ? adminOpsVi.assistantKnowledge : adminOpsEn.assistantKnowledge;
   const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
   if (response?.status === 409 || response?.data?.code === 'KNOWLEDGE_SECOND_REVIEW_REQUIRED') {
-    return locale === 'vi'
-      ? 'Bản nháp cần một quản trị viên khác duyệt xuất bản. Hãy tải lại để xem trạng thái mới.'
-      : 'A different administrator must publish this revision. Reload to see the latest state.';
+    return opsCopy.errorSecondReview;
   }
   if (response?.status === 403) {
-    return locale === 'vi' ? 'Bạn không có quyền thực hiện thao tác này.' : 'You are not allowed to perform this action.';
+    return opsCopy.errorForbidden;
   }
-  return locale === 'vi' ? 'Không thể hoàn thành thao tác. Vui lòng thử lại.' : 'The action could not be completed. Please try again.';
+  return opsCopy.errorGeneric;
 }
 
 function stateClass(state: string) {
@@ -100,12 +100,12 @@ function stateClass(state: string) {
 
 function stateLabel(state: string, vi: boolean) {
   const option = states.find((item) => item.value === state);
-  return option ? (vi ? option.vi : option.en) : (vi ? 'Chưa xác định' : 'Unknown');
+  return option ? (vi ? option.vi : option.en) : (vi ? adminOpsVi.assistantKnowledge.unknownState : adminOpsEn.assistantKnowledge.unknownState);
 }
 
 function domainLabel(domain: string | undefined, vi: boolean) {
   const option = domains.find((item) => item.value === domain);
-  return option ? (vi ? option.vi : option.en) : (vi ? 'Khác' : 'Other');
+  return option ? (vi ? option.vi : option.en) : (vi ? adminOpsVi.assistantKnowledge.otherDomain : adminOpsEn.assistantKnowledge.otherDomain);
 }
 
 function localizedOptions(
@@ -122,12 +122,13 @@ interface CatalogCoverageCardProps {
 }
 
 function CatalogCoverageCard({ coverage, coverageError, vi }: CatalogCoverageCardProps) {
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
   return (
     <Card variant="muted">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <BookOpenCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-          {vi ? 'Phạm vi nội dung CampusUTE công khai' : 'Public CampusUTE guidance'}
+          {opsUi.publicCampusuteGuidance}
         </CardTitle>
         <CardDescription>
           {vi
@@ -186,41 +187,42 @@ function GuidanceFilters({
   isLoading,
   vi,
 }: GuidanceFiltersProps) {
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-48">
           <Select
-            label={vi ? 'Lĩnh vực' : 'Domain'}
+            label={opsUi.domain}
             value={domainFilter}
             onChange={(event) => onDomainChange(event.target.value as '' | AssistantKnowledgeDomain)}
             options={localizedOptions(domains, vi)}
-            aria-label={vi ? 'Lọc lĩnh vực' : 'Filter domain'}
+            aria-label={opsUi.filterDomain}
           />
         </div>
         <div className="w-48">
           <Select
-            label={vi ? 'Trạng thái' : 'Status'}
+            label={opsUi.status}
             value={stateFilter}
             onChange={(event) => onStateChange(event.target.value as '' | AssistantKnowledgeState)}
             options={localizedOptions(states, vi)}
-            aria-label={vi ? 'Lọc trạng thái' : 'Filter status'}
+            aria-label={opsUi.filterStatus}
           />
         </div>
         <div className="w-64">
           <label className="mb-1 block text-sm font-medium text-foreground">
-            {vi ? 'Tìm kiếm' : 'Search'}
+            {opsUi.search}
           </label>
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={vi ? 'Slug hoặc tiêu đề…' : 'Slug or title…'}
-            aria-label={vi ? 'Tìm kiếm tài liệu' : 'Search documents'}
+            placeholder={opsUi.slugOrTitle}
+            aria-label={opsUi.searchDocuments}
           />
         </div>
       </div>
       <Button type="button" variant="outline" onClick={onReload} disabled={isLoading}>
-        {vi ? 'Tải lại' : 'Reload'}
+        {opsUi.reload}
       </Button>
     </div>
   );
@@ -243,16 +245,17 @@ function GuidanceTable({
   onTransition,
   onArchiveRequest,
 }: GuidanceTableProps) {
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
   return (
     <AdminTableScroll>
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-secondary text-xs uppercase tracking-[0.08em] text-muted-foreground">
           <tr>
-            <th className="px-3 py-3 font-semibold">{vi ? 'Nội dung' : 'Guidance'}</th>
-            <th className="px-3 py-3 font-semibold">{vi ? 'Lĩnh vực' : 'Domain'}</th>
-            <th className="px-3 py-3 font-semibold">{vi ? 'Trạng thái' : 'Status'}</th>
-            <th className="px-3 py-3 font-semibold">{vi ? 'Lần cập nhật' : 'Revision'}</th>
-            <th className="px-3 py-3 text-right font-semibold">{vi ? 'Thao tác' : 'Actions'}</th>
+            <th className="px-3 py-3 font-semibold">{opsUi.guidance}</th>
+            <th className="px-3 py-3 font-semibold">{opsUi.domain2}</th>
+            <th className="px-3 py-3 font-semibold">{opsUi.status2}</th>
+            <th className="px-3 py-3 font-semibold">{opsUi.revision}</th>
+            <th className="px-3 py-3 text-right font-semibold">{opsUi.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -277,7 +280,7 @@ function GuidanceTable({
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => onEdit(document)} disabled={isSaving}>
                     <Edit3 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                    {vi ? 'Sửa' : 'Edit'}
+                    {opsUi.edit}
                   </Button>
                   {document.state === 'DRAFT' ? (
                     <Button
@@ -288,7 +291,7 @@ function GuidanceTable({
                       disabled={isSaving}
                     >
                       <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      {vi ? 'Gửi duyệt' : 'Send for review'}
+                      {opsUi.sendForReview}
                     </Button>
                   ) : null}
                   {document.state === 'PENDING_REVIEW' ? (
@@ -299,7 +302,7 @@ function GuidanceTable({
                       disabled={isSaving}
                     >
                       <ShieldCheck className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      {vi ? 'Xuất bản' : 'Release'}
+                      {opsUi.release}
                     </Button>
                   ) : null}
                   {document.state !== 'ARCHIVED' ? (
@@ -311,7 +314,7 @@ function GuidanceTable({
                       disabled={isSaving}
                     >
                       <Archive className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      {vi ? 'Lưu trữ' : 'Archive'}
+                      {opsUi.archive}
                     </Button>
                   ) : null}
                 </div>
@@ -347,6 +350,7 @@ function GuidanceFormModal({
   onSave,
   vi,
 }: GuidanceFormModalProps) {
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
   return (
     <Modal
       isOpen={isOpen}
@@ -372,26 +376,26 @@ function GuidanceFormModal({
           </div>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-3">
-          <AdminFormField label={vi ? 'Mã nội dung' : 'Guidance code'}>
+          <AdminFormField label={opsUi.guidanceCode}>
             <Input
               value={form.slug}
               onChange={(event) => onChange({ slug: event.target.value })}
               placeholder="registration-window"
             />
           </AdminFormField>
-          <AdminFormField label={vi ? 'Lĩnh vực' : 'Domain'}>
+          <AdminFormField label={opsUi.domain22}>
             <Select
               value={form.domain ?? 'GENERAL_FAQ'}
               onChange={(event) => onChange({ domain: event.target.value as AssistantKnowledgeDomain })}
               options={localizedOptions(domains.filter((option) => option.value !== ''), vi)}
             />
           </AdminFormField>
-          <AdminFormField label={vi ? 'Ngôn ngữ' : 'Language'}>
+          <AdminFormField label={opsUi.language}>
             <Select
               value={form.locale}
               onChange={(event) => onChange({ locale: event.target.value as AssistantKnowledgeRequest['locale'] })}
               options={[
-                { value: 'both', label: vi ? 'Cả hai' : 'Both' },
+                { value: 'both', label: opsUi.both },
                 { value: 'vi', label: 'Tiếng Việt' },
                 { value: 'en', label: 'English' },
               ]}
@@ -399,16 +403,16 @@ function GuidanceFormModal({
           </AdminFormField>
         </div>
 
-        <AdminFormField label={vi ? 'Tiêu đề' : 'Title'}>
+        <AdminFormField label={opsUi.title}>
           <Input value={form.title} onChange={(event) => onChange({ title: event.target.value })} />
         </AdminFormField>
 
-        <AdminFormField label={vi ? 'Nguồn tham chiếu' : 'Reference'}>
+        <AdminFormField label={opsUi.reference}>
           <Input value={form.source} onChange={(event) => onChange({ source: event.target.value })} />
         </AdminFormField>
 
         <div className="space-y-2 text-sm font-medium text-foreground">
-          <span>{vi ? 'Nội dung quy chế / tri thức' : 'Guidance content'}</span>
+          <span>{opsUi.guidanceContent}</span>
           <RichTextEditor
             value={form.content}
             onChange={(newContent) => onChange({ content: newContent })}
@@ -429,10 +433,10 @@ function GuidanceFormModal({
 
         <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
-            {vi ? 'Hủy' : 'Cancel'}
+            {opsUi.cancel}
           </Button>
           <Button type="button" onClick={onSave} disabled={isSaving}>
-            {isSaving ? (vi ? 'Đang lưu...' : 'Saving...') : (vi ? 'Lưu bản nháp' : 'Save draft')}
+            {isSaving ? (opsUi.saving) : (opsUi.saveDraft)}
           </Button>
         </div>
       </div>
@@ -444,6 +448,7 @@ export default function AdminAssistantKnowledgePage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
   const { locale } = useI18n();
   const vi = locale === 'vi';
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const [documents, setDocuments] = useState<AssistantKnowledgeDocument[]>([]);
   const [coverage, setCoverage] = useState<AssistantCatalogCoverage | null>(null);
@@ -564,7 +569,7 @@ export default function AdminAssistantKnowledgePage() {
 
   const save = async () => {
     if (!form.slug.trim() || !form.title.trim() || !form.content.trim() || !form.source.trim()) {
-      setFormError(vi ? 'Vui lòng điền mã nội dung, tiêu đề, nội dung và nguồn tham chiếu.' : 'Guidance code, title, content, and reference are required.');
+      setFormError(opsUi.guidanceCodeTitleContent);
       return;
     }
     setIsSaving(true);
@@ -573,7 +578,7 @@ export default function AdminAssistantKnowledgePage() {
       if (editing) await assistantKnowledgeApi.update(editing.documentId, form);
       else await assistantKnowledgeApi.create(form);
       setFormOpen(false);
-      setNotice(vi ? 'Đã lưu bản nháp.' : 'Draft saved.');
+      setNotice(opsUi.draftSaved);
       await load();
     } catch (saveError) {
       setFormError(actionError(saveError, locale));
@@ -589,13 +594,13 @@ export default function AdminAssistantKnowledgePage() {
     try {
       if (operation === 'submit') {
         await assistantKnowledgeApi.submit(document.documentId);
-        setNotice(vi ? 'Đã gửi xét duyệt.' : 'Submitted for review.');
+        setNotice(opsUi.submittedForReview);
       } else {
         const result = await assistantKnowledgeApi.publish(document.documentId);
         const pendingProjection = result.sync && (result.sync.degraded || result.sync.status !== 'ACTIVATED');
         setNotice(pendingProjection
-          ? (vi ? 'Đã xuất bản; trợ lý chưa cập nhật. Hãy kiểm tra trạng thái đồng bộ.' : 'Published; the assistant has not updated yet. Check sync status.')
-          : (vi ? 'Đã xuất bản nội dung cho trợ lý.' : 'Guidance published for the assistant.'));
+          ? (opsUi.publishedTheAssistantHas)
+          : (opsUi.guidancePublishedForThe));
       }
       await load();
     } catch (transitionError) {
@@ -614,8 +619,8 @@ export default function AdminAssistantKnowledgePage() {
       const pendingProjection = sync && (sync.degraded || (archiveTarget.state === 'PUBLISHED' && sync.status !== 'ACTIVATED'));
       setArchiveTarget(null);
       setNotice(pendingProjection
-        ? (vi ? 'Đã lưu trữ trong kho quản trị; trợ lý chưa cập nhật. Hãy kiểm tra trạng thái đồng bộ.' : 'Archived in administration; the assistant has not updated yet. Check sync status.')
-        : (vi ? 'Đã lưu trữ nội dung. Lịch sử thay đổi vẫn được giữ.' : 'Guidance archived. Its change history remains available.'));
+        ? (opsUi.archivedInAdministrationThe)
+        : (opsUi.guidanceArchivedItsChange));
       await load();
     } catch (caught) {
       setArchiveError(actionError(caught, locale));
@@ -624,7 +629,7 @@ export default function AdminAssistantKnowledgePage() {
     }
   };
 
-  const frameTitle = vi ? 'Kho kiến thức CampusUTE' : 'CampusUTE knowledge';
+  const frameTitle = opsUi.campusuteKnowledge;
   const frameDescription = vi
     ? 'Quản trị nội dung học vụ công khai cho trợ lý.'
     : 'Manage public campus guidance for the assistant.';
@@ -641,11 +646,11 @@ export default function AdminAssistantKnowledgePage() {
     return (
       <AdminFrame title={frameTitle} description={frameDescription}>
         <ForbiddenState
-          title={vi ? 'Không có quyền truy cập' : 'Access restricted'}
-          description={vi ? 'Chỉ quản trị viên có thể quản lý nội dung đã công bố.' : 'Only administrators can manage published guidance.'}
+          title={opsUi.accessRestricted}
+          description={opsUi.onlyAdministratorsCanManage}
           action={
             <LinkButton href="/dashboard" variant="outline">
-              {vi ? 'Về trang tổng quan' : 'Return to overview'}
+              {opsUi.returnToOverview}
             </LinkButton>
           }
         />
@@ -662,7 +667,7 @@ export default function AdminAssistantKnowledgePage() {
       actions={
         <Button type="button" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-          {vi ? 'Tạo nội dung' : 'Add guidance'}
+          {opsUi.addGuidance}
         </Button>
       }
     >
@@ -674,7 +679,7 @@ export default function AdminAssistantKnowledgePage() {
             className="ml-2 rounded font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => void load()}
           >
-            {vi ? 'Thử lại' : 'Retry'}
+            {opsUi.retry}
           </button>
         </div>
       ) : null}
@@ -691,21 +696,21 @@ export default function AdminAssistantKnowledgePage() {
       <div className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-3">
           <AdminMetricCard
-            label={vi ? 'Tổng nội dung' : 'Total guidance'}
+            label={opsUi.totalGuidance}
             value={documents.length}
             icon={<FileText className="h-5 w-5" />}
             toneClassName={metricToneClass('info')}
             compact
           />
           <AdminMetricCard
-            label={vi ? 'Đã xuất bản' : 'Published'}
+            label={opsUi.published}
             value={publishedCount}
             icon={<ShieldCheck className="h-5 w-5" />}
             toneClassName={metricToneClass('success')}
             compact
           />
           <AdminMetricCard
-            label={vi ? 'Chờ duyệt' : 'Pending review'}
+            label={opsUi.pendingReview}
             value={pendingCount}
             icon={<UploadCloud className="h-5 w-5" />}
             toneClassName={metricToneClass('warning')}
@@ -716,7 +721,7 @@ export default function AdminAssistantKnowledgePage() {
         <CatalogCoverageCard coverage={coverage} coverageError={coverageError} vi={vi} />
 
         <AdminTableCard
-          title={vi ? 'Nội dung đã kiểm duyệt' : 'Reviewed guidance'}
+          title={opsUi.reviewedGuidance}
           description={
             vi
               ? 'Nội dung được kiểm duyệt trước khi trợ lý sử dụng. Nội dung đã lưu trữ vẫn giữ lịch sử thay đổi.'
@@ -744,10 +749,10 @@ export default function AdminAssistantKnowledgePage() {
             vi={vi}
           />
           {isLoading && documents.length === 0 ? (
-            <LoadingState label={vi ? 'Đang tải nội dung...' : 'Loading guidance...'} />
+            <LoadingState label={opsUi.loadingGuidance} />
           ) : filteredDocuments.length === 0 ? (
             <EmptyState
-              title={vi ? 'Chưa có nội dung phù hợp.' : 'No matching guidance.'}
+              title={opsUi.noMatchingGuidance}
               description={
                 vi
                   ? 'Nội dung mới sẽ xuất hiện tại đây sau khi được tạo hoặc khi bộ lọc thay đổi.'
@@ -791,13 +796,13 @@ export default function AdminAssistantKnowledgePage() {
           setArchiveTarget(null);
         }}
         onConfirm={() => void archive()}
-        title={vi ? 'Lưu trữ nội dung?' : 'Archive guidance?'}
+        title={opsUi.archiveGuidance}
         message={
           vi
             ? 'Nội dung sẽ ngừng được sử dụng nhưng lịch sử thay đổi vẫn được giữ. Bạn có chắc không?'
             : 'This guidance will stop being used while its change history remains available. Continue?'
         }
-        confirmText={vi ? 'Lưu trữ' : 'Archive'}
+        confirmText={opsUi.archive2}
         variant="destructive"
         isLoading={isSaving}
         error={archiveError}
