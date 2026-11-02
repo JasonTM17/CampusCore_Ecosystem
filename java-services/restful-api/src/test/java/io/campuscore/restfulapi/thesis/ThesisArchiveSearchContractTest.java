@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.thesis.ThesisArchiveSearchOracle.Case;
 import io.campuscore.restfulapi.thesis.ThesisArchiveSearchOracle.Fixture;
 import java.nio.charset.StandardCharsets;
@@ -334,29 +335,31 @@ class ThesisArchiveSearchContractTest {
     }
 
     @Test
-    void policyNeverTruncatesTheTermOrTheTokenCount() throws Exception {
+    void searchAppliesTheSharedTermAndTokenBudget() throws Exception {
         String fileName = FIXTURE.reports().stream()
                 .filter(report -> report.id().equals("r06")).findFirst().orElseThrow().fileName();
-        assertThat(fileName.length()).isGreaterThan(64);
-        // The first 64 characters alone do match r06; the extra tail must be
-        // applied, so a truncating policy would wrongly return r06 here.
+        assertThat(fileName.length()).isGreaterThan(LikePattern.MAX_TERM_LENGTH);
+        // The bound term is the 64-character prefix, which matches r06; the
+        // omitted tail would not, so the truncation is observable here.
         mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", round)
-                        .param("search", fileName.substring(0, 64) + "zzzzzzzzzzzzzzzz")
+                        .param("search", fileName.substring(0, LikePattern.MAX_TERM_LENGTH)
+                                + "zzzzzzzzzzzzzzzz")
                         .param("page", "0").param("limit", "10").with(admin))
                 .andExpect(status().isOk())
-                .andExpect(header().string(TOTAL, "0"));
+                .andExpect(header().string(TOTAL, "1"));
         mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", round)
                         .param("search", fileName)
                         .param("page", "0").param("limit", "10").with(admin))
                 .andExpect(status().isOk())
                 .andExpect(header().string(TOTAL, "1"));
 
-        // Nine tokens: the ninth is decisive, so an eight-token cap would match.
+        // Nine tokens: the ninth is outside the eight-word budget and is not
+        // applied, so the first eight still match.
         mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", round)
                         .param("search", "alpha bravo charlie delta echo foxtrot golf hotel nomatchzzz")
                         .param("page", "0").param("limit", "10").with(admin))
                 .andExpect(status().isOk())
-                .andExpect(header().string(TOTAL, "0"));
+                .andExpect(header().string(TOTAL, "1"));
         mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", round)
                         .param("search", "alpha bravo charlie delta echo foxtrot golf hotel india juliet")
                         .param("page", "0").param("limit", "10").with(admin))

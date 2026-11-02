@@ -38,6 +38,14 @@ import org.slf4j.LoggerFactory;
 public class ThesisReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ThesisReportService.class);
+
+    /**
+     * The legacy unpaged archive read keeps its bare-array contract but shares
+     * the paged API's row ceiling, so no request can order an unbounded result
+     * set from the single read path.
+     */
+    private static final int LEGACY_READ_CEILING = ListPaging.MAX_LIMIT;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ThesisReportStorage storage;
     private final ThesisReportStorageProperties storageProperties;
@@ -426,11 +434,12 @@ public class ThesisReportService {
 
     /**
      * Additive archive read with the optional server search. The predicate is
-     * the web predicate (see {@link ThesisArchiveSearch}); it applies after
-     * authorization and before the filtered total and the page window, and the
-     * three unfiltered {@code X-Archive-*} totals are read in the same
-     * repeatable-read statement. Without a window the body is still the legacy
-     * bare array (filtered when a term was supplied) and no summary is read.
+     * the web predicate within the shared list-search term budget (see
+     * {@link ThesisArchiveSearch}); it applies after authorization and before
+     * the filtered total and the page window, and the three unfiltered
+     * {@code X-Archive-*} totals are read in the same repeatable-read statement.
+     * Without a window the body is still the legacy bare array (filtered when a
+     * term was supplied) and no summary is read.
      */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RepositoryArchivePage listRepository(UUID roundId, Jwt actor, ListPaging.Window window,
@@ -482,6 +491,8 @@ public class ThesisReportService {
         if (window != null) {
             parameters.addValue("limit", window.limit()).addValue("offset", window.offset());
             sql.append(" LIMIT :limit OFFSET :offset");
+        } else {
+            sql.append(" LIMIT ").append(LEGACY_READ_CEILING);
         }
         List<RepositoryRoot> roots = jdbc.query(sql.toString(), parameters, (rs, ignored) -> {
             String topicId = rs.getString("topic_id");

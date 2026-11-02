@@ -1174,6 +1174,32 @@ class AuthLoginPersistenceTest {
     }
 
     @Test
+    void aLiveSessionOfAnotherAccountFromTheSameAddressDoesNotClearTheLock() throws Exception {
+        Instant now = Instant.now();
+        insertStudentUser("shared-ip-target", "shared-target@campuscore.edu", "password123", 5,
+                now.plusSeconds(3600));
+        insertStudentUser("shared-ip-sibling", "shared-sibling@campuscore.edu", "password123", 0, null);
+        insertSession("session-sibling", "shared-ip-sibling", "203.0.113.20", now.plusSeconds(7200));
+
+        mvc.perform(post("/api/v1/auth/login")
+                        .with(request -> {
+                            request.setRemoteAddr("203.0.113.20");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"shared-target@campuscore.edu","password":"password123"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        Integer attempts = jdbc.queryForObject(
+                "SELECT \"failedLoginAttempts\" FROM \"campuscore_auth\".\"User\""
+                        + " WHERE \"id\" = 'shared-ip-target'",
+                Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(5, attempts);
+    }
+
+    @Test
     void lockedAccountWithExpiredSessionFromSameIpStaysLocked() throws Exception {
         Instant now = Instant.now();
         insertStudentUser("expired-ip-user", "expired@campuscore.edu", "password123", 5,
