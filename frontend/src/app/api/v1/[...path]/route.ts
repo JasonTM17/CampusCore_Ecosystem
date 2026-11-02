@@ -32,6 +32,84 @@ function rejected(status: number, body: Record<string, string>): Response {
   });
 }
 
+// Mirrors JsonBodyCapFilter and spring.servlet.multipart.max-request-size so
+// the edge refuses an oversized body before allocating it. The tightest
+// applicable ceiling wins, exactly as it does in the Java filter.
+const BODY_CAP_JSON_AUTH = 4 * 1024;
+const BODY_CAP_JSON_ASSISTANT = 64 * 1024;
+const BODY_CAP_JSON = 1024 * 1024;
+const BODY_CAP_UPLOAD = 21 * 1024 * 1024;
+const BODY_CAP_AUTH_PATHS = new Set([
+  'auth/login',
+  'auth/refresh',
+  'auth/change-password',
+  'auth/forgot-password',
+  'auth/reset-password',
+  'auth/logout',
+]);
+
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super('Request body exceeds the accepted size');
+    this.name = 'RequestBodyTooLargeError';
+  }
+}
+
+function bodyCapFor(path: readonly string[], contentType: string | null): number {
+  const type = (contentType ?? '').toLowerCase();
+  if (type.startsWith('multipart/form-data')) return BODY_CAP_UPLOAD;
+  if (!type.includes('application/json')) return BODY_CAP_UPLOAD;
+  const route = (path[0] === 'v1' ? path.slice(1) : path).join('/');
+  if (BODY_CAP_AUTH_PATHS.has(route)) return BODY_CAP_JSON_AUTH;
+  if (route.startsWith('assistant/') || route.startsWith('thesis/assistant/')) {
+    return BODY_CAP_JSON_ASSISTANT;
+  }
+  return BODY_CAP_JSON;
+}
+
+async function readRequestBody(request: NextRequest, cap: number): Promise<ArrayBuffer> {
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    const size = Number(declared);
+    if (Number.isFinite(size) && size > cap) throw new RequestBodyTooLargeError();
+  }
+
+  const stream = request.body;
+  if (!stream) {
+    const buffer = await request.arrayBuffer();
+    if (buffer.byteLength > cap) throw new RequestBodyTooLargeError();
+    return buffer;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = stream.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      size += value.byteLength;
+      if (size > cap) {
+        await reader.cancel().catch(() => undefined);
+        throw new RequestBodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const buffer = new ArrayBuffer(size);
+  const view = new Uint8Array(buffer);
+  let offset = 0;
+  for (const chunk of chunks) {
+    view.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return buffer;
+}
+
 async function handle(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   const origin = resolveJavaApiOrigin();
@@ -120,10 +198,25 @@ async function handle(request: NextRequest, context: RouteContext) {
     headers.set('x-campuscore-client-ip', clientIp);
   }
 
+  let body: ArrayBuffer | undefined;
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    try {
+      body = await readRequestBody(
+        request,
+        bodyCapFor(path, request.headers.get('content-type')),
+      );
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return rejected(413, { error: 'REQUEST_BODY_TOO_LARGE' });
+      }
+      throw error;
+    }
+  }
+
   const response = await fetch(upstreamUrl, {
     method: request.method,
     headers,
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
+    body,
     redirect: 'manual',
     signal: request.signal,
   });
