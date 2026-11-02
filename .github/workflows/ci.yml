@@ -79,6 +79,31 @@ jobs:
         run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - name: Install mobile dependencies for native parity resolution
         run: npm ci --prefix mobile --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Prometheus promtool
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROMETHEUS_VERSION=2.55.1
+          PROMETHEUS_ARCHIVE="prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          PROMETHEUS_URL="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}"
+          PROMETHEUS_DIR="$RUNNER_TEMP/prometheus-${PROMETHEUS_VERSION}"
+          mkdir -p "$PROMETHEUS_DIR"
+          curl --fail --silent --show-error --location "$PROMETHEUS_URL/$PROMETHEUS_ARCHIVE" -o "$PROMETHEUS_DIR/$PROMETHEUS_ARCHIVE"
+          curl --fail --silent --show-error --location "$PROMETHEUS_URL/sha256sums.txt" -o "$PROMETHEUS_DIR/sha256sums.txt"
+          grep -E "^[[:xdigit:]]{64}  ${PROMETHEUS_ARCHIVE}$" "$PROMETHEUS_DIR/sha256sums.txt" > "$PROMETHEUS_DIR/asset.sha256"
+          test "$(wc -l < "$PROMETHEUS_DIR/asset.sha256")" -eq 1
+          (cd "$PROMETHEUS_DIR" && sha256sum --check asset.sha256)
+          mkdir -p "$PROMETHEUS_DIR/bin"
+          tar -xzf "$PROMETHEUS_DIR/$PROMETHEUS_ARCHIVE" -C "$PROMETHEUS_DIR/bin" --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          chmod +x "$PROMETHEUS_DIR/bin/promtool"
+          echo "$PROMETHEUS_DIR/bin" >> "$GITHUB_PATH"
+      - name: Test Prometheus alert rules
+        run: |
+          promtool check rules \
+            ops/monitoring/alerts-api-slo.yml \
+            ops/monitoring/alerts-assistant.yml \
+            ops/monitoring/alerts-infrastructure.yml
+          promtool test rules ops/monitoring/alert-tests.yml
       - name: Secret hygiene gate (masked secret scan and test)
         shell: bash
         run: |
@@ -119,6 +144,7 @@ jobs:
             scripts/local-dev.test.mjs \
             scripts/locale-keys.test.mjs \
             scripts/mobile-local-oidc-verify.test.mjs \
+            scripts/ops-delivery-contract.test.mjs \
             scripts/platform-load.test.mjs \
             scripts/platform-verify.test.mjs \
             scripts/provision-assistant-runtime.test.mjs \
@@ -147,7 +173,37 @@ jobs:
       - name: Design tokens synchronization gate
         run: node scripts/sync-tokens.mjs --check
       - name: Migration source checks
+        shell: bash
         run: |
+          set -euo pipefail
+          migration_dir=java-services/restful-api/src/main/resources/db/migration
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            event_path="${GITHUB_EVENT_PATH:?push event payload is missing}"
+            base_ref="$(node -e 'const fs = require("node:fs"); const event = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(event.before || "");' "$event_path")"
+            if [[ -z "$base_ref" ]]; then
+              echo 'FAIL push event has no prior revision in its payload'
+              exit 1
+            fi
+          else
+            base_ref=origin/main
+          fi
+          if [[ "$base_ref" =~ ^0+$ ]]; then base_ref=HEAD^; fi
+          baseline="$(git ls-tree -r --name-only "$base_ref" -- "$migration_dir" \
+            | sed -nE 's#^.*/V([0-9]+)__[^/]*\.sql$#\1#p' \
+            | sort -n | tail -n 1)"
+          if [[ ! "$baseline" =~ ^[0-9]+$ ]]; then
+            echo "FAIL migration baseline not found in $base_ref"
+            exit 1
+          fi
+          added="$(git diff --name-only --diff-filter=A "$base_ref...HEAD" -- "$migration_dir")"
+          while IFS= read -r migration; do
+            [[ -n "$migration" ]] || continue
+            version="$(basename "$migration" | sed -nE 's/^V([0-9]+)__.*/\1/p')"
+            if [[ ! "$version" =~ ^[0-9]+$ ]] || (( version <= baseline )); then
+              echo "FAIL new migration $migration is not newer than baseline V$baseline"
+              exit 1
+            fi
+          done <<< "$added"
           node scripts/check-migrations.mjs
           node scripts/flyway-lineage-check.mjs
       - name: Offline assistant evaluation gate (AUD-16)
@@ -545,6 +601,11 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
       - name: Run official e2e suite on a disposable stack
+        run: node scripts/run-course-e2e.mjs
+      - name: Run mobile unread recovery on mobile-390
+        env:
+          E2E_PLAYWRIGHT_PROJECT: mobile-390
+          E2E_PLAYWRIGHT_FILTER: failed mark-read restores the preview row and unread badge without duplicates
         run: node scripts/run-course-e2e.mjs
       - name: Upload Playwright failure traces
         if: failure()
