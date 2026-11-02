@@ -67,6 +67,7 @@ export function LibraryCataloguePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   // A 401/403 on the catalogue read is a denial, not an outage.
   const [denied, setDenied] = useState(false);
   const requestSequence = useRef(0);
@@ -80,6 +81,7 @@ export function LibraryCataloguePage() {
     currentSelection.current = { search, page: requestedPage };
     setIsLoading(true);
     setError('');
+    setActionError('');
     setDenied(false);
     try {
       const [rows, mine] = await Promise.all([
@@ -158,12 +160,13 @@ export function LibraryCataloguePage() {
 
   const requestHold = async (copyId: string) => {
     setIsBusy(true);
+    setActionError('');
     try {
       await libraryApi.request(copyId, newLibraryIdempotencyKey());
       toast.success(copy.requested);
       await loadCurrentSelection();
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setActionError(friendlyError(copy, cause));
     } finally {
       setIsBusy(false);
     }
@@ -171,12 +174,13 @@ export function LibraryCataloguePage() {
 
   const cancel = async (loan: LoanRequest) => {
     setIsBusy(true);
+    setActionError('');
     try {
       await libraryApi.cancel(loan.id, loan.version, newLibraryIdempotencyKey());
       toast.success(copy.cancelled);
       await loadCurrentSelection();
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setActionError(friendlyError(copy, cause));
     } finally {
       setIsBusy(false);
     }
@@ -199,6 +203,12 @@ export function LibraryCataloguePage() {
         data-testid="library-simulated-banner">
         {copy.simulatedBanner}
       </p>
+
+      {actionError ? (
+        <p role="alert" className={`rounded-md border px-4 py-3 text-sm ${statusToneClass('danger')}`}>
+          {actionError}
+        </p>
+      ) : null}
 
       {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void loadCurrentSelection()} /> : null}
       {denied ? <WorkspaceForbiddenState /> : null}
