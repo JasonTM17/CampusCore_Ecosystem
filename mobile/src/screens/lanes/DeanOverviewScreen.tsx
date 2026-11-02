@@ -5,6 +5,7 @@ import { Button, SectionHeading, StatePanel, StatStrip, UiText } from '../../com
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { laneApi } from './lane-api';
 import { LaneShell, QueueCard, laneStyles, useLaneRequest, useLanesCopy } from './lane-ui';
 
@@ -43,12 +44,19 @@ export function DeanOverviewScreen() {
           : entry.kind === 'group' ? `group:${entry.group.id ?? index}` : 'groupsHeading',
         renderItem: ({ item: entry, index }) => {
           if (entry.kind === 'groupsHeading') return <><SectionHeading title={copy.deanGroups} />{groups.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}</>;
-          if (entry.kind === 'supervisor') { const row = entry.row; return <QueueCard
-            title={row.displayName ?? row.lecturerId ?? ''}
-            count={row.supervisedGroups ? fillCopy(copy.deanGroupCount, { n: row.supervisedGroups }) : undefined}
-            lines={[row.departmentName, fillCopy(copy.deanSupervised, { groups: row.supervisedGroups ?? 0, topics: row.supervisedTopics ?? 0 })]}
-            copy={copy}
-          />; }
+          if (entry.kind === 'supervisor') {
+            const row = entry.row;
+            const groupCount = row.supervisedGroups ?? 0;
+            const topicCount = row.supervisedTopics ?? 0;
+            const groupText = fillCopy(countForm(groupCount, copy.deanGroupCountOne, copy.deanGroupCount), { n: groupCount });
+            const topicText = fillCopy(countForm(topicCount, copy.deanTopicCountOne, copy.deanTopicCount), { n: topicCount });
+            return <QueueCard
+              title={row.displayName ?? row.lecturerId ?? ''}
+              count={row.supervisedGroups ? groupText : undefined}
+              lines={[row.departmentName, fillCopy(copy.deanSupervised, { groups: groupText, topics: topicText })]}
+              copy={copy}
+            />;
+          }
           const group = entry.group;
           return (
               <QueueCard
@@ -57,7 +65,7 @@ export function DeanOverviewScreen() {
                 status={group.approvalStatus}
                 lines={[
                   group.departmentName,
-                  fillCopy(copy.deanMembers, { n: group.members?.length ?? 0 }),
+                  fillCopy(countForm(group.members?.length ?? 0, copy.deanMembersOne, copy.deanMembers), { n: group.members?.length ?? 0 }),
                   (group.supervisors ?? []).map((supervisor) => supervisor.displayName).filter(Boolean).join(', '),
                 ]}
                 copy={copy}

@@ -6,6 +6,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { DateField } from '../../components/ui/date-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import type { LanesCopy } from '../../i18n/lanes-messages';
 import {
@@ -292,12 +293,12 @@ export function AdminCreditLimitsScreen() {
               key={row.id}
               title={row.studentName ?? row.studentCode ?? row.id}
               status={row.status}
-              count={typeof row.requestedLimit === 'number' ? fillCopy(copy.creditUnit, { n: row.requestedLimit }) : undefined}
+              count={typeof row.requestedLimit === 'number' ? fillCopy(countForm(row.requestedLimit, copy.creditUnitOne, copy.creditUnit), { n: row.requestedLimit }) : undefined}
               copy={copy}
               lines={[
                 row.studentCode,
                 row.semesterName ?? row.roundName,
-                typeof row.requestedLimit === 'number' ? fillCopy(copy.creditRequested, { n: row.requestedLimit }) : null,
+                typeof row.requestedLimit === 'number' ? fillCopy(countForm(row.requestedLimit, copy.creditRequestedOne, copy.creditRequested), { n: row.requestedLimit }) : null,
                 typeof row.standardLimit === 'number' ? fillCopy(copy.creditStandard, { n: row.standardLimit }) : null,
                 row.reason ? fillCopy(copy.creditReason, { text: row.reason }) : null,
                 row.reviewerNote,

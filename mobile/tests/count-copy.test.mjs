@@ -9,6 +9,8 @@ const { shellMessages, fillShellCopy } = await loadTs('src/i18n/shell-messages.t
 const { operationsMessages } = await loadTs('src/i18n/operations-messages.ts');
 const { checkinMessages } = await loadTs('src/i18n/checkin-messages.ts');
 const { eventsMessages } = await loadTs('src/i18n/events-messages.ts');
+const { lanesMessages } = await loadTs('src/i18n/lanes-messages.ts');
+const { thesisMessages } = await loadTs('src/i18n/thesis-messages.ts');
 
 const vi = {
   dashboard: shellMessages.vi.dashboard,
@@ -16,6 +18,8 @@ const vi = {
   operations: operationsMessages.vi,
   checkin: checkinMessages.vi,
   events: eventsMessages.vi,
+  lanes: lanesMessages.vi,
+  thesis: thesisMessages.vi,
 };
 const en = {
   dashboard: shellMessages.en.dashboard,
@@ -23,6 +27,8 @@ const en = {
   operations: operationsMessages.en,
   checkin: checkinMessages.en,
   events: eventsMessages.en,
+  lanes: lanesMessages.en,
+  thesis: thesisMessages.en,
 };
 
 test('countForm keeps the singular for exactly one and the plural otherwise', () => {
@@ -88,6 +94,55 @@ test('Vietnamese count copy does not inflect', () => {
   assert.equal(fillCopy(vi.operations.exportReadyOne, { n: 1 }), 'Bảng CSV 1 dòng');
   assert.equal(fillCopy(vi.checkin.entryDetailOne, { n: 1 }), '1 buổi điểm danh đang mở');
   assert.equal(fillCopy(vi.events.seatsOne, { n: 1 }), 'Còn 1 chỗ');
+});
+
+test('English lane count copy uses the singular noun for one', () => {
+  assert.equal(fillCopy(en.lanes.deanMembersOne, { n: 1 }), '1 member');
+  assert.equal(fillCopy(en.lanes.deanGroupCountOne, { n: 1 }), '1 group');
+  assert.equal(fillCopy(en.lanes.deanTopicCountOne, { n: 1 }), '1 topic');
+  assert.equal(fillCopy(en.lanes.creditRequestedOne, { n: 1 }), 'Requests 1 credit');
+  assert.equal(fillCopy(en.lanes.creditUnitOne, { n: 1 }), '1 credit');
+  assert.equal(fillCopy(en.lanes.pageOfOne, { page: 1, pages: 1, total: 1 }), 'Page 1/1 · 1 item');
+});
+
+test('English lane count copy keeps the plural noun beyond one', () => {
+  assert.equal(fillCopy(en.lanes.deanMembers, { n: 2 }), '2 members');
+  assert.equal(fillCopy(en.lanes.deanGroupCount, { n: 2 }), '2 groups');
+  assert.equal(fillCopy(en.lanes.deanTopicCount, { n: 2 }), '2 topics');
+  assert.equal(fillCopy(en.lanes.creditRequested, { n: 2 }), 'Requests 2 credits');
+  assert.equal(fillCopy(en.lanes.creditUnit, { n: 2 }), '2 credits');
+  assert.equal(fillCopy(en.lanes.pageOf, { page: 1, pages: 1, total: 2 }), 'Page 1/1 · 2 items');
+});
+
+test('English thesis count copy uses the singular noun for one', () => {
+  assert.equal(fillCopy(en.thesis.topicCountOne, { count: 1 }), '1 topic');
+  assert.equal(fillCopy(en.thesis.topicGroupsMaxOne, { count: 1 }), 'Up to 1 group');
+  assert.equal(fillCopy(en.thesis.advisorTopicsOne, { count: 1 }), '1 topic');
+  assert.equal(fillCopy(en.thesis.advisorsCappedOne, { count: 1 }), 'Showing the first 1 topic only.');
+  assert.equal(fillCopy(en.thesis.groupMembersCountOne, { count: 1 }), '1 member');
+});
+
+test('English thesis count copy keeps the plural noun beyond one', () => {
+  assert.equal(fillCopy(en.thesis.topicCount, { count: 2 }), '2 topics');
+  assert.equal(fillCopy(en.thesis.topicGroupsMax, { count: 2 }), 'Up to 2 groups');
+  assert.equal(fillCopy(en.thesis.advisorTopics, { count: 2 }), '2 topics');
+  assert.equal(fillCopy(en.thesis.advisorsCapped, { count: 2 }), 'Showing the first 2 topics only.');
+  assert.equal(fillCopy(en.thesis.groupMembersCount, { count: 2 }), '2 members');
+});
+
+test('Vietnamese lane and thesis count copy does not inflect', () => {
+  assert.equal(fillCopy(vi.lanes.deanMembersOne, { n: 1 }), '1 thành viên');
+  assert.equal(fillCopy(vi.lanes.deanMembers, { n: 2 }), '2 thành viên');
+  assert.equal(fillCopy(vi.lanes.deanGroupCountOne, { n: 1 }), '1 nhóm');
+  assert.equal(fillCopy(vi.lanes.deanTopicCountOne, { n: 1 }), '1 đề tài');
+  assert.equal(fillCopy(vi.lanes.creditRequestedOne, { n: 1 }), 'Xin 1 tín chỉ');
+  assert.equal(fillCopy(vi.lanes.creditUnitOne, { n: 1 }), '1 tín chỉ');
+  assert.equal(fillCopy(vi.lanes.pageOfOne, { page: 1, pages: 1, total: 1 }), 'Trang 1/1 · 1 mục');
+  assert.equal(fillCopy(vi.thesis.topicCountOne, { count: 1 }), '1 đề tài');
+  assert.equal(fillCopy(vi.thesis.topicGroupsMaxOne, { count: 1 }), 'Tối đa 1 nhóm');
+  assert.equal(fillCopy(vi.thesis.advisorTopicsOne, { count: 1 }), '1 đề tài');
+  assert.equal(fillCopy(vi.thesis.advisorsCappedOne, { count: 1 }), 'Hiển thị tối đa 1 đề tài đầu tiên.');
+  assert.equal(fillCopy(vi.thesis.groupMembersCountOne, { count: 1 }), '1 thành viên');
 });
 
 test('every one/other pair exists in both locales and changes only the noun', () => {
