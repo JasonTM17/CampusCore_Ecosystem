@@ -16,7 +16,7 @@ import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { notificationsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   EmptyState,
   ErrorState,
@@ -285,7 +285,6 @@ export default function NotificationsCenterPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.title}</SectionEyebrow>}
         title={copy.title}
         description={copy.description}
         actions={
