@@ -18,6 +18,8 @@ import { useRequireAuth } from '@/context/AuthContext';
 import { enrollmentsApi, registrationApi, semestersApi } from '@/lib/api';
 import { campusErrorCode } from '@/lib/campus-error';
 import { useCampusDayOfWeek } from '@/lib/campus-day';
+import { toCampusLocalDateTimeInput } from '@/lib/attendance-checkin';
+import { daysUntilMeeting } from '@/lib/weekly-grid';
 import { STATIC_STALE_TIME_MS, useApiQuery } from '@/lib/query';
 import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { isActiveEnrollment } from '@/lib/enrollment-status';
@@ -244,6 +246,11 @@ export default function DashboardPage() {
   // DB schedule.dayOfWeek: 1=Sunday, 2=Monday, ..., 7=Saturday (0=Sunday).
   // Normalize to ISO standard: 1=Monday .. 7=Sunday so daysUntil sorts from today.
   const todayDow = campusTodayDow === 1 ? 7 : campusTodayDow - 1; // 1 = Monday ... 7 = Sunday
+  // Campus clock (HH:mm): a meeting that already ended today is not upcoming,
+  // even though its weekday still matches.
+  const campusNowHHmm = toCampusLocalDateTimeInput(new Date().toISOString(), {
+    seconds: false,
+  }).slice(11);
   const upcomingMeetings: UpcomingMeeting[] = [];
   activeCourses.forEach((enrollment) => {
     const section = enrollment.section;
@@ -253,7 +260,7 @@ export default function DashboardPage() {
       upcomingMeetings.push({
         id: `${enrollment.id}-${index}`,
         dayOfWeek: isoDay,
-        daysUntil: (isoDay - todayDow + 7) % 7,
+        daysUntil: daysUntilMeeting(isoDay, todayDow, schedule.endTime, campusNowHHmm),
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         courseCode: section.course?.code ?? '',
