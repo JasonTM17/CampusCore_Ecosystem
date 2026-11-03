@@ -155,7 +155,7 @@ public class AnnouncementWriteController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Đã trả về nháp thành công"),
         @ApiResponse(responseCode = "400", description = "Thiếu ghi chú lý do"),
-        @ApiResponse(responseCode = "409", description = "Trạng thái vòng đời không hợp lệ")
+        @ApiResponse(responseCode = "409", description = "Người duyệt trùng tác giả hoặc trạng thái vòng đời không hợp lệ")
     })
     @PostMapping("{id}/return")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")

@@ -324,6 +324,69 @@ class PublicationWorkflowPersistenceTest {
     }
 
     @Test
+    void lecturerAuthorCannotReturnOwnSubmission() throws Exception {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)",
+                "section-lect", "wf-lect-1");
+        String id = createDraft(lecturer("wf-lect-u", "wf-lect-1"), "Section notice", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-lect\",");
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isOk());
+        int version = versionOf(id);
+
+        // The reviewer-never-author rule binds return exactly like approve.
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")).contentType("application/json")
+                        .content("{\"reason\":\"Fix it myself\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEWER_EQUALS_AUTHOR"));
+
+        // The rejection leaves row, version and audit trail untouched.
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT \"status\", \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?", id);
+        assertEquals("IN_REVIEW", row.get("status"));
+        assertEquals(version, row.get("version"));
+        assertEquals(0, returnedAuditCount(id));
+
+        // An independent scoped reviewer can still send it back.
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-2")).contentType("application/json")
+                        .content("{\"reason\":\"Fix the headline\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.reviewerId").value("admin-2"));
+        assertEquals(1, returnedAuditCount(id));
+    }
+
+    @Test
+    void adminAuthorCannotReturnOwnSubmission() throws Exception {
+        String id = createDraft(admin("admin-1"), "Guard notice", "Body.", null);
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        int version = versionOf(id);
+
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-1")).contentType("application/json")
+                        .content("{\"reason\":\"Fix it myself\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEWER_EQUALS_AUTHOR"));
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT \"status\", \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?", id);
+        assertEquals("IN_REVIEW", row.get("status"));
+        assertEquals(version, row.get("version"));
+        assertEquals(0, returnedAuditCount(id));
+
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-2")).contentType("application/json")
+                        .content("{\"reason\":\"Fix the headline\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.reviewerId").value("admin-2"));
+        assertEquals(1, returnedAuditCount(id));
+    }
+
+    @Test
     void expiredWindowBlocksApproveUntilTheAuthorFixesIt() throws Exception {
         // expiresAt already in the past at approve time.
         String id = createDraft(admin("admin-1"), "Expired notice", "Body.",
@@ -522,6 +585,14 @@ class PublicationWorkflowPersistenceTest {
                 VALUES (?, ?, 'Body.', 'NORMAL', ARRAY['STUDENT'], ARRAY[],
                  TRUE, 'admin-1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, ?, ?)
                 """, id, "Seeded " + id, lifecycleStatus, authorId);
+    }
+
+    private int returnedAuditCount(String id) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"AnnouncementAudit\""
+                        + " WHERE \"announcementId\" = ? AND \"action\" = 'RETURNED'",
+                Integer.class, id);
+        return count == null ? 0 : count;
     }
 
     private int notificationCount() {
