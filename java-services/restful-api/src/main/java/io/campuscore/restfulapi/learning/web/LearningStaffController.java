@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.learning.web;
 
 import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.learning.service.LearningService;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
@@ -14,6 +15,10 @@ import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionRevisionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -203,12 +208,22 @@ public class LearningStaffController {
     }
 
     @Operation(summary = "Danh sách roster với trạng thái nộp bài")
+    @ApiResponse(responseCode = "200", description = "Roster lớp học phần", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = "Số bản ghi trước khi phân trang",
+            schema = @Schema(type = "integer")))
     @GetMapping("/assignments/{assignmentId}/roster")
     @PreAuthorize("isAuthenticated()")
-    public List<RosterRowResponse> roster(
+    public ResponseEntity<List<RosterRowResponse>> roster(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String assignmentId) {
-        return learning.roster(lecturer(jwt), assignmentId);
+            @PathVariable String assignmentId,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC + "; mặc định 0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Số bản ghi mỗi trang, 1 đến " + ListPaging.MAX_LIMIT
+                    + "; mặc định " + ListPaging.MAX_LIMIT)
+            @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(learning.roster(lecturer(jwt), assignmentId, window));
     }
 
     // ---------------- submissions / feedback ----------------
