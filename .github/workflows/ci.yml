@@ -11,6 +11,7 @@
 #    - Lineage & migrations: check-migrations.mjs and flyway-lineage-check.mjs.
 #    - Assistant offline eval: assistant-eval.test.mjs (fail on 0 tests).
 #    - Event collision guard: events-preview-collision.test.mjs (fail on 0 tests).
+#    - Source identity guard: tests/ecosystem-source-identity.test.mjs (fail on 0 tests).
 #    - BFF host registry & static policy: host-registry-verify.mjs, static-policy-verify.mjs.
 #
 # 2. java-api (BLOCKS MERGE):
@@ -237,6 +238,21 @@ jobs:
               process.exit(1);
             }
             console.log(`PASS: Verified ${m[1]} events collision tests executed.`);
+          '
+      - name: Ecosystem source identity gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/tests/ecosystem-source-identity.test.mjs 2>&1 | tee /tmp/source-identity.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/source-identity.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero source identity tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} source identity tests executed.`);
           '
       - name: BFF host registry parity and static policy sentinels
         run: |

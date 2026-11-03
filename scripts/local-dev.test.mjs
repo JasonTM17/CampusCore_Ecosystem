@@ -21,6 +21,7 @@ import {
   main,
   mobileRecipeFromEas,
   parseArgs,
+  parseEnvAssignments,
   pollHealth,
   portConflictAdvice,
   resolveProjectName,
@@ -369,6 +370,141 @@ test('doctor retries a cold Docker engine before failing a hard requirement', as
   assert.equal(infoCalls, 3, 'two transient failures must be retried');
   assert.match(lines.join('\n'), /\[PASS\] Docker engine\s+engine 29\.9\.1/);
   assert.match(lines.join('\n'), /local-dev doctor: PASS/);
+});
+
+/* ------------------------------------------------------------------ */
+/* .env host-port overrides                                           */
+/* ------------------------------------------------------------------ */
+
+test('parseEnvAssignments reads assignments and skips comments, export and quotes', () => {
+  const values = parseEnvAssignments([
+    '# a comment',
+    '',
+    'RESTFUL_API_HOST_PORT=14010',
+    'export POSTGRES_HOST_PORT=15432',
+    'QUOTED="9010"',
+    "SINGLE='8025'",
+    'EMPTY=',
+    'not an assignment',
+  ].join('\n'));
+  assert.equal(values.get('RESTFUL_API_HOST_PORT'), '14010');
+  assert.equal(values.get('POSTGRES_HOST_PORT'), '15432');
+  assert.equal(values.get('QUOTED'), '9010');
+  assert.equal(values.get('SINGLE'), '8025');
+  assert.equal(values.get('EMPTY'), '');
+  assert.equal(values.has('not an assignment'), false);
+});
+
+function passingDoctorDeps(root, env, probed, lines) {
+  return {
+    root,
+    env,
+    fs,
+    run: (command, args) => {
+      if (command === 'java') return { code: 0, stdout: '', stderr: 'openjdk version "21.0.5" 2024-10-15 LTS' };
+      if (args[0] === '--version') return { code: 0, stdout: 'Docker version 29.9.1, build dfc520d', stderr: '' };
+      if (args[0] === 'compose') return { code: 0, stdout: 'Docker Compose version v5.6.0', stderr: '' };
+      if (args[0] === 'info') return { code: 0, stdout: '29.9.1\n', stderr: '' };
+      if (args[0] === 'ps') return { code: 0, stdout: '', stderr: '' };
+      throw new Error(`unexpected command: ${command} ${args.join(' ')}`);
+    },
+    probePort: async (port) => {
+      probed.push(port);
+      return true;
+    },
+    nodeVersion: '22.13.0',
+    sleep: async () => {},
+    log: (message) => lines.push(message),
+  };
+}
+
+test('doctor probes the .env host-port override instead of the compose default', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-doctor-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
+  const probed = [];
+  const lines = [];
+
+  const code = await doctor(passingDoctorDeps(root, {}, probed, lines));
+
+  assert.equal(code, 0, lines.join('\n'));
+  assert.deepEqual(probed, [3000, 14010, 5432, 8025, 1025]);
+  assert.match(lines.join('\n'), /127\.0\.0\.1:14010 free/);
+  assert.doesNotMatch(lines.join('\n'), /:4010\b/);
+});
+
+test('process.env wins over the .env host-port override', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-doctor-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
+  const probed = [];
+  const lines = [];
+
+  await doctor(passingDoctorDeps(root, { RESTFUL_API_HOST_PORT: '14020' }, probed, lines));
+
+  assert.deepEqual(probed, [3000, 14020, 5432, 8025, 1025]);
+});
+
+test('status falls back to the .env host-port override when compose port has no answer', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-status-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
+  const output = [];
+
+  const code = await main(['status', '--project', 'campusute'], {
+    root,
+    env: {},
+    run: (_command, args) => {
+      if (args.includes('ps')) {
+        return { code: 0, stdout: JSON.stringify([{ Service: 'restful-api', State: 'running' }]), stderr: '' };
+      }
+      if (args.includes('port')) return { code: 1, stdout: '', stderr: 'no such service' };
+      if (args.includes('exec')) return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    },
+    fetch: async () => ({ status: 200 }),
+    log: (message) => output.push(message),
+    errorLog: (message) => output.push(message),
+  });
+
+  assert.equal(code, 0, output.join('\n'));
+  assert.equal(
+    output.some((line) => line.includes('http://127.0.0.1:14010/api/v1/health/liveness')),
+    true,
+    `status must probe the .env port override:\n${output.join('\n')}`,
+  );
+  assert.equal(output.some((line) => line.includes(':4010')), false, 'the compose default must not be probed');
+});
+
+test('up falls back to the .env host-port override when compose port has no answer', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-up-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, '.env.example'), 'POSTGRES_HOST_PORT=5432\n', 'utf8');
+  fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
+  const output = [];
+
+  const code = await main(['up', '--no-build'], {
+    root,
+    env: {},
+    run: (_command, args) => {
+      if (args.includes('port')) return { code: 1, stdout: '', stderr: 'no such service' };
+      return { code: 0, stdout: '', stderr: '' };
+    },
+    fetch: async () => ({ status: 200 }),
+    sleep: async () => {},
+    now: () => 0,
+    log: (message) => output.push(message),
+    errorLog: (message) => output.push(message),
+  });
+
+  assert.equal(code, 0, output.join('\n'));
+  assert.equal(
+    output.some((line) => line.includes('http://127.0.0.1:14010/api/v1')),
+    true,
+    `the URL table must show the .env port override:\n${output.join('\n')}`,
+  );
 });
 
 /* ------------------------------------------------------------------ */

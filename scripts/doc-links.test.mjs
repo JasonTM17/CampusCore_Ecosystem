@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -155,9 +156,9 @@ describe('Markdown-aware link parser fixtures', () => {
   });
 
   test('classifies link targets correctly', () => {
-    assert.equal(classifyTarget('file:///D:/CampusUTE_EcoSystem/docs/guide.md'), 'host-specific');
-    assert.equal(classifyTarget('D:/CampusUTE_EcoSystem/foo.md'), 'host-specific');
-    assert.equal(classifyTarget('C:\\Users\\Admin\\doc.md'), 'host-specific');
+    assert.equal(classifyTarget('file:///D:/workspace/repo/docs/guide.md'), 'host-specific');
+    assert.equal(classifyTarget('D:/workspace/repo/foo.md'), 'host-specific');
+    assert.equal(classifyTarget('C:\\Users\\example\\doc.md'), 'host-specific');
     assert.equal(classifyTarget('/Users/user/doc.md'), 'host-specific');
 
     assert.equal(classifyTarget('https://example.com'), 'external');
@@ -170,6 +171,38 @@ describe('Markdown-aware link parser fixtures', () => {
 
     assert.equal(classifyTarget('attendance-geofence-spec.md'), 'relative');
     assert.equal(classifyTarget('../../contracts/ecosystem/domain-contracts.md#L5-L15'), 'relative');
+  });
+});
+
+describe('Tracked-file host path hygiene', () => {
+  // Generic placeholders (example/user) document the shape, not a real host.
+  const genericNames = new Set(['example', 'user', 'username', 'name']);
+  const windowsProfile = /[A-Za-z]:[\\/]+Users[\\/]+([A-Za-z0-9_.-]+)/g;
+  const macProfile = /\/Users\/([A-Za-z0-9_.-]+)/g;
+
+  test('no tracked file embeds a checkout path or a concrete user-profile directory', () => {
+    const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' })
+      .split('\0')
+      .filter(Boolean);
+    const rootPosix = repoRoot.replace(/\\/g, '/');
+    const rootWindows = repoRoot.replace(/\//g, '\\');
+    const offenders = [];
+    for (const file of tracked) {
+      const absolute = path.join(repoRoot, file);
+      if (!statSync(absolute).isFile()) continue;
+      const content = readFileSync(absolute, 'utf8');
+      if (content.includes(rootPosix) || content.includes(rootWindows)
+          || /[A-Za-z]:[\\/]+CampusUTE/.test(content)) {
+        offenders.push(`${file}: embeds a checkout-specific absolute path`);
+        continue;
+      }
+      const profiles = [...content.matchAll(windowsProfile), ...content.matchAll(macProfile)]
+        .map((match) => match[1]);
+      if (profiles.some((name) => !genericNames.has(name.toLowerCase()))) {
+        offenders.push(`${file}: embeds a host user-profile path`);
+      }
+    }
+    assert.deepEqual(offenders, []);
   });
 });
 

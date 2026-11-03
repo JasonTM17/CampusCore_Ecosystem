@@ -280,6 +280,25 @@ function generateOwnerAssertionSecret() {
   return crypto.randomBytes(48).toString('base64');
 }
 
+// Reads .env into a key/value map without printing it: comments, blank lines
+// and non-assignment lines are skipped; `export ` prefixes and matching
+// surrounding quotes are unwrapped like Compose does.
+export function parseEnvAssignments(source) {
+  const values = new Map();
+  for (const rawLine of String(source ?? '').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    let value = match[2].trim();
+    if (value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.endsWith(value[0])) {
+      value = value.slice(1, -1);
+    }
+    values.set(match[1], value);
+  }
+  return values;
+}
+
 // Compose interpolates the owner-assertion key with `:?`, so a missing or empty
 // value aborts every compose command. Generate one per checkout and persist it
 // in the git-ignored .env; never replace a value the operator already set.
@@ -304,6 +323,18 @@ export function ensureOwnerAssertionSecret({
   }
   log(`generated ${OWNER_ASSERTION_SECRET} into .env (git-ignored; Compose requires it)`);
   return { generated: true, path: target };
+}
+
+// Compose resolves ${VAR:-default} against the shell environment first and the
+// project .env second; mirror that precedence so port probes and URL fallbacks
+// target the port Compose will actually bind. The map only feeds port
+// resolution — .env values are never printed.
+function commandEnv(deps) {
+  const target = path.join(deps.root, '.env');
+  const fileValues = deps.fs.existsSync(target)
+    ? parseEnvAssignments(deps.fs.readFileSync(target, 'utf8'))
+    : new Map();
+  return { ...Object.fromEntries(fileValues), ...deps.env };
 }
 
 /* ------------------------------------------------------------------ */
@@ -559,7 +590,7 @@ export function parseComposeMajor(versionOutput) {
 /* ------------------------------------------------------------------ */
 
 export async function doctor(deps) {
-  const { root, env, run, probePort: probe, fs: fsImpl, log } = deps;
+  const { root, run, probePort: probe, fs: fsImpl, log } = deps;
   const nodeVersion = deps.nodeVersion ?? process.versions.node;
   const checks = [];
   const add = (check) => checks.push(check);
@@ -649,7 +680,7 @@ export async function doctor(deps) {
   add({
     label: '.env',
     status: envExists ? 'PASS' : 'WARN',
-    detail: envExists ? '.env present (its contents are not read here)' : '.env is missing',
+    detail: envExists ? '.env present' : '.env is missing',
     remedy: envExists ? null : 'Run "node scripts/local-dev.mjs up" to copy .env.example to .env (it never overwrites an existing file).',
   });
 
@@ -664,8 +695,9 @@ export async function doctor(deps) {
   }
 
   const busy = [];
+  const portEnv = commandEnv(deps);
   for (const binding of HOST_PORT_BINDINGS) {
-    const port = effectiveHostPort(env, binding.variable, binding.port);
+    const port = effectiveHostPort(portEnv, binding.variable, binding.port);
     const free = await probe(port);
     if (free) {
       add({ label: `port ${port}`, status: 'PASS', detail: `127.0.0.1:${port} free (${binding.service})`, remedy: null });
@@ -769,9 +801,10 @@ async function up(flags, deps) {
     return 1;
   }
 
-  const webFallback = effectiveHostPort(deps.env, 'FRONTEND_HOST_PORT', 3000);
-  const apiFallback = effectiveHostPort(deps.env, 'RESTFUL_API_HOST_PORT', 4010);
-  const mailpitFallback = effectiveHostPort(deps.env, 'MAILPIT_UI_HOST_PORT', 8025);
+  const portEnv = commandEnv(deps);
+  const webFallback = effectiveHostPort(portEnv, 'FRONTEND_HOST_PORT', 3000);
+  const apiFallback = effectiveHostPort(portEnv, 'RESTFUL_API_HOST_PORT', 4010);
+  const mailpitFallback = effectiveHostPort(portEnv, 'MAILPIT_UI_HOST_PORT', 8025);
   const webPort = publishedPort(deps, prefix, 'web', 3000, webFallback);
   const apiPort = publishedPort(deps, prefix, 'restful-api', 4010, apiFallback);
   const mailpitUiPort = publishedPort(deps, prefix, 'mailpit', 8025, mailpitFallback);
@@ -814,8 +847,9 @@ async function status(flags, deps) {
   log('Compose services');
   log(formatStatusTable(parseComposePs(ps.stdout)));
 
-  const webPort = publishedPort(deps, prefix, 'web', 3000, effectiveHostPort(deps.env, 'FRONTEND_HOST_PORT', 3000));
-  const apiPort = publishedPort(deps, prefix, 'restful-api', 4010, effectiveHostPort(deps.env, 'RESTFUL_API_HOST_PORT', 4010));
+  const portEnv = commandEnv(deps);
+  const webPort = publishedPort(deps, prefix, 'web', 3000, effectiveHostPort(portEnv, 'FRONTEND_HOST_PORT', 3000));
+  const apiPort = publishedPort(deps, prefix, 'restful-api', 4010, effectiveHostPort(portEnv, 'RESTFUL_API_HOST_PORT', 4010));
   const results = await Promise.all(healthProbes({ apiPort, webPort, prefix, deps })
     .map((probe) => probeHttp(deps.fetch, probe)));
   log('');
