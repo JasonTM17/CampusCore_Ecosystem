@@ -59,7 +59,8 @@ reconcile_report_archive() {
     return 2
   fi
   if ! grep -Eq 'TABLE DATA[[:space:]]+thesis[[:space:]]+thesis_group_report([[:space:]]|$)' <<< "$toc"; then
-    return 0
+    echo 'Database archive does not contain thesis report table data.' >&2
+    return 2
   fi
 
   previous_umask="$(umask)"
