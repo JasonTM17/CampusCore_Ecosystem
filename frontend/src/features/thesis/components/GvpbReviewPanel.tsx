@@ -70,7 +70,9 @@ export default function GvpbReviewPanel({
       <CardContent className="space-y-4">
         {reviewTopics.map((topic) => {
           const existing = gvpbScores[topic.id];
-          const frozen = topic.finalScore != null || deadlinePassed || roundTerminal;
+          // A resolved outcome is terminal even when the numeric score is null.
+          const outcomeResolved = topic.resultStatus === 'NOT_QUALIFIED';
+          const frozen = topic.finalScore != null || outcomeResolved || deadlinePassed || roundTerminal;
           return (
             <div
               key={topic.id}
@@ -95,9 +97,11 @@ export default function GvpbReviewPanel({
                 <p className="text-xs text-muted-foreground italic">
                   {topic.finalScore != null
                     ? copy.finalizedLocked
-                    : roundTerminal
-                      ? copy.roundClosed
-                      : copy.deadlinePassed}
+                    : outcomeResolved
+                      ? messages.thesis.results.notQualified
+                      : roundTerminal
+                        ? copy.roundClosed
+                        : copy.deadlinePassed}
                 </p>
               ) : (
                 <div className="flex flex-wrap items-end gap-3">

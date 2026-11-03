@@ -68,6 +68,7 @@ import StudentGroupCard, {
 import SubmissionStatusTimeline from '@/features/thesis/components/SubmissionStatusTimeline';
 import SupervisedGroupList from '@/features/thesis/components/SupervisedGroupList';
 import ThesisRepositoryWorkspace from '@/features/thesis/components/ThesisRepositoryWorkspace';
+import ThesisResultOutcome from '@/features/thesis/components/ThesisResultOutcome';
 import { departmentsApi, fetchAllPages, lecturersApi } from '@/lib/api';
 import { getLocalizedName } from '@/lib/academic-content';
 import { isHttpUrl } from '@/lib/safe-url';
@@ -1179,7 +1180,7 @@ export default function ThesisPage() {
     inDepartmentCatalog: topics.some((listed) =>
       listed.id === topic.id && listed.departmentId === topic.departmentId,
     ),
-    hasHistory: topic.finalScore != null || topicHistoryIds.has(topic.id),
+    hasHistory: topic.finalScore != null || topic.resultStatus != null || topicHistoryIds.has(topic.id),
   });
 
   // "Supervised" is the R3 supervisor relationship (thesis_topic_supervisor),
@@ -1417,6 +1418,8 @@ export default function ThesisPage() {
     ? currentTopic?.finalScore ?? myResultItem?.finalScore ?? null
     : null;
   const studentGradeInfo = studentFinalScore != null ? getGradeClassification(studentFinalScore) : null;
+  const studentResultNotQualified = currentGroup?.approvalStatus === 'APPROVED'
+    && (myResultItem?.resultStatus === 'NOT_QUALIFIED' || currentTopic?.resultStatus === 'NOT_QUALIFIED');
 
   const currentLeaderMember = groupMemberList.find((m) => m.isLeader);
   const currentLeaderName = currentLeaderMember
@@ -3181,6 +3184,10 @@ export default function ThesisPage() {
             </div>
           )}
 
+              {studentResultNotQualified && (
+                <ThesisResultOutcome label={messages.thesis.results.notQualified} />
+              )}
+
               {/* 2-Column Grid for Student */}
               <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
                 <StudentGroupCard
@@ -3235,17 +3242,27 @@ export default function ThesisPage() {
                           <p className="truncate text-sm font-semibold text-foreground" title={result.topicTitle}>
                             {result.topicTitle}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {messages.thesis.results.council}: {result.councilName}
-                          </p>
+                          {result.councilName ? (
+                            <p className="text-xs text-muted-foreground">
+                              {messages.thesis.results.council}: {result.councilName}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="text-left sm:text-right">
-                          <p className="text-lg font-semibold text-foreground">
-                            {result.finalScore}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {messages.thesis.results.finalScore}
-                          </p>
+                          {result.resultStatus === 'NOT_QUALIFIED' ? (
+                            <p className="text-sm font-semibold text-foreground">
+                              {messages.thesis.results.notQualified}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-lg font-semibold text-foreground">
+                                {result.finalScore}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {messages.thesis.results.finalScore}
+                              </p>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
