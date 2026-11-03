@@ -31,7 +31,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
 | `learning` | `/learning` | student | native (text lane) | `learning/sections`, `learning/sections/{id}/materials`, `learning/sections/{id}/assignments`, draft/save/submit/resubmit + revisions/feedback (Idempotency-Key; file picking P13) |
 | `admissions` | `/apply` | student / applicant (`admissions:self`) | native (simulated) | `admissions/applications` draft/save/submit/withdraw (Idempotency-Key; attachments web lane; app path mirrors the portal `/apply` route) |
-| `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/loans/my` (Idempotency-Key) |
+| `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/requests/my` (own requests/loans; Idempotency-Key on writes) |
 | `careers` | `/careers` | student | native (simulated) | `careers/opportunities`, `careers/applications` apply/withdraw (Idempotency-Key; recruiter/reviewer web) |
 | `news` | `/news` | student | native | `announcements/public` anonymous feed (PUBLISHED/global only) |
 | `docs` | `/docs` | student | native | `public/docs` search + `public/docs/{slug}` (publishedRevision body only) |
