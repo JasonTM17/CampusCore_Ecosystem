@@ -172,6 +172,12 @@ export interface MobileEnrollment {
   section?: MobileSection;
 }
 
+/** `{ data, meta }` body of the role-scoped announcement feed (1-based pages). */
+export interface MobileAnnouncementPage {
+  data: JsonObject[];
+  meta?: { total?: number; page?: number; limit?: number; totalPages?: number };
+}
+
 export interface MobileGrade {
   id: string;
   courseCode: string;
@@ -323,6 +329,10 @@ export interface MobileLearningSubmission {
   submittedAt?: string | null;
   returnedAt?: string | null;
   reviewedAt?: string | null;
+  draftText?: string | null;
+  draftFileName?: string | null;
+  draftContentType?: string | null;
+  draftSizeBytes?: number | null;
   version: number;
 }
 
@@ -1458,7 +1468,7 @@ export const campusApi = {
   registrationSections: () =>
     apiClient.get<RegistrationCatalogSection[]>('/me/registration/sections'),
   transcript: () => apiClient.get<JsonObject>('/enrollments/my/transcript'),
-  announcements: () => apiClient.get<{ data: JsonObject[] }>('/announcements/my'),
+  announcements: () => apiClient.get<MobileAnnouncementPage>('/announcements/my'),
   updateProfile: (body: JsonObject) => apiClient.put<AuthUser>('/auth/profile', body),
   changePassword: (oldPassword: string, newPassword: string) =>
     apiClient.post<JsonObject>('/auth/change-password', { oldPassword, newPassword }),
@@ -1639,8 +1649,6 @@ export const campusApi = {
     apiClient.get<MobileLibraryTitle>(
       `/library/catalogue/${encodeURIComponent(titleId)}`,
     ),
-  libraryMyLoans: () =>
-    apiClient.get<MobileLibraryLoan[]>('/library/requests/my'),
   libraryRequest: (copyId: string) =>
     apiClient.post<MobileLibraryLoan>(
       '/library/requests',

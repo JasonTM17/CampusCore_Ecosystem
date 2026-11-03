@@ -322,7 +322,7 @@ password` (central session authority). Response id host:
 | `identity.bff.enabled` | `false` | `/bff/**` → 404; host validation vẫn chạy (apex/news/docs cần routing) nhưng không tạo session |
 | `identity.bff.dev-http` | `false` | cookie không `__Host-`, Secure off — startup **fail** nếu không có profile nào trong `{local, dev, test, e2e, h2}` (prod `persistence` cố ý ngoài danh sách — `IDENTITY_BFF_DEV_HTTP=true` trên prod = refuse boot) |
 | `app.rate-limit.proxy-token` | — | ngoài dev profiles thì **bắt buộc non-empty** khi BFF enabled (startup fail) — không token thì edge-stamped headers không auth được |
-| `NEXT_PUBLIC_BFF_LANE` | `false` | `/api/v1` proxy đi `/bff/api` thay legacy direct |
+| `NEXT_PUBLIC_BFF_LANE` | `true` với surface `mode: bff` (opt-out) | Unset hoặc bất kỳ giá trị nào khác `false` giữ BFF lane; chỉ `false` mới dùng legacy direct. Lane BFF cần `IDENTITY_BFF_ENABLED=true`, nếu không `/bff/api` trả 404. |
 
 Rollback: tắt `identity.bff.enabled` → consumer routes mới 404, portal
 legacy lane sống trong transition window; session đã revoke vẫn revoked

@@ -97,6 +97,9 @@ test('date input accepts only real calendar dates', () => {
   assert.equal(locale.parseDateInput('29/02/2026', 'vi'), null);
   assert.equal(locale.parseDateInput('31/04/2026', 'vi'), null);
   assert.equal(locale.parseDateInput('13/01/2026', 'en'), null);
+  assert.equal(locale.parseDateInput('Nov 3, 2026', 'en'), '2026-11-03');
+  assert.equal(locale.parseDateInput('nov 3 2026', 'en'), '2026-11-03');
+  assert.equal(locale.parseDateInput('Nov 31, 2026', 'en'), null);
   assert.equal(locale.parseDateInput('tomorrow', 'vi'), null);
   assert.equal(locale.parseDateInput('', 'vi'), null);
 });

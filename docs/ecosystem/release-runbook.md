@@ -83,7 +83,7 @@ Mốc đo lịch sử trong rehearsal: API RSS774,6MiB; các mốc trước ghi8
 
 Cần DNS + hosting credentials + store/signing. Khi owner mở go-live:
 
-1. Build API/id image từ commit đã qua cổng staged, gắn tag `candidate-<sha>`, chạy scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động). Repo này **không** chứa workflow publish image. Với database đã có dữ liệu (populated database), thực hiện quy trình pre-deployment DDL cho các migration nặng khóa (V146, V147) theo [Flyway lineage pre-deployment](../integrations/flyway-lineage.md#44-pre-deployment-procedure-for-populated-databases-lock-heavy-migrations-v146-v147) trước khi khởi động API.
+1. Build API/id image từ commit đã qua cổng staged, gắn tag `candidate-<sha>`, chạy scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động). Repo này **không** chứa workflow publish image. Với database đã có dữ liệu (populated database), thực hiện quy trình pre-deployment DDL cho các migration nặng khóa (V146–V150) theo [Flyway lineage pre-deployment](../integrations/flyway-lineage.md#44-pre-deployment-procedure-for-populated-databases-lock-heavy-migrations-v146v150) trước khi khởi động API.
 2. Deploy web hosts (portal/learn/apply/apex) trỏ surface registry.
 3. `probe-ecosystem-hosts.mjs` chống declared hostname (không `--insecure`).
 4. Canary synthetic personas → full lifecycle suite → live smoke.

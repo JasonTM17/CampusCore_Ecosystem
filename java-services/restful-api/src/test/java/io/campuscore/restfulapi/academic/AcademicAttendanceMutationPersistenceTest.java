@@ -347,6 +347,48 @@ class AcademicAttendanceMutationPersistenceTest {
     }
 
     @Test
+    void batchAboveTheDocumentedMaximumIsRejectedBeforeAnyStudentLock() throws Exception {
+        // The write path locks every supplied Student row before it validates
+        // section membership, so an unbounded list amplifies into a lock storm.
+        // The batch bound matches the event-attendance cap (500): a larger
+        // list must answer 400 at the request boundary, before any lock.
+        StringBuilder records = new StringBuilder();
+        StringBuilder boundedRecords = new StringBuilder();
+        for (int index = 0; index < 501; index++) {
+            String suffix = String.format("%03d", index);
+            insertUser("batch-user-" + suffix, "batch" + suffix + "@example.test", "Batch", "Student");
+            insertStudent("batch-student-" + suffix, "batch-user-" + suffix, "B" + suffix);
+            insertEnrollment("batch-enroll-" + suffix, "batch-student-" + suffix, "section-1", "ENROLLED");
+            String entry = "{\"studentId\":\"batch-student-" + suffix + "\",\"status\":\"PRESENT\"}";
+            records.append(index == 0 ? "" : ",").append(entry);
+            if (index < 500) {
+                boundedRecords.append(index == 0 ? "" : ",").append(entry);
+            }
+        }
+
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[" + records + "]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.records").value("records must not exceed 500 entries"));
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1'",
+                        Integer.class))
+                .isZero();
+
+        // The documented maximum itself still records normally.
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[" + boundedRecords + "]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedCount").value(500));
+    }
+
+    @Test
     void futureDateReturnsBadRequest() throws Exception {
         LocalDate farFuture = LocalDate.now().plusDays(10);
         String payload = String.format("""

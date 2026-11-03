@@ -25,7 +25,9 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,6 +46,9 @@ class NotificationWritePersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void prepareWriteFixture() {
@@ -201,6 +206,77 @@ class NotificationWritePersistenceTest {
 
         assertThat(totalRows()).isEqualTo(1);
         assertThat(unreadCount(STUDENT)).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateWithAnIdempotencyKeyReplaysInsteadOfDuplicating() throws Exception {
+        // A retried POST used to write a second inbox row, a second audit
+        // row and a second push fan-out. A client-supplied key derives a
+        // stable notification id, so the retry returns the first row.
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+
+        MvcResult first = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "retry-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult second = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "retry-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String firstId = objectMapper.readTree(first.getResponse().getContentAsString()).get("id").asText();
+        String secondId = objectMapper.readTree(second.getResponse().getContentAsString()).get("id").asText();
+        assertThat(secondId).isEqualTo(firstId);
+        assertThat(totalRows()).isEqualTo(1);
+        assertThat(auditRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateRejectsAnIdempotencyKeyReusedWithADifferentPayload() throws Exception {
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "reused-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "reused-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Different title", "Your course grade is now available.",
+                                "/dashboard/grades", STUDENT)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+
+        assertThat(totalRows()).isEqualTo(1);
+        assertThat(auditRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateWithoutAnIdempotencyKeyKeepsCreatingDistinctRows() throws Exception {
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mvc.perform(post("/api/v1/notifications")
+                            .with(adminJwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(totalRows()).isEqualTo(2);
+        assertThat(auditRows()).isEqualTo(2);
     }
 
     @Test
@@ -572,6 +648,13 @@ class NotificationWritePersistenceTest {
     private int totalRows() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM notifications.notification",
+                Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    private int auditRows() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\"",
                 Integer.class);
         return count == null ? 0 : count;
     }

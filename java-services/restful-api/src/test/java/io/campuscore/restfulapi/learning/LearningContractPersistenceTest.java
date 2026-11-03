@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import java.security.MessageDigest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -229,9 +231,68 @@ class LearningContractPersistenceTest {
         return java.util.Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     }
 
+    private List<String> rosterEnrollmentIds(MvcResult result) throws Exception {
+        List<String> ids = new ArrayList<>();
+        for (JsonNode row : objectMapper.readTree(result.getResponse().getContentAsString())) {
+            ids.add(row.get("enrollmentId").asText());
+        }
+        return ids;
+    }
+
     // ---------------------------------------------------------------
     // LMS-T01/T02 — assignment lifecycle + DRAFT scoping
     // ---------------------------------------------------------------
+
+    @Test
+    void rosterUsesBoundedOwnerScopedStablePages() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        jdbc.update("DELETE FROM academic.\"Enrollment\" WHERE \"sectionId\" = 'sec-a'");
+
+        List<String> expected = new ArrayList<>();
+        Timestamp enrolledAt = Timestamp.from(Instant.parse("2026-01-01T00:00:00Z"));
+        for (int i = 1; i <= 105; i++) {
+            String suffix = String.format("%03d", i);
+            String userId = "paging-user-" + suffix;
+            String studentId = "paging-student-" + suffix;
+            String enrollmentId = "paging-enrollment-" + suffix;
+            CurrentAccountJwt.fixtureJwt(jdbc, userId, "STUDENT");
+            jdbc.update("UPDATE campuscore_auth.\"User\" SET \"firstName\" = 'Same', \"lastName\" = 'Student'"
+                    + " WHERE \"id\" = ?", userId);
+            jdbc.update("INSERT INTO academic.\"Student\" (\"id\", \"userId\", \"studentId\")"
+                    + " VALUES (?, ?, ?)", studentId, userId, "SID-" + suffix);
+            jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\", \"studentId\", \"sectionId\","
+                            + " \"semesterId\", \"status\", \"enrolledAt\") VALUES (?, ?, 'sec-a', 'sem-1', ?, ?)",
+                    enrollmentId, studentId, "ENROLLED", enrolledAt);
+            expected.add(enrollmentId);
+        }
+
+        MvcResult defaultPage = mvc.perform(get("/api/v1/learning/staff/assignments/"
+                        + assignmentId + "/roster").with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(100))
+                .andExpect(header().string("X-Total-Count", "105"))
+                .andExpect(jsonPath("$[?(@.studentId=='stu-4')]").isEmpty())
+                .andReturn();
+        assertThat(rosterEnrollmentIds(defaultPage)).containsExactlyElementsOf(expected.subList(0, 100));
+
+        MvcResult secondPage = mvc.perform(get("/api/v1/learning/staff/assignments/"
+                        + assignmentId + "/roster")
+                        .param("page", "1").param("limit", "10").with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "105"))
+                .andExpect(jsonPath("$.length()").value(10))
+                .andReturn();
+        assertThat(rosterEnrollmentIds(secondPage)).containsExactlyElementsOf(expected.subList(10, 20));
+
+        MvcResult lastPage = mvc.perform(get("/api/v1/learning/staff/assignments/"
+                        + assignmentId + "/roster")
+                        .param("page", "10").param("limit", "10").with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "105"))
+                .andExpect(jsonPath("$.length()").value(5))
+                .andReturn();
+        assertThat(rosterEnrollmentIds(lastPage)).containsExactlyElementsOf(expected.subList(100, 105));
+    }
 
     @Test
     void assignmentLifecycleDraftPublishCloseArchive() throws Exception {

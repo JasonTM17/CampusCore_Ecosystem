@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { geofencedAttendanceApi } from '@/lib/api';
 import {
+  ATTENDANCE_NOTE_MAX,
   buildCheckinLandingPath,
   buildCheckinShareUrl,
   campusTodayIso,
@@ -491,6 +492,12 @@ export function GeofenceCheckinPanel({
     const note = reviewNote.trim();
     if (!note) {
       setReviewError(copy.reviewNoteRequired);
+      return;
+    }
+    if (note.length > ATTENDANCE_NOTE_MAX) {
+      setReviewError(
+        copy.reviewNoteTooLong.replace('{limit}', String(ATTENDANCE_NOTE_MAX)),
+      );
       return;
     }
     setReviewBusy(true);
@@ -1052,6 +1059,7 @@ export function GeofenceCheckinPanel({
               value={reviewNote}
               onChange={(event) => setReviewNote(event.target.value)}
               disabled={reviewBusy}
+              maxLength={ATTENDANCE_NOTE_MAX}
               error={reviewError || undefined}
               data-testid="checkin-review-note"
             />

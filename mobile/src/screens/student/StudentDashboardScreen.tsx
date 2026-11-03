@@ -15,7 +15,7 @@ import {
   StatStrip,
   StatePanel,
 } from '../../components/Ui';
-import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
+import { apiClient, campusApi, type MobileAnnouncementPage, type MobileEnrollment } from '../../api/client';
 import { countForm } from '../../i18n/locale';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
 import { buildAgenda, isActiveEnrollment, localizedName, nextMeetings } from '../academic/academic-model';
@@ -45,16 +45,18 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     c.loadError,
   );
   const {
-    data: liveAnnouncements,
+    data: announcementsPage,
     error: announcementsError,
     isLoading: announcementsLoading,
     reload: reloadAnnouncements,
-  } = useLiveResource<JsonObject[]>(
+  } = useLiveResource<MobileAnnouncementPage>(
     'announcements',
-    [],
-    async () => (await campusApi.announcements()).data ?? [],
+    { data: [] },
+    () => campusApi.announcements(),
     c.announcementsError,
   );
+  const announcementRows = announcementsPage.data ?? [];
+  const announcementTotal = announcementsPage.meta?.total ?? announcementRows.length;
   const activeEnrollments = liveEnrollments.filter((item) => isActiveEnrollment(item.status));
   const upcoming = apiClient.mode === 'preview'
     ? []
@@ -108,7 +110,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         icon="school-outline"
         eyebrow={c.currentSemester}
         title={fillShellCopy(countForm(activeSectionCount, c.activeSectionsOne, c.activeSections), { n: activeSectionCount })}
-        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(countForm(liveAnnouncements.length, c.announcementsOne, c.announcements), { n: liveAnnouncements.length })}
+        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(countForm(announcementTotal, c.announcementsOne, c.announcements), { n: announcementTotal })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>

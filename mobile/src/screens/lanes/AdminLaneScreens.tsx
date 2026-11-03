@@ -337,7 +337,7 @@ const EVENT_PATH: Record<Exclude<EventAction, 'cancel'>, 'publish' | 'close-regi
 function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCopy; onBack: () => void }) {
   const roster = useLaneRequest(() => laneApi.eventRoster(event.id), `admin:roster:${event.id}`);
   const runner = useActionRunner(copy, () => void roster.reload());
-  const markable = canMarkAttendance(event.status);
+  const markable = canMarkAttendance(event.status, event.startsAt);
   const rows: RosterRow[] = roster.data ?? [];
 
   const mark = (row: RosterRow, status: 'ATTENDED' | 'ABSENT'): PendingAction | null => {
@@ -422,7 +422,7 @@ export function AdminEventsScreen() {
               ]}
               actions={[
                 { key: 'detail', label: copy.eventDetail, variant: 'secondary', onPress: () => setSelected(event) },
-                ...eventActions(event.status).map((action) => ({
+                ...eventActions(event.status, event.startsAt).map((action) => ({
                   key: action,
                   label: EVENT_LABEL(copy, action),
                   variant: action === 'cancel' ? ('destructive' as const) : action === 'publish' ? ('primary' as const) : ('secondary' as const),

@@ -364,7 +364,7 @@ Runner local, evidence `artifacts/verification/mobile-core`. Cases:
 - `mobile-auth`: focused session tests — PKCE shape, session-store
   contract (in-memory impl mirror SecureStore API), refresh-epoch
   (persist-gated, late apply no-op), logout ordering + no-resurrect,
-  reinstall-wipe hai-lớp, compat-map coverage (21/21 ScreenName →
+  reinstall-wipe hai-lớp, compat-map coverage (37/37 ScreenName →
   route, `auth/callback` excluded), role-guard pure-function,
   bearer-origin matrix.
 - `mobile-smoke` (non-required): Android/iOS dev-build launch smoke —

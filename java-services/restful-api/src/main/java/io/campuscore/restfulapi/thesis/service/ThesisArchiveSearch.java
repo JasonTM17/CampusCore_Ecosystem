@@ -343,4 +343,3 @@ public final class ThesisArchiveSearch {
                 || character == 0x3000 || character == 0xFEFF;
     }
 }
-

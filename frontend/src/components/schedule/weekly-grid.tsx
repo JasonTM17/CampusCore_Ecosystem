@@ -8,6 +8,7 @@ import {
   type WeeklyGridItem,
 } from '@/lib/weekly-grid';
 import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
 import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 import type { Locale } from '@/i18n/config';
 import { cn } from '@/lib/utils';
@@ -121,7 +122,7 @@ export interface WeeklyGridProps {
   items: WeeklyGridAgendaItem[];
   locale: Locale;
   labels: WeeklyGridLabels;
-  /** CampusCore day number to badge as today; defaults to the real today. */
+  /** CampusCore day number to badge as today; defaults to the campus day. */
   todayDow?: number;
   /** Click handler for class blocks; receives the original agenda item. */
   onItemSelect?: (item: WeeklyGridAgendaItem) => void;
@@ -146,11 +147,13 @@ export function WeeklyGrid({
   className,
 }: WeeklyGridProps) {
   const weeklyGrid = buildWeeklyGrid(items);
+  // Set after mount so the server pass and the first client render agree; the
+  // campus clock keeps it current across midnight and tab sleeps.
+  const campusTodayDow = useCampusDayOfWeek();
   const [clientTodayDow, setClientTodayDow] = useState<number>();
   useEffect(() => {
-    const jsDay = new Date().getDay();
-    setClientTodayDow(jsDay === 0 ? 1 : jsDay + 1);
-  }, []);
+    setClientTodayDow(campusTodayDow);
+  }, [campusTodayDow]);
   const effectiveTodayDow = todayDow ?? clientTodayDow;
 
   /**

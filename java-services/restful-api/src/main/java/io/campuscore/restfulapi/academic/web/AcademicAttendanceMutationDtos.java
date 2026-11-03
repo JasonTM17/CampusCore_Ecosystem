@@ -28,6 +28,7 @@ public final class AcademicAttendanceMutationDtos {
             String date,
 
             @NotNull(message = "records list is required")
+            @Size(max = 500, message = "records must not exceed 500 entries")
             @Valid
             List<StudentAttendanceEntry> records
     ) {

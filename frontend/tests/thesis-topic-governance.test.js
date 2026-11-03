@@ -371,6 +371,7 @@ test('department-head sign-in routes to thesis and preserves lecturer/student/de
   ]) {
     let destination;
     const route = executeDeclaration('app/login/page.tsx', 'finishLogin', {
+      nextTarget: null,
       portal, portalMatchesUser: () => true, logout: async () => {}, setFormError: () => {},
       portalCopy: {}, router: { push: value => { destination = value; } }, href: value => value,
       postLoginRoute: value => ({ lecturer: '/dashboard/lecturer', student: '/dashboard', admin: '/admin', dean: '/dashboard/dean' })[value],
@@ -394,6 +395,7 @@ test('a privileged account signed in from the wrong tab routes to its own portal
     let destination;
     let loggedOut = false;
     const route = executeDeclaration('app/login/page.tsx', 'finishLogin', {
+      nextTarget: null,
       portal,
       portalMatchesUser: () => false,
       portalFromUser: () => belongsTo,
@@ -416,6 +418,7 @@ test('a non-privileged account on the wrong tab is still refused', async () => {
   let loggedOut = false;
   let mismatchPortal;
   const route = executeDeclaration('app/login/page.tsx', 'finishLogin', {
+      nextTarget: null,
     portal: 'lecturer',
     portalMatchesUser: () => false,
     portalFromUser: () => 'student',

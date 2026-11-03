@@ -1,4 +1,5 @@
 import type { User } from '@/types/api';
+import { safeInternalPath } from '@/lib/safe-url';
 
 export const LOGIN_PORTALS = ['student', 'lecturer', 'dean', 'admin'] as const;
 export type LoginPortal = (typeof LOGIN_PORTALS)[number];
@@ -111,11 +112,18 @@ export function loginHref(
   localize: (pathname: string) => string,
   portal: LoginPortal,
   reason?: string,
+  next?: string | null,
 ): string {
   const params = new URLSearchParams();
   params.set('portal', portal);
   if (reason) {
     params.set('reason', reason);
+  }
+  // `next` is the page the visitor asked for. Only a validated same-origin
+  // path is carried — anything else silently drops back to the portal root.
+  const safeNext = safeInternalPath(next);
+  if (safeNext) {
+    params.set('next', safeNext);
   }
 
   return `${localize('/login')}?${params.toString()}`;

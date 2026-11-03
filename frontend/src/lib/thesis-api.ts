@@ -556,6 +556,7 @@ export interface AssistantKnowledgeRequest {
   source: string;
   domain?: AssistantKnowledgeDomain;
   priority?: number;
+  expectedVersion?: number;
 }
 
 export type AssistantKnowledgeDomain =

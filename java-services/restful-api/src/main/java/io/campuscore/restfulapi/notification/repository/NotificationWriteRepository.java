@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -40,6 +41,7 @@ public class NotificationWriteRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final DeliveryOutboxRepository deliveryOutbox;
+    private volatile Boolean postgres;
 
     @Autowired
     public NotificationWriteRepository(
@@ -94,6 +96,48 @@ public class NotificationWriteRepository {
         }
         return findById(command.id())
                 .orElseThrow(() -> new IllegalStateException("created notification was not found"));
+    }
+
+    /**
+     * Insert behind the client-supplied idempotency contract: returns the new
+     * row, or empty when a row already holds the derived id (a replayed
+     * request). The push outbox enqueue runs only on a real insert, so a
+     * replay cannot queue a second delivery round either.
+     */
+    @Transactional
+    public Optional<NotificationResponse> createIfAbsent(CreateNotificationCommand command) {
+        // ON CONFLICT keeps a racing duplicate's transaction valid on
+        // PostgreSQL; the non-PostgreSQL mirror raises a duplicate-key error
+        // that only aborts its own statement.
+        String insert = INSERT_SQL + (isPostgres() ? " ON CONFLICT (id) DO NOTHING" : "");
+        int inserted;
+        try {
+            inserted = jdbc.update(insert, insertParameters(command));
+        } catch (org.springframework.dao.DuplicateKeyException duplicate) {
+            inserted = 0;
+        }
+        if (inserted == 0) {
+            return Optional.empty();
+        }
+        if (deliveryOutbox != null) {
+            deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
+        }
+        return findById(command.id());
+    }
+
+    private boolean isPostgres() {
+        Boolean detected = postgres;
+        if (detected != null) {
+            return detected;
+        }
+        synchronized (this) {
+            if (postgres == null) {
+                postgres = Boolean.TRUE.equals(jdbc.getJdbcTemplate().execute(
+                        (ConnectionCallback<Boolean>) connection -> connection.getMetaData()
+                                .getDatabaseProductName().equalsIgnoreCase("PostgreSQL")));
+            }
+            return postgres;
+        }
     }
 
     /**

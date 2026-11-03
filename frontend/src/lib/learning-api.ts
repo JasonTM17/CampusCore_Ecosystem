@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { fetchAllArrayListPages } from '@/lib/array-list-page';
 import { assertUploadFile } from '@/lib/upload-validation';
 
 /**
@@ -286,10 +287,14 @@ export const learningApi = {
     const response = await api.post<LearningAssignment>(`/learning/staff/assignments/${assignmentId}/archive`);
     return response.data;
   },
-  staffRoster: async (assignmentId: string): Promise<LearningRosterRow[]> => {
-    const response = await api.get<LearningRosterRow[]>(`/learning/staff/assignments/${assignmentId}/roster`);
-    return response.data;
-  },
+  staffRoster: async (assignmentId: string): Promise<LearningRosterRow[]> =>
+    fetchAllArrayListPages(async (requestPage, requestLimit) => {
+      const response = await api.get<LearningRosterRow[]>(
+        `/learning/staff/assignments/${assignmentId}/roster`,
+        { params: { page: requestPage, limit: requestLimit } },
+      );
+      return { data: response.data, headers: response.headers };
+    }),
   staffSubmission: async (submissionId: string): Promise<LearningSubmission> => {
     const response = await api.get<LearningSubmission>(`/learning/staff/submissions/${submissionId}`);
     return response.data;

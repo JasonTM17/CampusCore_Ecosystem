@@ -40,6 +40,7 @@ import { addLocalePrefix, stripLocaleFromPathname } from '@/i18n/paths';
 import { resolvePublicApiBaseUrl } from '@/lib/public-api-url';
 import { CSRF_COOKIE_NAME, isLogoutInProgress } from '@/lib/session-hint';
 import { publishSessionChange } from '@/lib/session-sync';
+import { safeInternalPath } from '@/lib/safe-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 import type { components as GeneratedApiComponents } from '@/types/generated-api';
 
@@ -300,6 +301,12 @@ function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
     loginUrl.searchParams.set('portal', 'lecturer');
   } else {
     loginUrl.searchParams.set('portal', 'student');
+  }
+  // Hand the credential lane the same validated target the SSO lane already
+  // carries in `return`, so the page the visitor asked for survives the login.
+  const next = safeInternalPath(pathname + window.location.search);
+  if (next) {
+    loginUrl.searchParams.set('next', next);
   }
   window.location.href = loginUrl.toString();
 }

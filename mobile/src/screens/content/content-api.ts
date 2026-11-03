@@ -12,6 +12,7 @@ import {
   type MobileCareerApplication,
   type MobileLearningAssignment,
   type MobileLearningSubmission,
+  type MobileLibraryLoan,
   type MobileNotification,
   type MobilePublicAnnouncement,
   type MobilePublicDoc,
@@ -69,6 +70,20 @@ async function keyed<T>(action: string, id: string, run: (key: string) => Promis
 
 const idempotent = (key: string) => ({ headers: { 'Idempotency-Key': key } });
 
+const LOANS_PAGE = 100;
+/** Upper bound on pages fetched automatically for the whole borrower history. */
+const LOANS_PAGE_CAP = 10;
+
+async function allLoans(): Promise<MobileLibraryLoan[]> {
+  const loans: MobileLibraryLoan[] = [];
+  for (let page = 0; page < LOANS_PAGE_CAP; page += 1) {
+    const result = await parityApi.libraryLoans({ page, limit: LOANS_PAGE });
+    loans.push(...result.items);
+    if (!result.hasMore) break;
+  }
+  return loans;
+}
+
 export const contentApi = {
   attempts,
 
@@ -115,7 +130,7 @@ export const contentApi = {
   /* ----- library ----- */
   libraryCatalogue: parityApi.libraryCatalogue,
   libraryTitle: (titleId: string) => campusApi.libraryTitle(titleId),
-  libraryLoans: () => campusApi.libraryMyLoans(),
+  libraryLoans: allLoans,
   libraryRequest: (copyId: string) =>
     keyed('library-request', copyId, (key) => apiClient.post<unknown>('/library/requests', { copyId }, idempotent(key))),
   libraryCancel: (requestId: string, expectedVersion: number) =>

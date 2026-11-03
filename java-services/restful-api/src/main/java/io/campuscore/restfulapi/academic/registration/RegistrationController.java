@@ -14,6 +14,8 @@ import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos
 import io.campuscore.restfulapi.academic.service.AcademicEnrollmentReadService;
 import io.campuscore.restfulapi.academic.web.AcademicEnrollmentReadDtos.EnrollmentResponse;
 import io.campuscore.restfulapi.academic.web.AcademicMutationDtos.EnrollRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
@@ -34,7 +36,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -139,15 +143,21 @@ public class RegistrationController {
                 jwt.getClaimAsString("studentId"), request.roundId(), request.reason());
     }
 
-    @Operation(summary = "Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)", description = "Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt")
+    @Operation(summary = "Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)", description = "Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lấy danh sách đơn thành công")
+        @ApiResponse(responseCode = "200", description = "Lấy danh sách đơn thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer")))
     })
     @GetMapping("admin/registration/credit-limit-applications")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    public List<Response> creditLimitApplications(
-            @Parameter(description = "Trạng thái đơn (PENDING, APPROVED, REJECTED)") @RequestParam(required = false, defaultValue = "PENDING") String status) {
-        return creditLimitApplications.list(status);
+    public ResponseEntity<List<Response>> creditLimitApplications(
+            HttpServletRequest httpRequest,
+            @Parameter(description = "Trạng thái đơn (PENDING, APPROVED, REJECTED)") @RequestParam(required = false, defaultValue = "PENDING") String status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, httpRequest);
+        return ListPaging.respond(creditLimitApplications.listPage(status, window));
     }
 
     @Operation(summary = "Xét duyệt đơn xin nâng hạn mức tín chỉ", description = "Phòng Đào tạo phê duyệt (APPROVED) hoặc từ chối (REJECTED) đơn xin nâng trần tín chỉ của sinh viên")

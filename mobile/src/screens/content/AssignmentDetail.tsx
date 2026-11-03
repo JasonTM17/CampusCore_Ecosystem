@@ -1,8 +1,8 @@
 import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, Field, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, DataNotice, Field, StatePanel, UiText } from '../../components/Ui';
 import type { MobileLearningAssignment, MobileLearningFeedback, MobileLearningRevision, MobileLearningSubmission } from '../../api/client';
 import { readQueryCache, writeQueryCache } from '../../hooks/query-cache';
 import type { PickedFile } from '../../files/file-adapter';
@@ -74,6 +74,24 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
   const revisions = revisionsQuery.data ?? [];
   const feedback = feedbackQuery.data ?? [];
 
+  // The server's editable working copy: a draft's own columns, or the
+  // accepted revision the resubmit baseline is built from.
+  const baseline = phase === 'returned'
+    ? revisions.find((revision) => revision.id === submission?.currentRevisionId) ?? revisions[0]
+    : undefined;
+  const serverDraftReady = phase === 'draft' ? submission !== null : baseline !== undefined;
+  const serverDraftText = phase === 'draft' ? submission?.draftText : baseline?.textBody;
+  const serverDraftFileName = phase === 'draft' ? submission?.draftFileName : baseline?.fileName;
+
+  // Adopt the server copy once, only while the field is untouched: a typed
+  // or cache-restored local draft always wins over a refresh landing later.
+  const adoptedServerDraft = useRef(false);
+  useEffect(() => {
+    if (adoptedServerDraft.current || !serverDraftReady) return;
+    if (text === '') setText(serverDraftText ?? '');
+    adoptedServerDraft.current = true;
+  }, [serverDraftReady, serverDraftText, text]);
+
   const changeText = (value: string) => {
     setText(value);
     writeQueryCache(draftKey(assignment.id), value);
@@ -111,9 +129,27 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
 
   const input = () => ({ textBody: text.trim(), ...(file ? { file: toUploadPart(file) } : {}) });
   const needsContent = () => {
-    if (hasSubmissionContent(text, file !== null)) return false;
+    if (hasSubmissionContent(text, file !== null || serverDraftFileName != null)) return false;
     fail(copy.needContent);
     return true;
+  };
+
+  /** Loading, failed-with-retry, stale-warning or the settled empty copy — the same states the submission read gets below. */
+  const readState = (
+    query: { isLoading: boolean; error: string | null; warning: string | null; reload: () => Promise<void> },
+    emptyCopy: string,
+    rowCount: number,
+  ) => {
+    if (query.error) {
+      return <StatePanel kind="error" title={copy.errorTitle} description={query.error} actionLabel={copy.retry} onAction={() => void query.reload()} />;
+    }
+    if (query.isLoading) return <StatePanel kind="loading" title={copy.loading} />;
+    return (
+      <>
+        {query.warning ? <DataNotice message={query.warning} /> : null}
+        {rowCount === 0 ? <UiText variant="bodySmall" tone="muted">{emptyCopy}</UiText> : null}
+      </>
+    );
   };
 
   const startDraft = () => void run(async () => {
@@ -156,7 +192,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
     <DetailFrame title={copy.title} onBack={onBack}
       list={{ data: [...((submissionId !== null) ? cardRows("section-1", revisions, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{copy.revisions}</UiText>
-              {revisions.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyRevisions}</UiText> : null}
+              {readState(revisionsQuery, copy.emptyRevisions, revisions.length)}
               </>, (revision) => (
                 <View key={revision.id} style={{ gap: 4, marginTop: 8 }}>
                   <UiText variant="label">{joinMeta([fillCopy(copy.revision, { n: revision.revisionNo }), formatDateTime(revision.submittedAt)])}</UiText>
@@ -168,7 +204,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
               ), {}) : []),
 ...((submissionId !== null) ? cardRows("section-2", feedback, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{copy.feedback}</UiText>
-              {feedback.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyFeedback}</UiText> : null}
+              {readState(feedbackQuery, copy.emptyFeedback, feedback.length)}
               </>, (entry) => (
                 <View key={entry.id} accessible style={{ gap: 2, marginTop: 8 }}>
                   <UiText variant="label">{joinMeta([entry.score != null ? `${copy.score}: ${formatNumber(entry.score)}` : null, formatDateTime(entry.createdAt)])}</UiText>
@@ -218,6 +254,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
               editable={!busy}
             />
             <FilePicker policy={COURSEWORK_POLICY} file={file} onChange={setFile} disabled={busy} />
+            {file === null && serverDraftFileName ? <MetaRow label={copy.answerFile} value={serverDraftFileName} /> : null}
             <View style={{ gap: 8, marginTop: 8 }}>
               {phase === 'draft' ? <Button label={copy.saveDraft} variant="secondary" disabled={busy} onPress={saveDraft} /> : null}
               {phase === 'draft' ? <Button label={copy.submit} loading={busy} disabled={busy} onPress={submit} /> : null}
