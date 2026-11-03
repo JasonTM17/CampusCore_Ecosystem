@@ -233,25 +233,7 @@ class ThesisArchiveReadBudgetTest {
 
     @Test
     void legacyReadStopsAtThePagingCeiling() throws Exception {
-        for (int index = 0; index < 94; index++) {
-            UUID topicId = UUID.randomUUID();
-            jdbc.update("INSERT INTO thesis.thesis_topic "
-                            + "(id, round_id, department_id, title, description, max_groups, status, created_by) "
-                            + "VALUES (?, ?, 'department-demo', ?, 'ceiling fixture', 1, 'PUBLISHED', 'arb')",
-                    topicId, roundId, "Ceiling topic " + index);
-            UUID groupId = UUID.randomUUID();
-            jdbc.update("INSERT INTO thesis.thesis_group "
-                            + "(id, round_id, leader_student_id, topic_id, status, approval_status) "
-                            + "VALUES (?, ?, ?, ?, 'SUBMITTED', 'APPROVED')",
-                    groupId, roundId, tag + "-ceiling-student-" + index, topicId);
-            jdbc.update("INSERT INTO thesis.thesis_group_report "
-                            + "(id, group_id, round_id, submitted_by, title, url, submitted_at, file_name, "
-                            + "file_type, file_size) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'application/pdf', 4)",
-                    UUID.randomUUID(), groupId, roundId, tag + "-ceiling-submitter",
-                    "Ceiling report " + index, "https://example.test/ceiling-" + index,
-                    Timestamp.from(Instant.now().minusSeconds(index + 1L)), "ceiling-" + index + ".pdf");
-        }
+        addReports(94);
         statements.clear();
         rowsRead.clear();
 
@@ -273,6 +255,34 @@ class ThesisArchiveReadBudgetTest {
 
         assertThat(rootQueries()).hasSize(1);
         assertThat(rootQueries().getFirst()).contains(" LIMIT " + ListPaging.MAX_LIMIT);
+    }
+
+    @Test
+    void legacyRoundReportsReadStopsAtThePagingCeiling() throws Exception {
+        addReports(94);
+
+        var response = mvc.perform(get("/api/v1/thesis/rounds/{id}/reports", roundId).with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn();
+
+        assertThat(mapper.readTree(response.getResponse().getContentAsString()))
+                .hasSize(ListPaging.MAX_LIMIT);
+    }
+
+    @Test
+    void pagedRoundReportsCarryTheAuthorizedTotal() throws Exception {
+        addReports(94);
+
+        var response = mvc.perform(get("/api/v1/thesis/rounds/{id}/reports", roundId)
+                        .param("page", "1")
+                        .param("limit", "25")
+                        .with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", String.valueOf(ROOTS + 94)))
+                .andReturn();
+
+        assertThat(mapper.readTree(response.getResponse().getContentAsString())).hasSize(25);
     }
 
     @Test
@@ -378,6 +388,28 @@ class ThesisArchiveReadBudgetTest {
                     UUID.randomUUID(), groupId, roundId, tag + "-student-" + root + "-1",
                     "Budget report " + root, "https://drive.example.com/budget-" + root + ".pdf",
                     Timestamp.from(base.minusSeconds(root * 60L)), "budget-" + root + ".pdf");
+        }
+    }
+
+    private void addReports(int count) {
+        for (int index = 0; index < count; index++) {
+            UUID topicId = UUID.randomUUID();
+            jdbc.update("INSERT INTO thesis.thesis_topic "
+                            + "(id, round_id, department_id, title, description, max_groups, status, created_by) "
+                            + "VALUES (?, ?, 'department-demo', ?, 'ceiling fixture', 1, 'PUBLISHED', 'arb')",
+                    topicId, roundId, "Ceiling topic " + index);
+            UUID groupId = UUID.randomUUID();
+            jdbc.update("INSERT INTO thesis.thesis_group "
+                            + "(id, round_id, leader_student_id, topic_id, status, approval_status) "
+                            + "VALUES (?, ?, ?, ?, 'SUBMITTED', 'APPROVED')",
+                    groupId, roundId, tag + "-ceiling-student-" + index, topicId);
+            jdbc.update("INSERT INTO thesis.thesis_group_report "
+                            + "(id, group_id, round_id, submitted_by, title, url, submitted_at, file_name, "
+                            + "file_type, file_size) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'application/pdf', 4)",
+                    UUID.randomUUID(), groupId, roundId, tag + "-ceiling-submitter",
+                    "Ceiling report " + index, "https://example.test/ceiling-" + index,
+                    Timestamp.from(Instant.now().minusSeconds(index + 1L)), "ceiling-" + index + ".pdf");
         }
     }
 

@@ -617,6 +617,8 @@ public class ThesisCouncilService {
         if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
+        // The numeric(4,2) column rounds on write; store, echo and audit one value.
+        score = score.setScale(2, RoundingMode.HALF_UP);
         // The frozen scoring model is one row per grader: every council member
         // grades exactly the DEFENSE component, so the finalize average gives
         // each member equal weight (no multi-component vote inflation).
@@ -832,6 +834,8 @@ public class ThesisCouncilService {
         if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
+        // The numeric(4,2) column rounds on write; store, echo and audit one value.
+        score = score.setScale(2, RoundingMode.HALF_UP);
         // A counter-review grades a submitted report — meaningless until an
         // approved group exists to produce one.
         requireApprovedGroupForTopic(topicId);

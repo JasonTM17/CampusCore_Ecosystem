@@ -551,9 +551,10 @@ public class ThesisMutationService {
         }
         // A group left PENDING at publication is permanently wedged — approval
         // requires a non-terminal round — so force the governance team to
-        // approve or reject every submission before publishing.
+        // approve or reject every submitted group with a topic before publishing.
         Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM thesis.thesis_group WHERE round_id = :id AND approval_status = 'PENDING' AND status <> 'CANCELLED'",
+                "SELECT COUNT(*) FROM thesis.thesis_group WHERE round_id = :id AND approval_status = 'PENDING' "
+                        + "AND status = 'SUBMITTED' AND topic_id IS NOT NULL",
                 params().addValue("id", id), Integer.class);
         if (pending != null && pending > 0) {
             throw conflict("GROUPS_PENDING_APPROVAL",
@@ -1190,23 +1191,30 @@ public class ThesisMutationService {
     }
 
     /**
-     * Rejects a submitted group and sends it back with a mandatory reason.
+     * Rejects a submitted group or a topicless group with a mandatory reason.
      *
      * @param groupId group to reject
      * @param request rejection reason, 1-500 characters
      * @param actor caller JWT; a supervisor or an admin
      * @return the rejected group
      * @throws DomainException with code GROUP_APPROVAL_STATE_CONFLICT unless the group is
-     *         submitted with a topic and still pending, or VALIDATION_ERROR for a blank or
-     *         over-long reason
+     *         submitted with a topic or topicless and still pending, or VALIDATION_ERROR
+     *         for a blank or over-long reason
      */
     @Transactional
     public GroupResponse rejectGroup(UUID groupId, GroupRejectionRequest request, Jwt actor) {
         GroupRow group = lockGroup(groupId);
         authorizeReviewer(group, actor);
         requireMutableRound(group.roundId());
-        if (group.status() != GroupStatus.SUBMITTED || group.topicId() == null) {
-            throw conflict("GROUP_APPROVAL_STATE_CONFLICT", "Only a submitted group with a topic can be rejected");
+        boolean submittedWithTopic = group.status() == GroupStatus.SUBMITTED && group.topicId() != null;
+        // A topicless group can never be approved — a progress update can park
+        // it in DRAFT or SUBMITTED — so rejection is its only review outcome.
+        boolean topiclessPending = group.topicId() == null
+                && group.status() != GroupStatus.CANCELLED
+                && group.status() != GroupStatus.COMPLETED;
+        if (!submittedWithTopic && !topiclessPending) {
+            throw conflict("GROUP_APPROVAL_STATE_CONFLICT",
+                    "Only a submitted group with a topic or a topicless group can be rejected");
         }
         String reason = normalize(request == null ? null : request.reason());
         if (reason.isBlank() || reason.length() > 500) throw invalid("reason is required and must contain at most 500 characters");

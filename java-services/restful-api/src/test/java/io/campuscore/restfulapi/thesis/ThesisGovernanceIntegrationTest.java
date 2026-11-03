@@ -1261,6 +1261,91 @@ class ThesisGovernanceIntegrationTest {
     }
 
     @Test
+    void aTopiclessDraftCanBeRejectedByAnAuthorizedReviewer() throws Exception {
+        UUID roundId = insertRound("Gov Topicless Draft Rejection", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        ensureStudent("gov-topicless-reject-leader", "gov-topicless-reject-user",
+                "gov-topicless-reject@campuscore.edu");
+        UUID draftGroup = UUID.randomUUID();
+        jdbc.update(
+                "INSERT INTO thesis.thesis_group (id, round_id, leader_student_id, status, approval_status) "
+                        + "VALUES (?, ?, ?, 'DRAFT', 'PENDING')",
+                draftGroup, roundId, "gov-topicless-reject-leader");
+        insertMember(draftGroup, roundId, "gov-topicless-reject-leader", 1);
+
+        mvc.perform(post("/api/v1/thesis/groups/{id}/reject", draftGroup)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Unused topicless draft\"}")
+                        .with(adminJwt()))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT approval_status FROM thesis.thesis_group WHERE id = ?", String.class, draftGroup))
+                .isEqualTo("REJECTED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM thesis.thesis_group WHERE id = ?", String.class, draftGroup))
+                .isEqualTo("DRAFT");
+
+        // A leader can push a topicless group to SUBMITTED through the progress
+        // endpoint; it still can never be approved, so rejection must reach it.
+        ensureStudent("gov-topicless-submitted-leader", "gov-topicless-submitted-user",
+                "gov-topicless-submitted@campuscore.edu");
+        UUID submittedGroup = UUID.randomUUID();
+        jdbc.update(
+                "INSERT INTO thesis.thesis_group (id, round_id, leader_student_id, status, approval_status) "
+                        + "VALUES (?, ?, ?, 'DRAFT', 'PENDING')",
+                submittedGroup, roundId, "gov-topicless-submitted-leader");
+        insertMember(submittedGroup, roundId, "gov-topicless-submitted-leader", 1);
+        mvc.perform(patch("/api/v1/thesis/groups/{id}/progress", submittedGroup)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SUBMITTED\"}")
+                        .with(studentJwt("gov-topicless-submitted-leader")))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/thesis/groups/{id}/reject", submittedGroup)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Unused topicless submission\"}")
+                        .with(adminJwt()))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT approval_status FROM thesis.thesis_group WHERE id = ?", String.class, submittedGroup))
+                .isEqualTo("REJECTED");
+    }
+
+    @Test
+    void topiclessDraftsDoNotBlockResultsPublication() throws Exception {
+        UUID roundId = insertRound("Gov Topicless Draft Publication", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        UUID topicId = insertPublishedTopic(roundId);
+        ensureStudent("gov-topicless-pub-leader", "gov-topicless-pub-user",
+                "gov-topicless-pub@campuscore.edu");
+        ensureStudent("gov-topicless-pub-member-2", "gov-topicless-pub-user-2",
+                "gov-topicless-pub-2@campuscore.edu");
+        ensureStudent("gov-topicless-pub-member-3", "gov-topicless-pub-user-3",
+                "gov-topicless-pub-3@campuscore.edu");
+        UUID approvedGroup = insertGroup(roundId, "gov-topicless-pub-leader", topicId, "APPROVED");
+        insertMember(approvedGroup, roundId, "gov-topicless-pub-leader", 1);
+        insertMember(approvedGroup, roundId, "gov-topicless-pub-member-2", 2);
+        insertMember(approvedGroup, roundId, "gov-topicless-pub-member-3", 3);
+        jdbc.update("UPDATE thesis.thesis_topic SET final_score = 8.0, result_status = 'GRADED' WHERE id = ?",
+                topicId);
+
+        ensureStudent("gov-topicless-pub-draft-leader", "gov-topicless-pub-draft-user",
+                "gov-topicless-pub-draft@campuscore.edu");
+        UUID draftGroup = UUID.randomUUID();
+        jdbc.update(
+                "INSERT INTO thesis.thesis_group (id, round_id, leader_student_id, status, approval_status) "
+                        + "VALUES (?, ?, ?, 'DRAFT', 'PENDING')",
+                draftGroup, roundId, "gov-topicless-pub-draft-leader");
+        insertMember(draftGroup, roundId, "gov-topicless-pub-draft-leader", 1);
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results", roundId).with(truongKhoaJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESULTS_PUBLISHED"));
+    }
+
+    @Test
     void scoringIsRefusedUntilAGroupIsApprovedOnTheTopic() throws Exception {
         UUID roundId = insertRound("Gov Unapproved Score Round", "REGISTRATION_CLOSED",
                 Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
@@ -1458,6 +1543,48 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(jsonPath("$.completedMilestones", org.hamcrest.Matchers.hasItem("RESULTS_PUBLISHED")))
                 .andExpect(jsonPath("$.finalScore").value(8.25))
                 .andExpect(jsonPath("$.attentionState").value("NONE"));
+
+        jdbc.update("UPDATE thesis.thesis_topic SET max_groups = 3 WHERE id = ?", pendingTopic);
+        ensureStudent("gov-progress-rejected-leader", "gov-progress-rejected-user",
+                "gov-progress-rejected@campuscore.edu");
+        ensureStudent("gov-progress-rejected-member-2", "gov-progress-rejected-user-2",
+                "gov-progress-rejected-2@campuscore.edu");
+        ensureStudent("gov-progress-rejected-member-3", "gov-progress-rejected-user-3",
+                "gov-progress-rejected-3@campuscore.edu");
+        UUID rejectedGroup = insertGroup(
+                pendingRound, "gov-progress-rejected-leader", pendingTopic, "REJECTED");
+        insertMember(rejectedGroup, pendingRound, "gov-progress-rejected-leader", 1);
+        insertMember(rejectedGroup, pendingRound, "gov-progress-rejected-member-2", 2);
+        insertMember(rejectedGroup, pendingRound, "gov-progress-rejected-member-3", 3);
+
+        mvc.perform(get("/api/v1/thesis/me/progress")
+                        .queryParam("roundId", pendingRound.toString())
+                        .with(studentJwt("gov-progress-rejected-leader")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attentionState").value("GROUP_REJECTED"))
+                .andExpect(jsonPath("$.finalScore").value(org.hamcrest.Matchers.nullValue()));
+
+        ensureStudent("gov-progress-cancelled-leader", "gov-progress-cancelled-user",
+                "gov-progress-cancelled@campuscore.edu");
+        ensureStudent("gov-progress-cancelled-member-2", "gov-progress-cancelled-user-2",
+                "gov-progress-cancelled-2@campuscore.edu");
+        ensureStudent("gov-progress-cancelled-member-3", "gov-progress-cancelled-user-3",
+                "gov-progress-cancelled-3@campuscore.edu");
+        UUID cancelledGroup = insertGroup(
+                pendingRound, "gov-progress-cancelled-leader", pendingTopic, "PENDING");
+        insertMember(cancelledGroup, pendingRound, "gov-progress-cancelled-leader", 1);
+        insertMember(cancelledGroup, pendingRound, "gov-progress-cancelled-member-2", 2);
+        insertMember(cancelledGroup, pendingRound, "gov-progress-cancelled-member-3", 3);
+        jdbc.update("UPDATE thesis.thesis_group SET status = 'CANCELLED' WHERE id = ?", cancelledGroup);
+        jdbc.update("UPDATE thesis.thesis_group_member SET active_participation = FALSE WHERE group_id = ?",
+                cancelledGroup);
+
+        mvc.perform(get("/api/v1/thesis/me/progress")
+                        .queryParam("roundId", pendingRound.toString())
+                        .with(studentJwt("gov-progress-cancelled-leader")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attentionState").value("GROUP_CANCELLED"))
+                .andExpect(jsonPath("$.finalScore").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
@@ -1934,6 +2061,76 @@ class ThesisGovernanceIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND component = 'GVPB'",
                 BigDecimal.class, topicId)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void submittedScoresEchoTheSameValueTheColumnStores() throws Exception {
+        UUID roundId = insertRound("Gov Rounded Echo Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        CouncilFixture fixture = councilFixture(roundId, "gov-echo");
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores",
+                        fixture.councilId(), fixture.topicId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"8.567\"}")
+                        .with(lecturerJwt("gov-echo-chair")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.score").value(8.57));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                BigDecimal.class, fixture.topicId())).isEqualByComparingTo("8.57");
+
+        mvc.perform(get("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores",
+                        fixture.councilId(), fixture.topicId())
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].score").value(8.57));
+
+        List<Map<String, Object>> rows = auditRows(fixture.topicId(), "COUNCIL_SCORE_SUBMITTED");
+        assertThat(rows).isNotEmpty();
+        assertThat(rows).allMatch(row -> String.valueOf(row.get("afterState")).contains("8.57"));
+        assertThat(rows).noneMatch(row -> String.valueOf(row.get("afterState")).contains("8.567"));
+    }
+
+    @Test
+    void reviewerScoreEchoesTheSameValueTheColumnStores() throws Exception {
+        UUID roundId = insertRound("Gov Rounded Review Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        jdbc.update("UPDATE thesis.thesis_registration_round SET gvpb_deadline = ? WHERE id = ?",
+                Timestamp.from(Instant.now().plusSeconds(86_400)), roundId);
+        UUID topicId = insertPublishedTopic(roundId);
+        ensureLecturer("gov-echo-reviewer");
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-echo-reviewer\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        insertApprovedGroupWithRoster(roundId, topicId, "gov-echo-review");
+
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"4.567\"}")
+                        .with(lecturerJwt("gov-echo-reviewer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.score").value(4.57));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND component = 'GVPB'",
+                BigDecimal.class, topicId)).isEqualByComparingTo("4.57");
+
+        mvc.perform(get("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .with(lecturerJwt("gov-echo-reviewer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.score").value(4.57));
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT \"summary\" FROM campuscore_audit.\"AdminAudit\" "
+                        + "WHERE \"entityId\" = ? AND \"action\" = 'GVPB_SCORE_SUBMITTED'",
+                topicId.toString());
+        assertThat(rows).isNotEmpty();
+        assertThat(rows).allMatch(row -> String.valueOf(row.get("summary")).contains("4.57"));
+        assertThat(rows).noneMatch(row -> String.valueOf(row.get("summary")).contains("4.567"));
     }
 
     @Test
