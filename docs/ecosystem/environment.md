@@ -44,7 +44,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
 | `SERVER_PORT`, `PORT` | HTTP port of restful-api (`PORT` = PaaS/Render alias) | config | all | safe default `4010` |
-| `SERVER_FORWARD_HEADERS_STRATEGY` | Tomcat forwarded-header handling behind proxy | config | prod | safe default (`native`) |
+| `SERVER_FORWARD_HEADERS_STRATEGY` | Tomcat forwarded-header handling behind proxy | config | prod | safe default `none`; set `native` only when a trusted proxy overwrites the forwarded headers. Keep `RATE_LIMIT_TRUST_PROXY_HEADERS=false` unless that proxy is trusted. |
 | `TOMCAT_MAX_THREADS`, `TOMCAT_MIN_SPARE_THREADS` | Tomcat worker pool sizing | config | optional tuning | safe default |
 | `SPRING_PROFILES_ACTIVE` | Active Spring profile; must include `persistence` (Compose and e2e Compose set it; no `e2e` profile exists) | config | local, compose, e2e | required |
 | `JAVA_TOOL_OPTIONS` | JVM flags (Render memory tuning) | config | render | safe default |
@@ -158,7 +158,7 @@ A deployment behind a reverse proxy must set `RATE_LIMIT_TRUST_PROXY_HEADERS=tru
 | `NEXT_PUBLIC_DEMO_STUDENT_PASSWORD`, `NEXT_PUBLIC_DEMO_LECTURER_PASSWORD`, `NEXT_PUBLIC_DEMO_DEAN_PASSWORD` | Prefill values for demo button | public (demo only) | local demo only | **forbidden in prod** |
 | `JAVA_API_ORIGIN`, `BACKEND_INTERNAL_ORIGIN` | Server-side proxy target (compose arg/runtime) | config | compose, vercel | safe default |
 | `CAMPUSCORE_PROXY_TOKEN` | Edge→backend shared secret for proxy routes | secret | when edge token used | required then |
-| `OUTPUT_STANDALONE` | `output: 'standalone'` for slim Docker image | config | docker build | safe default `false` |
+| `OUTPUT_STANDALONE` | `output: 'standalone'` for slim Docker image | config | docker build | `true` forces standalone; on non-Windows the build is standalone even when unset or `false` (effective default `true` on Linux/macOS, `false` on Windows) |
 | `SITE_APPEARANCE_PATH` | Path for site appearance JSON persistence | config | optional | safe default `.data/campuscore-site-appearance.json` |
 | `NEXT_DIST_DIR` | Custom build output directory for Next.js | config | optional | safe default `.next` |
 | `NODE_ENV`, `PORT`, `HOSTNAME` | Next runtime env (standalone server) | config | docker run | safe default |
