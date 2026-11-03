@@ -546,3 +546,58 @@ test('load older keeps the small page size and the active read filter', async ()
   assert.ok(requested.limit <= 50, 'older pages keep the same bounded window');
   assert.equal(requested.isRead, undefined, 'the all tab stays unfiltered');
 });
+
+test('a row marked read while an older page is in flight still steps the cursor back', async () => {
+  let serverRows = Array.from({ length: 41 }, (_, index) => inboxRow(index, false));
+  const calls = { getMy: [] };
+  let release = null;
+  let holdNext = false;
+  const slice = (params, rows) => {
+    const offset = (params.page - 1) * params.limit;
+    return {
+      data: rows.slice(offset, offset + params.limit),
+      meta: {
+        total: rows.length,
+        page: params.page,
+        limit: params.limit,
+        totalPages: Math.max(1, Math.ceil(rows.length / params.limit)),
+      },
+    };
+  };
+  const api = {
+    getMy: (params) => {
+      calls.getMy.push(params);
+      const snapshot = serverRows.slice();
+      if (holdNext) {
+        holdNext = false;
+        return new Promise((resolve) => {
+          release = () => resolve(slice(params, snapshot));
+        });
+      }
+      return Promise.resolve(slice(params, snapshot));
+    },
+    unreadCount: async () => serverRows.length,
+    markRead: async (id) => {
+      serverRows = serverRows.filter((row) => row.id !== id);
+    },
+    markAllRead: async () => ({ updated: 0 }),
+  };
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+  tabByText(page.render(), notificationsCopy.unread).props.onClick();
+  await flush();
+
+  holdNext = true;
+  buttonByText(page.render(), 'Load older notifications').props.onClick();
+  await flush();
+  assert.ok(release, 'the second window is in flight');
+
+  buttonByText(page.render(), notificationsCopy.markRead).props.onClick();
+  await flush();
+  release();
+  await flush();
+
+  buttonByText(page.render(), 'Load older notifications').props.onClick();
+  await flush();
+  assert.equal(calls.getMy[calls.getMy.length - 1].page, 2, 'the window read before the write is read again');
+});

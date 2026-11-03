@@ -87,6 +87,25 @@ test('a removal steps the page cursor back so a shifted row is not skipped', () 
   assert.equal(edited.nextPage, 2, 'an edit that keeps every row leaves the cursor alone');
 });
 
+test('a page read behind the cursor after a removal lands on the loaded base and keeps advancing', () => {
+  const pageOf = (ids, hasMore) => ({ items: ids.map((id) => ({ id })), hasMore });
+  const base = paging.startView(pageOf(['a', 'b'], true), keyOf);
+  const edited = paging.patchItems(base, (item) => (item.id === 'a' ? null : item));
+  assert.equal(edited.nextPage, 0, 'the edited view asks for the window behind the loaded one');
+
+  const landed = paging.appendPage(base, pageOf(['b', 'c'], true), base.nextPage, keyOf);
+  assert.deepEqual(landed.items.map((item) => item.id), ['a', 'b', 'c']);
+  assert.equal(landed.nextPage, base.nextPage + 1);
+
+  const reedited = paging.patchItems(landed, (item) => (item.id === 'a' ? null : item));
+  assert.deepEqual(reedited.items.map((item) => item.id), ['b', 'c']);
+  assert.ok(reedited.nextPage >= base.nextPage, 'the cursor does not stay behind the page that just landed');
+});
+
+test('the paged list lands each page on the loaded base cursor, not the edited one', () => {
+  const source = fs.readFileSync(path.join(mobileRoot, 'src/screens/content/use-paged-list.ts'), 'utf8');
+  assert.match(source, /appendPage\(base, page, base\.nextPage, optionsRef\.current\.keyOf\)/);
+});
 test('error mapping never leaks server text and picks copy by status', () => {
   const copy = { offline: 'off', signIn: 'in', denied: 'no', notFound: '404', rateLimited: 'slow', server: 'srv', generic: 'gen' };
   const withStatus = (status) => Object.assign(new Error('secret'), { status });
