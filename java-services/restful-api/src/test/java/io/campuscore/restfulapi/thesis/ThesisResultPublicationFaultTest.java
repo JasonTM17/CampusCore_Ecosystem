@@ -174,6 +174,31 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
     }
 
     @Test
+    void laterNoticesWithTheSameWordingDoNotSuppressTheRetry() throws Exception {
+        Instant publishedAt = Instant.now().minusSeconds(86_400);
+        jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED', updated_at=? WHERE id=?",
+                Timestamp.from(publishedAt), roundId);
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + ROUND_NAME.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        Instant laterAt = publishedAt.plusSeconds(3_600);
+        for (int student = 1; student <= 6; student++) {
+            jdbc.update("""
+                    INSERT INTO notifications.notification
+                        (id, user_id, title, message, type, link, is_read, read_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'SUCCESS', '/dashboard/thesis', FALSE, NULL, ?, ?)
+                    """, "later-results-notice-" + student, "rmv-user-" + student,
+                    title, message, Timestamp.from(laterAt), Timestamp.from(laterAt));
+        }
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results/notifications/retry", roundId)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+
+        assertThat(inboxCount()).isEqualTo(12);
+    }
+
+    @Test
     void disabledMailCreatesInboxButNeverCallsTheMailBoundary() {
         mailConfig.setEnabled(false);
 
