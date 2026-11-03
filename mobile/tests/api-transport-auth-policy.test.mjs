@@ -419,6 +419,34 @@ test('a transient refresh outage keeps the session and surfaces a retryable fail
   }
 });
 
+test('an ambiguous refresh ends one session without replaying protected requests', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      state.token = null;
+      return 'reauthRequired';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    const results = await Promise.allSettled([
+      client.get('/one'),
+      client.get('/two'),
+      client.download('/three'),
+    ]);
+
+    assert.ok(results.every((result) => result.status === 'rejected'));
+    assert.equal(state.refreshCalls, 1, 'all protected lanes share one refresh');
+    assert.equal(state.expired, 1, 'the shared terminal refresh notifies once');
+    assert.equal(net.calls.length, 3, 'no protected request is replayed');
+    assert.equal(state.token, null);
+  } finally {
+    net.restore();
+  }
+});
+
 test('a recovered issuer is retried by the next request after a transient refresh failure', async () => {
   const { state, options } = makeSession();
   let recovered = false;
@@ -466,12 +494,14 @@ test('JSON 401 from a stale epoch lane does not evict the new session', async ()
   const { state, options } = makeSession();
   const client = createApiClient({
     ...options,
-    refreshSession: async () => { state.epoch += 1; state.token = null; return false; },
+    refreshSession: async () => { state.epoch += 1; state.token = 'account-b-token'; return 'reauthRequired'; },
   });
   const net = installFetch(() => json(401, { message: 'dead lane' }));
   try {
     await assert.rejects(client.get('/me'), (error) => error.status === 401);
     assert.equal(state.expired, 0);
+    assert.equal(state.token, 'account-b-token');
+    assert.equal(net.calls.length, 1, 'the old request is not replayed under the new session');
   } finally {
     net.restore();
   }

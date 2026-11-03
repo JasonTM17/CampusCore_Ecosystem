@@ -133,11 +133,14 @@ async function withSession({ laneEnv = {}, accessToken, store = {}, push = {} },
   globalThis.__installationThrows = push.installationThrows ?? false;
   globalThis.__onExpired = undefined;
   let token = accessToken;
+  let epoch = 0;
   globalThis.__sessionStoreStub = {
     loadBootstrap: async () => ({ refreshToken: null }),
     refreshAccessToken: async () => ({ accessToken: null }),
     getAccessToken: () => token,
-    sessionEpoch: () => 0,
+    setAccessToken: (next) => { token = next; },
+    sessionEpoch: () => epoch,
+    bumpEpoch: () => { epoch += 1; },
     signOut: store.signOut ?? (async () => { token = null; }),
   };
   const { SessionProvider, useSession } = await mountSession(laneEnv);
@@ -152,6 +155,7 @@ async function withSession({ laneEnv = {}, accessToken, store = {}, push = {} },
   await TestRenderer.act(async () => {
     renderer = TestRenderer.create(React.createElement(SessionProvider, null, React.createElement(Probe)));
   });
+  globalThis.__sessionStoreStub.setAccessToken(accessToken);
   try {
     await body(holder, (fn) => TestRenderer.act(fn));
   } finally {

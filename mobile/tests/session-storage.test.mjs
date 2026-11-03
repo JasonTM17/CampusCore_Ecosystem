@@ -130,35 +130,38 @@ test('a failed refresh wipes the refresh token and clears memory', async () => {
   secure.map.set('cu.refresh', 'rt-dead');
   store.setAccessToken('at-old');
   const result = await store.refreshAccessToken();
-  assert.equal(result.accessToken, null);
-  assert.equal(secure.map.has('cu.refresh'), false);
-  assert.equal(store.getAccessToken(), null);
-});
-
-test('a malformed success retains the credential without granting access', async () => {
-  const { store, secure } = makeStore({
-    respond: async () => new Response('{"refresh_token":"rt-2"}', { status: 200 }),
-  });
-  secure.map.set('cu.refresh', 'rt-1');
-  const result = await store.refreshAccessToken();
-  assert.equal(result.accessToken, null);
-  assert.equal(secure.map.get('cu.refresh'), 'rt-1');
-  assert.equal(result.kind, 'unavailable');
-  assert.equal(store.getAccessToken(), null);
-});
-
-test('a definitive 401 rejection wipes the grant instead of retrying it', async () => {
-  const { store, secure } = makeStore({
-    respond: async () => new Response('{"error":"invalid_client"}', { status: 401 }),
-  });
-  secure.map.set('cu.refresh', 'rt-dead');
-  store.setAccessToken('at-old');
-  const result = await store.refreshAccessToken();
   assert.equal(result.kind, 'signedOut');
   assert.equal(result.accessToken, null);
   assert.equal(secure.map.has('cu.refresh'), false);
   assert.equal(store.getAccessToken(), null);
 });
+
+test('a malformed success quarantines the credential without granting access', async () => {
+  const { store, secure } = makeStore({
+    respond: async () => new Response('{"refresh_token":"rt-2"}', { status: 200 }),
+  });
+  secure.map.set('cu.refresh', 'rt-1');
+  const result = await store.refreshAccessToken();
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+for (const status of [400, 401]) {
+  test(`a definitive HTTP ${status} invalid_grant wipes the grant instead of retrying it`, async () => {
+    const { store, secure } = makeStore({
+      respond: async () => new Response('{"error":"invalid_grant"}', { status }),
+    });
+    secure.map.set('cu.refresh', 'rt-dead');
+    store.setAccessToken('at-old');
+    const result = await store.refreshAccessToken();
+    assert.equal(result.kind, 'signedOut');
+    assert.equal(result.accessToken, null);
+    assert.equal(secure.map.has('cu.refresh'), false);
+    assert.equal(store.getAccessToken(), null);
+  });
+}
 
 test('a refresh that never answers aborts at the app deadline', { timeout: 2000 }, async () => {
   const { store, secure } = makeStore({
@@ -169,9 +172,24 @@ test('a refresh that never answers aborts at the app deadline', { timeout: 2000 
   });
   secure.map.set('cu.refresh', 'rt-live');
   const result = await store.refreshAccessToken();
-  assert.equal(result.kind, 'unavailable');
+  assert.equal(result.kind, 'reauthRequired');
   assert.equal(result.accessToken, null);
-  assert.equal(secure.map.get('cu.refresh'), 'rt-live');
+  assert.equal(secure.map.has('cu.refresh'), false);
+});
+
+test('the app deadline completes when fetch ignores abort', { timeout: 1000 }, async () => {
+  const { store, secure, calls } = makeStore({
+    timeoutMs: 20,
+    respond: () => new Promise(() => {}),
+  });
+  secure.map.set('cu.refresh', 'rt-live');
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(calls.length, 1);
 });
 
 test('a late refresh resolving after sign-out never writes disk (KM-6)', async () => {
@@ -241,6 +259,207 @@ test('saveRefresh/clearRefresh touch only the whitelisted keys', async () => {
   assert.deepEqual([...sandbox.map.keys()], ['installMarker']);
 });
 
+test('fifty concurrent refresh callers share one issuer request', async () => {
+  const { store, secure, calls } = makeStore();
+  secure.map.set('cu.refresh', 'rt-1');
+
+  const results = await Promise.all(Array.from({ length: 50 }, () => store.refreshAccessToken()));
+
+  assert.equal(calls.length, 1);
+  assert.ok(results.every((result) => result.kind === 'refreshed' && result.accessToken === 'at-1'));
+  assert.equal(secure.map.get('cu.refresh'), 'rt-2');
+});
+
+test('an aborted refresh quarantines its token and prevents a later resend', { timeout: 2000 }, async () => {
+  const { store, secure, calls } = makeStore({
+    timeoutMs: 20,
+    respond: (_url, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    }),
+  });
+  secure.map.set('cu.refresh', 'rt-live');
+
+  const result = await store.refreshAccessToken();
+  const later = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(later.kind, 'signedOut');
+  assert.equal(calls.length, 1);
+});
+
+test('a lost refresh response quarantines its token and prevents a later resend', async () => {
+  const { store, secure, calls } = makeStore({
+    respond: async () => { throw new TypeError('response lost'); },
+  });
+  secure.map.set('cu.refresh', 'rt-live');
+
+  const result = await store.refreshAccessToken();
+  const later = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(later.kind, 'signedOut');
+  assert.equal(calls.length, 1);
+});
+
+test('a refresh response must include a different replacement token', async () => {
+  const { store, secure } = makeStore({
+    respond: async () => new Response(JSON.stringify({ access_token: 'at-new', refresh_token: 'rt-1' })),
+  });
+  secure.map.set('cu.refresh', 'rt-1');
+  store.setAccessToken('at-old');
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+test('a refresh response without a replacement token requires reauthentication', async () => {
+  const { store, secure } = makeStore({
+    respond: async () => new Response(JSON.stringify({ access_token: 'at-new' })),
+  });
+  secure.map.set('cu.refresh', 'rt-1');
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+test('a response body read failure requires reauthentication', async () => {
+  const { store, secure, calls } = makeStore({
+    respond: async () => ({ ok: true, status: 200, text: async () => { throw new Error('body lost'); } }),
+  });
+  secure.map.set('cu.refresh', 'rt-1');
+
+  const result = await store.refreshAccessToken();
+  const later = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(later.kind, 'signedOut');
+  assert.equal(calls.length, 1);
+});
+
+test('failure to persist a replacement requires reauthentication without restoring the old token', async () => {
+  const { store, secure } = makeStore();
+  const write = secure.setItemAsync;
+  secure.map.set('cu.refresh', 'rt-1');
+  secure.setItemAsync = async (key, value) => {
+    if (key === 'cu.refresh' && value === 'rt-2') throw new Error('storage unavailable');
+    return write(key, value);
+  };
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'reauthRequired');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+test('a refresh credential is deleted before issuer dispatch', async () => {
+  const release = deferred();
+  const secure = memoryKv();
+  const remove = secure.deleteItemAsync;
+  let deleteStarted = false;
+  secure.deleteItemAsync = async (key) => {
+    deleteStarted = true;
+    await release.promise;
+    await remove(key);
+  };
+  const { store, calls } = makeStore({ secure });
+  secure.map.set('cu.refresh', 'rt-1');
+
+  const pending = store.refreshAccessToken();
+  await new Promise((resolve) => setImmediate(resolve));
+  const callsBeforeDelete = calls.length;
+  release.resolve();
+  const result = await pending;
+
+  assert.equal(callsBeforeDelete, 0);
+  assert.equal(deleteStarted, true);
+  assert.equal(result.kind, 'refreshed');
+  assert.equal(calls.length, 1);
+});
+
+test('an epoch change during credential deletion prevents the issuer request', async () => {
+  const release = deferred();
+  const secure = memoryKv();
+  const remove = secure.deleteItemAsync;
+  let deleteStarted = false;
+  secure.deleteItemAsync = async (key) => {
+    deleteStarted = true;
+    await release.promise;
+    await remove(key);
+  };
+  const { store, calls } = makeStore({ secure });
+  secure.map.set('cu.refresh', 'account-a');
+
+  const pending = store.refreshAccessToken();
+  await new Promise((resolve) => setImmediate(resolve));
+  store.bumpEpoch();
+  const signin = store.saveRefresh('account-b');
+  release.resolve();
+  const result = await pending;
+  await signin;
+  store.setAccessToken('access-b');
+
+  assert.equal(deleteStarted, true);
+  assert.equal(result.kind, 'stale');
+  assert.equal(calls.length, 0);
+  assert.equal(secure.map.get('cu.refresh'), 'account-b');
+  assert.equal(store.getAccessToken(), 'access-b');
+});
+
+test('failure to delete a refresh credential prevents issuer dispatch', async () => {
+  const { store, secure, calls } = makeStore();
+  secure.map.set('cu.refresh', 'rt-1');
+  secure.deleteItemAsync = async () => { throw new Error('storage unavailable'); };
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'unavailable');
+  assert.equal(result.reason, 'storage');
+  assert.equal(secure.map.get('cu.refresh'), 'rt-1');
+  assert.equal(calls.length, 0);
+});
+
+test('invalid issuer configuration does not consume a refresh credential', async () => {
+  const { store, secure, calls } = makeStore({ issuer: '' });
+  secure.map.set('cu.refresh', 'rt-1');
+
+  const result = await store.refreshAccessToken();
+
+  assert.equal(result.kind, 'unavailable');
+  assert.equal(result.reason, 'configuration');
+  assert.equal(secure.map.get('cu.refresh'), 'rt-1');
+  assert.equal(calls.length, 0);
+});
+
+for (const status of [429, 500, 502, 503, 504]) {
+  test(`HTTP ${status} quarantines a dispatched refresh credential`, async () => {
+    const { store, secure, calls } = makeStore({
+      respond: async () => new Response('{"error":"server_error"}', { status }),
+    });
+    secure.map.set('cu.refresh', 'rt-1');
+
+    const result = await store.refreshAccessToken();
+    const later = await store.refreshAccessToken();
+
+    assert.equal(result.kind, 'reauthRequired');
+    assert.equal(secure.map.has('cu.refresh'), false);
+    assert.equal(later.kind, 'signedOut');
+    assert.equal(calls.length, 1);
+  });
+}
+
 function deferred() {
   let resolve;
   const promise = new Promise((yes) => { resolve = yes; });
@@ -253,21 +472,18 @@ for (const [label, respond] of [
   ['network loss', async () => { throw new TypeError('offline'); }],
   ['issuer refusal', async () => new Response('{"error":"access_denied"}', { status: 403 })],
 ]) {
-  test(`${label} retains refresh and allows a later explicit recovery`, async () => {
-    let recovered = false;
-    const { store, secure, calls } = makeStore({ respond: (...args) => recovered
-      ? new Response('{"access_token":"recovered","refresh_token":"rotated"}')
-      : respond(...args) });
+  test(`${label} after dispatch requires a fresh sign-in`, async () => {
+    const { store, secure, calls } = makeStore({ respond });
     secure.map.set('cu.refresh', 'surviving');
     store.setAccessToken('expired');
     const result = await store.refreshAccessToken();
-    assert.equal(secure.map.get('cu.refresh'), 'surviving');
-    assert.equal(result.kind, 'unavailable');
+    assert.equal(result.kind, 'reauthRequired');
     assert.equal(result.accessToken, null);
+    assert.equal(secure.map.has('cu.refresh'), false);
     assert.equal(store.getAccessToken(), null);
     assert.equal(calls.length, 1);
-    recovered = true;
-    assert.equal((await store.refreshAccessToken()).accessToken, 'recovered');
+    assert.equal((await store.refreshAccessToken()).kind, 'signedOut');
+    assert.equal(calls.length, 1);
   });
 }
 
