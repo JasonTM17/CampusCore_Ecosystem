@@ -231,6 +231,13 @@ test('Caddy allows five minutes for graceful stream shutdown', () => {
   assert.match(caddyReadme, /five minutes/);
 });
 
+test('edge still upgrades plain HTTP when automatic redirects are disabled', () => {
+  assert.match(caddyfile, /auto_https\s+disable_redirects/, 'global option under contract');
+  assert.match(caddyfile,
+    /^http:\/\/\{\$CAMPUSCORE_DOMAIN\}\s*\{[^}]*\bredir\s+https:\/\//ms,
+    'with automatic redirects disabled an explicit http:// site must redirect to https');
+});
+
 test('evidence directory boundary compares path segments and resolves symlinks', () => {
   assert.match(verifyEcosystem, /path\.relative\(/,
     'a sibling path sharing the repo prefix must not be considered inside');
