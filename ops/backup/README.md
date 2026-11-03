@@ -7,10 +7,16 @@ thesis-report volume archive, and one SHA-256 sidecar covering both files.
 Backups are staged and checked before publication. The database archive must
 include `thesis.flyway_schema_history`, and the report archive must be a
 readable tar file containing only regular files and directories. Child-tool
-errors are summarized without raw diagnostics by default; set `VERBOSE=1` to
-print and retain captured diagnostics in mode-600 temporary files. A non-local
+errors are summarized without raw diagnostics by default; `VERBOSE=1` prints and
+retains non-report diagnostics in mode-600 temporary files. Report-key and
+report-tar diagnostics stay suppressed. A non-local
 thesis storage provider makes the manual backup fail so external objects cannot
 be silently omitted.
+
+After each dump and report tar are staged, backup and verification compare `thesis.thesis_group_report.storage_key` values from the dump with tar members.
+A missing key triggers one full backup recapture; a second mismatch fails with only the missing-key count.
+Verification and restore run the same reconciliation before either restore target is created.
+This closes the report replacement gap without fencing report writes.
 
 The recovery path actually executed here is the disposable drill in
 [Disposable recovery drill (MP38)](#disposable-recovery-drill-mp38). The manual

@@ -57,22 +57,45 @@ staged_archive="$staging/$(basename "$archive")"
 staged_reports="$staging/$(basename "$reports_archive")"
 staged_checksum="$staging/$(basename "$checksum")"
 
-run_child_phase 'Database dump' docker compose -p "$project" -f "$compose_file" exec -T postgres \
-  pg_dump --format=custom --no-owner --no-privileges --username "$db_user" --dbname "$db_name" > "$staged_archive"
+capture_attempt=0
+while (( capture_attempt < 2 )); do
+  capture_attempt=$((capture_attempt + 1))
+  rm -f -- "$staged_archive" "$staged_reports" "$staged_checksum"
 
-run_child_phase 'Thesis report archive creation' \
-  docker compose -p "$project" -f "$compose_file" exec -T restful-api sh -ceu \
-  'test "${THESIS_REPORT_STORAGE_PROVIDER:-local}" = local && test -n "${THESIS_REPORT_STORAGE_LOCAL_ROOT:-}" && exec tar -C "$THESIS_REPORT_STORAGE_LOCAL_ROOT" -cf - .' > "$staged_reports"
+  run_child_phase 'Database dump' docker compose -p "$project" -f "$compose_file" exec -T postgres \
+    pg_dump --format=custom --no-owner --no-privileges --username "$db_user" --dbname "$db_name" > "$staged_archive"
 
-toc="$(run_child_phase 'Database archive inspection' \
-  docker compose -p "$project" -f "$compose_file" exec -T postgres pg_restore --list < "$staged_archive")"
-if ! grep -Eq 'TABLE DATA[[:space:]]+thesis[[:space:]]+flyway_schema_history([[:space:]]|$)' <<< "$toc"; then
-  echo 'Backup archive does not contain the application Flyway history table.' >&2
+  run_sensitive_child_phase 'Thesis report archive creation' \
+    docker compose -p "$project" -f "$compose_file" exec -T restful-api sh -ceu \
+    'test "${THESIS_REPORT_STORAGE_PROVIDER:-local}" = local && test -n "${THESIS_REPORT_STORAGE_LOCAL_ROOT:-}" && exec tar -C "$THESIS_REPORT_STORAGE_LOCAL_ROOT" -cf - .' > "$staged_reports"
+
+  toc="$(run_child_phase 'Database archive inspection' \
+    docker compose -p "$project" -f "$compose_file" exec -T postgres pg_restore --list < "$staged_archive")"
+  if ! grep -Eq 'TABLE DATA[[:space:]]+thesis[[:space:]]+flyway_schema_history([[:space:]]|$)' <<< "$toc"; then
+    echo 'Backup archive does not contain the application Flyway history table.' >&2
+    exit 1
+  fi
+
+  run_sensitive_child_phase 'Thesis report archive readability check' \
+    docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tf - \
+    < "$staged_reports" >/dev/null
+
+  if reconcile_report_archive "$staged_archive" "$staged_reports" "$project" "$compose_file" "$toc"; then
+    break
+  else
+    reconcile_status=$?
+  fi
+  if (( reconcile_status != 1 )); then
+    exit "$reconcile_status"
+  fi
+  if (( capture_attempt < 2 )); then
+    rm -f -- "$staged_archive" "$staged_reports" "$staged_checksum"
+    continue
+  fi
+  printf 'Backup failed after one retry: %s referenced report storage key(s) are missing.\n' \
+    "$REPORT_RECONCILE_MISSING_COUNT" >&2
   exit 1
-fi
-
-run_child_phase 'Thesis report archive readability check' \
-  docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tf - < "$staged_reports" >/dev/null
+done
 
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "$staging" && sha256sum "$(basename "$staged_archive")" "$(basename "$staged_reports")") > "$staged_checksum"

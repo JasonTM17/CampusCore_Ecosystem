@@ -57,13 +57,13 @@ if ! grep -Eq 'TABLE DATA[[:space:]]+thesis[[:space:]]+flyway_schema_history([[:
   exit 1
 fi
 
-report_entries="$(run_child_phase 'Thesis report archive listing' \
+report_entries="$(run_sensitive_child_phase 'Thesis report archive listing' \
   docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tf - < "$reports_archive")"
 if grep -Eq '(^/|^[A-Za-z]:|(^|/)\.\.(/|$))' <<< "$report_entries"; then
   echo 'Thesis report archive contains an unsafe path.' >&2
   exit 1
 fi
-report_types="$(run_child_phase 'Thesis report archive type inspection' \
+report_types="$(run_sensitive_child_phase 'Thesis report archive type inspection' \
   docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tvf - < "$reports_archive")"
 unsafe_member_type=0
 while IFS= read -r member_listing || [[ -n "$member_listing" ]]; do
@@ -76,4 +76,17 @@ if [[ "$unsafe_member_type" -ne 0 ]]; then
   echo 'Thesis report archive contains an unsafe member type.' >&2
   exit 1
 fi
+
+if reconcile_report_archive "$archive" "$reports_archive" "$project" "$compose_file" "$toc"; then
+  :
+else
+  reconcile_status=$?
+  if (( reconcile_status == 1 )); then
+    printf 'Report archive is missing %s referenced storage key(s).\n' \
+      "$REPORT_RECONCILE_MISSING_COUNT" >&2
+    exit 1
+  fi
+  exit "$reconcile_status"
+fi
+
 printf 'Checksum and application contents verified: %s\n' "$archive"
