@@ -180,7 +180,7 @@ test('the thesis workspace reports a failed supervisor directory instead of seed
     /<ErrorState[\s\S]*?description=\{lecturersError\}[\s\S]*?onRetry=\{\(\) => void loadLecturers\(\)\}/,
   );
   assert.match(page, /<EmptyState[\s\S]*?workspaceCopy\.noSupervisorsTitle/);
-  // W18 P5: the empty-state label lives in thesisWorkflow.workspace.
+  // The empty-state label lives in thesisWorkflow.workspace.
   assert.equal(
     loadThesisWorkflowCopy().thesisWorkflowVi.workspace.noSupervisorsTitle,
     'Chưa có giảng viên hướng dẫn',

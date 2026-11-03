@@ -4,7 +4,7 @@
  *
  * The assistant's existing catalogue lives in `src/i18n/messages.ts`; this
  * module follows the domain-catalogue pattern (`library-messages.ts`,
- * `careers-messages.ts`) for the new P4d/F-14 strings without editing the
+ * `careers-messages.ts`) for the assistant window and stream-progress strings without editing the
  * shared catalogue.
  */
 

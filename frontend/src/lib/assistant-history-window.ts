@@ -5,7 +5,7 @@
  * A live send reserves two slots (the user turn and its assistant reply)
  * before the new exchange is admitted; older-history pages are prepended while
  * the newest end is evicted. The rules are pure so reducer/panel tests can
- * exercise them without React, matching the P4d design authority:
+ * exercise them without React, matching the bounded window design authority:
  *
  * - `admitLiveExchange`: reserve two slots, evict oldest completed exchanges.
  * - `prependHistoryPage`: prepend an older page, evict from the newest end.

@@ -98,7 +98,7 @@ test('grade score inputs use canonical 50-50 components and derive the letter gr
 test('student grade views never invent component scores and lecturer notices expose four templates', () => {
   const gradesPage = read('src/app/dashboard/grades/page.tsx');
   const detailModal = read('src/components/dashboard/GradeDetailModal.tsx');
-  // W18 P6: the component-type labels live in the studentPortal fragment.
+  // The component-type labels live in the studentPortal fragment.
   const studentPortal = read('src/i18n/messages-student-portal.ts');
   // The four lecturer notice presets live in the shared message catalog and are
   // rendered by LecturerAnnouncementCreateModal's preset picker (PRESETS).
@@ -217,7 +217,7 @@ test('feedback polish: office-issued credentials are server-generated while stud
 test('feedback polish: curriculum counts stay localized and enrolled schedules use CampusCore weekdays', () => {
   const page = read('src/app/dashboard/enrollments/page.tsx');
   const grid = read('src/lib/weekly-grid.ts');
-  // W18 P6: the status-filter copy moved to the studentPortal fragment.
+  // The status-filter copy moved to the studentPortal fragment.
   const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /const courseCountLabel = useCallback/);
@@ -424,7 +424,7 @@ test('dogfood audit: admin enrollments section lookup respects the 100 cap and c
 
 test('feedback polish: admin enrollment opens a student-focused detail profile', () => {
   const page = read('src/app/admin/enrollments/page.tsx');
-  // W17 P3: the profile labels live in the adminAcademics fragment now; the
+  // The profile labels live in the adminAcademics fragment; the
   // page still renders them through its `copy` group.
   const catalogue = read('src/i18n/messages-admin-academics.ts');
 
@@ -450,7 +450,7 @@ test('feedback polish: grade breakdown opens through native controls and guards 
   const page = read('src/app/dashboard/grades/page.tsx');
   const modal = read('src/components/dashboard/GradeDetailModal.tsx');
   const spec = read('e2e/demo-polish.spec.ts');
-  // W18 P6: grades copy moved to the studentPortal fragment.
+  // Grades copy lives in the studentPortal fragment.
   const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /function isFiniteScore\(value: number \| null \| undefined\): value is number/);

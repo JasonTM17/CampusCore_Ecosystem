@@ -1,5 +1,5 @@
 /**
- * Announcement workspace copy (W17 P2).
+ * Announcement workspace copy.
  *
  * Owns every user-facing string for the announcement composer, reader, feed
  * card and lecturer notice workspace. The article-category labels are NOT

@@ -875,7 +875,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     evictedIds: previewEvictedIds(state.messages, ASSISTANT_HISTORY_PAGE_SIZE),
   });
 
-  // F-14: announce reply progress in a dedicated polite region. Bucketing by
+  // Announce reply progress in a dedicated polite region. Bucketing by
   // ASSISTANT_STREAM_PROGRESS_STEP keeps a token-level rewrite out of the live
   // region while still escalating if the provider stalls.
   const streamingAssistant = isSending
@@ -1024,7 +1024,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
             <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
               {announcement}
             </div>
-            {/* F-14: a dedicated polite region reports stream progress while
+            {/* A dedicated polite region reports stream progress while
                 the log itself stays a polite, busy log rather than switching
                 aria-live off for the whole turn. */}
             <AssistantStreamProgress

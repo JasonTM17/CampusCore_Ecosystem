@@ -91,7 +91,7 @@ export function StudentUteProfileGradeView({
     if (!svg) {
       // The chart element only exists when graded courses exist, and the
       // control is disabled in that state. Never fall back to opening the
-      // print dialog from a control labelled "download chart" (F-3).
+      // print dialog from a control labelled "download chart".
       toast.info(card.chartNoData);
       return;
     }

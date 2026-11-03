@@ -445,7 +445,7 @@ test('sortablejs integration empowers admin block building and announcement reor
 
 
 
-// --- K3/K4/K5/K6 + F-2: TinyMCE shell and studio action integrity ---
+// --- TinyMCE shell and studio action integrity ---
 
 function loadTinymceEditorModule() {
   const dummyComponent = function DummyComponent() {
@@ -525,7 +525,7 @@ test('K6 crash drafts stay restorable while discarded drafts are cleared', () =>
   assert.match(modal, /onClose=\{handleClose\}/, 'Escape/backdrop close uses the scoped cleanup');
 });
 
-test('F-2 the feed-order save is locked against a double submission', () => {
+test('the feed-order save is locked against a double submission', () => {
   const page = read('src/app/dashboard/editor/page.tsx');
   const save = page.slice(
     page.indexOf('const handleSaveNoticeOrder'),

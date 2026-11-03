@@ -131,7 +131,7 @@ test('rich-text-editor code snippet comment follows the active locale', () => {
 
 test('semester name placeholder is English in the English locale', () => {
   const source = read('src/app/admin/semesters/page.tsx');
-  // W17 P3: the semester page copy moved into the adminAcademics fragment, so
+  // The semester page copy lives in the adminAcademics fragment, so
   // the placeholder values are asserted on the catalogue the page now reads.
   const { adminAcademicsEn, adminAcademicsVi } = loadModule('src/i18n/messages-admin-academics.ts');
 
@@ -235,7 +235,7 @@ test('advisor directory supervision column label is semantically aligned', () =>
   const source = read('src/components/dashboard/thesis/ThesisAdvisorDirectoryPage.tsx');
   const { thesisWorkflowEn, thesisWorkflowVi } = loadModule('src/i18n/messages-thesis-workflow.ts');
 
-  // W18 P5: the label moved into the thesisWorkflow catalogue; the locale
+  // The label lives in the thesisWorkflow catalogue; the locale
   // branches are gone from the page, so the assertion follows the copy.
   assert.equal(thesisWorkflowEn.advisorDirectory.table.workload, 'Supervision Quota');
   assert.equal(thesisWorkflowVi.advisorDirectory.table.workload, 'Chỉ tiêu hướng dẫn');

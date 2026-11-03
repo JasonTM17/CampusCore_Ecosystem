@@ -145,7 +145,7 @@ async function handle(request: NextRequest, context: RouteContext) {
     throw error;
   }
 
-  // P4e origin guard: mutating methods only, before any body buffering or
+  // Origin guard: mutating methods only, before any body buffering or
   // upstream fetch. Headerless server/native callers stay compatible; the
   // Java BFF's authentication and CSRF checks still run upstream.
   if (request.headers.has('origin') || request.headers.has('sec-fetch-site')) {
