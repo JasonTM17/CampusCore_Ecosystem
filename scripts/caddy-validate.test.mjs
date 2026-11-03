@@ -30,7 +30,7 @@ test('Caddy configuration defaults pin the image and placeholder environment', (
 
 test('buildDockerArgs constructs argv array without shell composition', () => {
   const args = buildDockerArgs({
-    caddyfilePath: 'D:/CampusUTE_EcoSystem/ops/caddy/Caddyfile',
+    caddyfilePath: '/workspace/ops/caddy/Caddyfile',
     image: 'caddy:2.10.2-alpine',
     containerName: 'campuscore-caddy-validate',
     env: {
@@ -52,7 +52,7 @@ test('buildDockerArgs constructs argv array without shell composition', () => {
   // Must mount Caddyfile read-only
   const vIndex = args.indexOf('-v');
   assert.ok(vIndex !== -1, 'must mount volume with -v');
-  assert.equal(args[vIndex + 1], 'D:/CampusUTE_EcoSystem/ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro');
+  assert.equal(args[vIndex + 1], '/workspace/ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro');
 
   // Must supply placeholder environment variables
   assert.ok(args.includes('-e'));
