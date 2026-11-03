@@ -45,44 +45,71 @@ function parseArgs(argv) {
 }
 
 export function inspectRequestedItReports(requestedClasses, reports) {
-  return requestedClasses.map((requestedClass) => {
+  return requestedClasses.filter((requestedClass) => !requestedClass.startsWith('!')).map((requestedClass) => {
+    const isGlob = requestedClass.includes('*');
     const matches = reports.filter((report) => {
       const suite = report.xml.match(/<testsuite\b([^>]*)>/);
       const suiteName = suite?.[1].match(/\bname="([^"]+)"/)?.[1]
         || report.file.replace(/^TEST-/, '').replace(/\.xml$/, '');
-      return requestedClass.includes('.') ? suiteName === requestedClass : suiteName.split('.').at(-1) === requestedClass;
+      const target = requestedClass.includes('.') ? suiteName : suiteName.split('.').at(-1);
+      if (isGlob) {
+        const expression = requestedClass.split('*')
+          .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('.*');
+        return new RegExp(`^${expression}$`).test(target);
+      }
+      return target === requestedClass;
     });
-    if (matches.length !== 1) {
+    if (matches.length === 0 || (!isGlob && matches.length !== 1)) {
       return {
         class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
         passed: false, reason: matches.length ? 'ambiguous report' : 'report missing',
       };
     }
-    const report = matches[0];
-    const suite = report.xml.match(/<testsuite\b([^>]*)>/);
-    if (!suite) {
+    const inspect = (report) => {
+      const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+      if (!suite) {
+        return {
+          class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+          passed: false, reason: 'invalid report',
+        };
+      }
+      const attribute = (name) => {
+        const value = suite[1].match(new RegExp(`\\b${name}="(\\d+)"`))?.[1];
+        return value === undefined ? 0 : Number(value);
+      };
+      const tests = attribute('tests');
+      const skipped = attribute('skipped');
+      const failures = attribute('failures');
+      const errors = attribute('errors');
+      const executed = tests - skipped;
+      const fresh = report.currentRun === true;
+      const passed = fresh && tests > 0 && executed > 0 && skipped === 0 && failures === 0 && errors === 0;
+      const reason = passed ? 'executed' : !fresh ? 'report not produced by this run'
+        : tests === 0 ? 'zero tests executed'
+          : skipped > 0 ? 'unexpected skipped tests'
+            : executed === 0 ? 'zero tests executed'
+              : failures > 0 || errors > 0 ? 'class failures or errors' : 'invalid test counts';
+      return { class: requestedClass, tests, skipped, executed, failures, errors, passed, reason };
+    };
+    if (!isGlob) return inspect(matches[0]);
+
+    const freshMatches = matches.filter((report) => report.currentRun === true);
+    if (freshMatches.length === 0) {
       return {
         class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
-        passed: false, reason: 'invalid report',
+        passed: false, reason: 'report not produced by this run',
       };
     }
-    const attribute = (name) => {
-      const value = suite[1].match(new RegExp(`\\b${name}="(\\d+)"`))?.[1];
-      return value === undefined ? 0 : Number(value);
-    };
-    const tests = attribute('tests');
-    const skipped = attribute('skipped');
-    const failures = attribute('failures');
-    const errors = attribute('errors');
-    const executed = tests - skipped;
-    const fresh = report.currentRun === true;
-    const passed = fresh && tests > 0 && executed > 0 && skipped === 0 && failures === 0 && errors === 0;
-    const reason = passed ? 'executed' : !fresh ? 'report not produced by this run'
-      : tests === 0 ? 'zero tests executed'
-        : skipped > 0 ? 'unexpected skipped tests'
-          : executed === 0 ? 'zero tests executed'
-          : failures > 0 || errors > 0 ? 'class failures or errors' : 'invalid test counts';
-    return { class: requestedClass, tests, skipped, executed, failures, errors, passed, reason };
+    const checks = freshMatches.map(inspect);
+    return ['tests', 'skipped', 'executed', 'failures', 'errors'].reduce((result, key) => {
+      result[key] = checks.reduce((sum, check) => sum + check[key], 0);
+      return result;
+    }, {
+      class: requestedClass,
+      passed: checks.every((check) => check.passed),
+      reason: checks.find((check) => !check.passed)?.reason || 'executed',
+    });
   });
 }
 
@@ -491,7 +518,7 @@ export async function casePgit(args, runner = {}) {
       CAMPUSCORE_SPRING_FOCUS_PG_ENABLED: 'true',
     };
     const reportDir = path.join(REPO, 'java-services', 'restful-api', 'target', 'failsafe-reports');
-    const requestedClasses = args.its && args.its !== '*PostgresIT'
+    const requestedClasses = args.its
       ? args.its.split(',').map((name) => name.trim()).filter(Boolean)
       : [];
     const t0 = Date.now();
