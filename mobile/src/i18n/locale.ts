@@ -163,17 +163,23 @@ export function formatBytes(bytes: number | null | undefined, locale: AppLocale)
 
 /**
  * Parses typed date input to YYYY-MM-DD, or null when it is not a real date.
- * Accepts ISO plus the locale order (vi: day first, en: month first).
+ * Accepts ISO, the locale order (vi: day first, en: month first), and the
+ * English month-name form the formatter produces.
  */
 export function parseDateInput(text: string, locale: AppLocale): string | null {
   const raw = text.trim();
   let y: number; let m: number; let d: number;
   const iso = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(raw);
   const local = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(raw);
+  const monthName = /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/.exec(raw);
   if (iso) {
     [y, m, d] = [+iso[1], +iso[2], +iso[3]];
   } else if (local) {
     [y, m, d] = locale === 'en' ? [+local[3], +local[1], +local[2]] : [+local[3], +local[2], +local[1]];
+  } else if (monthName && locale === 'en') {
+    const month = MONTHS_EN.findIndex((name) => name.toLowerCase() === monthName[1].slice(0, 3).toLowerCase()) + 1;
+    if (month === 0) return null;
+    [y, m, d] = [+monthName[3], month, +monthName[2]];
   } else {
     return null;
   }

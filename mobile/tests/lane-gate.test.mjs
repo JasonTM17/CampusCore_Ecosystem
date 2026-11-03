@@ -197,13 +197,28 @@ test('transitions carry the row version and a trimmed reason only when given', (
 });
 
 test('event actions and attendance marks respect the event status', () => {
-  assert.deepEqual(lane.eventActions('DRAFT'), ['publish', 'cancel']);
-  assert.deepEqual(lane.eventActions('REGISTRATION_OPEN'), ['closeRegistration', 'cancel']);
-  assert.deepEqual(lane.eventActions('COMPLETED'), []);
-  assert.equal(lane.canMarkAttendance('REGISTRATION_CLOSED'), true);
-  assert.equal(lane.canMarkAttendance('PUBLISHED'), false);
+  const now = Date.parse('2026-11-04T02:00:00Z');
+  const later = '2026-11-05T02:00:00Z';
+  const earlier = '2026-11-03T02:00:00Z';
+  assert.deepEqual(lane.eventActions('DRAFT', later, now), ['publish', 'cancel']);
+  assert.deepEqual(lane.eventActions('REGISTRATION_OPEN', later, now), ['closeRegistration', 'cancel']);
+  assert.deepEqual(lane.eventActions('COMPLETED', earlier, now), []);
+  assert.equal(lane.canMarkAttendance('REGISTRATION_CLOSED', earlier, now), true);
+  assert.equal(lane.canMarkAttendance('PUBLISHED', earlier, now), false);
   assert.deepEqual(lane.attendanceMark({ registrationId: 'r1', version: 2 }, 'ABSENT'), { registrationId: 'r1', status: 'ABSENT', version: 2 });
   assert.equal(lane.attendanceMark({ registrationId: 'r1' }, 'ATTENDED'), null, 'no version, no write');
+});
+
+test('event actions and attendance marks wait for the server start instant', () => {
+  const now = Date.parse('2026-11-04T02:00:00Z');
+  const future = '2026-11-05T02:00:00Z';
+  const past = '2026-11-03T02:00:00Z';
+  assert.deepEqual(lane.eventActions('REGISTRATION_CLOSED', future, now), ['cancel'], 'complete waits for startsAt');
+  assert.deepEqual(lane.eventActions('REGISTRATION_CLOSED', past, now), ['complete', 'cancel']);
+  assert.equal(lane.canMarkAttendance('REGISTRATION_CLOSED', future, now), false, 'marks wait for startsAt');
+  assert.equal(lane.canMarkAttendance('REGISTRATION_CLOSED', past, now), true);
+  assert.deepEqual(lane.eventActions('DRAFT', past, now), ['cancel'], 'a past start cannot be published');
+  assert.deepEqual(lane.eventActions('DRAFT', future, now), ['publish', 'cancel']);
 });
 
 test('notification drafts validate the recipient, lengths and exact body', () => {

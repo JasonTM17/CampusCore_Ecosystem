@@ -171,6 +171,16 @@ describe('DateField', () => {
     expect(screen.getByText('Vui lòng nhập ngày')).toBeOnTheScreen();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  test('an English prefill applies unchanged', async () => {
+    const onChange = jest.fn();
+    await render(wrap(<DateField label="Date" value="2026-11-03" onChange={onChange} />, 'en'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Date: Nov 3, 2026' }));
+    expect(screen.getByLabelText('Select date').props.value).toBe('Nov 3, 2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Apply' }));
+    expect(screen.queryByText('Invalid date')).toBeNull();
+    expect(onChange).toHaveBeenCalledWith('2026-11-03');
+  });
 });
 
 describe('FileRow', () => {
