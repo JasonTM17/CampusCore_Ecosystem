@@ -715,9 +715,12 @@ export type SessionRefreshOutcome = 'refreshed' | 'signedOut' | 'reauthRequired'
 /**
  * `protected` (default) sends the Bearer token and joins the single-flight
  * refresh on 401. `public` is anonymous: no Authorization header is ever sent
- * and a 401 never triggers a refresh or a session-expired bridge.
+ * and a 401 never triggers a refresh or a session-expired bridge. `snapshot`
+ * sends only the caller-supplied credential (e.g. a pre-wipe token) — it is
+ * never overwritten by the live token and a 401 fails once, outside the
+ * refresh lane.
  */
-export type ApiAuthPolicy = 'protected' | 'public';
+export type ApiAuthPolicy = 'protected' | 'public' | 'snapshot';
 
 export interface ApiRequestInit extends RequestInit {
   auth?: ApiAuthPolicy;
@@ -1112,8 +1115,9 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     }
     const transfer = mode !== 'json';
     const isPublic = auth === 'public';
+    const isSnapshot = auth === 'snapshot';
     const headers = new Headers(init.headers);
-    const token = isPublic ? undefined : getAccessToken();
+    const token = isPublic || isSnapshot ? undefined : getAccessToken();
 
     headers.set('Accept', mode === 'download' ? '*/*' : 'application/json');
     headers.set('X-Request-Id', requestId);
@@ -1182,7 +1186,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
       let body = await readBody(response);
 
-      if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
+      if (!isPublic && !isSnapshot && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
         const refreshOutcome = await refreshSessionOnce(requestEpoch);
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
@@ -1476,7 +1480,7 @@ export const campusApi = {
     apiClient.delete<void>(
       `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
       accessToken
-        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        ? { auth: 'snapshot', headers: { Authorization: `Bearer ${accessToken}` } }
         : undefined,
     ),
   markNotificationRead: (id: string) =>

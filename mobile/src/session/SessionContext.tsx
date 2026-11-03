@@ -150,6 +150,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const expireSession = useCallback(() => {
     foregroundRetrySafe.current = false;
+    // Capture the token before the wipe so a session that ends in place still
+    // drops this device's push registration, as sign-out does.
+    let accessTokenSnapshot: string | null = null;
+    try {
+      accessTokenSnapshot = sessionStore.getAccessToken();
+    } catch {
+      accessTokenSnapshot = null;
+    }
+    scheduleDevicePushUnregister(accessTokenSnapshot);
     sessionStore.bumpEpoch();
     sessionStore.setAccessToken(null);
     clearQueryCache();
