@@ -321,4 +321,25 @@ describe('profile account security', () => {
     expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0901234567');
     expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Địa chỉ đang chỉnh sửa');
   });
+
+  test('profile revalidation adopts newer server phone and address when unedited', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, phone: '0901111111', address: 'Initial Address' },
+    };
+    const view = await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0901111111');
+    expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Initial Address');
+
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, phone: '0902222222', address: 'Updated Address' },
+    };
+    await act(async () => {
+      view.rerender(appTree(<ProfileScreen {...props} />));
+    });
+
+    expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0902222222');
+    expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Updated Address');
+  });
 });

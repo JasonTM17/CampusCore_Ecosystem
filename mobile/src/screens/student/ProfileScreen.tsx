@@ -61,6 +61,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const [address, setAddress] = useState('');
   const phoneRef = useRef(phone);
   const addressRef = useRef(address);
+  const seededPhoneRef = useRef<string | null>(null);
+  const seededAddressRef = useRef<string | null>(null);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -83,15 +85,23 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   useEffect(() => {
     const currentAccount = accountRef.current;
     const accountId = currentAccount?.id ?? null;
-    if (seededAccountId.current === accountId) return;
+    const isNewAccount = seededAccountId.current !== accountId;
     seededAccountId.current = accountId;
+
     const nextPhone = currentAccount?.phone ?? '';
     const nextAddress = currentAccount?.address ?? '';
-    phoneRef.current = nextPhone;
-    addressRef.current = nextAddress;
-    setPhone(nextPhone);
-    setAddress(nextAddress);
-  }, [account?.id]);
+
+    if (isNewAccount || phoneRef.current === seededPhoneRef.current) {
+      phoneRef.current = nextPhone;
+      seededPhoneRef.current = nextPhone;
+      setPhone(nextPhone);
+    }
+    if (isNewAccount || addressRef.current === seededAddressRef.current) {
+      addressRef.current = nextAddress;
+      seededAddressRef.current = nextAddress;
+      setAddress(nextAddress);
+    }
+  }, [account?.id, account?.phone, account?.address]);
 
   const endSession = useCallback(
     (notice: ExitNotice) => {
@@ -117,8 +127,14 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     setIsSavingProfile(true);
     try {
       await campusApi.updateProfile({ phone: submittedPhone, address: submittedAddress });
-      if (phoneRef.current === phone) updatePhone(submittedPhone);
-      if (addressRef.current === address) updateAddress(submittedAddress);
+      if (phoneRef.current === phone) {
+        seededPhoneRef.current = submittedPhone;
+        updatePhone(submittedPhone);
+      }
+      if (addressRef.current === address) {
+        seededAddressRef.current = submittedAddress;
+        updateAddress(submittedAddress);
+      }
       setProfileMessage(copy.profile.saved);
       void reload();
     } catch {
