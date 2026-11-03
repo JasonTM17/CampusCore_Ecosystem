@@ -4598,6 +4598,10 @@
           "domain": {
             "type": "string"
           },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
           "locale": {
             "type": "string"
           },
@@ -9035,6 +9039,16 @@
               }
             },
             "description": "Cập nhật thành công"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bản nháp đã thay đổi kể từ lần đọc gần nhất"
           }
         },
         "summary": "Cập nhật bản nháp tài liệu tri thức",
@@ -9646,6 +9660,16 @@
               }
             },
             "description": "Cập nhật thành công"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bản nháp đã thay đổi kể từ lần đọc gần nhất"
           }
         },
         "summary": "Cập nhật bản nháp tài liệu tri thức",
@@ -18484,6 +18508,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; mặc định 100",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -18498,7 +18542,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Roster lớp học phần",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách roster với trạng thái nộp bài",
@@ -19556,6 +19609,28 @@
     "/api/v1/library/requests/my": {
       "get": {
         "operationId": "myLoans",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; mặc định 100",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -19568,7 +19643,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Đơn mượn của tôi",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Đơn mượn của tôi",
