@@ -6680,7 +6680,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-      /** @description Trạng thái vòng đời không hợp lệ */
+      /** @description Người duyệt trùng tác giả hoặc trạng thái vòng đời không hợp lệ */
       409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];

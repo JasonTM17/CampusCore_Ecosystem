@@ -11414,7 +11414,7 @@
                 }
               }
             },
-            "description": "Trạng thái vòng đời không hợp lệ"
+            "description": "Người duyệt trùng tác giả hoặc trạng thái vòng đời không hợp lệ"
           }
         },
         "summary": "Trả bài về nháp kèm ghi chú",
