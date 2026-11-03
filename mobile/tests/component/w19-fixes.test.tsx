@@ -501,7 +501,7 @@ describe('dashboard next meetings', () => {
             enrollmentAt('d', 'D404', 1, '09:00', '10:30'), // Sunday, third
           ],
         },
-        announcements: { data: [] },
+        announcements: { data: { data: [] } },
       };
 
       await render(themed(<StudentDashboardScreen {...props} />, 'en'));
