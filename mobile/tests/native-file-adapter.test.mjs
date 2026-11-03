@@ -73,6 +73,18 @@ test('native pick stats the cached copy and sanitizes the display name', async (
   assert.equal(f.files.has(f.source), false, 'picker cache copy is removed');
 });
 
+test('native picked copy exposes a release that deletes it', async () => {
+  const f = fixture();
+  const result = await f.adapter.pick({ mimeTypes: [PDF], maxBytes: 5 * MB });
+  assert.equal(result.status, 'picked');
+  assert.equal(typeof result.file.release, 'function');
+  result.file.release();
+  assert.equal(f.files.has(result.file.uri), false);
+  assert.equal(f.deleted.filter(uri => uri === result.file.uri).length, 1);
+  result.file.release(); // Idempotent after an upload or discard already released it.
+  assert.equal(f.files.has(result.file.uri), false);
+});
+
 test('native picker rejects oversize and MIME and removes its cache copy', async () => {
   for (const options of [{ maxBytes: 3, mimeTypes: [PDF] }, { maxBytes: 100, mimeTypes: ['text/plain'] }]) {
     const f = fixture();

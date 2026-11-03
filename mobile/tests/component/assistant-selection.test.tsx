@@ -85,6 +85,28 @@ describe('assistant conversation selection', () => {
     expect(result.current.history.error).toBe(false);
   });
 
+  test('a failed selection keeps the history sheet open with its error', async () => {
+    mockMessages.mockRejectedValue(new Error('offline'));
+    const { result } = await renderHook(() => useAssistantChat());
+    await act(async () => { result.current.setHistoryOpen(true); });
+    await act(async () => { await result.current.selectConversation(conv('conv-a')); });
+    expect(result.current.history.open).toBe(true);
+    expect(result.current.history.error).toBe(true);
+    expect(result.current.messages).toEqual([]);
+  });
+
+  test('a successful selection closes the history sheet and clears its error', async () => {
+    mockMessages.mockRejectedValueOnce(new Error('offline'));
+    const { result } = await renderHook(() => useAssistantChat());
+    await act(async () => { result.current.setHistoryOpen(true); });
+    await act(async () => { await result.current.selectConversation(conv('conv-a')); });
+    mockMessages.mockResolvedValueOnce(page('a'));
+    await act(async () => { await result.current.selectConversation(conv('conv-a')); });
+    expect(result.current.history.open).toBe(false);
+    expect(result.current.history.error).toBe(false);
+    expect(texts(result.current)).toEqual(['answer-a']);
+  });
+
   test('an earlier page for a deselected thread is not prepended to the current one', async () => {
     const b = deferred<unknown>();
     const earlierB = deferred<unknown>();

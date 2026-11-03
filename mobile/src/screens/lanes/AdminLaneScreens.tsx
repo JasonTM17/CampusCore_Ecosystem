@@ -6,7 +6,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { DateField } from '../../components/ui/date-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
-import { countForm } from '../../i18n/locale';
+import { campusIsoDate, countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import type { LanesCopy } from '../../i18n/lanes-messages';
 import {
@@ -46,12 +46,7 @@ import {
 } from './lane-ui';
 import { HandoffLink } from './HandoffLink';
 
-const todayIso = () => {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-};
+const todayIso = () => campusIsoDate();
 
 const personName = (user?: { firstName?: string; lastName?: string }) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(' ');
