@@ -128,6 +128,7 @@ jobs:
             scripts/alert-uri-policy.test.mjs \
             scripts/caddy-validate.test.mjs \
             scripts/check-mobile-parity.test.mjs \
+            scripts/check-migration-immutability.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
@@ -683,33 +684,7 @@ jobs:
           # origin/main (shallow clones make the merge-base diff empty).
           fetch-depth: 0
       - name: Flyway migrations are immutable once merged
-        shell: bash
-        run: |
-          set -euo pipefail
-          base_ref=origin/main
-          migration_blobs() {
-            local meta file
-            while IFS=$'\t' read -r -d '' meta file; do
-              case "$file" in
-                java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
-                  printf '%s\n' "${meta##* }"
-                  ;;
-              esac
-            done < <(git ls-tree -r -z "$1" -- java-services)
-          }
-          head_blobs="$(migration_blobs HEAD)"
-          while IFS=$'\t' read -r -d '' meta file; do
-            case "$file" in
-              java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
-                blob="${meta##* }"
-                if ! grep -Fqx -- "$blob" <<< "$head_blobs"; then
-                  echo "IMMUTABLE migration content changed or removed: $file"
-                  echo "Corrective changes are new forward migrations (V<n+1>); see db/migration/README.md."
-                  exit 1
-                fi
-                ;;
-            esac
-          done < <(git ls-tree -r -z "$base_ref" -- java-services)
+        run: node scripts/check-migration-immutability.mjs origin/main
       - name: Validate Compose
         run: docker compose config
       - name: Validate Caddyfile

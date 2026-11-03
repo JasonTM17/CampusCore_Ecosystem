@@ -240,6 +240,7 @@ const PROVISION_ENV = {
 
 function recordedConnector(probeError) {
   const issued = [];
+  const result = { issued, resetAttempted: false };
   const connect = async (target) => {
     if (target.user === 'campuscore_assistant_runtime') {
       if (probeError) throw probeError;
@@ -248,6 +249,9 @@ function recordedConnector(probeError) {
     return {
       query: async (sql) => {
         issued.push(sql);
+        if (/ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)) {
+          result.resetAttempted = true;
+        }
         if (/FROM pg_roles/.test(sql)) {
           return [['postgres', 't'], ['campuscore_assistant_runtime', 't']];
         }
@@ -256,7 +260,7 @@ function recordedConnector(probeError) {
       close() { },
     };
   };
-  return { connect, issued };
+  return { ...result, connect, state: result };
 }
 
 test('a connection-limit probe error aborts without resetting the role password', async () => {
@@ -272,11 +276,24 @@ test('a transport-level probe error aborts without resetting the role password',
   assert.equal(issued.some((sql) => /ALTER ROLE/.test(sql)), false);
 });
 
-test('a rejected probe password still resets the role password', async () => {
-  const { connect, issued } = recordedConnector(
+test('an authorization probe rejection fails closed without resetting the role password', async () => {
+  const { connect, issued, state } = recordedConnector(
+    new PostgresError({ C: '28000', M: 'no pg_hba.conf entry for host' }));
+  await assert.rejects(provision(PROVISION_ENV, () => { }, connect), (error) => {
+    assert.match(error.message, /SQLSTATE 28000/);
+    assert.match(error.message, /pg_hba/i);
+    assert.match(error.message, /role login rights/i);
+    assert.doesNotMatch(error.message, /rotated-value-123456|admin-password/);
+    return true;
+  });
+  assert.equal(state.resetAttempted, false);
+  assert.equal(issued.filter((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)).length, 0);
+});
+
+test('a rejected probe password resets the role password exactly once', async () => {
+  const { connect, issued, state } = recordedConnector(
     new PostgresError({ C: '28P01', M: 'password authentication failed' }));
   await provision(PROVISION_ENV, () => { }, connect);
-  assert.equal(
-    issued.some((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)),
-    true);
+  assert.equal(state.resetAttempted, true);
+  assert.equal(issued.filter((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)).length, 1);
 });
