@@ -60,7 +60,10 @@ export async function pickForUpload(adapter: FileAdapter, policy: AttachmentPoli
   const picked = await adapter.pick({ mimeTypes: policy.mimeTypes, maxBytes: policy.maxBytes });
   if (picked.status !== 'picked') return picked;
   const check = checkPickedFile(picked.file, policy);
-  return check.ok ? picked : { status: 'invalid', problem: check.problem };
+  if (check.ok) return picked;
+  // The rejected copy never reaches a caller — release the adapter's cache file here.
+  picked.file.release?.();
+  return { status: 'invalid', problem: check.problem };
 }
 
 /** The `{ uri, name, type }` descriptor React Native's multipart body takes. */
