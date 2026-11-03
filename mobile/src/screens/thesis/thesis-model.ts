@@ -77,6 +77,8 @@ export interface ThesisSupervisor {
   email?: string | null;
 }
 
+export type ThesisResultStatus = 'GRADED' | 'NOT_QUALIFIED';
+
 export interface ThesisProgress {
   roundId: string;
   roundStatus: string;
@@ -93,6 +95,12 @@ export interface ThesisProgress {
   reportId?: string | null;
   reportSubmittedAt?: string | null;
   finalScore?: number | null;
+  /** Null while the round has no resolved outcome. */
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: string | null;
+  resultResolvedAt?: string | null;
+  /** Steps the server marks as inapplicable for this outcome. */
+  skippedMilestones?: string[] | null;
 }
 
 export interface ThesisReport {
@@ -281,11 +289,28 @@ export async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export type MilestoneState = 'done' | 'current' | 'pending';
+export type MilestoneState = 'done' | 'current' | 'pending' | 'skipped';
 
-export function milestoneState(progress: Pick<ThesisProgress, 'completedMilestones' | 'currentMilestone'>, milestone: string): MilestoneState {
+export function milestoneState(
+  progress: Pick<ThesisProgress, 'completedMilestones' | 'currentMilestone' | 'skippedMilestones'>,
+  milestone: string,
+): MilestoneState {
+  // A step the outcome makes inapplicable must never read as reached.
+  if ((progress.skippedMilestones ?? []).includes(milestone)) return 'skipped';
   if (progress.completedMilestones.includes(milestone)) return 'done';
   return progress.currentMilestone === milestone ? 'current' : 'pending';
+}
+
+export function isNotQualified(progress: Pick<ThesisProgress, 'resultStatus'> | null | undefined): boolean {
+  return progress?.resultStatus === 'NOT_QUALIFIED';
+}
+
+export type MilestoneTone = 'success' | 'primary' | 'neutral';
+
+/** A non-qualifying result keeps reached steps factual and never uses success styling. */
+export function milestoneTone(state: MilestoneState, notQualified = false): MilestoneTone {
+  if (state === 'done') return notQualified ? 'primary' : 'success';
+  return state === 'current' ? 'primary' : 'neutral';
 }
 
 /** Share of milestones completed, 0..100. */
@@ -302,9 +327,10 @@ export function progressPercent(progress: Pick<ThesisProgress, 'completedMilesto
  */
 export function canShowFinalScore(
   group: Pick<ThesisGroup, 'id' | 'status' | 'approvalStatus'> | null | undefined,
-  progress: Pick<ThesisProgress, 'groupId' | 'groupStatus' | 'approvalStatus' | 'finalScore'> | null | undefined,
+  progress: Pick<ThesisProgress, 'groupId' | 'groupStatus' | 'approvalStatus' | 'finalScore' | 'resultStatus'> | null | undefined,
 ): boolean {
   if (!group || !progress || typeof progress.finalScore !== 'number') return false;
+  if (progress.resultStatus === 'NOT_QUALIFIED') return false;
   if (group.approvalStatus !== 'APPROVED' || group.status === 'CANCELLED') return false;
   if (progress.groupId && group.id && progress.groupId !== group.id) return false;
   if (progress.approvalStatus && progress.approvalStatus !== 'APPROVED') return false;
