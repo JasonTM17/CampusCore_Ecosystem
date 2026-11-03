@@ -9,3 +9,5 @@ API khóa hồ sơ sinh viên trước kiểm tra và tạo/thêm thành viên �
 Nâng cấp bằng cơ chế Flyway hiện có. Sao lưu DB theo quy trình vận hành trước khi áp dụng ở môi trường thật. Không sửa checksum, xóa lịch sử Flyway hoặc chạy `clean` để bỏ qua migration. Sau khi đã có thành viên tham gia lại, khôi phục ràng buộc cũ sẽ xung đột với lịch sử được giữ; sửa lỗi migration đã áp dụng bằng migration tiếp theo.
 
 Bản tương thích H2 dùng cột sinh nullable được tạo từ dấu tham gia và ràng buộc duy nhất; kiểm thử PostgreSQL kiểm chứng trigger và lịch khóa thật. Không suy luận độ an toàn đồng thời của PostgreSQL từ H2.
+
+Kết quả dưới ngưỡng phản biện được ghi nhận một lần khi công bố và không mở lại nhóm; xem [phân loại kết quả khóa luận](thesis-result-disposition.md).

@@ -221,9 +221,11 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
      - Giảng viên là thành viên hội đồng đăng nhập vào Khu luận văn, thấy khối **"Chấm điểm Hội đồng Bảo vệ"** liệt kê các hội đồng và đề tài được phân công.
      - Giảng viên nhập điểm thành phần (thang điểm 0 – 10). *Lưu ý*: Giảng viên hướng dẫn của đề tài sẽ bị hệ thống tự động khóa/báo lỗi theo quy tắc R8 (`SUPERVISOR_CANNOT_GRADE`).
      - Khi các chấm viên đã cho điểm, Chủ tịch hội đồng (CHAIR) bấm nút **"Tổng hợp & Chốt điểm"** để tự động tính điểm trung bình cộng làm tròn 2 chữ số thập phân (CAS lock bảo vệ chốt 1 lần duy nhất).
+     - Đề tài có điểm phản biện dưới 5,0 không chốt được (`REVIEW_SCORE_BELOW_THRESHOLD`); kết quả này được ghi nhận khi công bố.
    - **Công bố kết quả**:
      - Admin bấm **"Công bố kết quả"** (`publish-results`) trên đợt đã đóng đăng ký ở bước 4.
-     - Sinh viên xem điểm và kết quả xếp loại (Đạt / Không đạt) ngay tại thẻ **"Kết quả"** trong Khu luận văn (`/dashboard/thesis`).
+     - Sau hạn GVPB, thao tác này ghi nhận đề tài có điểm phản biện dưới 5,0 ở đợt TLCN/KLTN là `NOT_QUALIFIED` (không đủ điều kiện bảo vệ). Không tạo điểm cuối và không gửi thông báo chốt điểm.
+     - Sinh viên xem điểm và kết quả xếp loại (Đạt / Không đạt) ngay tại thẻ **"Kết quả"** trong Khu luận văn (`/dashboard/thesis`). Đề tài `NOT_QUALIFIED` chỉ hiện dòng "Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0", không có điểm.
 
    *(Tùy chọn API/Swagger `http://127.0.0.1:4010/swagger-ui.html` hoặc curl để kiểm thử backend trực tiếp)*:
 
@@ -248,7 +250,7 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
    POST /api/v1/thesis/rounds/{RID}/publish-results
    ```
 
-   Sinh viên sau đó thấy thẻ "Kết quả" (đề tài + hội đồng + điểm cuối) trong Khu luận văn.
+   Sinh viên sau đó thấy thẻ "Kết quả" (đề tài + hội đồng + điểm cuối) hoặc kết quả không đủ điều kiện bảo vệ (không có điểm) trong Khu luận văn.
 
 *Lưu ý vận hành*: trong Docker Compose, `rag-service` là tiến trình sở hữu Flyway
 và `restful-api` chạy với `FLYWAY_ENABLED=false` để tránh hai service cùng migrate.
