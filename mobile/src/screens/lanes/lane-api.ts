@@ -4,8 +4,9 @@
 // state. Staff writes carry the row version the lecturer saw, so a repeated or
 // stale tap is a 409/412 conflict instead of a second action.
 
-import { apiClient } from '../../api/client';
+import { apiClient, createAssistantClientRequestId } from '../../api/client';
 import { buildQuery, toPagedResult, type PagedResult } from '../../api/paging';
+import { createAttemptKeys } from '../academic/idempotency-attempts';
 import { notificationBody, parseList, parseMetaPage, transitionBody } from './lane-model';
 import type { MetaPage, NotificationDraft } from './lane-model';
 
@@ -169,7 +170,26 @@ export const laneApi = {
   eventCancel: (eventId: string, reason: string) =>
     apiClient.post<StaffEvent>(`/events/staff/${id(eventId)}/cancel`, reason.trim() ? { reason: reason.trim() } : {}),
 
-  /* admin notifications: one recipient, no server idempotency, so callers never auto-retry */
+  /* admin notifications: one recipient */
   notificationHistory: (paging: Page) => metaPage<NotificationRow>('/notifications', {}, paging),
-  sendNotification: (draft: NotificationDraft) => apiClient.post<NotificationRow>('/notifications', notificationBody(draft)),
+  sendNotification: (draft: NotificationDraft) => notificationSend(draft),
 };
+
+/* One key per draft body, module-scoped so a manual resend after an unknown
+   outcome still replays it; a settled answer or an edited draft mints a new
+   key. Nothing retries by itself. */
+const notificationAttempts = createAttemptKeys(createAssistantClientRequestId);
+
+async function notificationSend(draft: NotificationDraft): Promise<NotificationRow> {
+  const body = notificationBody(draft);
+  const intent = `admin-notification:${JSON.stringify(body)}`;
+  const key = notificationAttempts.keyFor('send', intent);
+  try {
+    const row = await apiClient.post<NotificationRow>('/notifications', body, { headers: { 'Idempotency-Key': key } });
+    notificationAttempts.settle('send', intent);
+    return row;
+  } catch (error) {
+    notificationAttempts.settle('send', intent, error);
+    throw error;
+  }
+}
