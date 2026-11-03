@@ -138,6 +138,23 @@ function composeTry(args, argv, opts = {}) {
   return tryRun('docker', composeArgs(args, argv), opts);
 }
 
+/**
+ * A throw inside `finally` would replace an in-flight case failure. Keep the
+ * original error and attach the cleanup failure as its cause instead; only a
+ * case that otherwise succeeded reports the cleanup failure itself.
+ */
+function attachCleanupFailure(failed, failure) {
+  const cleanupError = new Error('Owned Compose stack cleanup failed.');
+  if (!failed) {
+    throw cleanupError;
+  }
+  if (failure && typeof failure === 'object') {
+    failure.cause = failure.cause === undefined
+      ? cleanupError
+      : new AggregateError([failure.cause, cleanupError]);
+  }
+}
+
 export function preflightComposeProject(args, runCommand = tryRun) {
   const containers = runCommand('docker', composeArgs(args, ['ps', '-aq']));
   if (!containers.ok) throw new Error('Compose project ownership preflight failed; refusing startup.');
@@ -263,7 +280,8 @@ function caseImage(args) {
 /* ------------------------------------------------------------------ */
 /* case: stack — boot the full disposable stack once; startup/RSS/probes   */
 /* ------------------------------------------------------------------ */
-async function caseStack(args) {
+export async function caseStack(args, runner = {}) {
+  const composeCase = runner.composeTry ?? composeTry;
   const dir = ensureEvidenceDir(args);
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
@@ -275,10 +293,12 @@ async function caseStack(args) {
     ports: { ...args_env }, startedAt: new Date(started).toISOString(),
   };
   let stackStarted = false;
+  let failed = false;
+  let failure;
   try {
-    preflightComposeProject(args);
+    preflightComposeProject(args, runner.tryRun ?? tryRun);
     stackStarted = true;
-    const up = composeTry(args, ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']);
+    const up = composeCase(args, ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     const api = await waitServiceHealthy(args, /restful-api/, 480000);
     result.startupMs = api.healthyMs;
@@ -303,10 +323,14 @@ async function caseStack(args) {
       throw new Error(`stack probes failed: ${JSON.stringify(result.probes)}`);
     }
     console.log(`PASS stack up=${api.healthyMs}ms rss=${result.memory.memUsage} fits512Mb=${result.fits512Mb} probes=${JSON.stringify(result.probes)}`);
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
     if (stackStarted) {
-      const down = composeTry(args, ['down', '-v', '--remove-orphans']);
-      if (!down.ok) throw new Error('Owned Compose stack cleanup failed.');
+      const down = composeCase(args, ['down', '-v', '--remove-orphans']);
+      if (!down.ok) attachCleanupFailure(failed, failure);
     }
   }
 }
@@ -314,7 +338,8 @@ async function caseStack(args) {
 /* ------------------------------------------------------------------ */
 /* case: pgit — disposable postgres + full *PostgresIT failsafe run        */
 /* ------------------------------------------------------------------ */
-async function casePgit(args) {
+export async function casePgit(args, runner = {}) {
+  const composeCase = runner.composeTry ?? composeTry;
   const dir = ensureEvidenceDir(args);
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
@@ -322,8 +347,10 @@ async function casePgit(args) {
   };
   const result = { case: 'pgit', target: 'local', project: args.project, ports: { ...args_env } };
   let stackStarted = false;
+  let failed = false;
+  let failure;
   try {
-    preflightComposeProject(args);
+    preflightComposeProject(args, runner.tryRun ?? tryRun);
     // One IT pins the historical audit rig at 127.0.0.1:5452 — publish the same
     // disposable postgres on that fixed port too when it is free; if taken,
     // proceed without the override and that class stays skipped (honest).
@@ -350,7 +377,7 @@ async function casePgit(args) {
       args.composeFiles = [path.join(REPO, COMPOSE_FILE), overrideFile];
     }
     stackStarted = true;
-    const up = composeTry(args, ['up', '-d', 'postgres']);
+    const up = composeCase(args, ['up', '-d', 'postgres']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     await waitServiceHealthy(args, /postgres/, 240000);
     const pgPort = args_env.POSTGRES_HOST_PORT;
@@ -386,7 +413,7 @@ async function casePgit(args) {
     ];
     for (const db of dbs.slice(1)) {
       // DROP DATABASE cannot run inside a transaction block — separate -c calls.
-      const mk = composeTry(args, ['exec', '-T', 'postgres', 'sh', '-c',
+      const mk = composeCase(args, ['exec', '-T', 'postgres', 'sh', '-c',
         `psql --no-psqlrc --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres -c "DROP DATABASE IF EXISTS ${db}" -c "CREATE DATABASE ${db}"`]);
       if (!mk.ok) throw new Error(`could not provision db ${db}\n${mk.out.slice(-1000)}`);
     }
@@ -394,7 +421,7 @@ async function casePgit(args) {
     // V84 creates campuscore_assistant_runtime NOLOGIN; the one-shot provisioner
     // flips it to LOGIN with the dev-only password, matching the e2e compose
     // dependency chain the restful-api service relies on.
-    const prov = composeTry(args, ['run', '--rm', 'assistant-db-provisioner']);
+    const prov = composeCase(args, ['run', '--rm', 'assistant-db-provisioner']);
     result.provisionerExit = prov.code;
     if (!prov.ok) throw new Error(`assistant-db-provisioner failed\n${prov.out.slice(-1500)}`);
     const jdbcBase = `jdbc:postgresql://127.0.0.1:${pgPort}`;
@@ -506,10 +533,14 @@ async function casePgit(args) {
       throw new Error(`pgit verdict FAIL exit=${res.code} totals=${JSON.stringify(result.totals)} requested=${JSON.stringify(requestedItResults)} — see ${args.logName || 'pgit-mvn.log'}`);
     }
     console.log(`PASS pgit tests=${totals[0]} failures=${totals[1]} errors=${totals[2]} skipped=${totals[3]} in ${result.mvnMs}ms`);
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
     if (stackStarted) {
-      const down = composeTry(args, ['down', '-v', '--remove-orphans']);
-      if (!down.ok) throw new Error('Owned Compose stack cleanup failed.');
+      const down = composeCase(args, ['down', '-v', '--remove-orphans']);
+      if (!down.ok) attachCleanupFailure(failed, failure);
     }
   }
 }
