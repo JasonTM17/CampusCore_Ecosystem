@@ -852,9 +852,12 @@
           },
           "maxScore": {
             "format": "double",
+            "minimum": 0,
             "type": "number"
           },
           "title": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           },
           "version": {
@@ -862,6 +865,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "title"
+        ],
         "type": "object"
       },
       "AttachmentDto": {
@@ -1149,6 +1155,26 @@
         },
         "type": "object"
       },
+      "AttendanceCourseSummary": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AttendanceGeofenceRequest": {
         "properties": {
           "campusCode": {
@@ -1371,7 +1397,7 @@
             "type": "string"
           },
           "section": {
-            "$ref": "#/components/schemas/SectionSummary"
+            "$ref": "#/components/schemas/AttendanceSectionSummary"
           },
           "sectionId": {
             "type": "string"
@@ -1425,6 +1451,23 @@
             "type": "string"
           },
           "studentId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceSectionSummary": {
+        "properties": {
+          "course": {
+            "$ref": "#/components/schemas/AttendanceCourseSummary"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sectionNumber": {
+            "type": "string"
+          },
+          "semesterId": {
             "type": "string"
           }
         },
@@ -1583,6 +1626,90 @@
             "type": "string"
           },
           "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CareerApplicationResponse": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentResponse"
+            },
+            "type": "array"
+          },
+          "candidateEmail": {
+            "type": "string"
+          },
+          "candidateUserId": {
+            "type": "string"
+          },
+          "coverLetter": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "moderationReason": {
+            "type": "string"
+          },
+          "opportunityId": {
+            "type": "string"
+          },
+          "opportunityTitle": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "statusChangedBy": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CareerStaffGrantResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "userId": {
             "type": "string"
           }
         },
@@ -2377,6 +2504,54 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateAnnouncementRequest": {
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "isGlobal": {
+            "type": "boolean"
+          },
+          "lecturerId": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "publishAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "semesterId": {
+            "type": "string"
+          },
+          "targetRoles": {
+            "items": {},
+            "type": "array"
+          },
+          "targetYears": {
+            "items": {},
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "title"
+        ],
         "type": "object"
       },
       "CreateApplicationRequest": {
@@ -3205,6 +3380,30 @@
         ],
         "type": "object"
       },
+      "EnrollmentCourseSummary": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "EnrollmentGradeDetail": {
         "properties": {
           "courseCode": {
@@ -3236,6 +3435,20 @@
           },
           "studentName": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EnrollmentLecturerSummary": {
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
           }
         },
         "type": "object"
@@ -3281,13 +3494,13 @@
             "type": "string"
           },
           "section": {
-            "$ref": "#/components/schemas/SectionSummary"
+            "$ref": "#/components/schemas/EnrollmentSectionSummary"
           },
           "sectionId": {
             "type": "string"
           },
           "semester": {
-            "$ref": "#/components/schemas/SemesterSummary"
+            "$ref": "#/components/schemas/EnrollmentSemesterSummary"
           },
           "semesterId": {
             "type": "string"
@@ -3302,6 +3515,64 @@
             "type": "string"
           },
           "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EnrollmentSectionSummary": {
+        "properties": {
+          "capacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "course": {
+            "$ref": "#/components/schemas/EnrollmentCourseSummary"
+          },
+          "enrolledCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lecturer": {
+            "$ref": "#/components/schemas/EnrollmentLecturerSummary"
+          },
+          "schedules": {
+            "items": {
+              "$ref": "#/components/schemas/SectionScheduleResponse"
+            },
+            "type": "array"
+          },
+          "sectionNumber": {
+            "type": "string"
+          },
+          "semester": {
+            "$ref": "#/components/schemas/EnrollmentSemesterSummary"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EnrollmentSemesterSummary": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          },
+          "startDate": {
             "format": "date-time",
             "type": "string"
           }
@@ -3416,6 +3687,27 @@
           "version": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EventStaffGrantResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -3812,7 +4104,7 @@
             "type": "string"
           },
           "section": {
-            "$ref": "#/components/schemas/SectionSummary"
+            "$ref": "#/components/schemas/EnrollmentSectionSummary"
           },
           "sectionId": {
             "type": "string"
@@ -4315,6 +4607,34 @@
         },
         "type": "object"
       },
+      "LearningFeedbackResponse": {
+        "properties": {
+          "authorId": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "score": {
+            "format": "double",
+            "type": "number"
+          },
+          "submissionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "LecturerGradingSectionResponse": {
         "properties": {
           "canPublish": {
@@ -4550,6 +4870,27 @@
         },
         "type": "object"
       },
+      "LibraryStaffGrantResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "LoanRequestResponse": {
         "properties": {
           "approvedAt": {
@@ -4753,21 +5094,29 @@
       "MaterialUpsertRequest": {
         "properties": {
           "checksum": {
+            "maxLength": 128,
+            "minLength": 0,
             "type": "string"
           },
           "contentBase64": {
             "type": "string"
           },
           "contentType": {
+            "maxLength": 120,
+            "minLength": 0,
             "type": "string"
           },
           "description": {
             "type": "string"
           },
           "fileName": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           },
           "title": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           },
           "version": {
@@ -4775,6 +5124,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "title"
+        ],
         "type": "object"
       },
       "MediaGalleryDto": {
@@ -5290,12 +5642,28 @@
             "format": "date-time",
             "type": "string"
           },
+          "resultReason": {
+            "type": "string"
+          },
+          "resultResolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resultStatus": {
+            "type": "string"
+          },
           "roundId": {
             "format": "uuid",
             "type": "string"
           },
           "roundStatus": {
             "type": "string"
+          },
+          "skippedMilestones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "topicId": {
             "format": "uuid",
@@ -5658,6 +6026,38 @@
         },
         "type": "object"
       },
+      "RegistrationRoundResponse": {
+        "properties": {
+          "creditLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "semesterId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "windowEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "windowStart": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReportDeadlineUpdateRequest": {
         "properties": {
           "reportDeadline": {
@@ -5933,6 +6333,7 @@
           },
           "score": {
             "format": "double",
+            "minimum": 0,
             "type": "number"
           }
         },
@@ -6420,6 +6821,33 @@
         ],
         "type": "object"
       },
+      "SectionCourseSummary": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "department": {
+            "$ref": "#/components/schemas/DepartmentSummary"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SectionGradeEnrollmentResponse": {
         "properties": {
           "email": {
@@ -6519,6 +6947,20 @@
         },
         "type": "object"
       },
+      "SectionLecturerSummary": {
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          }
+        },
+        "type": "object"
+      },
       "SectionListResponse": {
         "properties": {
           "data": {
@@ -6546,7 +6988,7 @@
             "type": "string"
           },
           "course": {
-            "$ref": "#/components/schemas/CourseSummary"
+            "$ref": "#/components/schemas/SectionCourseSummary"
           },
           "courseId": {
             "type": "string"
@@ -6559,7 +7001,7 @@
             "type": "string"
           },
           "lecturer": {
-            "$ref": "#/components/schemas/LecturerSummary"
+            "$ref": "#/components/schemas/SectionLecturerSummary"
           },
           "lecturerId": {
             "type": "string"
@@ -6581,7 +7023,7 @@
             "type": "string"
           },
           "semester": {
-            "$ref": "#/components/schemas/SemesterSummary"
+            "$ref": "#/components/schemas/SectionSemesterSummary"
           },
           "semesterId": {
             "type": "string"
@@ -6639,6 +7081,27 @@
           "startTime": {
             "description": "Giờ bắt đầu dạng HH:MM",
             "example": "07:00",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SectionSemesterSummary": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -7113,6 +7576,16 @@
           "leaderStudentId": {
             "type": "string"
           },
+          "resultReason": {
+            "type": "string"
+          },
+          "resultResolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resultStatus": {
+            "type": "string"
+          },
           "topicTitle": {
             "type": "string"
           }
@@ -7222,6 +7695,7 @@
           },
           "score": {
             "format": "double",
+            "minimum": 0,
             "type": "number"
           }
         },
@@ -7265,15 +7739,21 @@
       "SubmissionUpsertRequest": {
         "properties": {
           "checksum": {
+            "maxLength": 128,
+            "minLength": 0,
             "type": "string"
           },
           "contentBase64": {
             "type": "string"
           },
           "contentType": {
+            "maxLength": 120,
+            "minLength": 0,
             "type": "string"
           },
           "fileName": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           },
           "textBody": {
@@ -7581,6 +8061,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "resultReason": {
+            "type": "string"
+          },
+          "resultResolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "resultStatus": {
             "type": "string"
           },
@@ -7761,6 +8248,62 @@
           "unreadCount": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateAnnouncementRequest": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "isGlobal": {
+            "type": "boolean"
+          },
+          "lecturerId": {
+            "type": "string"
+          },
+          "presentFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "priority": {
+            "type": "string"
+          },
+          "publishAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "semesterId": {
+            "type": "string"
+          },
+          "targetRoles": {
+            "items": {},
+            "type": "array"
+          },
+          "targetYears": {
+            "items": {},
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -8557,7 +9100,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "*/*": {
                 "schema": {
@@ -8565,7 +9108,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Vùng điểm danh đã được tạo"
           }
         },
         "summary": "Tạo vùng điểm danh đã xác minh tọa độ",
@@ -10038,7 +10581,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/CreateAnnouncementRequest"
               }
             }
           },
@@ -10314,6 +10857,7 @@
             "description": "Truy vấn bản tin công khai thành công"
           }
         },
+        "security": [],
         "summary": "Bản tin công khai cho khách truy cập (không cần đăng nhập)",
         "tags": [
           "Announcements & Campus News"
@@ -10356,6 +10900,7 @@
             "description": "Không tìm thấy bản tin công khai"
           }
         },
+        "security": [],
         "summary": "Bản tin công khai chi tiết theo id hoặc slug",
         "tags": [
           "Announcements & Campus News"
@@ -10453,7 +10998,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/UpdateAnnouncementRequest"
               }
             }
           },
@@ -11146,6 +11691,7 @@
             "description": "Truy xuất danh mục thành công"
           }
         },
+        "security": [],
         "summary": "[v2] Lấy danh sách chuyên mục dạng DTO",
         "tags": [
           "Article Taxonomy & Media (JPA ORM)"
@@ -11475,7 +12021,16 @@
                 }
               }
             },
-            "description": "Lấy danh sách phiên hội thoại thành công"
+            "description": "Lấy danh sách phiên hội thoại thành công",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Cursor for the next page",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách phiên hội thoại của người dùng",
@@ -11587,7 +12142,16 @@
                 }
               }
             },
-            "description": "Lấy lịch sử tin nhắn thành công"
+            "description": "Lấy lịch sử tin nhắn thành công",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Cursor for the next page",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Lấy lịch sử tin nhắn trong phiên hội thoại",
@@ -12777,6 +13341,7 @@
             "description": "Vượt quá số lần yêu cầu cho phép"
           }
         },
+        "security": [],
         "summary": "Yêu cầu đặt lại mật khẩu",
         "tags": [
           "Authentication & Session"
@@ -12829,6 +13394,7 @@
             "description": "Vượt quá số lần thử đăng nhập cho phép"
           }
         },
+        "security": [],
         "summary": "Đăng nhập hệ thống",
         "tags": [
           "Authentication & Session"
@@ -12957,6 +13523,7 @@
             "description": "Refresh Token không hợp lệ hoặc đã hết hạn"
           }
         },
+        "security": [],
         "summary": "Làm mới Access Token",
         "tags": [
           "Authentication & Session"
@@ -12999,6 +13566,7 @@
             "description": "Liên kết không hợp lệ, đã hết hạn hoặc mật khẩu mới không đạt chính sách"
           }
         },
+        "security": [],
         "summary": "Đặt lại mật khẩu bằng liên kết",
         "tags": [
           "Authentication & Session"
@@ -13061,6 +13629,7 @@
             "description": "Vượt quá số lần thử cho phép"
           }
         },
+        "security": [],
         "summary": "Hoàn tất đăng nhập bằng mã OTP",
         "tags": [
           "Two-Factor Authentication"
@@ -13095,7 +13664,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13139,7 +13708,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/ApplicationResponse"
+                    "$ref": "#/components/schemas/CareerApplicationResponse"
                   },
                   "type": "array"
                 }
@@ -13181,7 +13750,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13249,7 +13818,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13337,7 +13906,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13546,7 +14115,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/ApplicationResponse"
+                    "$ref": "#/components/schemas/CareerApplicationResponse"
                   },
                   "type": "array"
                 }
@@ -13588,7 +14157,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13669,7 +14238,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13710,7 +14279,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationResponse"
+                  "$ref": "#/components/schemas/CareerApplicationResponse"
                 }
               }
             },
@@ -13754,7 +14323,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/StaffGrantResponse"
+                    "$ref": "#/components/schemas/CareerStaffGrantResponse"
                   },
                   "type": "array"
                 }
@@ -13794,7 +14363,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffGrantResponse"
+                  "$ref": "#/components/schemas/CareerStaffGrantResponse"
                 }
               }
             },
@@ -14660,6 +15229,7 @@
             "description": "Thông số phiên bản hệ thống"
           }
         },
+        "security": [],
         "summary": "Kiểm tra phiên bản giao ước API",
         "tags": [
           "System Contract & Probing"
@@ -16236,6 +16806,16 @@
                 "style": "simple"
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Lỗi phân trang: limit là bắt buộc khi có page"
           }
         },
         "summary": "Danh sách sự kiện đã công bố",
@@ -16453,7 +17033,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/StaffGrantResponse"
+                    "$ref": "#/components/schemas/EventStaffGrantResponse"
                   },
                   "type": "array"
                 }
@@ -16496,7 +17076,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffGrantResponse"
+                  "$ref": "#/components/schemas/EventStaffGrantResponse"
                 }
               }
             },
@@ -17243,6 +17823,7 @@
             "description": "Dịch vụ đang hoạt động bình thường"
           }
         },
+        "security": [],
         "summary": "Kiểm tra Liveness Probe",
         "tags": [
           "Health & Probes"
@@ -17277,6 +17858,7 @@
             "description": "Cơ sở dữ liệu sẵn sàng"
           }
         },
+        "security": [],
         "summary": "Kiểm tra Readiness Probe",
         "tags": [
           "Health & Probes"
@@ -18261,7 +18843,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/FeedbackResponse"
+                    "$ref": "#/components/schemas/LearningFeedbackResponse"
                   },
                   "type": "array"
                 }
@@ -18509,7 +19091,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/FeedbackResponse"
+                    "$ref": "#/components/schemas/LearningFeedbackResponse"
                   },
                   "type": "array"
                 }
@@ -19087,7 +19669,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/StaffGrantResponse"
+                    "$ref": "#/components/schemas/LibraryStaffGrantResponse"
                   },
                   "type": "array"
                 }
@@ -19121,7 +19703,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffGrantResponse"
+                  "$ref": "#/components/schemas/LibraryStaffGrantResponse"
                 }
               }
             },
@@ -19867,13 +20449,6 @@
             "description": "Tìm thấy đơn xin nâng hạn mức tín chỉ"
           },
           "204": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response"
-                }
-              }
-            },
             "description": "Chưa có đơn nào được nộp cho đợt này"
           }
         },
@@ -20831,6 +21406,7 @@
             "description": "Truy vấn danh mục thành công"
           }
         },
+        "security": [],
         "summary": "Danh mục tài liệu công khai",
         "tags": [
           "Public Documents"
@@ -20874,6 +21450,7 @@
             "description": "Không tìm thấy tài liệu"
           }
         },
+        "security": [],
         "summary": "Tài liệu công khai theo slug",
         "tags": [
           "Public Documents"
@@ -20926,6 +21503,7 @@
             "description": "Không tìm thấy tệp đính kèm"
           }
         },
+        "security": [],
         "summary": "Tệp đính kèm tài liệu công khai",
         "tags": [
           "Public Documents"
@@ -20979,6 +21557,7 @@
             "description": "Không tìm thấy revision"
           }
         },
+        "security": [],
         "summary": "Tài liệu công khai theo slug và revision",
         "tags": [
           "Public Documents"
@@ -21006,7 +21585,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/RoundResponse"
+                    "$ref": "#/components/schemas/RegistrationRoundResponse"
                   },
                   "type": "array"
                 }
@@ -21788,6 +22367,7 @@
             "description": "Truy xuất cấu hình giao diện thành công"
           }
         },
+        "security": [],
         "summary": "Lấy cấu hình giao diện hệ thống",
         "tags": [
           "Site Appearance"
@@ -22133,7 +22713,16 @@
                 }
               }
             },
-            "description": "Lấy danh sách phiên hội thoại thành công"
+            "description": "Lấy danh sách phiên hội thoại thành công",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Cursor for the next page",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách phiên hội thoại của người dùng",
@@ -22245,7 +22834,16 @@
                 }
               }
             },
-            "description": "Lấy lịch sử tin nhắn thành công"
+            "description": "Lấy lịch sử tin nhắn thành công",
+            "headers": {
+              "X-Next-Cursor": {
+                "description": "Cursor for the next page",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Lấy lịch sử tin nhắn trong phiên hội thoại",
@@ -24181,7 +24779,7 @@
     },
     "/api/v1/thesis/rounds/{id}/publish-results": {
       "post": {
-        "description": "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức",
+        "description": "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận",
         "operationId": "publishResults",
         "parameters": [
           {
@@ -24207,7 +24805,7 @@
             "description": "OK"
           }
         },
-        "summary": "Công bố điểm và kết quả bảo vệ khóa luận",
+        "summary": "Công bố kết quả khóa luận",
         "tags": [
           "Thesis Lifecycle Mutations"
         ]
@@ -25428,6 +26026,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25447,6 +26046,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25466,6 +26066,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25485,6 +26086,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25504,6 +26106,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25523,6 +26126,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25542,6 +26146,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-api-proxy-controller"
         ]
@@ -25562,6 +26167,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "identity-login-page-controller"
         ]
@@ -25593,6 +26199,7 @@
             "description": "Redirects the browser to the configured surface."
           }
         },
+        "security": [],
         "tags": [
           "bff-session-controller"
         ]
@@ -25613,6 +26220,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-session-controller"
         ]
@@ -25636,6 +26244,7 @@
             "description": "Redirects the browser to the identity provider."
           }
         },
+        "security": [],
         "tags": [
           "bff-session-controller"
         ]
@@ -25657,6 +26266,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-session-controller"
         ]
@@ -25678,6 +26288,7 @@
             "description": "OK"
           }
         },
+        "security": [],
         "tags": [
           "bff-session-controller"
         ]
