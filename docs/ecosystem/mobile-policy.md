@@ -204,10 +204,12 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   `sessionStore.loadBootstrap()` → nếu refresh còn → silent
   `refreshAccessToken()` một lần (fail terminal → signedOut, không crash) →
   set session-state → render router guard. Guard không evaluate tới
-  khi bootstrap xong (splash giữ chỗ). Cả boot refresh và trao đổi OIDC code
-  qua token endpoint đều bị giới hạn thời gian tối đa 10 giây
-  (`DEFAULT_TOKEN_TIMEOUT_MS = 10_000`); quá 10 giây lệnh tự hủy và trả về lỗi
-  mạng tạm thời `unavailable`, bảo toàn phiên đã lưu.
+  khi bootstrap xong (splash giữ chỗ). Boot refresh dùng hạn 20 giây
+  (`DEFAULT_TOKEN_TIMEOUT_MS = 20_000` trong `session-store.ts`); quá hạn trả
+  `reauthRequired` và phiên kết thúc — người dùng đăng nhập lại bằng OIDC.
+  Trao đổi OIDC authorization code có hạn riêng 10 giây
+  (`DEFAULT_TOKEN_TIMEOUT_MS = 10_000` trong `oidc-session.ts`); chỉ lỗi trước
+  khi gửi (`issuer_not_configured`) trả `unavailable`.
 
 ## 4. Roles & surface boundary (mobile-matrix.md)
 

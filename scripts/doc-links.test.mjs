@@ -269,3 +269,55 @@ describe('Residual version and onboarding contract invariants', () => {
     );
   });
 });
+
+describe('Ecosystem policy documentation contract invariants', () => {
+  function readPolicy(relativePath) {
+    return readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  }
+
+  test('mobile policy states the boot-refresh deadline and terminal outcome consistently', () => {
+    const doc = readPolicy('docs/ecosystem/mobile-policy.md');
+    const start = doc.indexOf('**Boot sequence & timeout (KM-17)**');
+    assert.ok(start !== -1, 'boot-sequence policy is required');
+    const boot = doc.slice(start, doc.indexOf('## 4.', start)).replace(/\s+/g, ' ');
+
+    assert.match(boot, /20 giây/, 'boot refresh must use the 20-second session-store deadline');
+    assert.match(boot, /reauthRequired/, 'a boot-refresh timeout must end the session');
+    assert.match(boot, /OIDC authorization code/, 'the 10-second deadline belongs to the code exchange');
+    assert.match(boot, /10 giây/, 'the code exchange must document its 10-second deadline');
+    assert.doesNotMatch(
+      boot,
+      /Cả boot refresh và trao đổi OIDC code/,
+      'boot refresh and the OIDC code exchange must not share one deadline',
+    );
+  });
+
+  test('host policy separates BFF-generated errors from proxied upstream errors', () => {
+    const doc = readPolicy('docs/ecosystem/host-policy.md');
+    const bullet = doc.split(/\r?\n/).find((line) => line.startsWith('- `ANY /bff/api/**`'));
+    assert.ok(bullet, 'business-proxy error contract is required');
+
+    assert.match(bullet, /BFF/, 'BFF-generated errors must be named as the error+code envelope owner');
+    assert.match(bullet, /ErrorResponse/, 'proxied upstream errors must name ErrorResponse');
+    assert.match(bullet, /không có trường `error`/, 'proxied upstream errors must state the code-only shape');
+  });
+
+  test('identity contract separates a missing refresh token from a replay', () => {
+    const doc = readPolicy('docs/ecosystem/identity-contract.md');
+    const rows = doc.split(/\r?\n/);
+    const missing = rows.find((line) => line.startsWith('| C2 |'));
+    const replay = rows.find((line) => line.startsWith('| C2a |'));
+
+    assert.ok(missing, 'C2 must cover the missing/blank refresh token');
+    assert.match(missing, /thiếu\/rỗng/);
+    assert.match(missing, /401/);
+    assert.match(missing, /không revoke/);
+    assert.match(missing, /không warn/);
+    assert.doesNotMatch(missing, /deleteAllRefreshSessions/, 'a missing credential has no family to revoke');
+
+    assert.ok(replay, 'C2a must cover refresh replay');
+    assert.match(replay, /revokeAllLanes/);
+    assert.match(replay, /REFRESH_TOKEN_REUSE/);
+    assert.match(replay, /401/);
+  });
+});

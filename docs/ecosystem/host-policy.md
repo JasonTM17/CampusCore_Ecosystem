@@ -121,7 +121,7 @@ surface resolution theo §1:
 - `GET /session/logged-out` — trả landing page metadata (owner của page
   là **Next static route** — endpoint này chỉ là API probe nếu cần; chọn
   Next làm owner — KM-L13).
-- `ANY /bff/api/**` — business proxy (§5). Mọi response lỗi từ `/session/*` và `/bff/api/**` đều trả body JSON chứa trường `code` song song với `error` (ví dụ `{"error":"...","code":"..."}`).
+- `ANY /bff/api/**` — business proxy (§5). Lỗi do BFF tự sinh trên `/session/*` và `/bff/api/**` (surface/allowlist/CSRF/body-cap/upstream-unreachable) trả JSON có cả `error` và `code` (ví dụ `{"error":"...","code":"..."}`); lỗi nghiệp vụ proxy từ Java API giữ nguyên `ErrorResponse` của upstream — có `code`, không có trường `error`.
 
 Authorization server dùng chung machinery P04: grant BFF nằm trong
 `oauth2_authorization` (`campuscore_identity`), mirror Session + lineage qua

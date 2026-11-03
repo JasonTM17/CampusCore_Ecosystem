@@ -4,11 +4,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   verifyMigrationLineage,
   DEFAULT_MIGRATIONS_DIR,
   DEFAULT_ALLOWED_GAPS
 } from './flyway-lineage-check.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const lineageDocPath = path.join(repoRoot, 'docs', 'integrations', 'flyway-lineage.md');
 
 function createTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'flyway-test-'));
@@ -170,4 +174,56 @@ test('flyway-lineage-check: CLI fails when gap is not allowlisted', () => {
   }
 
   assert.equal(threw, true, 'CLI should exit with code 1 when an unexpected gap exists');
+});
+
+test('flyway-lineage-check: populated-database procedure pre-creates V148-V150 indexes concurrently', () => {
+  const doc = fs.readFileSync(lineageDocPath, 'utf8');
+  const section = doc.slice(doc.indexOf('### 4.4'), doc.indexOf('## 5.'));
+  const normalized = section.replace(/\s+/g, ' ');
+
+  for (const version of ['V148', 'V149', 'V150']) {
+    assert.ok(normalized.includes(version), `populated-database procedure must name ${version}`);
+  }
+
+  const concurrentStatements = [
+    'CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_topic_idx ON thesis.thesis_group (topic_id);',
+    'CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_report_round_submitted_idx ON thesis.thesis_group_report (round_id, submitted_at DESC, group_id);',
+    'CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_council_topic_council_idx ON thesis.thesis_council_topic (council_id, topic_id);',
+    'CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_enrollment_semester_enrolled_idx ON academic."Enrollment" ("semesterId", "enrolledAt" DESC, "id" DESC);',
+    'CREATE INDEX CONCURRENTLY IF NOT EXISTS admin_audit_created_id_idx ON campuscore_audit."AdminAudit" ("createdAt" DESC, "id" DESC);'
+  ];
+  for (const statement of concurrentStatements) {
+    assert.ok(normalized.includes(statement), `missing concurrent DDL: ${statement}`);
+  }
+
+  assert.match(normalized, /outside a transaction block/i, 'index builds must run outside a transaction');
+  assert.match(normalized, /indisvalid/, 'verification must inspect pg_index.indisvalid');
+  assert.match(normalized, /invalid remnant/i, 'recovery must name invalid concurrent-build remnants');
+
+  const rollbackStatements = [
+    'DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_topic_idx;',
+    'DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_report_round_submitted_idx;',
+    'DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_council_topic_council_idx;',
+    'DROP INDEX CONCURRENTLY IF EXISTS academic.academic_enrollment_semester_enrolled_idx;',
+    'DROP INDEX CONCURRENTLY IF EXISTS campuscore_audit.admin_audit_created_id_idx;'
+  ];
+  for (const statement of rollbackStatements) {
+    assert.ok(normalized.includes(statement), `missing rollback statement: ${statement}`);
+  }
+});
+
+test('flyway-lineage-check: documented test-suite inventory matches the live checker', () => {
+  const result = verifyMigrationLineage();
+  const doc = fs.readFileSync(lineageDocPath, 'utf8');
+  const section = doc.slice(doc.indexOf('### 5.2'));
+
+  assert.ok(
+    section.includes(`Production migration directory passes with ${result.filesCount} files, V1..V${result.maxVersion}, and gaps`),
+    `section 5.2 must document ${result.filesCount} files, V1..V${result.maxVersion}`
+  );
+  assert.ok(
+    section.includes('`[' + result.allowedGapsFound.join(', ') + ']`'),
+    `section 5.2 must document the approved gaps [${result.allowedGapsFound.join(', ')}]`
+  );
+  assert.deepEqual(result.allowedGapsFound, [...DEFAULT_ALLOWED_GAPS]);
 });

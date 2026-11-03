@@ -22,7 +22,8 @@ flags. Browser BFF + host isolation + sibling queue là **P05**; native client
 | # | Hành vi hiện tại | Nơi | Oracle |
 | --- | --- | --- | --- |
 | C1 | Login: bcrypt + DUMMY_HASH burn cho unknown email, lock 5 lần/30', bypass lock nếu IP giữ session live của account | `AuthLoginService:45-119` | tests + gate pgit |
-| C2 | Refresh: JWT `tokenType=refresh`+`jti`, SHA-256 vào `Session.refreshToken`, rotate in-place (stable `Session.id`); token thiếu/rỗng hoặc token hợp lệ nhưng hash không còn active (replay) → `deleteAllRefreshSessions` + warn + 401 | `AuthLoginService:172-221` | replay tests |
+| C2 | Refresh: JWT `tokenType=refresh`+`jti`, SHA-256 vào `Session.refreshToken`, rotate in-place (stable `Session.id`); token thiếu/rỗng → 401 ngay, không revoke, không warn (không có subject để thu hồi) | `AuthLoginService:183-189` | auth refresh tests |
+| C2a | Refresh replay: token hợp lệ nhưng hash không còn active → `revokeAllLanes`/`deleteAllRefreshSessions` + warn `REFRESH_TOKEN_REUSE` + 401 | `AuthLoginService:191-214` | replay tests |
 | C3 | Lock order: **User → Session** (`lockUserRow` trước mọi session op; `FOR UPDATE OF se` sau) | repository | `*LockOrder*PostgresIT` |
 | C4 | Logout: pin `Session.id` trước User lock; session rõ → xóa row; mơ hồ → xóa hết + `bumpCredentialVersion` + `clearUserRefreshToken` | `AuthLoginService:315-335` | logout tests |
 | C5 | `credentialVersion` + status + roles/permissions/student/lecturer so DB **mỗi request** qua `AccountStateFilter`, chỉ trên URI `/api/v1/*`, fail-closed 503 | `AccountStateFilter:41-60` | account-state tests |
