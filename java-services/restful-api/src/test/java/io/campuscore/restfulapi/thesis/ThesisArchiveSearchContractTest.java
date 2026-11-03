@@ -521,11 +521,3 @@ class ThesisArchiveSearchContractTest {
         return ThesisAuthorityFixture.role(jdbc, userId, "LECTURER");
     }
 }
-
-
-
-
-
-
-
-
