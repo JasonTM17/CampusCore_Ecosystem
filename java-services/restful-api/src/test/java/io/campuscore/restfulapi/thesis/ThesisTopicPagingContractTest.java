@@ -256,7 +256,7 @@ class ThesisTopicPagingContractTest {
     @Test
     void scoreAndReviewerMaskingMatchesLegacyBeforeResultsPublication() throws Exception {
         UUID roundId = round("DRAFT");
-        UUID masked = scoredTopic(roundId, "Masked score", 8.5, "PASSED", REVIEWER);
+        UUID masked = scoredTopic(roundId, "Masked score", 8.5, "GRADED", REVIEWER);
         council(roundId, masked, GRADER);
 
         assertThat(single(roundId, student())).satisfies(topic -> {
@@ -280,7 +280,7 @@ class ThesisTopicPagingContractTest {
                 facultyHead(), admin())) {
             assertThat(single(roundId, actor)).satisfies(topic -> {
                 assertThat(topic.finalScore()).isEqualByComparingTo("8.50");
-                assertThat(topic.resultStatus()).isEqualTo("PASSED");
+                assertThat(topic.resultStatus()).isEqualTo("GRADED");
                 assertThat(topic.gvpbLecturerId()).isEqualTo(REVIEWER);
             });
         }
@@ -294,36 +294,36 @@ class ThesisTopicPagingContractTest {
     @Test
     void resultsPublicationRevealsScoresButKeepsReviewerIdentityMaskedForNonGraders() throws Exception {
         UUID roundId = round("RESULTS_PUBLISHED");
-        scoredTopic(roundId, "Published score", 9.25, "PASSED", REVIEWER);
+        scoredTopic(roundId, "Published score", 9.25, "GRADED", REVIEWER);
 
         assertThat(single(roundId, student())).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, lecturer(LECT_B))).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, lecturer(REVIEWER))).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isEqualTo(REVIEWER);
         });
         assertThat(single(roundId, departmentHead())).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, facultyHead())).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isEqualTo(REVIEWER);
         });
         assertThat(single(roundId, admin())).satisfies(topic -> {
             assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("PASSED");
+            assertThat(topic.resultStatus()).isEqualTo("GRADED");
             assertThat(topic.gvpbLecturerId()).isEqualTo(REVIEWER);
         });
         for (RequestPostProcessor actor : List.of(student(), lecturer(LECT_B), lecturer(REVIEWER),
