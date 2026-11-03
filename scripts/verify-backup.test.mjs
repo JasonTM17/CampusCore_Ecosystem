@@ -882,6 +882,24 @@ docker() {
   assert.doesNotMatch(result.stdout, /Restored /);
 });
 
+test('backup entry points are tracked as executable files', (t) => {
+  const listing = spawnSync('git', ['ls-files', '-s', '--', 'ops/backup/backup-postgres.sh',
+    'ops/backup/restore-postgres.sh', 'ops/backup/verify-backup.sh'], { cwd: repo, encoding: 'utf8' });
+  if (listing.status !== 0 || !listing.stdout.trim()) {
+    t.skip('not a git checkout');
+    return;
+  }
+  const modes = Object.fromEntries(listing.stdout.trim().split('\n').map((line) => {
+    const [mode, , , file] = line.split(/\s+/);
+    return [path.basename(file), mode];
+  }));
+  assert.deepEqual(modes, {
+    'backup-postgres.sh': '100755',
+    'restore-postgres.sh': '100755',
+    'verify-backup.sh': '100755',
+  }, 'systemd and the restore script execute these files directly');
+});
+
 test('backup and restore require an explicit Compose project', () => {
   assert.doesNotMatch(backupSource, /COMPOSE_PROJECT_NAME:-campuscore-production/);
   assert.doesNotMatch(verifySource, /COMPOSE_PROJECT_NAME:-campuscore-production/);
