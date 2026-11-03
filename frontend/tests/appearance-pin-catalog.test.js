@@ -72,6 +72,32 @@ const flush = async (rounds = 12) => {
   for (let i = 0; i < rounds; i += 1) await new Promise((resolve) => setImmediate(resolve));
 };
 
+// Extract the search effect so a test can hold its page read open and inspect
+// what the component has committed before the response lands.
+function searchEffect(deps) {
+  const effectSource = read('src/' + PAGE);
+  const tree = ts.createSourceFile(PAGE, effectSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let arrow;
+  function visit(node) {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.getText(tree) === 'useEffect' &&
+      node.arguments.length > 0 &&
+      ts.isArrowFunction(node.arguments[0]) &&
+      node.arguments[0].getText(tree).includes('postSearch')
+    ) {
+      arrow = node.arguments[0];
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(arrow, 'the search effect exists');
+  const output = ts.transpileModule(`const __effect = ${arrow.getText(tree)};`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return Function(...Object.keys(deps), `${output}; return __effect;`)(...Object.values(deps));
+}
+
 function pinOption(id, title = `Title ${id}`) {
   return { id, title, status: 'PUBLISHED', isGlobal: true, publishAt: null, createdAt: '2026-08-20T10:00:00Z' };
 }
@@ -140,6 +166,7 @@ function loadDeps({ announcementsApi, catalog, snapshotValue }) {
     setPostsPage: record('setPostsPage'),
     setPostsTotalPages: record('setPostsTotalPages'),
     setPostsLoadFailed: record('setPostsLoadFailed'),
+    setPinsLoadFailed: record('setPinsLoadFailed'),
     setPostSearch: record('setPostSearch'),
     setIsLoading: record('setIsLoading'),
     setError: record('setError'),
@@ -222,6 +249,49 @@ test('the appearance loader issues one catalog page plus one pin resolution', as
   );
 });
 
+test('a failed pin resolution keeps the loaded catalog page usable', async () => {
+  const rows = [pinOption('row-1'), pinOption('row-2'), pinOption('row-3')];
+  const writes = [];
+  const record = (name) => (value) => writes.push([name, value]);
+  const load = pageFunction(PAGE, 'load', {
+    setIsLoading: record('setIsLoading'),
+    setError: record('setError'),
+    setPostsLoadFailed: record('setPostsLoadFailed'),
+    setPinsLoadFailed: record('setPinsLoadFailed'),
+    fetchSiteAppearanceSnapshot: async () => snapshot({ postOrder: ['row-3'] }),
+    sanitizeSiteAppearance: (value) => value,
+    fetchPinOptionPage: async () => ({ data: rows, meta: { page: 1, totalPages: 2 } }),
+    fetchPinnedAnnouncementRows: async () => { throw new Error('pin resolution failed'); },
+    catalogSearchRef: { current: '' },
+    setPosts: record('setPosts'),
+    setPostsPage: record('setPostsPage'),
+    setPostsTotalPages: record('setPostsTotalPages'),
+    setPinnedPosts: record('setPinnedPosts'),
+    updateDraft: record('updateDraft'),
+    storedVersionRef: { current: null },
+    staleConflictRef: { current: false },
+    setStaleConflict: record('setStaleConflict'),
+    copy: { loadFailed: 'LOAD_FAILED' },
+  });
+
+  await load();
+
+  const latest = new Map();
+  for (const [name, value] of writes) latest.set(name, value);
+  assert.deepEqual(
+    latest.get('setPosts').map((row) => row.id),
+    ['row-1', 'row-2', 'row-3'],
+    'the loaded page stays on screen',
+  );
+  assert.equal(latest.get('setPostsLoadFailed'), false, 'the catalog read did not fail');
+  assert.equal(latest.get('setPinsLoadFailed'), true, 'the failed pins are reported separately');
+  assert.equal(
+    writes.some(([name, value]) => name === 'setError' && value),
+    false,
+    'no fatal load error',
+  );
+});
+
 test('loading more appends exactly one page per request', async () => {
   const { announcementsApi, calls } = apiStub({ rows: 120 });
   const catalogModule = loadTs(CATALOG, { '@/lib/api': { announcementsApi } });
@@ -257,32 +327,93 @@ test('loading more appends exactly one page per request', async () => {
   assert.ok(appended.length > 1, 'page two rows append');
 });
 
+test('a page read for the previous search term is dropped after the new search paints', async () => {
+  let resolvePage;
+  const pageRead = new Promise((resolve) => { resolvePage = resolve; });
+  const calls = [];
+  const writes = [];
+  const record = (name) => (value) => writes.push([name, value]);
+  let current = [pinOption('old-1')];
+  const deps = {
+    fetchPinOptionPage: async (page, search) => {
+      calls.push({ page, search });
+      return pageRead;
+    },
+    catalogSearchRef: { current: '' },
+    postsPage: 1,
+    postsTotalPages: 5,
+    isLoadingMorePosts: false,
+    setIsLoadingMorePosts: record('setIsLoadingMorePosts'),
+    setPosts: (update) => {
+      const next = typeof update === 'function' ? update(current) : update;
+      writes.push(['setPosts', next]);
+    },
+    setPostsPage: record('setPostsPage'),
+    setPostsTotalPages: record('setPostsTotalPages'),
+    copy: { postsLoadFailed: 'FAILED' },
+    toast: { error: () => writes.push(['toast.error']) },
+  };
+
+  const loadMore = pageFunction(PAGE, 'loadMorePosts', deps);
+  const pending = loadMore();
+  assert.deepEqual(calls, [{ page: 2, search: '' }]);
+
+  // The search commits 'exam' and paints its first page while the old page-2
+  // read is still in flight.
+  deps.catalogSearchRef.current = 'exam';
+  current = [pinOption('exam-1')];
+  writes.length = 0;
+  resolvePage({ data: [pinOption('old-2')], meta: { page: 2, totalPages: 5 } });
+  await pending;
+
+  assert.equal(writes.some(([name]) => name === 'setPosts'), false, 'stale rows are not appended');
+  assert.equal(
+    writes.some(([name, value]) => name === 'setPostsPage' && value === 2),
+    false,
+    'the stale response does not advance the pager',
+  );
+});
+
+test('committing a search hides Load more until the new first page arrives', async () => {
+  let resolvePage;
+  const pageRead = new Promise((resolve) => { resolvePage = resolve; });
+  const writes = [];
+  const record = (name) => (value) => writes.push([name, value]);
+  const effect = searchEffect({
+    postSearch: 'exam',
+    catalogSearchRef: { current: '' },
+    fetchPinOptionPage: async () => pageRead,
+    setPosts: record('setPosts'),
+    setPostsPage: record('setPostsPage'),
+    setPostsTotalPages: record('setPostsTotalPages'),
+    setPostsLoadFailed: record('setPostsLoadFailed'),
+    window: { setTimeout, clearTimeout },
+  });
+
+  effect();
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.deepEqual(
+    writes,
+    [['setPostsPage', 1], ['setPostsTotalPages', 0]],
+    'the previous term pager is retired before the new page paints',
+  );
+
+  resolvePage({ data: [pinOption('exam-1')], meta: { page: 1, totalPages: 2 } });
+  await flush();
+  assert.deepEqual(writes.slice(-4), [
+    ['setPosts', [pinOption('exam-1')]],
+    ['setPostsPage', 1],
+    ['setPostsTotalPages', 2],
+    ['setPostsLoadFailed', false],
+  ]);
+});
+
 test('a search term reaches the server instead of filtering loaded rows', async () => {
   const { announcementsApi, calls } = apiStub({ rows: 120 });
   const catalogModule = loadTs(CATALOG, { '@/lib/api': { announcementsApi } });
   const writes = [];
   const record = (name) => (value) => writes.push([name, value]);
-  const effectSource = read('src/' + PAGE);
-  const tree = ts.createSourceFile(PAGE, effectSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let arrow;
-  function visit(node) {
-    if (
-      ts.isCallExpression(node) &&
-      node.expression.getText(tree) === 'useEffect' &&
-      node.arguments.length > 0 &&
-      ts.isArrowFunction(node.arguments[0]) &&
-      node.arguments[0].getText(tree).includes('postSearch')
-    ) {
-      arrow = node.arguments[0];
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(tree);
-  assert.ok(arrow, 'the search effect exists');
-  const output = ts.transpileModule(`const __effect = ${arrow.getText(tree)};`, {
-    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
-  }).outputText;
-  const deps = {
+  const effect = searchEffect({
     postSearch: 'exam',
     catalogSearchRef: { current: '' },
     fetchPinOptionPage: catalogModule.fetchPinOptionPage,
@@ -291,10 +422,7 @@ test('a search term reaches the server instead of filtering loaded rows', async 
     setPostsTotalPages: record('setPostsTotalPages'),
     setPostsLoadFailed: record('setPostsLoadFailed'),
     window: { setTimeout, clearTimeout },
-  };
-  const effect = Function(...Object.keys(deps), `${output}; return __effect;`)(
-    ...Object.values(deps),
-  );
+  });
   const cleanup = effect();
   await new Promise((resolve) => setTimeout(resolve, 400));
   if (typeof cleanup === 'function') cleanup();
@@ -318,6 +446,44 @@ test('the rendered list seats resolved pins first and never duplicates ids', () 
     orderedPosts.map((row) => row.id),
     ['row-9', 'row-3', 'row-1', 'row-2'],
     'pins keep their order, the catalog follows, unresolvable pins stay invisible',
+  );
+});
+
+test('a reorder of pinned notices changes the rendered order instead of snapping back', () => {
+  const { movePostOrder } = loadTs('src/lib/site-appearance.ts');
+  const pinnedPosts = [pinOption('a'), pinOption('b')];
+
+  const afterMoveDown = pageFunction(PAGE, 'orderedPosts', {
+    draft: { postOrder: movePostOrder(['a', 'b'], 'a', 1) },
+    posts: [],
+    pinnedPosts,
+  });
+  assert.deepEqual(
+    afterMoveDown.map((row) => row.id),
+    ['b', 'a'],
+    'the moved notice is rendered in its new place',
+  );
+
+  const afterMoveUp = pageFunction(PAGE, 'orderedPosts', {
+    draft: { postOrder: movePostOrder(['b', 'a'], 'a', -1) },
+    posts: [],
+    pinnedPosts,
+  });
+  assert.deepEqual(
+    afterMoveUp.map((row) => row.id),
+    ['a', 'b'],
+    'the reverse action is expressible without a reload',
+  );
+
+  const pageRowMovedFirst = pageFunction(PAGE, 'orderedPosts', {
+    draft: { postOrder: ['c', 'a', 'b'] },
+    posts: [pinOption('c')],
+    pinnedPosts,
+  });
+  assert.deepEqual(
+    pageRowMovedFirst.map((row) => row.id),
+    ['c', 'a', 'b'],
+    'an on-page row keeps the place it was moved to',
   );
 });
 
