@@ -229,3 +229,11 @@ test('report window lock keeps the backend REPORT_WINDOW_CLOSED code localized',
     'REPORT_WINDOW_CLOSED must be mapped by the thesis page and localized in en + vi',
   );
 });
+
+test('the student score card needs an approved group before it prints a published topic score', () => {
+  const page = read('src/app/dashboard/thesis/page.tsx');
+  assert.match(
+    page,
+    /const studentFinalScore = currentGroup\?\.approvalStatus === 'APPROVED'\s*\?\s*currentTopic\?\.finalScore \?\? myResultItem\?\.finalScore \?\? null\s*:\s*null;/,
+  );
+});
