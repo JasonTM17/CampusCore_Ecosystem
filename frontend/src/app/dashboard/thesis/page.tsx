@@ -2977,6 +2977,7 @@ export default function ThesisPage() {
                     reportsByGroup={supervisedReports}
                     isActionPending={isActionPending}
                     getTopicTitle={getTopicTitle}
+                    roundStatus={selectedRound?.status}
                     isRoundOpen={isRegistrationOpenFor}
                     canReviewGroup={(group) =>
                       isAdmin || (!!group.topicId && supervisedTopicIds.has(group.topicId))
