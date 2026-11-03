@@ -77,6 +77,9 @@ function loadPage(runtime) {
         staffList: async () => {
           throw staffDenied();
         },
+        staffListPage: async () => {
+          throw staffDenied();
+        },
         listPublished: async () => [eventRecord('e1', 'Ngay hoi viec lam'), eventRecord('e2', 'Hien mau')],
         myRegistrations: async () => [],
       },
