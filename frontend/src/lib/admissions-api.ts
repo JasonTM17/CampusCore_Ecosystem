@@ -171,9 +171,11 @@ export const admissionsApi = {
       `/admissions/staff/applications/${id}/return`, { checklist, note, expectedVersion });
     return response.data;
   },
-  decide: async (id: string, decision: 'ACCEPTED' | 'REJECTED', note: string, expectedVersion: number): Promise<AdmissionApplication> => {
+  decide: async (id: string, decision: 'ACCEPTED' | 'REJECTED', note: string, expectedVersion: number,
+      checklist?: ChecklistItem[]): Promise<AdmissionApplication> => {
     const response = await api.post<AdmissionApplication>(
-      `/admissions/staff/applications/${id}/decision`, { decision, note, expectedVersion });
+      `/admissions/staff/applications/${id}/decision`,
+      { decision, note, expectedVersion, ...(checklist ? { checklist } : {}) });
     return response.data;
   },
   staffDownloadAttachment: (id: string, attachmentId: string, fallbackName = 'attachment'): Promise<void> =>

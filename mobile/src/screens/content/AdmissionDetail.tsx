@@ -31,6 +31,8 @@ export interface AdmissionDetailProps {
   flash: Flash | null;
   /** A save was rejected as stale; the draft stays until the user chooses to reload. */
   stale?: boolean;
+  /** Increments after an explicit reload so the editable form re-seeds from the server. */
+  formEpoch?: number;
   onReload?: () => void;
   onBack: () => void;
   onSave: (form: MobileAdmissionForm) => void;
@@ -42,7 +44,7 @@ export interface AdmissionDetailProps {
 
 /** One application: editable form while draft or returned, read-only after, with files and review history. */
 export function AdmissionDetail(props: AdmissionDetailProps) {
-  const { application, busy, preview, flash, stale = false, onReload, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
+  const { application, busy, preview, flash, stale = false, formEpoch = 0, onReload, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
   const { locale, formatDate, formatDateTime, copy: shared } = useContentCopy();
   const copy = admissionsMessages[locale];
   const phase = admissionPhase(application.status);
@@ -118,7 +120,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
               />
             ) : null}
             <AdmissionForm
-              key={`${application.id}:${application.version}`}
+              key={`${application.id}:${formEpoch}`}
               application={application}
               busy={busy}
               preview={preview}

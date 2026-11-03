@@ -51,6 +51,16 @@ function friendlyError(copy: Copy, error: unknown): string {
   return copy.failed;
 }
 
+export function canActOnDetail(detailId: string | null, selectedId: string): boolean {
+  return detailId !== null && detailId !== '' && detailId === selectedId;
+}
+
+export function cleanChecklist(checklist: ChecklistItem[]): ChecklistItem[] {
+  return checklist
+    .map((item) => ({ ...item, item: item.item.trim() }))
+    .filter((item) => item.item.length > 0);
+}
+
 /**
  * Staff admissions review surface (contract §7, phase-10). The queue is
  * scope-wide for grantees; claim binds the review lanes to the claiming
@@ -75,6 +85,8 @@ export function AdmissionsReviewPage() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const queueSequence = useRef(createSequenceGuard());
   const detailSequence = useRef(createSequenceGuard());
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
   const currentQueueSelection = useRef<{ status: ApplicationStatus | ''; page: number }>({
     status: '',
     page: 0,
@@ -127,17 +139,17 @@ export function AdmissionsReviewPage() {
 
   const loadDetail = useCallback(async (id: string) => {
     const requestId = detailSequence.current.begin();
+    setDetail(null);
+    setChecklist([]);
+    setReturnNote('');
+    setDecisionNote('');
     if (!id) {
-      setDetail(null);
       return;
     }
     try {
       const row = await admissionsApi.staffApplication(id);
       if (!detailSequence.current.isCurrent(requestId)) return;
       setDetail(row);
-      setChecklist([]);
-      setReturnNote('');
-      setDecisionNote('');
     } catch (cause) {
       if (!detailSequence.current.isCurrent(requestId)) return;
       setError(friendlyError(copy, cause));
@@ -163,7 +175,7 @@ export function AdmissionsReviewPage() {
   };
 
   const act = async (action: () => Promise<unknown>, okMessage: string) => {
-    if (!detail) {
+    if (!detail || !canActOnDetail(detail.id, selectedId)) {
       return;
     }
     setIsActing(true);
@@ -171,7 +183,13 @@ export function AdmissionsReviewPage() {
     try {
       await action();
       toast.success(okMessage);
-      await Promise.all([loadQueue(), loadDetail(detail.id)]);
+      // A selection made while the action was in flight must not be replaced
+      // by the row the action was started from.
+      if (selectedIdRef.current === detail.id) {
+        await Promise.all([loadQueue(), loadDetail(detail.id)]);
+      } else {
+        await Promise.all([loadQueue(), loadDetail(selectedIdRef.current)]);
+      }
     } catch (cause) {
       setError(friendlyError(copy, cause));
     } finally {
@@ -184,7 +202,7 @@ export function AdmissionsReviewPage() {
     () => admissionsApi.returnApplication(detail!.id, checklist, returnNote, detail!.version),
     copy.returnedOk);
   const decide = (decision: 'ACCEPTED' | 'REJECTED') => act(
-    () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version),
+    () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version, cleanChecklist(checklist)),
     copy.decidedOk);
 
   const totalPages = total === null ? null : Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -209,7 +227,14 @@ export function AdmissionsReviewPage() {
         title={copy.staffTitle}
         description={copy.staffDescription}
         actions={(
-          <Button variant="outline" onClick={() => void loadQueue()} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void loadQueue();
+              if (selectedId) void loadDetail(selectedId);
+            }}
+            disabled={isLoading}
+          >
             {copy.refresh}
           </Button>
         )}
@@ -310,7 +335,8 @@ export function AdmissionsReviewPage() {
           </section>
 
           <section>
-            {detail && (
+            {selectedId && detail?.id !== selectedId ? <LoadingState label={copy.loading} /> : null}
+            {detail && detail.id === selectedId && (
               <div className="rounded-xl border border-border bg-card p-5" data-testid="admissions-review-detail">
                 <div className="flex items-center justify-between">
                   <div>
