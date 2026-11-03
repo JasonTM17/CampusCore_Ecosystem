@@ -66,16 +66,17 @@ test('portal parsing rejects look-alike strings and keeps dean deep links', asyn
   assert.equal(portalFromPathname('/dashboard/thesis'), 'lecturer');
 });
 
-test('a BFF login surface offers SSO first and keeps the credential form for forced password rotation', () => {
+test('a BFF login surface offers the SSO action without the credential form', () => {
   const source = fs.readFileSync(path.join(root, 'src/app/login/page.tsx'), 'utf8');
   const bffBranch = source.indexOf('{bffSurface && !challenge ? (');
   const ssoLabel = source.indexOf('{loginCopy.sso}', bffBranch);
   const formBranch = source.indexOf('{challenge ? (', bffBranch);
-  const emailField = source.indexOf('htmlFor="email"');
-  const passwordField = source.indexOf('htmlFor="password"');
+  const credentialGate = source.indexOf(') : bffSurface ? null : (', formBranch);
 
   assert.ok(bffBranch >= 0, 'BFF surfaces need their own SSO block');
   assert.ok(ssoLabel > bffBranch && ssoLabel < formBranch, 'the SSO action precedes the forms');
-  assert.ok(emailField > formBranch, 'the credential form stays reachable on BFF hosts');
-  assert.ok(passwordField > formBranch, 'the password field stays reachable on BFF hosts');
+  assert.ok(
+    credentialGate > formBranch,
+    'the BFF proxy has no credential login route, so BFF hosts skip the password form',
+  );
 });
