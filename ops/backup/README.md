@@ -6,8 +6,11 @@ project fallback. They write a PostgreSQL custom archive, the local
 thesis-report volume archive, and one SHA-256 sidecar covering both files.
 Backups are staged and checked before publication. The database archive must
 include `thesis.flyway_schema_history`, and the report archive must be a
-readable tar file. A non-local thesis storage provider makes the manual backup
-fail so external objects cannot be silently omitted.
+readable tar file containing only regular files and directories. Child-tool
+errors are summarized without raw diagnostics by default; set `VERBOSE=1` to
+print and retain captured diagnostics in mode-600 temporary files. A non-local
+thesis storage provider makes the manual backup fail so external objects cannot
+be silently omitted.
 
 The recovery path actually executed here is the disposable drill in
 [Disposable recovery drill (MP38)](#disposable-recovery-drill-mp38). The manual

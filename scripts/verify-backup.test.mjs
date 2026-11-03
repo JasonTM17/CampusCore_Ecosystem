@@ -81,10 +81,24 @@ docker() {
   case "$*" in
     *pg_restore*) printf '%s\\n' ${JSON.stringify(toc)};;
     *'tar -tf'*) printf '%s\\n' './report.pdf';;
+    *'tar -tvf'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
     *) printf 'unexpected docker command' >&2; return 90;;
   esac
 }
 `);
+}
+
+function makePathShim(name, body) {
+  const directory = fs.mkdtempSync(path.join(temp, 'shim-'));
+  const file = path.join(directory, name);
+  fs.writeFileSync(file, `#!/usr/bin/env bash\nset -eu\n${body}\n`, 'utf8');
+  fs.chmodSync(file, 0o700);
+  return { env: { PATH: `${posix(directory)}${path.delimiter}${process.env.PATH}` } };
+}
+
+function checksumLine(file, name = path.basename(file)) {
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  return `${digest}  ${name}`;
 }
 
 test('the checksum sidecar records a basename resolvable from the archive directory', () => {
@@ -111,6 +125,145 @@ test('verify-backup.sh still fails on a corrupted archive', () => {
   const foreign = fs.mkdtempSync(path.join(temp, 'corrupt-cwd-'));
   const result = verify(archive, foreign, dockerReadBundleEnv());
   assert.notEqual(result.status, 0, 'a digest mismatch must not verify');
+});
+
+test('verify-backup.sh binds checksum records to literal artifact basenames before inspecting content', () => {
+  const archive = makeArchive('a', 'requested database bytes');
+  const directory = path.dirname(archive);
+  const decoyDump = path.join(directory, 'axdump');
+  const decoyReports = path.join(directory, 'axreportsxtar');
+  fs.writeFileSync(decoyDump, 'checksummed decoy database bytes');
+  fs.writeFileSync(decoyReports, 'checksummed decoy report bytes');
+  fs.writeFileSync(`${archive}.sha256`, `${checksumLine(decoyDump)}\n${checksumLine(decoyReports)}\n`);
+  const inspectedMarker = path.join(directory, 'content-inspected');
+  const shim = makePathShim('docker', `
+case "$*" in
+  *'pg_restore --list'*) : > "$FAKE_INSPECTED_MARKER"; printf '%s\\n' "$FAKE_TOC";;
+  *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+  *'tar -tvf -'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = verify(archive, directory, {
+    ...shim.env,
+    FAKE_INSPECTED_MARKER: posix(inspectedMarker),
+    FAKE_TOC: validToc,
+  });
+  assert.notEqual(result.status, 0, 'decoy filenames must not satisfy checksum coverage');
+  assert.equal(fs.existsSync(inspectedMarker), false, 'filename binding must fail before content inspection');
+});
+
+for (const unsafeMember of [
+  { name: 'symbolic link', listing: 'lrwxrwxrwx 0/0 0 1 2026-11-03 00:00 ./report-link -> /etc/passwd' },
+  { name: 'hard link', listing: 'hrw-r--r-- 0/0 0 1 2026-11-03 00:00 ./report-hard link to ./report.pdf' },
+  { name: 'character device', listing: 'crw-rw---- 0/0 0 1 2026-11-03 00:00 ./report-device' },
+  { name: 'block device', listing: 'brw-rw---- 0/0 0 1 2026-11-03 00:00 ./report-block' },
+]) {
+  test(`verify-backup.sh rejects a ${unsafeMember.name} report archive member`, () => {
+    const archive = makeArchive(`campuscore-${unsafeMember.name.replaceAll(' ', '-')}`, 'synthetic database archive');
+    const shim = makePathShim('docker', `
+case "$*" in
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+  *'tar -tvf -'*) printf '%s\\n' "$FAKE_TAR_VERBOSE";;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+    const result = verify(archive, path.dirname(archive), {
+      ...shim.env,
+      FAKE_TOC: validToc,
+      FAKE_TAR_VERBOSE: unsafeMember.listing,
+    });
+    assert.notEqual(result.status, 0, 'only regular files and directories may be present');
+    assert.match(result.stderr, /unsafe.*(member )?type/i);
+  });
+}
+
+test('backup-postgres.sh hides pg_dump stderr unless verbose diagnostics are explicitly requested', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'dump-stderr-'));
+  const stderrDir = fs.mkdtempSync(path.join(temp, 'dump-stderr-temp-'));
+  const secretDiagnostic = 'synthetic-secret-child-diagnostic';
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*) printf 'partial database archive'; printf '%s\\n' "$FAKE_SECRET_DIAGNOSTIC" >&2; exit 23;;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 10000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      TMPDIR: posix(stderrDir),
+      FAKE_SECRET_DIAGNOSTIC: secretDiagnostic,
+    },
+  });
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(secretDiagnostic),
+    'raw child diagnostics must not reach the default output');
+  assert.match(result.stderr, /Database dump failed \(exit code 23\)/);
+  assert.equal(fs.readdirSync(stderrDir).length, 0, 'captured diagnostics must be deleted after exit');
+});
+
+test('backup-postgres.sh retains captured diagnostics only with VERBOSE=1', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'verbose-dump-stderr-'));
+  const stderrDir = fs.mkdtempSync(path.join(temp, 'verbose-dump-stderr-temp-'));
+  const secretDiagnostic = 'synthetic-secret-verbose-diagnostic';
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*) printf 'partial database archive'; printf '%s\\n' "$FAKE_SECRET_DIAGNOSTIC" >&2; exit 23;;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 10000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      TMPDIR: posix(stderrDir),
+      VERBOSE: '1',
+      FAKE_SECRET_DIAGNOSTIC: secretDiagnostic,
+    },
+  });
+  assert.equal(result.status, 23, result.stderr);
+  assert.match(result.stderr, /Database dump failed \(exit code 23\)/);
+  assert.match(result.stderr, new RegExp(secretDiagnostic));
+  const retained = fs.readdirSync(stderrDir);
+  assert.equal(retained.length, 1, 'verbose mode retains the captured diagnostic file');
+  assert.match(fs.readFileSync(path.join(stderrDir, retained[0]), 'utf8'), new RegExp(secretDiagnostic));
+});
+
+test('verify-backup.sh reports tar inspection failure without exposing child stderr', () => {
+  const archive = makeArchive('campuscore-tar-stderr', 'synthetic database archive');
+  const stderrDir = fs.mkdtempSync(path.join(temp, 'tar-stderr-temp-'));
+  const secretDiagnostic = 'synthetic-secret-tar-diagnostic';
+  const shim = makePathShim('docker', `
+case "$*" in
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+  *'tar -tvf -'*) printf '%s\\n' "$FAKE_SECRET_DIAGNOSTIC" >&2; exit 37;;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = verify(archive, path.dirname(archive), {
+    ...shim.env,
+    FAKE_TOC: validToc,
+    FAKE_SECRET_DIAGNOSTIC: secretDiagnostic,
+    TMPDIR: posix(stderrDir),
+  });
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(secretDiagnostic),
+    'raw tar diagnostics must not reach the default output');
+  assert.match(result.stderr, /Thesis report archive type inspection failed \(exit code 37\)/);
+  assert.equal(fs.readdirSync(stderrDir).length, 0, 'captured diagnostics must be deleted after exit');
 });
 
 test('verify-backup.sh rejects a checksum-valid archive without application history', () => {
@@ -212,9 +365,10 @@ docker() {
   case "$*" in
     *pg_restore*--list*) printf '%s\\n' ${JSON.stringify(validToc)};;
     *'tar -tf'*) printf '%s\\n' './report.pdf';;
+    *'tar -tvf'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
     *'SELECT 1 FROM pg_database'*) return 0;;
     *'CREATE DATABASE'*) return 0;;
-    *'pg_restore --single-transaction'*) return 23;;
+    *'pg_restore --single-transaction'*) printf 'synthetic-secret-restore-diagnostic' >&2; return 23;;
     *'DROP DATABASE'*) printf 'dropped' > "$FAKE_DROP_MARKER"; return 0;;
     *) printf 'unexpected docker command' >&2; return 90;;
   esac
@@ -225,6 +379,9 @@ docker() {
     FAKE_DROP_MARKER: posix(dropMarker),
   });
   assert.equal(result.status, 23, result.stderr);
+  assert.doesNotMatch(result.stderr, /synthetic-secret-restore-diagnostic/,
+    'raw pg_restore diagnostics must not reach the default output');
+  assert.match(result.stderr, /Database restore failed \(exit code 23\)/);
   assert.equal(fs.readFileSync(dropMarker, 'utf8'), 'dropped', 'failure cleanup drops the newly created target');
   assert.equal(fs.existsSync(`${archive.slice(0, -'.dump'.length)}.reports.restore`), false,
     'failed restore removes its staged report files');
