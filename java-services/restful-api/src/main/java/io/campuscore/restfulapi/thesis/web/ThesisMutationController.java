@@ -425,7 +425,8 @@ public class ThesisMutationController {
     public org.springframework.http.ResponseEntity<List<ReportResponse>> listReportsByRound(
             @PathVariable UUID id,
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
-            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy tối đa 100 dòng đầu")
+            @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
         ListPaging.Window window = ListPaging.Window.of(page, limit);
         return ListPaging.respond(reports.listByRound(id, actor, window));
