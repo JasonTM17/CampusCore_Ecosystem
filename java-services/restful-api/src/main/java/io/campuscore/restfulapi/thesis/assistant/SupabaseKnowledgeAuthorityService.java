@@ -136,6 +136,9 @@ public class SupabaseKnowledgeAuthorityService {
         if (detail.contains("knowledge_not_found") || status == 404) {
             return new DomainException(HttpStatus.NOT_FOUND, "KNOWLEDGE_NOT_FOUND", "Knowledge document was not found");
         }
+        if (detail.contains("stale_version") || detail.contains("version_conflict")) {
+            return new DomainException(HttpStatus.CONFLICT, "STALE_VERSION", "The record changed; reload before editing");
+        }
         if (detail.contains("second_review") || detail.contains("second_admin") || detail.contains("state_conflict") || detail.contains("release_not_pending") || status == 409) {
             return new DomainException(HttpStatus.CONFLICT, detail.contains("second_review") || detail.contains("second_admin")
                     ? "KNOWLEDGE_SECOND_REVIEW_REQUIRED" : "KNOWLEDGE_STATE_CONFLICT", "Knowledge state does not permit this action");
