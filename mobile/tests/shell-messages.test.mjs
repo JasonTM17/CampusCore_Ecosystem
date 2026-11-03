@@ -58,6 +58,18 @@ test('every bottom navigation label localizes and both locales share the same ke
   assert.deepEqual(keys(shellMessages.vi.dashboard), keys(shellMessages.en.dashboard));
 });
 
+test('retired dashboard preview labels stay out of the shell catalogue', () => {
+  for (const locale of ['vi', 'en']) {
+    for (const key of ['previewEyebrow', 'previewSemester']) {
+      assert.equal(
+        Object.hasOwn(shellMessages[locale].dashboard, key),
+        false,
+        `${locale} dashboard.${key}`,
+      );
+    }
+  }
+});
+
 test('placeholders fill and unknown ones collapse to empty', () => {
   assert.equal(fillShellCopy(shellMessages.vi.dashboard.activeSections, { n: 3 }), '3 lớp đang học');
   assert.equal(fillShellCopy('{x}-{y}', { x: 1 }), '1-');
