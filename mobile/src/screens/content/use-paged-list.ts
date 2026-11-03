@@ -171,7 +171,9 @@ export function usePagedList<T>(options: PagedListOptions<T>): PagedList<T> {
         if (!mountedRef.current || ownerRef.current !== owner) return;
         setExtra((previous) => {
           const base = previous.owner === owner && previous.view ? previous.view : startView(owner, optionsRef.current.keyOf);
-          return { owner, view: appendPage(base, page, requested, optionsRef.current.keyOf) };
+          // `requested` follows the view after local edits, which can sit behind the
+          // loaded windows; the page lands on the loaded base at its own cursor.
+          return { owner, view: appendPage(base, page, base.nextPage, optionsRef.current.keyOf) };
         });
       })
       .catch((error: unknown) => {

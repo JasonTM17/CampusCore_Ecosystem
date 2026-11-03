@@ -110,6 +110,9 @@ export default function NotificationsCenterPage() {
   // Only the newest load may commit: switching tabs while a page is in flight
   // must not let the previous tab's rows (or its empty state) win.
   const requestRef = useRef(0);
+  // Rows marked read while an older page is in flight: that page was read before
+  // the removal, so its commit must still step the cursor back.
+  const removalsRef = useRef(0);
   const itemsFilterRef = useRef<Filter>('all');
   const filterRefs = useRef<Record<Filter, HTMLButtonElement | null>>({
     all: null,
@@ -163,6 +166,7 @@ export default function NotificationsCenterPage() {
     const nextPage = loadedPages + 1;
     const activeFilter = itemsFilterRef.current;
     const requestId = requestRef.current;
+    const removalsBefore = removalsRef.current;
     setIsLoadingMore(true);
     setOlderError('');
     try {
@@ -183,7 +187,7 @@ export default function NotificationsCenterPage() {
         }
         return merged;
       });
-      setLoadedPages(nextPage);
+      setLoadedPages(Math.max(0, nextPage - (removalsRef.current - removalsBefore)));
       setTotalPages(Math.max(nextPage, next.meta?.totalPages ?? totalPages));
     } catch {
       if (requestId === requestRef.current) setOlderError(copy.loadFailed);
@@ -227,6 +231,7 @@ export default function NotificationsCenterPage() {
       // step the cursor back so the next read overlaps the window already
       // shown instead of reading past the row that shifted into it.
       if (filterRef.current === 'unread' && loadedPages < totalPages) {
+        removalsRef.current += 1;
         setLoadedPages((pages) => Math.max(0, pages - 1));
       }
     } catch {
