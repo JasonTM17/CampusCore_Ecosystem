@@ -1217,9 +1217,12 @@ class ThesisGovernanceIntegrationTest {
         insertMember(groupA, roundId, "gov-shared-leader-a", 1);
         insertMember(groupA, roundId, "gov-shared-peer-a2", 2);
         insertMember(groupA, roundId, "gov-shared-peer-a3", 3);
-        // Force the older group to be picked first by the fallback ordering.
-        Thread.sleep(5);
+        // Make the fallback order deterministic; caller membership must still win.
+        jdbc.update("UPDATE thesis.thesis_group SET created_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(Instant.parse("2020-01-01T00:00:00Z")), groupA);
         UUID groupB = insertGroup(roundId, "gov-shared-leader-b", topicId, "APPROVED");
+        jdbc.update("UPDATE thesis.thesis_group SET created_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(Instant.parse("2020-01-02T00:00:00Z")), groupB);
         insertMember(groupB, roundId, "gov-shared-leader-b", 1);
         insertMember(groupB, roundId, "gov-shared-peer-b2", 2);
         insertMember(groupB, roundId, "gov-shared-peer-b3", 3);
