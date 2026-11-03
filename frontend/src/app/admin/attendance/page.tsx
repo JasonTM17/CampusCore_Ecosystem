@@ -23,6 +23,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { getLocalizedFlatLabel } from '@/lib/academic-content';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import type { Section } from '@/types/api';
@@ -68,7 +69,7 @@ export default function AdminAttendancePage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

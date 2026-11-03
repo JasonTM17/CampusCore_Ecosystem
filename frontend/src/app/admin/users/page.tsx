@@ -40,6 +40,7 @@ import { StatusPill } from '@/components/ui/status-pill';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
@@ -265,7 +266,7 @@ export default function AdminUsersPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

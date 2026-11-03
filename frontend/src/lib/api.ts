@@ -281,7 +281,7 @@ function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
     && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
   ) {
     const target = `/session/login?return=${encodeURIComponent(
-      window.location.pathname + window.location.search,
+      pathname + window.location.search,
     )}`;
     window.location.href = target;
     return;
@@ -2218,9 +2218,12 @@ export const adminNotificationsApi = {
   adminCreate: async (
     body: AdminNotificationInput,
   ): Promise<AdminNotificationRecord> => {
-    const response = await api.post<AdminNotificationRecord>(
-      '/notifications',
-      body,
+    const response = await withIdempotencyKey(
+      `admin-notification:${JSON.stringify(body)}`,
+      (key) =>
+        api.post<AdminNotificationRecord>('/notifications', body, {
+          headers: { 'Idempotency-Key': key },
+        }),
     );
     return response.data;
   },

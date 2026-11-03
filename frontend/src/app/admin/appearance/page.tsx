@@ -19,6 +19,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import {
   DEFAULT_SITE_APPEARANCE,
   SITE_APPEARANCE_ACCENTS,
@@ -90,7 +91,7 @@ export default function AdminAppearancePage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

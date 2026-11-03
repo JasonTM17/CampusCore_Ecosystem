@@ -146,7 +146,7 @@ function compileApi() {
 }
 
 /** Loads the real API client; `send` answers every call, `responseError` is the interceptor. */
-function loadApi(send, { surface } = {}) {
+function loadApi(send, { surface, i18nPaths } = {}) {
   let responseError = null;
   function request(method, url, data, config) {
     return Promise.resolve().then(() => send({ method, url, data, config }));
@@ -177,7 +177,7 @@ function loadApi(send, { surface } = {}) {
     '@/lib/session-sync': { publishSessionChange: () => undefined },
     '@/lib/safe-url': loadTs('src/lib/safe-url.ts'),
     '@/lib/surfaces': { surfaceFromHost: () => surface ?? null },
-    '@/i18n/paths': {
+    '@/i18n/paths': i18nPaths ?? {
       addLocalePrefix: (pathname) => pathname,
       stripLocaleFromPathname: (pathname) => ({ locale: null, pathname }),
     },
@@ -262,6 +262,29 @@ test('a BFF surface keeps its full-page SSO return untouched', async () => {
       browser.location.href,
       `/session/login?return=${encodeURIComponent('/dashboard/thesis')}`,
       'the Java-allowlisted SSO return still carries the live path',
+    );
+  } finally {
+    browser.restore();
+  }
+});
+
+test('a BFF surface return strips the locale prefix before the allowlist', async () => {
+  const { handle } = loadApi(
+    ({ url }) => {
+      if (url === '/auth/refresh') throw { response: { status: 400, data: {} } };
+      if (url === '/auth/me') throw { response: { status: 401, headers: {}, data: {} } };
+      return { data: {} };
+    },
+    { surface: { mode: 'bff' }, i18nPaths: loadTs('src/i18n/paths.ts') },
+  );
+  const browser = installBrowser({ host: 'portal.localhost:3102', pathname: '/vi/admin/users', search: '' });
+  try {
+    await assert.rejects(handle({ config: { url: '/profile', method: 'get' }, response: { status: 401, headers: {}, data: {} } }));
+    await settle();
+    assert.equal(
+      browser.location.href,
+      `/session/login?return=${encodeURIComponent('/admin/users')}`,
+      'the SSO return must carry the locale-stripped path the allowlist understands',
     );
   } finally {
     browser.restore();

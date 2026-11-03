@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import {
   adminRegistrationApi,
   type CreditLimitApplication,
@@ -63,7 +64,7 @@ export default function AdminCreditLimitApplicationsPage() {
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) {

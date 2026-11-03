@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, RefreshCw, ScrollText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { adminAuditApi, type AdminAuditEntry } from '@/lib/api';
 import { AdminFrame } from '@/components/admin/AdminFrame';
@@ -59,7 +60,7 @@ export default function AdminAuditTrailPage() {
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) {
