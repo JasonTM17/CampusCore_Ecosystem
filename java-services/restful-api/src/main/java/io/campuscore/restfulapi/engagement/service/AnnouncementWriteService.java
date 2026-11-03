@@ -91,7 +91,7 @@ public class AnnouncementWriteService {
         if (lecturer) {
             requireLecturerAnnouncement(lecturerId, request.sectionId(), targetRoles, request.isGlobal(), request.lecturerId());
         }
-        requireConsistentAudience(Boolean.TRUE.equals(request.isGlobal()), request.sectionId());
+        requireConsistentAudience(Boolean.TRUE.equals(request.isGlobal()), request.sectionId(), request.lecturerId());
         List<Integer> targetYears = immutableYears(request.targetYears());
         Instant now = Instant.now(clock);
         Instant publishAt = toMicros(request.publishAt());
@@ -195,9 +195,13 @@ public class AnnouncementWriteService {
             String requestedLecturer = request.has("lecturerId") ? request.lecturerId() : lecturerId;
             requireLecturerAnnouncement(lecturerId, effectiveSection, effectiveRoles, effectiveGlobal, requestedLecturer);
         }
-        requireConsistentAudience(
-                request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal(),
-                request.has("sectionId") ? request.sectionId() : before.sectionId());
+        // A legacy row can still hold the refused pair; an edit that leaves the audience alone stays possible.
+        if (request.has("isGlobal") || request.has("sectionId") || request.has("lecturerId")) {
+            requireConsistentAudience(
+                    request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal(),
+                    request.has("sectionId") ? request.sectionId() : before.sectionId(),
+                    request.has("lecturerId") ? request.lecturerId() : before.lecturerId());
+        }
         if (request.has("priority") && !PRIORITIES.contains(request.priority())) {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
@@ -258,14 +262,15 @@ public class AnnouncementWriteService {
     }
 
     /**
-     * isGlobal reaches the anonymous feed and the whole campus; a sectionId on
-     * the same row still narrows the student feed, so the combination labels a
-     * notice campus-wide while delivering it to one section — it is refused.
+     * isGlobal reaches the anonymous feed and the whole campus; a sectionId or
+     * lecturerId on the same row still narrows the student or staff feed, so the
+     * combination labels a notice campus-wide while delivering it to a subset —
+     * it is refused.
      */
-    private static void requireConsistentAudience(boolean isGlobal, String sectionId) {
-        if (isGlobal && sectionId != null) {
+    private static void requireConsistentAudience(boolean isGlobal, String sectionId, String lecturerId) {
+        if (isGlobal && (sectionId != null || lecturerId != null)) {
             throw new IllegalArgumentException(
-                    "A campus-wide announcement cannot target a section");
+                    "A campus-wide announcement cannot target a section or a lecturer");
         }
     }
 

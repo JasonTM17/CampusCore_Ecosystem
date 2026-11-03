@@ -998,6 +998,7 @@ test('editor publish ignores a re-entrant invocation while a publish is in fligh
   const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
     isPublishingNotice: true,
     publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
     editingId: null,
     handleUpdateAnnouncement: async () => {},
     title: 'Notice',
@@ -1025,6 +1026,7 @@ test('editor publish submits a new notice for review instead of claiming publica
   const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
     isPublishingNotice: false,
     publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
     editingId: null,
     handleUpdateAnnouncement: async () => {},
     title: 'Notice',
@@ -1084,6 +1086,7 @@ test('editor publish reports publication only after the server confirms PUBLISHE
   const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
     isPublishingNotice: false,
     publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
     editingId: null,
     handleUpdateAnnouncement: async () => {},
     title: 'Notice',
@@ -1133,6 +1136,53 @@ test('editor publish reports publication only after the server confirms PUBLISHE
   );
 });
 
+test('a failed review submission is retried on the same draft instead of creating another', async () => {
+  const calls = [];
+  const toasts = [];
+  let failSubmit = true;
+  const pendingSubmitRef = { current: null };
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    pendingSubmitRef,
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: { notifications: { announcementPublished: 'Published', announcementSubmitFailed: 'Submit failed', titleRequired: 'Title' } },
+    messages: { content: { lifecycle: { submitted: 'Submitted', approved: 'Approved' } } },
+    announcementsApi: {
+      create: async () => {
+        calls.push('create');
+        return { id: 'notice-3', status: 'DRAFT' };
+      },
+      submit: async (id) => {
+        calls.push('submit');
+        if (failSubmit) throw new Error('offline');
+        return { id, status: 'IN_REVIEW' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT'] }),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+  failSubmit = false;
+  await publish();
+
+  assert.deepEqual(calls, ['create', 'submit', 'submit'], 'the retry submits the draft that already exists');
+  assert.deepEqual(toasts, ['Submit failed', 'Submitted']);
+  assert.equal(pendingSubmitRef.current, null, 'a submitted draft is not remembered');
+});
 test('the editor live list reads only published notices', async () => {
   const requests = [];
   let notices = [];
@@ -1723,4 +1773,12 @@ test('a campus-wide announcement save never carries a section scope', () => {
   assert.match(adminPage, /sectionId: draft\.isGlobal \? null : draft\.sectionId \|\| null/);
   const quickEdit = read('src/components/announcements/AnnouncementEditModal.tsx');
   assert.match(quickEdit, /sectionId: isGlobal \? null : announcement\.sectionId/);
+  assert.match(adminPage, /lecturerId: draft\.isGlobal \? null : draft\.lecturerId \|\| null/);
+  assert.match(quickEdit, /lecturerId: isGlobal \? null : announcement\.lecturerId/);
+});
+
+test('choosing a section or lecturer in the admin editor turns the notice into a targeted one', () => {
+  const adminPage = read('src/app/admin/announcements/page.tsx');
+  assert.match(adminPage, /isGlobal: event\.target\.value \? false : current\.isGlobal, sectionId: event\.target\.value/);
+  assert.match(adminPage, /isGlobal: event\.target\.value \? false : current\.isGlobal, lecturerId: event\.target\.value/);
 });

@@ -533,7 +533,7 @@ export default function AdminAnnouncementsPage() {
     expiresAt: isoDateTime(draft.expiresAt),
     semesterId: draft.semesterId || null,
     sectionId: draft.isGlobal ? null : draft.sectionId || null,
-    lecturerId: draft.lecturerId || null,
+    lecturerId: draft.isGlobal ? null : draft.lecturerId || null,
     ...(editorMode === 'edit' && selected
       ? { reason: draft.reason.trim(), expectedVersion: selected.version ?? 0 }
       : {}),
@@ -1115,12 +1115,12 @@ export default function AdminAnnouncementsPage() {
                       <label htmlFor="announcement-editor-section" className="mb-1 block text-sm font-medium text-foreground">{copy.section}</label>
                       <Select id="announcement-editor-section" aria-label={copy.section} value={draft.sectionId} onChange={(event) => {
                         const section = sections.find((row) => row.id === event.target.value);
-                        setDraft((current) => ({ ...current, sectionId: event.target.value, semesterId: current.semesterId || section?.semesterId || '', lecturerId: current.lecturerId || section?.lecturerId || '' }));
+                        setDraft((current) => ({ ...current, isGlobal: event.target.value ? false : current.isGlobal, sectionId: event.target.value, semesterId: current.semesterId || section?.semesterId || '', lecturerId: current.lecturerId || section?.lecturerId || '' }));
                       }} options={editorSectionOptions} />
                     </div>
                     <div className="sm:col-span-2">
                       <label htmlFor="announcement-editor-lecturer" className="mb-1 block text-sm font-medium text-foreground">{copy.lecturer}</label>
-                      <Select id="announcement-editor-lecturer" aria-label={copy.lecturer} value={draft.lecturerId} onChange={(event) => setDraft((current) => ({ ...current, lecturerId: event.target.value }))} options={editorLecturerOptions} />
+                      <Select id="announcement-editor-lecturer" aria-label={copy.lecturer} value={draft.lecturerId} onChange={(event) => setDraft((current) => ({ ...current, isGlobal: event.target.value ? false : current.isGlobal, lecturerId: event.target.value }))} options={editorLecturerOptions} />
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">{copy.sectionHint} {copy.lecturerHint}</p>

@@ -209,6 +209,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const [audienceKnown, setAudienceKnown] = useState(true);
   const [isPublishingNotice, setIsPublishingNotice] = useState(false);
   const publishInFlightRef = useRef(false);
+  const pendingSubmitRef = useRef<{ id: string; key: string } | null>(null);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -817,13 +818,20 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
-      const created = await announcementsApi.create({
-        title,
-        content,
-        priority,
-        targetYears: [],
-        ...audienceFor(targetRole),
-      });
+      // A draft whose review submission failed is reused while the document is unchanged,
+      // so a retry cannot leave a second copy of it behind.
+      const draftKey = JSON.stringify([title, content, priority, targetRole]);
+      const pending = pendingSubmitRef.current;
+      const created = pending && pending.key === draftKey
+        ? { id: pending.id, status: 'DRAFT' }
+        : await announcementsApi.create({
+          title,
+          content,
+          priority,
+          targetYears: [],
+          ...audienceFor(targetRole),
+        });
+      pendingSubmitRef.current = created.status === 'DRAFT' ? { id: created.id, key: draftKey } : null;
 
       // Creating stores the caller as the author, and the review step refuses
       // the author, so a fresh draft can only be queued for review here. The
@@ -835,6 +843,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       // A published document must not resurrect from the persisted draft —
       // reloading used to hydrate the pre-publish body and re-Publish wrote a
       // duplicate (or conflicted on a stale expectedVersion for edits).
+      pendingSubmitRef.current = null;
       clearPersistedDraft();
       if (submitted.status === 'PUBLISHED') {
         toast.success(copy.notifications.announcementPublished);
