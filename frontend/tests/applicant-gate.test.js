@@ -53,6 +53,7 @@ const authContext = loadModule('src/context/AuthContext.tsx', {
     usePathname: () => '/apply',
   },
   '@/i18n': { useI18n: () => ({ href: (pathname) => pathname }) },
+  '@/lib/surfaces': { surfaceFromHost: () => null },
   '@/lib/api': {
     authApi: { me: async () => null, login: async () => null, logout: async () => null },
     refreshSessionSingleFlight: async () => undefined,

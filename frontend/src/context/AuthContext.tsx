@@ -13,6 +13,7 @@ import React, {
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/i18n';
 import { LoginResponse, User, TwoFactorChallengeResponse } from '@/types/api';
+import { surfaceFromHost } from '@/lib/surfaces';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { clearLogoutInProgress, hasCsrfSessionHint, markLogoutInProgress, readCsrfSessionHint } from '@/lib/session-hint';
@@ -471,6 +472,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const status = (error as { response?: { status?: number } } | undefined)
           ?.response?.status;
         if (status !== 401 || readCsrfSessionHint() !== csrfHintBefore) {
+          return;
+        }
+
+        // A BFF session is an opaque server-side cookie: the browser has no
+        // refresh route there, so a 401 on the probe is already terminal.
+        if (
+          surfaceFromHost(window.location.host)?.mode === 'bff'
+          && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
+        ) {
+          publishSessionChange('signed-out');
+          handleExternalSessionChange('signed-out');
           return;
         }
 
