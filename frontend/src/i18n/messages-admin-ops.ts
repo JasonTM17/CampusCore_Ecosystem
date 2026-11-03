@@ -7,6 +7,7 @@ export interface AdminOpsCopy {
   };
   analytics: {
     lecturerRankFallback: string; noDistributionTitle: string;
+    noDistributionDescription: string;
     facultyLoading: string; noFacultyData: string;
     trendsLoading: string; noTrendsData: string; currentTerm: string;
     ranksLoading: string; noRanksData: string;
@@ -77,6 +78,7 @@ export const adminOpsEn: AdminOpsCopy = {
   },
   analytics: {
     lecturerRankFallback: 'Lecturer', noDistributionTitle: 'Distribution statistics unavailable',
+    noDistributionDescription: 'Live campus distribution and grade statistics are currently unavailable from the distribution service.',
     facultyLoading: 'Loading faculty statistics...', noFacultyData: 'No faculty data available',
     trendsLoading: 'Loading semester trends...', noTrendsData: 'No semester trends recorded',
     currentTerm: 'Current term',
@@ -153,6 +155,7 @@ export const adminOpsVi: AdminOpsCopy = {
   },
   analytics: {
     lecturerRankFallback: 'Giảng viên', noDistributionTitle: 'Không có dữ liệu thống kê phân bố',
+    noDistributionDescription: 'Dữ liệu thống kê phân bố sinh viên, giảng viên và phổ điểm từ hệ thống hiện chưa sẵn sàng.',
     facultyLoading: 'Đang nạp dữ liệu thống kê khoa...', noFacultyData: 'Chưa có dữ liệu khoa',
     trendsLoading: 'Đang nạp xu hướng học kỳ...', noTrendsData: 'Chưa có dữ liệu học kỳ',
     currentTerm: 'Học kỳ hiện tại',

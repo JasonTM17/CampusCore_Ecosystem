@@ -240,11 +240,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
           <EmptyState
             icon={BarChart3}
             title={opsCopy.noDistributionTitle}
-            description={
-              isVi
-                ? 'Dữ liệu thống kê phân bố sinh viên, giảng viên và phổ điểm từ hệ thống hiện chưa sẵn sàng.'
-                : 'Live campus distribution and grade statistics are currently unavailable from the distribution service.'
-            }
+            description={opsCopy.noDistributionDescription}
             action={
               <Button
                 type="button"

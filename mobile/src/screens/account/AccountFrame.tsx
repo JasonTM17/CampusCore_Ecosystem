@@ -17,6 +17,7 @@ import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
+import { accountMessages } from '../../i18n/account-messages';
 import { useLocale } from '../../i18n/locale-provider';
 
 export interface AccountFrameProps {
@@ -37,7 +38,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
   const { locale } = useLocale();
   const insets = useContext(SafeAreaInsetsContext);
   const scrollRef = useRef<ScrollView>(null);
-  const portalSubtitle = locale === 'vi' ? 'Cổng thông tin đào tạo' : 'Academic information portal';
+  const portalSubtitle = accountMessages[locale].signIn.portal;
 
   useEffect(() => {
     if (!error) return;
