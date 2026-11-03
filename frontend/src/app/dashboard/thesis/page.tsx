@@ -29,7 +29,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { classifyThesisScore } from '@/lib/grade-scale';
-import { pickPreferredThesisRound } from '@/lib/thesis-round';
+import { pickDefaultThesisRound, pickPreferredThesisRound, thesisRoundsForStudent } from '@/lib/thesis-round';
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { Input } from '@/components/ui/input';
@@ -178,7 +178,7 @@ export default function ThesisPage() {
     };
   }
   const authSessionEpoch = authSessionRef.current.epoch;
-  const { locale, formatDateTime, messages } = useI18n();
+  const { locale, formatDate, formatDateTime, messages } = useI18n();
   const pageCopy = messages.thesisWorkflow.page;
   const isVi = locale === 'vi';
   const workspaceCopy = isVi ? thesisWorkflowVi.workspace : thesisWorkflowEn.workspace;
@@ -698,7 +698,8 @@ export default function ThesisPage() {
     try {
       const nextRounds = await thesisApi.listRounds();
       if (signal.cancelled) return;
-      const sortedRounds = [...nextRounds].sort((a, b) => {
+      const visibleRounds = thesisRoundsForStudent(nextRounds, isStudent);
+      const sortedRounds = [...visibleRounds].sort((a, b) => {
         const isOpenA = a.status === 'REGISTRATION_OPEN' ? 0 : 1;
         const isOpenB = b.status === 'REGISTRATION_OPEN' ? 0 : 1;
         if (isOpenA !== isOpenB) return isOpenA - isOpenB;
@@ -713,18 +714,14 @@ export default function ThesisPage() {
           return explicitRoundId;
         }
         if (current) return current;
-        const preferred =
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN' && r.thesisType === 'KLTN') ||
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN') ||
-          sortedRounds[0];
-        return preferred?.id || '';
+        return pickDefaultThesisRound(sortedRounds)?.id || '';
       });
     } catch {
       if (!signal.cancelled) setError(messages.thesis.loadFailed);
     } finally {
       if (!signal.cancelled) setIsLoading(false);
     }
-  }, [explicitRoundId, messages.thesis.loadFailed]);
+  }, [explicitRoundId, isStudent, messages.thesis.loadFailed]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -1196,11 +1193,14 @@ export default function ThesisPage() {
   const supervisedGroups = useMemo(
     () =>
       isSupervisorOrAdmin
-        ? groups.filter(
-            (group) =>
-              group.topicId &&
-              (isAdmin || myTopicIds.has(group.topicId) || supervisedTopicIds.has(group.topicId)),
-          )
+        ? groups.filter((group) => {
+            if (!group.topicId) {
+              // A started-but-unused group has no topic to scope supervision by;
+              // governance must still see and reject it or publication stays wedged.
+              return isAdmin && group.approvalStatus === 'PENDING' && group.status !== 'CANCELLED';
+            }
+            return isAdmin || myTopicIds.has(group.topicId) || supervisedTopicIds.has(group.topicId);
+          })
         : [],
     [groups, isAdmin, isSupervisorOrAdmin, myTopicIds, supervisedTopicIds],
   );
@@ -3292,7 +3292,7 @@ export default function ThesisPage() {
                   <div className="font-semibold">{messages.thesis.proposeRoundOpenNotice}</div>
                   {currentProposeRound?.lecturerSubmitStart && currentProposeRound?.lecturerSubmitEnd ? (
                     <div className="mt-1 text-xs opacity-90">
-                      {messages.thesis.registrationWindow}: {currentProposeRound.lecturerSubmitStart.slice(0, 10)} → {currentProposeRound.lecturerSubmitEnd.slice(0, 10)}
+                      {messages.thesis.registrationWindow}: {formatDate(currentProposeRound.lecturerSubmitStart)} → {formatDate(currentProposeRound.lecturerSubmitEnd)}
                     </div>
                   ) : null}
                 </div>

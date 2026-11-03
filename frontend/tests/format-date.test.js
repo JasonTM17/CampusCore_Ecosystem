@@ -144,6 +144,45 @@ test('explicit caller time zones still override the campus default', () => {
   });
 });
 
+test('the propose-topic window prints campus dates instead of UTC date parts', () => {
+  inZone('America/Los_Angeles', () => {
+    const source = read('src/app/dashboard/thesis/page.tsx');
+    const tree = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const endpoints = {};
+    const visit = (node) => {
+      if (ts.isJsxExpression(node) && node.expression) {
+        const text = node.expression.getText(tree);
+        if (text.includes('lecturerSubmitStart') && !text.includes('lecturerSubmitEnd')) endpoints.start = node.expression;
+        if (text.includes('lecturerSubmitEnd') && !text.includes('lecturerSubmitStart')) endpoints.end = node.expression;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(tree);
+    assert.ok(endpoints.start && endpoints.end, 'the propose window renders both endpoints');
+
+    const evaluate = (expression) => {
+      const output = ts.transpileModule(
+        `module.exports = (currentProposeRound, formatDate) => (${expression.getText(tree)});`,
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } },
+      ).outputText;
+      const record = { exports: {} };
+      Function('module', 'exports', output)(record, record.exports);
+      return record.exports;
+    };
+
+    const vi = formatters('vi');
+    const window = {
+      lecturerSubmitStart: '2026-11-03T17:00:00.000Z',
+      lecturerSubmitEnd: '2026-11-30T17:00:00.000Z',
+    };
+    const start = evaluate(endpoints.start)(window, vi.formatDate);
+    const end = evaluate(endpoints.end)(window, vi.formatDate);
+    assert.equal(start, '04/11/2026');
+    assert.equal(end, '01/12/2026');
+    assert.equal(`${start} → ${end}`.includes('2026-11-03'), false);
+  });
+});
+
 test('unparseable values keep the shared em dash', () => {
   const vi = formatters('vi');
   assert.equal(vi.formatDate('not-a-date'), '—');
