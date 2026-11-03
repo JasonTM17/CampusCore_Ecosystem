@@ -261,7 +261,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       await lecturerApi.publishGrades(savingSectionId);
       if (currentSectionId.current !== savingSectionId) return;
       setMessage({ tone: 'success', message: copy.publishedOk });
-      reload();
+      // The section still reads DRAFT until both reads land; the publish lock
+      // covers them so the button cannot offer a second, already-published POST.
+      await Promise.all([sectionsQuery.reload(), gradesQuery.reload()]);
     } catch (error) {
       if (currentSectionId.current !== savingSectionId) return;
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.publishFailed) });

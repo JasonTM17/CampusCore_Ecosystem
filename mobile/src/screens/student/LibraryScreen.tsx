@@ -63,8 +63,9 @@ export function LibraryScreen(_props: MobileScreenProps) {
       await action();
       success(ok);
       setReloadToken((value) => value + 1);
-      void catalogue.reload();
-      void loans.reload();
+      // The loan row keeps its pre-write version until the reads land; hold the
+      // lock across them so a second tap cannot resend the old version.
+      await Promise.all([catalogue.reload(), loans.reload()]);
     } catch (error) {
       fail(copyFailureMessage(copy, error) ?? contentErrorMessage(common, error, copy.failed));
     } finally {

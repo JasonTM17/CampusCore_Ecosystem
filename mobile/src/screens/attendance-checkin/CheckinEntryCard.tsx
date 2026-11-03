@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { Button, Card, IconChip, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, InlineError, UiText } from '../../components/Ui';
 import { LANE_FLAGS } from '../../config/lane-flags';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
@@ -10,7 +10,7 @@ import { laneAllowedForSession, type LaneScreenId } from '../../navigation/route
 import type { MobileNavigation } from '../../navigation/types';
 import { NO_CAPABILITIES } from '../../auth/capabilities';
 import type { SessionValue } from '../../session/SessionContext';
-import { useCheckinOpenSessions } from './use-checkin-sessions';
+import { useCheckinOpenSessionsState } from './use-checkin-sessions';
 import type { AttendanceApi } from '../../attendance-checkin';
 import { useCheckinStyles } from './checkin-styles';
 
@@ -47,9 +47,13 @@ export function CheckinEntryCard({ api, navigation }: { api?: AttendanceApi; nav
     flags: LANE_FLAGS,
     id: LANE,
   });
-  const openCount = useCheckinOpenSessions(allowed, api);
+  const { count: openCount, failed, retry } = useCheckinOpenSessionsState(allowed, api);
 
-  if (!allowed || openCount === 0) return null;
+  if (!allowed) return null;
+  if (failed) {
+    return <InlineError message={copy.entryError} onRetry={retry} retryLabel={copy.retry} />;
+  }
+  if (openCount === 0) return null;
 
   return (
     <Card>
