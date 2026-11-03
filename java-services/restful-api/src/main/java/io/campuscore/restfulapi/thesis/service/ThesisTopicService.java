@@ -369,7 +369,8 @@ public class ThesisTopicService {
                 && topic.gvpbLecturerId().equals(callerLecturerId);
         boolean internalGrader = councilGrader || assignedReviewer;
         boolean scoreMasked = !roundPublished && !internalGrader
-                && (topic.finalScore() != null || topic.resultStatus() != null);
+                && (topic.finalScore() != null || topic.resultStatus() != null
+                    || topic.resultReason() != null || topic.resultResolvedAt() != null);
         // The GVPB reviewer identity is internal governance data: students and
         // unrelated lecturers must not learn who counter-reviews a topic.
         boolean reviewerMasked = topic.gvpbLecturerId() != null
@@ -382,6 +383,8 @@ public class ThesisTopicService {
                 topic.maxGroups(), topic.status(), topic.createdBy(),
                 scoreMasked ? null : topic.finalScore(),
                 scoreMasked ? null : topic.resultStatus(),
+                scoreMasked ? null : topic.resultReason(),
+                scoreMasked ? null : topic.resultResolvedAt(),
                 reviewerMasked ? null : topic.gvpbLecturerId());
     }
 

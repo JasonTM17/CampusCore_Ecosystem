@@ -1,10 +1,14 @@
 package io.campuscore.restfulapi.thesis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +18,7 @@ import io.campuscore.restfulapi.mail.service.EmailService;
 import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisNotificationService;
+import io.campuscore.restfulapi.web.DomainException;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -68,6 +73,58 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
     private ThesisNotificationService notificationSpy;
 
     private final List<String> attempts = new CopyOnWriteArrayList<>();
+
+    @Test
+    void belowThresholdClassificationRollsBackWithThePublicationTransitionFailure() {
+        UUID topicId = insertBelowThresholdCandidate();
+        int topicAuditCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" WHERE \"entityId\" = ?",
+                Integer.class, topicId.toString());
+        jdbc.execute("ALTER TABLE thesis.thesis_registration_round "
+                + "ADD CONSTRAINT fixture_reject_results_publication CHECK (status <> 'RESULTS_PUBLISHED')");
+        try {
+            assertThatThrownBy(() -> mutations.publishResults(roundId, admin()))
+                    .isNotInstanceOf(DomainException.class);
+
+            assertThat(roundStatus()).isEqualTo("REGISTRATION_CLOSED");
+            assertThat(jdbc.queryForMap("SELECT result_status, result_reason, result_resolved_by, "
+                            + "result_resolved_at, final_score FROM thesis.thesis_topic WHERE id = ?", topicId))
+                    .containsEntry("result_status", null)
+                    .containsEntry("result_reason", null)
+                    .containsEntry("result_resolved_by", null)
+                    .containsEntry("result_resolved_at", null)
+                    .containsEntry("final_score", null);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                            + "WHERE \"entityId\" = ? AND \"action\" = 'THESIS_RESULT_DISPOSITION_RESOLVED'",
+                    Integer.class, topicId.toString())).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                            + "WHERE \"entityId\" = ?", Integer.class, topicId.toString()))
+                    .isEqualTo(topicAuditCount);
+            assertThat(inboxCount()).isZero();
+            assertThat(attempts).isEmpty();
+            verify(notificationSpy, never()).notifyResultsPublished(roundId);
+            verify(notificationSpy, never()).notifyScoreFinalized(topicId);
+            verifyNoInteractions(email);
+        } finally {
+            jdbc.execute("ALTER TABLE thesis.thesis_registration_round "
+                    + "DROP CONSTRAINT fixture_reject_results_publication");
+        }
+    }
+
+    @Test
+    void publishedResultNoticeUsesNeutralWordingAndDoesNotFinalizeTheCounterReviewAsDefense() {
+        UUID topicId = insertBelowThresholdCandidate();
+
+        assertThatCode(() -> mutations.publishResults(roundId, admin())).doesNotThrowAnyException();
+
+        assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
+        assertThat(jdbc.queryForList("SELECT message FROM notifications.notification", String.class))
+                .allSatisfy(message -> assertThat(message)
+                        .contains("xem kết quả")
+                        .doesNotContain("xem điểm"));
+        verify(notificationSpy).notifyResultsPublished(roundId);
+        verify(notificationSpy, never()).notifyScoreFinalized(topicId);
+    }
 
     @BeforeEach
     void captureMailBoundary() {
@@ -384,6 +441,20 @@ abstract class ThesisPublicationFixture {
                 VALUES (?, ?, 'department-demo', ?, 'Private result mail fixture', 3, 'PUBLISHED',
                         'rmv-admin', ?, 'rmv-chair', CURRENT_TIMESTAMP, 'GRADED')
                 """, id, round, title, score);
+        return id;
+    }
+
+    protected UUID insertBelowThresholdCandidate() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO thesis.thesis_topic "
+                        + "(id, round_id, department_id, title, description, max_groups, status, created_by, gvpb_lecturer_id) "
+                        + "VALUES (?, ?, 'department-demo', 'Below threshold candidate', 'Fixture', 2, 'PUBLISHED', 'rmv-admin', 'rmv-reviewer')",
+                id, roundId);
+        jdbc.update("INSERT INTO thesis.thesis_topic_score "
+                        + "(id, topic_id, council_id, lecturer_id, component, score, comment) "
+                        + "VALUES (?, ?, NULL, 'rmv-reviewer', 'GVPB', 4.90, 'Counter-review')",
+                UUID.randomUUID(), id);
+        insertGroup(roundId, id, "APPROVED", "SUBMITTED", 16);
         return id;
     }
 

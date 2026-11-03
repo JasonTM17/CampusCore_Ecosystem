@@ -162,7 +162,8 @@ public class ThesisTopicReadRepository {
         }
         return jdbc.query(
                 "SELECT id, round_id, department_id, title, description,"
-                        + " max_groups, status, created_by, final_score, result_status, gvpb_lecturer_id"
+                        + " max_groups, status, created_by, final_score, result_status, result_reason, "
+                        + "result_resolved_at, gvpb_lecturer_id"
                         + " FROM thesis.thesis_topic WHERE id IN (:ids)",
                 new MapSqlParameterSource("ids", ids),
                 (row, index) -> new TopicResponse(
@@ -176,6 +177,16 @@ public class ThesisTopicReadRepository {
                         row.getString("created_by"),
                         row.getBigDecimal("final_score"),
                         row.getString("result_status"),
+                        row.getString("result_reason"),
+                        instantOf(row.getObject("result_resolved_at")),
                         row.getString("gvpb_lecturer_id")));
+    }
+
+    private static java.time.Instant instantOf(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.time.Instant instant) return instant;
+        if (value instanceof java.sql.Timestamp timestamp) return timestamp.toInstant();
+        if (value instanceof java.time.OffsetDateTime offsetDateTime) return offsetDateTime.toInstant();
+        return null;
     }
 }

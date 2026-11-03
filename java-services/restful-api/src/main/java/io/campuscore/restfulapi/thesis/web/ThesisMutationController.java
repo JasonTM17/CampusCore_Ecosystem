@@ -173,8 +173,8 @@ public class ThesisMutationController {
         return mutations.extendReportDeadline(id, request == null ? null : request.reportDeadline(), actor);
     }
 
-    /** Brief R9: publish graded results to the students of the round. */
-    @Operation(summary = "Công bố điểm và kết quả bảo vệ khóa luận", description = "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức")
+    /** Publishes the resolved results to the students of the round. */
+    @Operation(summary = "Công bố kết quả khóa luận", description = "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận")
     @PostMapping("/rounds/{id}/publish-results")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','SUPER_ADMIN')")
     public RoundResponse publishResults(@Parameter(description = "Mã UUID của đợt", required = true) @PathVariable UUID id,
