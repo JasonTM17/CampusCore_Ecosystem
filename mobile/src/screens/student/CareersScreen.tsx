@@ -58,7 +58,9 @@ export function CareersScreen(_props: MobileScreenProps) {
     try {
       await action();
       success(ok);
-      void apps.reload();
+      // The application row keeps its pre-write status until the read lands;
+      // hold the lock across it so a second tap cannot repeat the write.
+      await apps.reload();
       return true;
     } catch (error) {
       fail(failureFor?.(errorCode(error)) ?? contentErrorMessage(common, error, copy.failed));

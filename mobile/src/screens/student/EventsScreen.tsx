@@ -52,10 +52,7 @@ export function EventsScreen(_props: MobileScreenProps) {
     preview: previewRegistrations,
   });
 
-  const refreshAll = useCallback(() => {
-    void catalog.reload();
-    void mine.reload();
-  }, [catalog, mine]);
+  const refreshAll = useCallback(() => Promise.all([catalog.reload(), mine.reload()]), [catalog, mine]);
 
   const run = useCallback(async (action: () => Promise<unknown>, ok: string, failed: string) => {
     if (busy || apiClient.mode !== 'live') return;
@@ -64,7 +61,9 @@ export function EventsScreen(_props: MobileScreenProps) {
     try {
       await action();
       success(ok);
-      refreshAll();
+      // The rows still carry the pre-write status until both reads land; hold
+      // the lock across them so a second tap cannot repeat the write.
+      await refreshAll();
     } catch (error) {
       fail(errorCode(error) === 'EVENT_FULL' ? copy.full : contentErrorMessage(common, error, failed));
     } finally {

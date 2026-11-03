@@ -46,7 +46,9 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     try {
       const result = await action();
       success(ok);
-      void apps.reload();
+      // The application row keeps its pre-write version until the read lands;
+      // hold the lock across it so a second tap cannot repeat the write.
+      await apps.reload();
       return result;
     } catch (error) {
       const code = errorCode(error);

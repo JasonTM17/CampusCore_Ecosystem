@@ -86,16 +86,20 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
     setBusy(true);
     setNotice(null);
     try {
-      await dropEnrollmentById(enrollmentId);
-      setNotice({ tone: 'success', text: copy.dropped });
-    } catch (error) {
-      const code = (error as { code?: string } | null)?.code ?? null;
-      setNotice({ tone: 'error', text: isOfflineError(error) ? copy.offlineNoMutation : copy.errors[registrationErrorKey(code) ?? 'generic'] });
+      try {
+        await dropEnrollmentById(enrollmentId);
+        setNotice({ tone: 'success', text: copy.dropped });
+      } catch (error) {
+        const code = (error as { code?: string } | null)?.code ?? null;
+        setNotice({ tone: 'error', text: isOfflineError(error) ? copy.offlineNoMutation : copy.errors[registrationErrorKey(code) ?? 'generic'] });
+      }
+      // The row leaves the screen only when the workspace read returns; the lock
+      // must cover that read or a second tap drops an enrollment already gone.
+      await reload();
     } finally {
       inFlight.current = false;
       setBusy(false);
     }
-    await reload();
   }, [blocked, copy, reload]);
 
   return { basket, dispatch, busy, notice, registerSelected, drop };

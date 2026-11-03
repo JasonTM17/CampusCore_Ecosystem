@@ -13,33 +13,53 @@ function isPreviewMode(): boolean {
   }
 }
 
+export interface CheckinOpenSessions {
+  count: number;
+  /** The read failed, so the count is unknown — never treat it as zero. */
+  failed: boolean;
+  retry: () => void;
+}
+
 /**
  * Open-session count for the conditional "Check in" entry points. Live mode
  * fetches on mount; preview mode returns the sample sessions locally — the
  * card stays visible in the demo without any network call. apiClient (native
  * session store) is required lazily so the import graph stays Jest-safe.
  */
-export function useCheckinOpenSessions(enabled: boolean, api?: AttendanceApi) {
+export function useCheckinOpenSessionsState(enabled: boolean, api?: AttendanceApi): CheckinOpenSessions {
   const preview = useMemo(isPreviewMode, []);
   const attendance = useRef<AttendanceApi | null>(null);
   const getApi = useCallback(() => attendance.current ?? (attendance.current = api ?? createNativeAttendanceApi()), [api]);
-  const [count, setCount] = useState<number | null>(preview ? DEMO_SESSIONS.length : null);
+  const [state, setState] = useState<{ count: number; failed: boolean }>({
+    count: preview ? DEMO_SESSIONS.length : 0,
+    failed: false,
+  });
+  const [attempt, setAttempt] = useState(0);
   const alive = useRef(true);
 
   useEffect(() => {
     alive.current = true;
     if (!enabled) return;
-    if (preview) { setCount(DEMO_SESSIONS.length); return; }
+    if (preview) { setState({ count: DEMO_SESSIONS.length, failed: false }); return; }
     void (async () => {
       try {
         const sessions: OpenAttendanceSession[] = await getApi().openSessions();
-        if (alive.current) setCount(sessions.length);
+        if (alive.current) setState({ count: sessions.length, failed: false });
       } catch {
-        if (alive.current) setCount(0);
+        // A failed read leaves the entry reachable with a retry instead of
+        // disappearing as if the server had reported no open session.
+        if (alive.current) setState((current) => ({ ...current, failed: true }));
       }
     })();
     return () => { alive.current = false; };
-  }, [enabled, preview, getApi]);
+  }, [attempt, enabled, getApi, preview]);
 
-  return enabled ? (count ?? 0) : 0;
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+
+  return { count: enabled ? state.count : 0, failed: enabled && state.failed, retry };
+}
+
+/** The entry count alone, for callers that only need the number. */
+export function useCheckinOpenSessions(enabled: boolean, api?: AttendanceApi): number {
+  return useCheckinOpenSessionsState(enabled, api).count;
 }
