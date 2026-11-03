@@ -374,7 +374,7 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
         statusLabel={check.ok ? statusLabel : problemMessage(copy, check.problem)}
         actions={[
           ...extraActions,
-          { key: 'remove', label: copy.removeFile, onPress: () => onChange(null), disabled },
+          { key: 'remove', label: copy.removeFile, onPress: () => { file.release?.(); onChange(null); }, disabled },
         ]}
       />
     );
@@ -419,6 +419,7 @@ export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled =
     const outcome = await uploadPicked(file, { keys: contentApi.attempts, intent, upload });
     setBusy(false);
     if (outcome.status === 'done') {
+      file.release?.();
       setFile(null);
       onUploaded(outcome.result);
     } else {

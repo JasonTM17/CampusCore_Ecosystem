@@ -18,7 +18,7 @@ import {
 import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
 import { countForm } from '../../i18n/locale';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
-import { buildAgenda, localizedName, nextMeetings } from '../academic/academic-model';
+import { buildAgenda, isActiveEnrollment, localizedName, nextMeetings } from '../academic/academic-model';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
@@ -55,7 +55,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     async () => (await campusApi.announcements()).data ?? [],
     c.announcementsError,
   );
-  const activeEnrollments = liveEnrollments.filter((item) => item.status === 'ENROLLED');
+  const activeEnrollments = liveEnrollments.filter((item) => isActiveEnrollment(item.status));
   const upcoming = apiClient.mode === 'preview'
     ? []
     : nextMeetings(buildAgenda(activeEnrollments, locale), new Date(), 3);

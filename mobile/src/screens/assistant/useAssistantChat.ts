@@ -342,16 +342,20 @@ export function useAssistantChat() {
     clearThread();
     const seq = ++selectionSeq.current;
     const owner = scopeRef.current;
-    setHistory((current) => ({ ...current, open: false }));
-    if (isPreview) return;
+    if (isPreview) {
+      setHistory((current) => ({ ...current, open: false }));
+      return;
+    }
     try {
       const page = await assistantApi.messagesPage(conversation.id);
       if (seq !== selectionSeq.current || scopeRef.current !== owner) return;
       setConversationId(conversation.id);
       setMessages(page.data.map((item) => toChatMessage(item, copyRef.current.outputBlocked, localeRef.current, scopeRef.current)));
       setEarlierCursor(page.nextCursor ?? null);
+      setHistory((current) => ({ ...current, open: false, error: false }));
     } catch {
       if (seq !== selectionSeq.current || scopeRef.current !== owner) return;
+      // The sheet stays open so the failed selection is visible and retryable.
       setHistory((current) => ({ ...current, error: true }));
     }
   }, [clearThread, isPreview]);
