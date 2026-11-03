@@ -6,15 +6,18 @@ export type EventAction = 'register' | 'cancel' | 'full' | 'none';
 interface EventLike {
   status: string;
   seatsRemaining: number;
+  startsAt?: string | null;
   myRegistrationId?: string | null;
   myRegistrationStatus?: string | null;
 }
 
-export function eventAction(event: EventLike): EventAction {
+export function eventAction(event: EventLike, now: number = Date.now()): EventAction {
   const registered = event.myRegistrationStatus === 'REGISTERED';
   if (registered) {
     const ended = event.status === 'CANCELLED' || event.status === 'COMPLETED';
-    return !ended && event.myRegistrationId ? 'cancel' : 'none';
+    const startsAt = event.startsAt ? Date.parse(event.startsAt) : Number.NaN;
+    const started = Number.isFinite(startsAt) && startsAt <= now;
+    return !ended && !started && event.myRegistrationId ? 'cancel' : 'none';
   }
   if (event.status !== 'REGISTRATION_OPEN') return 'none';
   return event.seatsRemaining > 0 ? 'register' : 'full';
@@ -50,6 +53,22 @@ export function filterLoans<T extends { status: string }>(loans: readonly T[], t
 
 export function firstAvailableCopy<C extends { status: string }>(copies: readonly C[] | null | undefined): C | null {
   return (copies ?? []).find((copy) => copy.status === 'AVAILABLE') ?? null;
+}
+
+/**
+ * The server and the local detail read use different codes for "this copy is
+ * gone"; both must reach the patron as the specific message, not the generic
+ * conflict copy. An unknown code returns null so the caller falls back to the
+ * shared error classifier.
+ */
+export function copyFailureMessage(
+  copy: { noCopiesAvailable: string; copyUnavailable: string },
+  error: unknown,
+): string | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === 'NO_COPY') return copy.noCopiesAvailable;
+  if (code === 'COPY_UNAVAILABLE' || code === 'COPY_TERMINAL') return copy.copyUnavailable;
+  return null;
 }
 
 /* ---------- careers ---------- */

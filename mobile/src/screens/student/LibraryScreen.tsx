@@ -10,8 +10,8 @@ import { fillCopy } from '../../i18n/academic-messages';
 import { libraryMessages } from '../../i18n/library-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { contentErrorMessage, errorCode } from '../content/content-errors';
-import { filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
+import { contentErrorMessage } from '../content/content-errors';
+import { copyFailureMessage, filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
 import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { LibraryTitleDetail } from '../content/LibraryTitleDetail';
 import { previewLibraryLoans, previewLibraryTitles } from '../content/preview-data';
@@ -66,11 +66,11 @@ export function LibraryScreen(_props: MobileScreenProps) {
       void catalogue.reload();
       void loans.reload();
     } catch (error) {
-      fail(errorCode(error) === 'NO_COPY' ? copy.noCopiesAvailable : contentErrorMessage(common, error, copy.failed));
+      fail(copyFailureMessage(copy, error) ?? contentErrorMessage(common, error, copy.failed));
     } finally {
       setBusy(false);
     }
-  }, [busy, catalogue, clear, common, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
+  }, [busy, catalogue, clear, common, copy.copyUnavailable, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
 
   const hold = (title: MobileLibraryTitle) => ask({
     title: copy.holdTitle,

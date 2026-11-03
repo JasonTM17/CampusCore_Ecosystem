@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { fetchArrayListPage, type ArrayListPage } from '@/lib/array-list-page';
 
 /**
  * Events domain client (contract D4, phase-08). Staff calls resolve the
@@ -135,6 +136,14 @@ export const eventsApi = {
     const response = await api.get<CampusEvent[]>('/events/staff');
     return response.data;
   },
+  /** One zero-based page plus the `X-Total-Count` header for the staff event list. */
+  staffListPage: async (page: number, limit: number): Promise<ArrayListPage<CampusEvent>> =>
+    fetchArrayListPage(page, limit, async (requestedPage, requestedLimit) => {
+      const response = await api.get<CampusEvent[]>('/events/staff', {
+        params: { page: requestedPage, limit: requestedLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   staffDetail: async (eventId: string): Promise<CampusEvent> => {
     const response = await api.get<CampusEvent>(`/events/staff/${eventId}`);
     return response.data;
@@ -173,6 +182,18 @@ export const eventsApi = {
     const response = await api.get<EventRosterEntry[]>(`/events/staff/${eventId}/roster`);
     return response.data;
   },
+  /** One zero-based roster page plus the `X-Total-Count` header. */
+  staffRosterPage: async (
+    eventId: string,
+    page: number,
+    limit: number,
+  ): Promise<ArrayListPage<EventRosterEntry>> =>
+    fetchArrayListPage(page, limit, async (requestedPage, requestedLimit) => {
+      const response = await api.get<EventRosterEntry[]>(`/events/staff/${eventId}/roster`, {
+        params: { page: requestedPage, limit: requestedLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   staffMarkAttendance: async (
     eventId: string,
     marks: Array<{ registrationId: string; status: EventAttendanceStatus; version: number }>,
