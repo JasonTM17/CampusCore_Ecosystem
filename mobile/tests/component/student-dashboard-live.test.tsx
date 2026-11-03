@@ -93,7 +93,7 @@ afterEach(() => {
 describe('student dashboard live mode', () => {
   test('the enrollment read shares the academic cache entry the dashboard prefetch fills', async () => {
     mockQueries['academic.enrollments'] = { data: [] };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen();
     expect(mockKeys).toContain('academic.enrollments');
     expect(mockKeys).not.toContain('enrollments');
@@ -103,7 +103,7 @@ describe('student dashboard live mode', () => {
     mockQueries['academic.enrollments'] = {
       data: [{ id: 'enr-1', sectionId: '9f8b2c-section-uuid', semesterId: 'sem-1', status: 'ENROLLED' }],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen();
     expect(screen.queryByText('9f8b2c-section-uuid')).toBeNull();
     expect(screen.getByText('Học phần')).toBeOnTheScreen();
@@ -119,7 +119,7 @@ describe('student dashboard live mode', () => {
         section: { id: 'sec-x', sectionNumber: 'N02', semesterId: 'sem-1', capacity: 40, enrolledCount: 10, status: 'OPEN' },
       }],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen();
     expect(screen.getByText('N02')).toBeOnTheScreen();
   });
@@ -149,9 +149,19 @@ describe('student dashboard live mode', () => {
 
   test('a healthy announcements fetch still shows the real count', async () => {
     mockQueries['academic.enrollments'] = { data: [] };
-    mockQueries.announcements = { data: [{ id: 'a' }, { id: 'b' }] };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }, { id: 'b' }], meta: { total: 2 } } };
     await renderScreen();
     expect(screen.getByText('2 thông báo của trường')).toBeOnTheScreen();
+  });
+
+  test('the hero counts every announcement, not just the first page', async () => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = {
+      data: { data: Array.from({ length: 20 }, (_, index) => ({ id: `a${index}` })), meta: { total: 45 } },
+    };
+    await renderScreen('en');
+    expect(screen.getByText('45 campus announcements')).toBeOnTheScreen();
+    expect(screen.queryByText('20 campus announcements')).toBeNull();
   });
 
   test('hides an initial zero while announcements load and keeps cached count during revalidation', async () => {
@@ -165,7 +175,7 @@ describe('student dashboard live mode', () => {
     expect(mockRequests.announcements).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('0 campus announcements')).toBeNull();
 
-    mockQueries.announcements = { data: [{ id: 'a' }, { id: 'b' }], isLoading: false, isStale: true };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }, { id: 'b' }], meta: { total: 2 } }, isLoading: false, isStale: true };
     await view.rerender(screenElement('en'));
     expect(mockRequests.announcements).toHaveBeenCalledTimes(2);
     expect(screen.getByText('2 campus announcements')).toBeOnTheScreen();
@@ -206,7 +216,7 @@ describe('student dashboard live mode', () => {
         },
       ],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
 
     const english = await renderScreen('en');
     expect(screen.getByText(/Introduction to Computing/)).toBeOnTheScreen();
@@ -242,7 +252,7 @@ describe('student dashboard live mode', () => {
         },
       }],
     };
-    mockQueries.announcements = { data: [{ id: 'a' }] };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }], meta: { total: 1 } } };
     await renderScreen('en');
     expect(screen.getByText('1 active section')).toBeOnTheScreen();
     expect(screen.getByText('1 campus announcement')).toBeOnTheScreen();
@@ -287,7 +297,7 @@ describe('student dashboard live mode', () => {
         },
       ],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen('vi');
     expect(screen.getByText('2 lớp đang học')).toBeOnTheScreen();
     expect(screen.getByText('CS201')).toBeOnTheScreen();
@@ -312,7 +322,7 @@ describe('student dashboard live mode', () => {
         },
       }],
     };
-    mockQueries.announcements = { data: [{ id: 'a' }] };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }], meta: { total: 1 } } };
     await renderScreen('vi');
     expect(screen.getByText('1 lớp đang học')).toBeOnTheScreen();
     expect(screen.getByText('1 thông báo của trường')).toBeOnTheScreen();
