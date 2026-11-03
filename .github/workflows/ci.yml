@@ -126,6 +126,7 @@ jobs:
           set -o pipefail
           node --test \
             scripts/alert-uri-policy.test.mjs \
+            scripts/caddy-validate.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
@@ -711,6 +712,8 @@ jobs:
           done < <(git ls-tree -r -z "$base_ref" -- java-services)
       - name: Validate Compose
         run: docker compose config
+      - name: Validate Caddyfile
+        run: node scripts/caddy-validate.mjs
       - name: Supabase content tooling tests
         shell: bash
         run: |
