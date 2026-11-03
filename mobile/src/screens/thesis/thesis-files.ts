@@ -25,6 +25,8 @@ export async function pickReportFile(adapter: FileAdapter): Promise<ReportPickOu
   const picked = await adapter.pick({ mimeTypes: THESIS_REPORT_MIME_TYPES, maxBytes: THESIS_REPORT_FILE_MAX_BYTES });
   if (picked.status !== 'picked') return picked;
   const issue = validateReportFile(picked.file);
+  // A rejected pick returns ownership at once; only a kept file is the caller's.
+  if (issue) picked.file.release?.();
   return issue ? { status: 'invalid', issue } : picked;
 }
 

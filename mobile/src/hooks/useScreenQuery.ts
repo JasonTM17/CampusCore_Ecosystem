@@ -124,6 +124,9 @@ export function useScreenQuery<T>(
   optionsRef.current = options;
   const mountedRef = useRef(true);
   const focusedRef = useRef(false);
+  // A local mutation wins over any read it was dispatched after: that read's
+  // result is dropped instead of reverting the newer value.
+  const writeGeneration = useRef(0);
   const epoch = sessionStore.sessionEpoch();
   const boundary = useMemo<QueryBoundary>(() => ({ cacheKey, epoch, enabled, inFlight: false }),
     [cacheKey, epoch, enabled]);
@@ -153,6 +156,7 @@ export function useScreenQuery<T>(
 
   const setData = useCallback((next: T) => {
     if (!enabled || !isCurrent()) return;
+    writeGeneration.current += 1;
     writeQueryCache(cacheKey, next);
     update({ data: next });
   }, [cacheKey, enabled, isCurrent, update]);
@@ -164,16 +168,18 @@ export function useScreenQuery<T>(
     // Dedupe only this identity. A pending old resource must not suppress the
     // first request for the newly selected resource/account/locale/grants.
     boundary.inFlight = true;
+    const generation = writeGeneration.current;
     const cached = readQueryCache<T>(cacheKey, optionsRef.current.maxAge);
     update({ data: cached, isLoading: cached === undefined, isStale: cached !== undefined,
       error: null, warning: null, errorStatus: null });
+    const superseded = () => writeGeneration.current !== generation;
     try {
       const next = await coalesceQueryRequest(JSON.stringify([cacheKey, boundary.epoch]), () => fetcherRef.current());
-      if (!isCurrent()) return;
+      if (!isCurrent() || superseded()) return;
       writeQueryCache(cacheKey, next);
       update({ data: next });
     } catch (nextError) {
-      if (!isCurrent()) return;
+      if (!isCurrent() || superseded()) return;
       const opts = optionsRef.current;
       const message = (opts.mapError ?? defaultError)(nextError, opts.errorMessage ?? 'This data is unavailable.');
       let status = typeof (nextError as { status?: number })?.status === 'number'
@@ -192,7 +198,7 @@ export function useScreenQuery<T>(
           // already fell back to the fetch-failure signal.
         }
       }
-      if (!isCurrent()) return;
+      if (!isCurrent() || superseded()) return;
       // Denied is always a full state (§5). Other failures degrade to a
       // stale-data banner when the screen already has something to show.
       if (status === 403 || readQueryCache<T>(cacheKey, optionsRef.current.maxAge) === undefined) {

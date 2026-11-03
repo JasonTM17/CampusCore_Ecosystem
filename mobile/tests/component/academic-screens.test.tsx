@@ -439,6 +439,67 @@ describe('registration', () => {
     expect(mockPost.mock.calls[0][2]?.headers?.['Idempotency-Key']).toBeTruthy();
   });
 
+  test('a confirmed enrollment offers the same drop as an enrolled one', async () => {
+    mockQueries['academic.registration'] = {
+      data: {
+        ...registrationData([section('G1', { alreadyEnrolled: true })]),
+        enrollments: [{ id: 'enr-9', sectionId: 'G1', semesterId: 't2', status: 'CONFIRMED' }],
+      },
+    };
+    mockPost.mockResolvedValueOnce({ message: 'ok' });
+    await render(wrap(<RegistrationScreen {...props} />));
+    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp: CSG1' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp' }));
+    expect(await screen.findByText('Đã rút lớp')).toBeOnTheScreen();
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockPost.mock.calls[0][0]).toBe('/me/enrollments/enr-9/drop');
+  });
+
+  test('a window that closes clears the basket and explains the close reason', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('H1')]) };
+    const view = await render(wrap(<RegistrationScreen {...props} />));
+    await pressSelect('CSH1');
+    expect(screen.getByText('Đã chọn (1)')).toBeOnTheScreen();
+    mockQueries['academic.registration'] = {
+      data: { ...registrationData([], false), closedReason: 'WINDOW_CLOSED' },
+    };
+    await view.rerender(wrap(<RegistrationScreen {...props} />));
+    expect(screen.queryByText('Đã chọn (1)')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Đăng ký các lớp đã chọn' })).toBeNull();
+    expect(await screen.findByText('Đợt đăng ký hiện không mở.')).toBeOnTheScreen();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  test('the basket counts toward the credit limit and the schedule', async () => {
+    mockQueries['academic.registration'] = {
+      data: {
+        ...registrationData([
+          section('K1', { schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '09:00' }] }),
+          section('K2', { schedules: [{ dayOfWeek: 2, startTime: '08:00', endTime: '10:00' }] }),
+          section('K3', { schedules: [{ dayOfWeek: 3, startTime: '07:00', endTime: '09:00' }] }),
+        ]),
+        eligibility: { eligible: true, creditLimit: 20, creditsUsed: 17, creditsRemaining: 3 },
+      },
+    };
+    await render(wrap(<RegistrationScreen {...props} />));
+    await pressSelect('CSK1');
+    expect(screen.getByText('Trùng lịch')).toBeOnTheScreen();
+    expect(screen.getByText('Vượt giới hạn tín chỉ')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Chọn lớp: CSK2 Lớp 01' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Chọn lớp: CSK3 Lớp 01' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Bỏ chọn: CSK1 Lớp 01' })).toBeOnTheScreen();
+  });
+
+  test('an eligibility failure shows a retryable warning instead of a silent pass', async () => {
+    mockQueries['academic.registration'] = {
+      data: { ...registrationData([section('L1')]), eligibility: null, eligibilityError: { status: 500 } },
+    };
+    await render(wrap(<RegistrationScreen {...props} />));
+    expect(await screen.findByText('Có lỗi xảy ra. Vui lòng thử lại.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledTimes(1);
+  });
+
   test('search narrows the catalog without losing the selection', async () => {
     mockQueries['academic.registration'] = { data: registrationData([section('F1', { courseName: 'Điện toán đám mây' }), section('F2', { courseName: 'Vật lý' })]) };
     await render(wrap(<RegistrationScreen {...props} />));

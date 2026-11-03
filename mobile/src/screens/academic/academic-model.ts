@@ -56,7 +56,8 @@ export type EnrollmentTab = 'active' | 'past' | 'withdrawn';
 
 /** The backend counts these against seats and credit limits. */
 export const ACTIVE_STATUSES: readonly string[] = ['ENROLLED', 'PENDING', 'CONFIRMED'];
-export const DROPPABLE_STATUSES: readonly string[] = ['ENROLLED', 'PENDING'];
+// The server accepts a drop for every active status during add-drop.
+export const DROPPABLE_STATUSES: readonly string[] = ['ENROLLED', 'PENDING', 'CONFIRMED'];
 export const WITHDRAWN_STATUSES: readonly string[] = ['DROPPED', 'CANCELLED', 'WITHDRAWN'];
 
 export const isActiveEnrollment = (status: string | null | undefined): boolean => ACTIVE_STATUSES.includes(status ?? '');

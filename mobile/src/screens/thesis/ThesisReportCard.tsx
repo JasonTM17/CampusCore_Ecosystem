@@ -58,7 +58,15 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [url, setUrl] = useState('');
-  const [picked, setPicked] = useState<PickedFile | null>(null);
+  const [picked, setPickedState] = useState<PickedFile | null>(null);
+  // The adapter owns a cache copy of a picked file; the ref releases it on
+  // replace, successful upload and unmount. `release` is idempotent.
+  const pickedRef = useRef<PickedFile | null>(null);
+  const setPicked = (file: PickedFile | null) => {
+    pickedRef.current?.release?.();
+    pickedRef.current = file;
+    setPickedState(file);
+  };
   const [issues, setIssues] = useState<string[]>([]);
   const [notice, setNotice] = useState<Notice>(null);
   const [working, setWorking] = useState<'save' | 'upload' | 'download' | 'remove' | null>(null);
@@ -78,7 +86,11 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
     setNote(report?.note ?? '');
     setUrl(report?.url ?? '');
   }, [report]);
-  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => () => {
+    abort.current?.abort();
+    pickedRef.current?.release?.();
+    pickedRef.current = null;
+  }, []);
 
   if (!approved) {
     return (
@@ -238,7 +250,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
         <UiText variant="meta" tone="muted" style={styles.gap}>{copy.reportFileUnavailable}</UiText>
       ) : null}
 
-      {writable ? (
+      {writable && !state.loading ? (
         <View style={styles.form}>
           <Field
             label={copy.reportTitle}

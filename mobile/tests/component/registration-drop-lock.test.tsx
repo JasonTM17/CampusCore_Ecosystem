@@ -68,6 +68,10 @@ const section = {
   id: 'sec-1', sectionNumber: '01', courseId: 'course-1', courseCode: 'CS101', courseName: 'Nhập môn',
   credits: 3, capacity: 40, enrolledCount: 1, remainingSeats: 39, status: 'OPEN', scheduleConflict: false, alreadyEnrolled: true,
 };
+const selectable = {
+  ...section,
+  id: 'sec-9', courseId: 'course-9', courseCode: 'CS201', alreadyEnrolled: false,
+};
 const workspace = {
   sections: [section],
   enrollments: [{ id: 'enr-1', sectionId: 'sec-1', semesterId: 't2', status: 'ENROLLED' }],
@@ -130,4 +134,35 @@ test('a second drop press during the post-drop reload is ignored', async () => {
   expect(mockPost).toHaveBeenCalledTimes(1);
   expect(screen.getByText(copy.dropped)).toBeOnTheScreen();
   expect(screen.queryByText(copy.errors.generic)).toBeNull();
+});
+
+test('a second select during the post-register refresh cannot send another enroll', async () => {
+  mockQueries['academic.registration'] = {
+    data: { ...workspace, sections: [selectable], enrollments: [] },
+  };
+  const reload = deferred<void>();
+  const post = deferred<unknown>();
+  mockReload.mockImplementation(() => reload.promise);
+  mockPost.mockImplementation(() => post.promise);
+  await render(screenElement(<RegistrationScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.registerSelected }));
+  await act(async () => { post.resolve({ id: 'enr-new' }); await post.promise; });
+
+  // The enroll succeeded but the workspace has not refreshed yet: the row must
+  // not offer an enabled Select while the refresh is still in flight.
+  const select = screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` });
+  expect(select).toBeDisabled();
+  await fireEvent.press(select);
+  await act(async () => { await Promise.resolve(); });
+  const register = screen.queryByRole('button', { name: copy.registerSelected });
+  if (register) {
+    await fireEvent.press(register);
+    await act(async () => { await Promise.resolve(); });
+  }
+  expect(mockPost).toHaveBeenCalledTimes(1);
+
+  await act(async () => { reload.resolve(); await reload.promise; });
+  expect(mockPost).toHaveBeenCalledTimes(1);
 });

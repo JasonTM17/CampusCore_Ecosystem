@@ -64,6 +64,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
           {chosen ? (
             <UiText variant="bodySmall" tone="success" style={styles.line}>{copy.topicAssigned}</UiText>
           ) : null}
+          <QueryNotices state={{ ...rounds, preview: false }} copy={copy} />
           <View style={styles.actions}>
             {canRegister ? (
               <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />

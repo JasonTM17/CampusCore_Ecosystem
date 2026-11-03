@@ -44,7 +44,11 @@ test('the default round is the selection, else registration, else published topi
   assert.equal(model.pickDefaultRound(rounds.slice(0, 3)).id, 'c');
   assert.equal(model.pickDefaultRound([round('x', 'CANCELLED'), round('y', 'DRAFT')]).id, 'x');
   assert.equal(model.pickDefaultRound([]), null);
-  assert.equal(model.isRegistrationOpen(round('d', 'REGISTRATION_OPEN')), true);
+  const live = { id: 'd', status: 'REGISTRATION_OPEN', registrationStart: '2020-01-01T00:00:00Z', registrationEnd: '2099-01-01T00:00:00Z' };
+  assert.equal(model.isRegistrationOpen(live), true);
+  assert.equal(model.isRegistrationOpen({ ...live, registrationEnd: '2020-06-01T00:00:00Z' }), false);
+  assert.equal(model.isRegistrationOpen({ ...live, registrationStart: '2098-01-01T00:00:00Z', registrationEnd: '2099-01-01T00:00:00Z' }), false);
+  assert.equal(model.isRegistrationOpen(round('d', 'REGISTRATION_OPEN')), false);
   assert.equal(model.isRegistrationOpen(round('c', 'PROPOSALS_PUBLISHED')), false);
 });
 
@@ -312,6 +316,17 @@ test('a picked file is validated before any upload and keeps its declared type',
   assert.deepEqual(await pick({ ...good, sizeBytes: model.THESIS_REPORT_FILE_MAX_BYTES + 1 }), { status: 'invalid', issue: 'fileSize' });
   assert.deepEqual(await files.pickReportFile(adapterWith()), { status: 'cancelled' });
   assert.deepEqual(files.toReportPart(good), { uri: good.uri, name: good.name, type: 'application/pdf' });
+});
+
+test('an invalid pick releases the adapter cache copy; a kept pick is the caller\'s', async () => {
+  let released = 0;
+  const file = (name) => ({ uri: `file:///a/${name}`, name, sizeBytes: 2048, release: () => { released += 1; } });
+  const invalid = await files.pickReportFile(adapterWith({ pick: async () => ({ status: 'picked', file: file('x.zip') }) }));
+  assert.deepEqual(invalid, { status: 'invalid', issue: 'fileType' });
+  assert.equal(released, 1);
+  const picked = await files.pickReportFile(adapterWith({ pick: async () => ({ status: 'picked', file: file('a.pdf') }) }));
+  assert.equal(picked.status, 'picked');
+  assert.equal(released, 1);
 });
 
 test('a downloaded report is handed to the save sheet with a data uri and a safe name', async () => {
