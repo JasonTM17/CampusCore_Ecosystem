@@ -375,6 +375,12 @@ public class ThesisReportService {
 
     @Transactional(readOnly = true)
     public List<ReportResponse> listByRound(UUID roundId, Jwt actor) {
+        return listByRound(roundId, actor, null).items();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ListPaging.Result<ReportResponse> listByRound(
+            UUID roundId, Jwt actor, ListPaging.Window window) {
         MapSqlParameterSource parameters = params().addValue("roundId", roundId);
         // Staff archive (plan F6): an admin sees every report row of the round
         // — a group reopened to PENDING or one without a topic must not hide
@@ -382,14 +388,27 @@ public class ThesisReportService {
         // and department scope; a topic-less row self-excludes there because
         // its NULL department_id never matches the lecturer's.
         String filter = archiveFilter(actor, parameters);
-        return jdbc.query(
-                "SELECT r.group_id, r.title, r.url, r.note, r.submitted_by, r.submitted_at, r.updated_at, "
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_group_report r "
+                            + "JOIN thesis.thesis_group g ON g.id = r.group_id "
+                            + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
+                            + "WHERE r.round_id = :roundId" + filter,
+                    parameters, Long.class);
+            parameters.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        String sql = "SELECT r.group_id, r.title, r.url, r.note, r.submitted_by, r.submitted_at, r.updated_at, "
                         + "r.file_name, r.file_type, r.file_size "
                         + "FROM thesis.thesis_group_report r "
                         + "JOIN thesis.thesis_group g ON g.id = r.group_id "
                         + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "WHERE r.round_id = :roundId" + filter + " ORDER BY r.submitted_at DESC, r.group_id",
-                parameters,
+                        + "WHERE r.round_id = :roundId" + filter
+                        + " ORDER BY r.submitted_at DESC, r.group_id ASC";
+        sql += window == null
+                ? " LIMIT " + LEGACY_READ_CEILING
+                : " LIMIT :limit OFFSET :offset";
+        List<ReportResponse> items = jdbc.query(sql, parameters,
                 (rs, ignored) -> new ReportResponse(
                         UUID.fromString(rs.getString("group_id")),
                         rs.getString("title"),
@@ -401,6 +420,7 @@ public class ThesisReportService {
                         rs.getString("file_name"),
                         rs.getString("file_type"),
                         (Long) rs.getObject("file_size")));
+        return new ListPaging.Result<>(items, total);
     }
 
     /**

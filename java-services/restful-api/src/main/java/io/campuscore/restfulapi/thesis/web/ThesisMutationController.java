@@ -401,12 +401,21 @@ public class ThesisMutationController {
         return org.springframework.http.ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Báo cáo của đợt",
+            description = "Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. "
+                    + "Thêm page/limit để phân trang kèm X-Total-Count.")
+    @ApiResponse(responseCode = "200", description = "Báo cáo đã được phân quyền", headers = {
+            @Header(name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                    schema = @Schema(type = "integer"))})
     @GetMapping("/rounds/{id}/reports")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
-    public List<ReportResponse> listReportsByRound(
+    public org.springframework.http.ResponseEntity<List<ReportResponse>> listReportsByRound(
             @PathVariable UUID id,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
-        return reports.listByRound(id, actor);
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(reports.listByRound(id, actor, window));
     }
 
     @Operation(summary = "Kho báo cáo của đợt",
