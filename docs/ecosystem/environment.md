@@ -76,7 +76,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `FLYWAY_ENABLED` | Run Flyway migrations on boot | config | all | safe default `true` |
 | `DB_POOL_MAX`, `DB_POOL_MIN`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_KEEPALIVE_MS` | Hikari pool sizing/idle | config | tuning | safe default |
 | `DB_CONNECTION_TIMEOUT_MS`, `DB_VALIDATION_TIMEOUT_MS` | Hikari acquire/validate timeouts | config | tuning | safe default |
-| `ASSISTANT_DB_URL`, `ASSISTANT_DB_USERNAME`, `ASSISTANT_DB_PASSWORD` | Separate assistant (RAG) datasource, prod (`ASSISTANT_DB_PASSWORD` >= 16 characters) | secret | prod | required when sidecar DB split; Compose provisions `campuscore_assistant_runtime` once via `scripts/provision-assistant-runtime.mjs`, run that script manually before boot outside Compose |
+| `ASSISTANT_DB_URL`, `ASSISTANT_DB_USERNAME`, `ASSISTANT_DB_PASSWORD` | Separate assistant (RAG) datasource, prod (`ASSISTANT_DB_PASSWORD` >= 16 characters) | secret | prod | required when sidecar DB split; Compose provisions `campuscore_assistant_runtime` once via `scripts/provision-assistant-runtime.mjs`, run that script manually before boot outside Compose; a non-loopback target negotiates TLS (`PGSSLMODE` or JDBC `?sslmode=`, default `require`, loopback `prefer`) and the Compose stacks set `PGSSLMODE=disable` on their private network |
 | `ASSISTANT_DB_POOL_MAX`, `ASSISTANT_DB_CONNECTION_TIMEOUT_MS`, `ASSISTANT_DB_IDLE_TIMEOUT_MS`, `ASSISTANT_DB_KEEPALIVE_TIME_MS` | Assistant pool tuning | config | tuning | safe default |
 
 ## 4. Mail (SMTP)
