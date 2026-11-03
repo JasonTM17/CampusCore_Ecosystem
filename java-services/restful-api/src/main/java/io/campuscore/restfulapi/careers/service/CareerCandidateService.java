@@ -305,11 +305,12 @@ public class CareerCandidateService {
             throw problem(HttpStatus.BAD_REQUEST, "FILE_CHECKSUM_MISMATCH",
                     "Uploaded content does not match the declared checksum");
         }
-        // The JSON lane applies the same display-name and declared-type rules
-        // as the multipart lane, so persisted metadata always fits the
-        // columns and always parses on a later download.
+        // Keep JSON uploads under the same document type and signature policy
+        // as multipart uploads.
         String fileName = MultipartAttachment.displayName(request.fileName());
         String contentType = MultipartAttachment.declaredType(request.contentType());
+        MultipartAttachment.validateContentTypeAndSignature(
+                contentType, bytes, MultipartAttachment.DOCUMENTS);
         Map<String, Object> claimed = claimIdempotency(candidateId, idempotencyKey,
                 "attachment:" + sha256((applicationId + "|" + checksum + "|"
                         + fileName + "|" + contentType)
