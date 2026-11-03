@@ -153,8 +153,15 @@ export function pickDefaultRound<T extends { id: string; status: string }>(
   return rounds.find((round) => round.status !== 'CANCELLED' && round.status !== 'DRAFT') ?? rounds[0] ?? null;
 }
 
-export function isRegistrationOpen(round: { status: string } | null | undefined): boolean {
-  return round?.status === 'REGISTRATION_OPEN';
+/** Mirrors the server check: the stored window is normative — start <= now < end. */
+export function isRegistrationOpen(
+  round: Pick<ThesisRound, 'status' | 'registrationStart' | 'registrationEnd'> | null | undefined,
+): boolean {
+  if (round?.status !== 'REGISTRATION_OPEN') return false;
+  const start = Date.parse(round.registrationStart);
+  const end = Date.parse(round.registrationEnd);
+  const now = Date.now();
+  return !Number.isNaN(start) && !Number.isNaN(end) && now >= start && now < end;
 }
 
 /** Case- and accent-insensitive match over title, department and brief of the loaded topics. */

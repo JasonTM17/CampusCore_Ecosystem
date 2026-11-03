@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -93,11 +93,19 @@ function setWidth(w: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
 }
 
-const round = (id: string, name: string, status: string) => ({
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+const round = (id: string, name: string, status: string, over: Record<string, unknown> = {}) => ({
   id, name, status,
-  registrationStart: '2026-08-25T00:00:00Z',
-  registrationEnd: '2026-09-30T23:59:59Z',
+  registrationStart: new Date(Date.now() - 86_400_000).toISOString(),
+  registrationEnd: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   thesisType: 'KLTN',
+  ...over,
 });
 const ROUNDS = [round('r1', 'Đợt 1', 'RESULTS_PUBLISHED'), round('r2', 'Đợt 2', 'REGISTRATION_OPEN')];
 const topic = (id: string, title: string, over: Record<string, unknown> = {}) => ({
@@ -332,6 +340,24 @@ describe('topic detail', () => {
     expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
   });
 
+  test('registration is not offered once the open window has passed', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN', { registrationEnd: '2026-09-30T23:59:59Z' })] });
+    await renderThemed(detail());
+    await screen.findByText('Mô tả Trợ lý học vụ');
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+  });
+
+  test('a failed rounds read shows a retryable error where the register action would be', async () => {
+    setWidth(360);
+    mockApi.rounds.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    await renderThemed(detail());
+    expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByRole('button', { name: copy.register })).toBeOnTheScreen();
+  });
+
   test('a missing selection has a clear state', async () => {
     setWidth(360);
     await renderThemed(detail(null));
@@ -363,6 +389,17 @@ describe('registration', () => {
   test('a closed round disables creation and says why', async () => {
     setWidth(360);
     seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')] });
+    await renderThemed(screenUnderTest());
+    expect(await screen.findByText(copy.windowClosed)).toBeOnTheScreen();
+    const create = screen.getByRole('button', { name: copy.groupCreate });
+    expect(create.props.accessibilityState?.disabled).toBe(true);
+    await fireEvent.press(create);
+    expect(mockApi.createGroup).not.toHaveBeenCalled();
+  });
+
+  test('an open-status round past its window disables writes and says why', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN', { registrationEnd: '2026-09-30T23:59:59Z' })] });
     await renderThemed(screenUnderTest());
     expect(await screen.findByText(copy.windowClosed)).toBeOnTheScreen();
     const create = screen.getByRole('button', { name: copy.groupCreate });
@@ -626,6 +663,20 @@ describe('progress and report', () => {
     expect(await screen.findByText(copy.reportSubmitted)).toBeOnTheScreen();
   });
 
+  test('the report form waits for the first read before it can be edited', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const pending = deferred<unknown>();
+    mockApi.report.mockReset();
+    mockApi.report.mockImplementation(() => pending.promise);
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(copy.report)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+    await act(async () => { pending.resolve({ groupId: 'g1', title: 'Báo cáo cũ' }); });
+    await waitFor(() => expect(screen.getByLabelText(copy.reportTitle)).toBeOnTheScreen());
+    expect(screen.getByLabelText(copy.reportTitle).props.value).toBe('Báo cáo cũ');
+  });
+
   test('without a file adapter the picker is unavailable and the link path stays usable', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
@@ -665,6 +716,39 @@ describe('progress and report', () => {
     await waitFor(() => expect(seenSignal?.aborted).toBe(true));
     await waitFor(() => expect(screen.queryByRole('button', { name: copy.reportUploadCancel })).toBeNull());
     expect(screen.queryByText(copy.errors.generic)).toBeNull();
+  });
+
+  test('the picked file cache copy is released on replace, upload and unmount', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const released: string[] = [];
+    const pickedFile = (name: string) => ({
+      uri: `file:///a/${name}`, name, sizeBytes: 2048,
+      release: () => { released.push(name); },
+    });
+    const queue = [pickedFile('first.pdf'), pickedFile('second.pdf'), pickedFile('third.pdf')];
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: () => ({ available: true }),
+      pick: async () => ({ status: 'picked', file: queue.shift()! }),
+    });
+    mockApi.submitReportFile.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'second.pdf' });
+    const utils = await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/first\.pdf/);
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/second\.pdf/);
+    expect(released).toEqual(['first.pdf']);
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportSubmit }));
+    await waitFor(() => expect(mockApi.submitReportFile).toHaveBeenCalled());
+    await waitFor(() => expect(released).toEqual(['first.pdf', 'second.pdf']));
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/third\.pdf/);
+    utils.unmount();
+    await waitFor(() => expect(released).toEqual(['first.pdf', 'second.pdf', 'third.pdf']));
   });
 
   test('a stored file can be downloaded through the save sheet and removed only after confirmation', async () => {

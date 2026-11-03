@@ -178,7 +178,8 @@ test('enrollment history is split into active, past and withdrawn - not only ENR
   assert.deepEqual(model.filterEnrollments(rows, 'withdrawn', 's2').map((row) => row.id), ['5']);
   assert.deepEqual(model.tabCounts(rows, null), { active: 3, past: 1, withdrawn: 2 });
   assert.equal(model.isDroppableEnrollment('PENDING'), true);
-  assert.equal(model.isDroppableEnrollment('CONFIRMED'), false);
+  assert.equal(model.isDroppableEnrollment('CONFIRMED'), true);
+  assert.equal(model.isDroppableEnrollment('DROPPED'), false);
 });
 
 test('terms merge the semester list with terms seen only on enrollments, newest first', () => {
