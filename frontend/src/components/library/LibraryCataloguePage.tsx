@@ -219,6 +219,7 @@ export function LibraryCataloguePage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={copy.searchPlaceholder}
+          aria-label={copy.searchPlaceholder}
           onKeyDown={(event) => { if (event.key === 'Enter') search(); }}
         />
         <Button data-testid="library-search" variant="outline" onClick={search}>
@@ -234,6 +235,7 @@ export function LibraryCataloguePage() {
 
       {!isLoading && !error && !denied && titles.length > 0 ? (
         <section className="space-y-4" data-testid="library-catalogue">
+          <h2 className="sr-only">{copy.title}</h2>
           {titles.map((title) => (
             <article key={title.id} className="rounded-lg border p-4" data-testid={`library-title-${title.id}`}>
               <div className="flex items-start justify-between gap-4">

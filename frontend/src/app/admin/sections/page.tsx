@@ -814,17 +814,17 @@ export default function AdminSectionsPage() {
                 })}
               </div>
               <AdminTableScroll className="hidden md:block">
-                <table className="w-full min-w-[1120px] text-sm">
+                <table className="w-full min-w-[1120px] text-sm" aria-label={copy.title}>
                   <thead>
                     <tr className="border-b border-border/70 bg-secondary/50 text-left text-muted-foreground">
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.course}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.section}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.semester}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.lecturer}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.capacity}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.schedule}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.status}</th>
-                      <th className="px-4 py-3.5 text-right font-medium">{copy.headers.actions}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.course}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.section}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.semester}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.lecturer}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.capacity}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.schedule}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.status}</th>
+                      <th scope="col" className="px-4 py-3.5 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">

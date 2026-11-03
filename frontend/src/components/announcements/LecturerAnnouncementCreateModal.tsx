@@ -466,7 +466,7 @@ export function LecturerAnnouncementCreateModal({
         {/* Mode Toggle Bar: Visual (TinyMCE) vs Code vs Preview */}
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <label className="text-xs font-semibold text-foreground">
+            <label htmlFor="announcement-body-code" className="text-xs font-semibold text-foreground">
               {copy.contentLabel}
             </label>
             <div className="flex items-center gap-1 rounded-md border border-border/80 bg-background p-0.5 text-xs [&_button]:whitespace-nowrap">
@@ -533,6 +533,8 @@ export function LecturerAnnouncementCreateModal({
             </div>
           ) : (
             <Textarea
+              id="announcement-body-code"
+              aria-label={copy.contentLabel}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={9}
@@ -543,7 +545,11 @@ export function LecturerAnnouncementCreateModal({
         </div>
 
         {validationError ? (
-          <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400"
+          >
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{validationError}</span>
           </div>

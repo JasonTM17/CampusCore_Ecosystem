@@ -324,14 +324,14 @@ export default function AdminAttendancePage() {
               ))}
             </div>
             <AdminTableScroll className="hidden md:block">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[900px] text-sm" aria-label={copy.title}>
                 <thead>
                   <tr className="border-b border-border/70 text-left text-muted-foreground">
-                    <th className="px-2 py-3 font-medium">{copy.headers.student}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.section}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.date}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
-                    <th className="px-2 py-3 text-right font-medium">{copy.headers.notes}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.student}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.section}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.date}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                    <th scope="col" className="px-2 py-3 text-right font-medium">{copy.headers.notes}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
