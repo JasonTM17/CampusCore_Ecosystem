@@ -44,6 +44,7 @@ public class AnnouncementWriteService {
     private static final Set<String> TARGET_ROLES = Set.of("STUDENT", "LECTURER", "ADMIN", "SUPER_ADMIN", "TRUONG_KHOA", "TRUONG_BO_MON");
     private static final int MAX_HISTORY_PAGE_SIZE = 100;
     private static final int MAX_ACTOR_LABEL_LENGTH = 240;
+    private static final int MAX_AUDIT_REASON_LENGTH = 500;
 
     private final AnnouncementWriteRepository announcements;
     private final AnnouncementAuditRepository audits;
@@ -90,6 +91,7 @@ public class AnnouncementWriteService {
         if (lecturer) {
             requireLecturerAnnouncement(lecturerId, request.sectionId(), targetRoles, request.isGlobal(), request.lecturerId());
         }
+        requireConsistentAudience(Boolean.TRUE.equals(request.isGlobal()), request.sectionId());
         List<Integer> targetYears = immutableYears(request.targetYears());
         Instant now = Instant.now(clock);
         Instant publishAt = toMicros(request.publishAt());
@@ -193,6 +195,9 @@ public class AnnouncementWriteService {
             String requestedLecturer = request.has("lecturerId") ? request.lecturerId() : lecturerId;
             requireLecturerAnnouncement(lecturerId, effectiveSection, effectiveRoles, effectiveGlobal, requestedLecturer);
         }
+        requireConsistentAudience(
+                request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal(),
+                request.has("sectionId") ? request.sectionId() : before.sectionId());
         if (request.has("priority") && !PRIORITIES.contains(request.priority())) {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
@@ -241,7 +246,7 @@ public class AnnouncementWriteService {
         AnnouncementResponse after = requireAnnouncement(id);
         int sanitizedElements = contentPatch == null ? 0 : contentPatch.removedElements();
         String auditReason = sanitizedElements > 0
-                ? reason + " (sanitizer removed " + sanitizedElements + " element(s))"
+                ? sanitizedAuditReason(reason, sanitizedElements)
                 : reason;
         if (sanitizedElements > 0) {
             LOGGER.info(
@@ -250,6 +255,32 @@ public class AnnouncementWriteService {
         }
         appendAudit("UPDATED", actor, label, auditReason, before, after, now);
         return after;
+    }
+
+    /**
+     * isGlobal reaches the anonymous feed and the whole campus; a sectionId on
+     * the same row still narrows the student feed, so the combination labels a
+     * notice campus-wide while delivering it to one section — it is refused.
+     */
+    private static void requireConsistentAudience(boolean isGlobal, String sectionId) {
+        if (isGlobal && sectionId != null) {
+            throw new IllegalArgumentException(
+                    "A campus-wide announcement cannot target a section");
+        }
+    }
+
+    /**
+     * Publication gate: a notice that resolves to nobody (not global, no target
+     * role, no lecturer) can stay a draft but must never reach the live feed —
+     * the reader predicate could never match it and the fan-out sends nothing.
+     */
+    private static void requireDeliverableAudience(AnnouncementResponse announcement) {
+        if (!announcement.isGlobal()
+                && announcement.targetRoles().isEmpty()
+                && announcement.lecturerId() == null) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ANNOUNCEMENT_AUDIENCE_EMPTY",
+                    "A targeted announcement needs at least one audience role or lecturer");
+        }
     }
 
     private void requireLecturerAnnouncement(
@@ -301,6 +332,7 @@ public class AnnouncementWriteService {
                     "Only the author may submit a draft for review");
         }
         requirePublicationWindow(before.publishAt(), before.expiresAt());
+        requireDeliverableAudience(before);
         Instant now = Instant.now(clock);
         if (announcements.submitForReview(id, before.version(), now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
@@ -342,6 +374,7 @@ public class AnnouncementWriteService {
             throw conflict("ANNOUNCEMENT_ALREADY_EXPIRED",
                     "The publication window already closed; return the draft and fix expiresAt");
         }
+        requireDeliverableAudience(before);
         if (announcements.approveForPublication(id, before.version(), actor, now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
         }
@@ -676,10 +709,24 @@ public class AnnouncementWriteService {
 
     private static String requireReason(String value) {
         String reason = requireText(value, "reason").trim();
-        if (reason.codePointCount(0, reason.length()) > 500) {
-            throw new IllegalArgumentException("reason must contain at most 500 characters");
+        if (reason.codePointCount(0, reason.length()) > MAX_AUDIT_REASON_LENGTH) {
+            throw new IllegalArgumentException(
+                    "reason must contain at most " + MAX_AUDIT_REASON_LENGTH + " characters");
         }
         return reason;
+    }
+
+    private static String sanitizedAuditReason(String reason, int removedElements) {
+        String suffix = " (sanitizer removed " + removedElements + " element(s))";
+        int suffixLength = suffix.codePointCount(0, suffix.length());
+        int reasonLimit = MAX_AUDIT_REASON_LENGTH - suffixLength;
+        if (reason.codePointCount(0, reason.length()) <= reasonLimit) {
+            return reason + suffix;
+        }
+
+        int prefixLength = reasonLimit - 1;
+        int prefixEnd = reason.offsetByCodePoints(0, prefixLength);
+        return reason.substring(0, prefixEnd) + "…" + suffix;
     }
 
     private static String requireActorLabel(String value, String name) {

@@ -532,7 +532,7 @@ export default function AdminAnnouncementsPage() {
     publishAt: isoDateTime(draft.publishAt),
     expiresAt: isoDateTime(draft.expiresAt),
     semesterId: draft.semesterId || null,
-    sectionId: draft.sectionId || null,
+    sectionId: draft.isGlobal ? null : draft.sectionId || null,
     lecturerId: draft.lecturerId || null,
     ...(editorMode === 'edit' && selected
       ? { reason: draft.reason.trim(), expectedVersion: selected.version ?? 0 }
