@@ -668,16 +668,31 @@ jobs:
       - name: Flyway migrations are immutable once merged
         shell: bash
         run: |
-          edited="$(git diff --name-only origin/main...HEAD -- 'java-services/**/db/migration/*.sql' 'java-services/**/db/migration-h2/*.sql')"
-          if [ -n "$edited" ]; then
-            while IFS= read -r f; do
-              if git cat-file -e "origin/main:$f" 2>/dev/null; then
-                echo "IMMUTABLE migration edited: $f"
-                echo "Corrective changes are new forward migrations (V<n+1>); see db/migration/README.md."
-                exit 1
-              fi
-            done <<< "$edited"
-          fi
+          set -euo pipefail
+          base_ref=origin/main
+          migration_blobs() {
+            local meta file
+            while IFS=$'\t' read -r -d '' meta file; do
+              case "$file" in
+                java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
+                  printf '%s\n' "${meta##* }"
+                  ;;
+              esac
+            done < <(git ls-tree -r -z "$1" -- java-services)
+          }
+          head_blobs="$(migration_blobs HEAD)"
+          while IFS=$'\t' read -r -d '' meta file; do
+            case "$file" in
+              java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
+                blob="${meta##* }"
+                if ! grep -Fqx -- "$blob" <<< "$head_blobs"; then
+                  echo "IMMUTABLE migration content changed or removed: $file"
+                  echo "Corrective changes are new forward migrations (V<n+1>); see db/migration/README.md."
+                  exit 1
+                fi
+                ;;
+            esac
+          done < <(git ls-tree -r -z "$base_ref" -- java-services)
       - name: Validate Compose
         run: docker compose config
       - name: Supabase content tooling tests

@@ -31,6 +31,53 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
 
+function databaseOutageOverrides(output, commands) {
+  const root = path.join(repoRoot, '.virtual-local-dev-health');
+  const files = new Map([
+    [path.resolve(root, 'docker-compose.yml'), 'services: {}\n'],
+    [path.resolve(root, '.env.example'), 'HEALTH_READINESS_KEY=stub-key\n'],
+  ]);
+  const fsStub = {
+    existsSync(target) { return files.has(path.resolve(target)); },
+    readFileSync(target) {
+      const content = files.get(path.resolve(target));
+      if (content === undefined) throw new Error('unexpected filesystem read');
+      return content;
+    },
+    copyFileSync(source, target) { files.set(path.resolve(target), files.get(path.resolve(source))); },
+    writeFileSync(target, content) { files.set(path.resolve(target), String(content)); },
+    appendFileSync(target, content) {
+      const key = path.resolve(target);
+      files.set(key, `${files.get(key) ?? ''}${content}`);
+    },
+  };
+  return {
+    root,
+    fs: fsStub,
+    env: {},
+    run: (command, args) => {
+      commands.push({ command, args });
+      if (args.includes('ps')) {
+        return { code: 0, stdout: JSON.stringify([
+          { Service: 'restful-api', State: 'running' },
+          { Service: 'web', State: 'running' },
+        ]), stderr: '' };
+      }
+      const portIndex = args.indexOf('port');
+      if (portIndex >= 0) {
+        const port = args[portIndex + 1] === 'web' ? 3000 : 4010;
+        return { code: 0, stdout: `127.0.0.1:${port}\n`, stderr: '' };
+      }
+      if (args.includes('exec')) return { code: 1, stdout: '', stderr: 'stubbed database readiness failure' };
+      return { code: 0, stdout: '', stderr: '' };
+    },
+    fetch: async () => ({ status: 200 }),
+    sleep: async () => {},
+    log: (message) => output.push(message),
+    errorLog: (message) => output.push(message),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* argument parsing                                                   */
 /* ------------------------------------------------------------------ */
@@ -93,6 +140,44 @@ test('status exits nonzero when a health probe prints FAIL', async () => {
   });
   assert.equal(output.some((line) => line.includes('FAIL  API liveness')), true);
   assert.equal(exitCode, 1, 'status must not report success while a health check fails');
+});
+
+test('status fails when API readiness reports a database outage', async () => {
+  const output = [];
+  const commands = [];
+  const exitCode = await main(['status', '--project', 'campusute'], databaseOutageOverrides(output, commands));
+  assert.equal(exitCode, 1, output.join('\n'));
+  assert.equal(commands.some(({ args }) => args.includes('exec')), true, 'readiness must run inside the API container');
+  assert.equal(output.some((line) => line.includes('FAIL  API readiness')), true);
+});
+
+test('up fails when API readiness reports a database outage', async () => {
+  const output = [];
+  const commands = [];
+  let clock = 0;
+  const overrides = databaseOutageOverrides(output, commands);
+  overrides.sleep = async () => { clock += 1_000_000; };
+  overrides.now = () => clock;
+  const exitCode = await main(['up', '--no-build', '--project', 'campusute'], overrides);
+  assert.equal(exitCode, 1, output.join('\n'));
+  assert.equal(commands.some(({ args }) => args.includes('exec')), true, 'up must use the readiness probe');
+  assert.equal(output.some((line) => line.includes('API readiness')), true);
+});
+
+test('status rejects a web root response outside the success range', async () => {
+  const output = [];
+  const commands = [];
+  const overrides = databaseOutageOverrides(output, commands);
+  const run = overrides.run;
+  overrides.run = (command, args) => args.includes('exec')
+    ? { code: 0, stdout: '', stderr: '' }
+    : run(command, args);
+  overrides.fetch = async (url) => ({ status: String(url).endsWith('/') ? 404 : 200 });
+
+  const exitCode = await main(['status', '--project', 'campusute'], overrides);
+
+  assert.equal(exitCode, 1, output.join('\n'));
+  assert.equal(output.some((line) => line.includes('FAIL  web')), true);
 });
 
 test('compose argv keeps flags shell-free and mirrors --mobile/--no-build', () => {
