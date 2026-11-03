@@ -12,7 +12,7 @@ retention_days="${BACKUP_RETENTION_DAYS:-14}"
 db_user="${POSTGRES_USER:-campuscore}"
 db_name="${POSTGRES_DB:-campuscore_restful}"
 
-[[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo 'Invalid Compose project name.' >&2; exit 2; }
+[[ "$project" =~ ^[a-z0-9][a-z0-9_-]{0,39}$ ]] || { echo 'Invalid Compose project name.' >&2; exit 2; }
 [[ "$backup_dir" != "/" && "$backup_dir" != "." && -n "$backup_dir" ]] || {
   echo 'Refusing an unsafe backup directory.' >&2
   exit 2
@@ -29,10 +29,11 @@ retention_days=$((10#$retention_days))
 mkdir -p "$backup_dir"
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-archive="$backup_dir/campuscore-${timestamp}.dump"
-reports_archive="$backup_dir/campuscore-${timestamp}.reports.tar"
+bundle="campuscore-${project}-${timestamp}"
+archive="$backup_dir/${bundle}.dump"
+reports_archive="$backup_dir/${bundle}.reports.tar"
 checksum="$archive.sha256"
-claim="$backup_dir/.campuscore-${timestamp}.claim"
+claim="$backup_dir/.${bundle}.claim"
 if ! mkdir "$claim" 2>/dev/null; then
   echo 'A backup with this timestamp is already in progress.' >&2
   exit 1
@@ -57,7 +58,7 @@ if [[ -e "$archive" || -e "$reports_archive" || -e "$checksum" ]]; then
   exit 1
 fi
 owns_outputs=1
-staging="$(mktemp -d "$backup_dir/.campuscore-${timestamp}.XXXXXX")"
+staging="$(mktemp -d "$backup_dir/.${bundle}.XXXXXX")"
 staged_archive="$staging/$(basename "$archive")"
 staged_reports="$staging/$(basename "$reports_archive")"
 staged_checksum="$staging/$(basename "$checksum")"
@@ -113,7 +114,10 @@ mv -- "$staged_checksum" "$checksum"
 mv -- "$staged_archive" "$archive"
 completed=1
 
+# The fixed-width timestamp glob cannot match another project's bundle names.
 find "$backup_dir" -maxdepth 1 -type f \
-  \( -name 'campuscore-*.dump' -o -name 'campuscore-*.dump.sha256' -o -name 'campuscore-*.reports.tar' \) \
+  \( -name "campuscore-${project}-????????T??????Z.dump" \
+     -o -name "campuscore-${project}-????????T??????Z.dump.sha256" \
+     -o -name "campuscore-${project}-????????T??????Z.reports.tar" \) \
   -mtime "+$retention_days" -print -delete
 printf 'Backup written: %s\nReport volume archive: %s\nChecksum: %s\n' "$archive" "$reports_archive" "$checksum"

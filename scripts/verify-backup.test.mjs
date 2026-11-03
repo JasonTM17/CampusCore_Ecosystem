@@ -730,6 +730,115 @@ docker() {
   assert.doesNotMatch(result.stdout, /Backup written/);
 });
 
+// A shell function shadows binaries that Git Bash places ahead of an inherited PATH.
+function backupShimEnv(timestamp) {
+  return makeShellEnv(`
+docker() {
+  case "$*" in
+    *pg_dump*) printf 'synthetic database archive';;
+    *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
+    *pg_restore*) printf '%s\\n' "$FAKE_TOC";;
+    *'exec -T restful-api sh -ceu'*) printf 'synthetic report volume archive';;
+    *'tar -tvf -'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
+    *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+    *) printf 'unexpected docker command\\n' >&2; exit 90;;
+  esac
+}
+date() { printf '%s\\n' '${timestamp}'; }
+`);
+}
+
+function runBackup(env) {
+  return spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: { ...process.env, ...env },
+  });
+}
+
+test('backup-postgres.sh namespaces a shared backup directory by Compose project', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'project-ns-'));
+  const timestamp = '20260203T040506Z';
+  const sharedEnv = {
+    ...backupShimEnv(timestamp),
+    BACKUP_DIR: posix(outputDir),
+    BACKUP_RETENTION_DAYS: '14',
+    FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: reportCopy(),
+  };
+  const first = runBackup({ ...sharedEnv, COMPOSE_PROJECT_NAME: 'campusute' });
+  assert.equal(first.status, 0, first.stderr);
+  const second = runBackup({ ...sharedEnv, COMPOSE_PROJECT_NAME: 'uteclone' });
+  assert.equal(second.status, 0, 'a same-second run for another project must not collide');
+  for (const stem of [`campuscore-campusute-${timestamp}`, `campuscore-uteclone-${timestamp}`]) {
+    for (const ext of ['.dump', '.dump.sha256', '.reports.tar']) {
+      assert.ok(fs.existsSync(path.join(outputDir, stem + ext)), stem + ext);
+    }
+  }
+  const sidecar = fs.readFileSync(path.join(outputDir, `campuscore-campusute-${timestamp}.dump.sha256`), 'utf8');
+  assert.match(sidecar, /campuscore-campusute-20260203T040506Z\.dump\n/);
+  assert.match(sidecar, /campuscore-campusute-20260203T040506Z\.reports\.tar\n/);
+  const producedDump = path.join(outputDir, `campuscore-campusute-${timestamp}.dump`);
+  archiveChecksum(producedDump, path.join(outputDir, `campuscore-campusute-${timestamp}.reports.tar`));
+  const verified = verify(producedDump, outputDir, sharedEnv);
+  assert.equal(verified.status, 0, verified.stderr);
+});
+
+test('backup-postgres.sh retention prunes only the same project bundle names', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'retention-ns-'));
+  const runAt = (project, timestamp, retention = '14') => runBackup({
+    ...backupShimEnv(timestamp),
+    COMPOSE_PROJECT_NAME: project,
+    BACKUP_DIR: posix(outputDir),
+    BACKUP_RETENTION_DAYS: retention,
+    FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: reportCopy(),
+  });
+  const ts = { own: '20260101T000000Z', sibling: '20260102T000000Z', other: '20260103T000000Z', fresh: '20260104T000000Z' };
+  assert.equal(runAt('utebeta', ts.own).status, 0);
+  assert.equal(runAt('utebeta-x', ts.sibling).status, 0);
+  assert.equal(runAt('utealpha', ts.other).status, 0);
+  const legacyTs = '20251201T000000Z';
+  for (const ext of ['.dump', '.dump.sha256', '.reports.tar']) {
+    fs.writeFileSync(path.join(outputDir, `campuscore-${legacyTs}${ext}`), 'legacy bundle bytes');
+  }
+  const aged = new Date(Date.now() - 40 * 86400_000);
+  for (const name of fs.readdirSync(outputDir)) {
+    fs.utimesSync(path.join(outputDir, name), aged, aged);
+  }
+  const pruneRun = runAt('utebeta', ts.fresh, '7');
+  assert.equal(pruneRun.status, 0, pruneRun.stderr);
+  const kept = (name) => assert.ok(fs.existsSync(path.join(outputDir, name)), `kept ${name}`);
+  const gone = (name) => assert.ok(!fs.existsSync(path.join(outputDir, name)), `pruned ${name}`);
+  for (const ext of ['.dump', '.dump.sha256', '.reports.tar']) {
+    gone(`campuscore-utebeta-${ts.own}${ext}`);
+    kept(`campuscore-utebeta-x-${ts.sibling}${ext}`);
+    kept(`campuscore-utealpha-${ts.other}${ext}`);
+    kept(`campuscore-${legacyTs}${ext}`);
+  }
+  kept(`campuscore-utebeta-${ts.fresh}.dump`);
+});
+
+test('backup-postgres.sh refuses a Compose project name outside the backup slug contract', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'slug-reject-'));
+  const sharedEnv = {
+    ...backupShimEnv('20260203T040506Z'),
+    BACKUP_DIR: posix(outputDir),
+    BACKUP_RETENTION_DAYS: '14',
+    FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: reportCopy(),
+  };
+  const tooLong = runBackup({ ...sharedEnv, COMPOSE_PROJECT_NAME: 'a'.repeat(41) });
+  assert.equal(tooLong.status, 2, tooLong.stderr);
+  const badChar = runBackup({ ...sharedEnv, COMPOSE_PROJECT_NAME: 'CampusUTE' });
+  assert.equal(badChar.status, 2, badChar.stderr);
+  const boundary = runBackup({ ...sharedEnv, COMPOSE_PROJECT_NAME: 'a'.repeat(40) });
+  assert.equal(boundary.status, 0, boundary.stderr);
+  assert.equal(fs.readdirSync(outputDir).filter((name) => name.endsWith('.dump')).length, 1,
+    'only the boundary-valid run may publish a bundle');
+});
+
 test('restore-postgres.sh uses one transaction and limits targets to new restore databases', () => {
   assert.match(restoreSource, /--single-transaction/,
     'pg_restore must not leave partial user objects after an error');
