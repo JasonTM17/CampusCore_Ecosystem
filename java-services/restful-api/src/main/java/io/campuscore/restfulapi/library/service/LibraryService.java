@@ -66,6 +66,8 @@ public class LibraryService {
     static final List<String> TERMINAL_REQUEST_STATUSES = List.of("RETURNED", "CANCELLED");
     /** Reservation holds that the server-clock expiry sweep can end. */
     static final List<String> EXPIRABLE_STATUSES = List.of("REQUESTED", "APPROVED");
+    /** Longest staff-selected loan period; the configured default is used when dueDays is omitted. */
+    static final int MAX_LOAN_DAYS = 365;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -457,6 +459,11 @@ public class LibraryService {
         // Same server-clock window rule as approve: an expired-but-unswept
         // hold can never be issued, no matter when the last read swept.
         requireWithinHoldWindow(loan);
+        Integer requestedDays = request == null ? null : request.dueDays();
+        if (requestedDays != null && (requestedDays < 1 || requestedDays > MAX_LOAN_DAYS)) {
+            throw problem(HttpStatus.BAD_REQUEST, "LOAN_PERIOD_INVALID",
+                    "dueDays must be between 1 and " + MAX_LOAN_DAYS);
+        }
         String copyId = String.valueOf(loan.get("copyId"));
         lockCopy(copyId);
         // Waiting for the copy lock can consume the remaining hold window.
@@ -470,8 +477,7 @@ public class LibraryService {
             throw problem(HttpStatus.CONFLICT, "COPY_STATE_INVALID",
                     "The reserved copy is no longer available for issue");
         }
-        int days = request != null && request.dueDays() != null && request.dueDays() > 0
-                ? request.dueDays() : loanDays;
+        int days = requestedDays == null ? loanDays : requestedDays;
         Instant dueAt = Instant.now().plus(days, ChronoUnit.DAYS);
         int updated = jdbc.update(
                 "UPDATE " + LOAN_REQUEST + " SET \"status\" = 'ISSUED',"

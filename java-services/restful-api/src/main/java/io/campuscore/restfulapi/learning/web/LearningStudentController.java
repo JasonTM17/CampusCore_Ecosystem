@@ -10,6 +10,7 @@ import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionRevisionResp
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionUpsertRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -107,7 +108,7 @@ public class LearningStudentController {
     public SubmissionResponse saveDraft(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String submissionId,
-            @RequestBody SubmissionUpsertRequest request) {
+            @Valid @RequestBody SubmissionUpsertRequest request) {
         return learning.saveDraft(student(jwt), submissionId, request);
     }
 
@@ -140,7 +141,7 @@ public class LearningStudentController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String assignmentId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody SubmissionUpsertRequest request) {
+            @Valid @RequestBody SubmissionUpsertRequest request) {
         return learning.resubmit(student(jwt), assignmentId, idempotencyKey, request);
     }
 

@@ -14,6 +14,7 @@ import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionRevisionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -70,7 +71,7 @@ public class LearningStaffController {
     public MaterialResponse createMaterial(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String sectionId,
-            @RequestBody MaterialUpsertRequest request) {
+            @Valid @RequestBody MaterialUpsertRequest request) {
         return learning.createMaterial(lecturer(jwt), sectionId, request);
     }
 
@@ -110,7 +111,7 @@ public class LearningStaffController {
     public MaterialResponse updateMaterial(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String materialId,
-            @RequestBody MaterialUpsertRequest request) {
+            @Valid @RequestBody MaterialUpsertRequest request) {
         return learning.updateMaterial(lecturer(jwt), materialId, request);
     }
 
@@ -151,7 +152,7 @@ public class LearningStaffController {
     public AssignmentResponse createAssignment(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String sectionId,
-            @RequestBody AssignmentUpsertRequest request) {
+            @Valid @RequestBody AssignmentUpsertRequest request) {
         return learning.createAssignment(lecturer(jwt), sectionId, request);
     }
 
@@ -170,7 +171,7 @@ public class LearningStaffController {
     public AssignmentResponse updateAssignment(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String assignmentId,
-            @RequestBody AssignmentUpsertRequest request) {
+            @Valid @RequestBody AssignmentUpsertRequest request) {
         return learning.updateAssignment(lecturer(jwt), assignmentId, request);
     }
 
@@ -236,7 +237,7 @@ public class LearningStaffController {
     public SubmissionResponse returnSubmission(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String submissionId,
-            @RequestBody ReturnRequest request) {
+            @Valid @RequestBody ReturnRequest request) {
         return learning.returnSubmission(lecturer(jwt), submissionId, request);
     }
 
@@ -246,7 +247,7 @@ public class LearningStaffController {
     public SubmissionResponse reviewSubmission(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String submissionId,
-            @RequestBody(required = false) SubmissionReviewRequest request) {
+            @Valid @RequestBody(required = false) SubmissionReviewRequest request) {
         return learning.reviewSubmission(lecturer(jwt), submissionId, request);
     }
 

@@ -87,12 +87,13 @@ public class AnnouncementWriteService {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
         List<String> targetRoles = immutableStrings(request.targetRoles(), "targetRoles");
+        List<Integer> targetYears = immutableYears(request.targetYears());
         boolean lecturer = isLecturerOnly(roles);
         if (lecturer) {
             requireLecturerAnnouncement(lecturerId, request.sectionId(), targetRoles, request.isGlobal(), request.lecturerId());
         }
-        requireConsistentAudience(Boolean.TRUE.equals(request.isGlobal()), request.sectionId(), request.lecturerId());
-        List<Integer> targetYears = immutableYears(request.targetYears());
+        requireConsistentAudience(
+                Boolean.TRUE.equals(request.isGlobal()), request.sectionId(), request.lecturerId(), targetYears);
         Instant now = Instant.now(clock);
         Instant publishAt = toMicros(request.publishAt());
         Instant expiresAt = toMicros(request.expiresAt());
@@ -196,11 +197,18 @@ public class AnnouncementWriteService {
             requireLecturerAnnouncement(lecturerId, effectiveSection, effectiveRoles, effectiveGlobal, requestedLecturer);
         }
         // A legacy row can still hold the refused pair; an edit that leaves the audience alone stays possible.
-        if (request.has("isGlobal") || request.has("sectionId") || request.has("lecturerId")) {
+        boolean effectiveGlobal = request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal();
+        if (request.has("isGlobal") || request.has("sectionId") || request.has("lecturerId")
+                || request.has("targetYears")) {
+            // Only a year list supplied by this edit forms the refused pair: a
+            // legacy global row's stored years no longer narrow its delivery.
+            List<Integer> explicitYears = request.has("targetYears")
+                    ? immutableYears(request.targetYears()) : List.of();
             requireConsistentAudience(
-                    request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal(),
+                    effectiveGlobal,
                     request.has("sectionId") ? request.sectionId() : before.sectionId(),
-                    request.has("lecturerId") ? request.lecturerId() : before.lecturerId());
+                    request.has("lecturerId") ? request.lecturerId() : before.lecturerId(),
+                    explicitYears);
         }
         if (request.has("priority") && !PRIORITIES.contains(request.priority())) {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
@@ -263,14 +271,19 @@ public class AnnouncementWriteService {
 
     /**
      * isGlobal reaches the anonymous feed and the whole campus; a sectionId or
-     * lecturerId on the same row still narrows the student or staff feed, so the
-     * combination labels a notice campus-wide while delivering it to a subset —
-     * it is refused.
+     * lecturerId on the same row still narrows the student or staff feed, and a
+     * year list still narrows the student inbox, so the combination labels a
+     * notice campus-wide while delivering it to a subset — it is refused.
      */
-    private static void requireConsistentAudience(boolean isGlobal, String sectionId, String lecturerId) {
+    private static void requireConsistentAudience(
+            boolean isGlobal, String sectionId, String lecturerId, List<Integer> targetYears) {
         if (isGlobal && (sectionId != null || lecturerId != null)) {
             throw new IllegalArgumentException(
                     "A campus-wide announcement cannot target a section or a lecturer");
+        }
+        if (isGlobal && targetYears != null && !targetYears.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "A campus-wide announcement cannot target specific years");
         }
     }
 
