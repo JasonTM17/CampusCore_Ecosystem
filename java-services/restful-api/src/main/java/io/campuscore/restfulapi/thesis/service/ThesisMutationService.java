@@ -26,6 +26,9 @@ import io.campuscore.restfulapi.thesis.web.ThesisMutationDtos.GroupRejectionRequ
 import io.campuscore.restfulapi.thesis.web.ThesisRoundDtos.RoundResponse;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
 import io.campuscore.restfulapi.web.DomainException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,6 +53,8 @@ public class ThesisMutationService {
 
     private static final int MIN_GROUP_MEMBERS = 3;
     private static final int MAX_GROUP_MEMBERS = 5;
+    private static final String RESULTS_INBOX_FANOUT_FAILURES =
+            "campuscore.thesis.results.inbox.fanout.failures";
 
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(ThesisMutationService.class);
@@ -62,6 +67,7 @@ public class ThesisMutationService {
     private final ThesisRoundReadService roundReads;
     private final AdminAuditRecorder audit;
     private final ThesisNotificationService notifier;
+    private final Counter resultsInboxFanoutFailures;
 
     /**
      * Wires the write boundary over the shared JDBC template and the thesis repositories.
@@ -81,7 +87,21 @@ public class ThesisMutationService {
             ThesisGroupReadRepository groups,
             ThesisRoundReadService roundReads,
             AdminAuditRecorder audit) {
-        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, null);
+        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, null,
+                new SimpleMeterRegistry());
+    }
+
+    public ThesisMutationService(
+            NamedParameterJdbcTemplate jdbc,
+            ThesisRegistrationRoundRepository rounds,
+            ThesisRoundReadPort roundReadPort,
+            ThesisTopicRepository topics,
+            ThesisGroupReadRepository groups,
+            ThesisRoundReadService roundReads,
+            AdminAuditRecorder audit,
+            ThesisNotificationService notifier) {
+        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, notifier,
+                new SimpleMeterRegistry());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -93,7 +113,8 @@ public class ThesisMutationService {
             ThesisGroupReadRepository groups,
             ThesisRoundReadService roundReads,
             AdminAuditRecorder audit,
-            ThesisNotificationService notifier) {
+            ThesisNotificationService notifier,
+            MeterRegistry meterRegistry) {
         this.jdbc = jdbc;
         this.rounds = rounds;
         this.roundReadPort = roundReadPort;
@@ -102,6 +123,7 @@ public class ThesisMutationService {
         this.roundReads = roundReads;
         this.audit = audit;
         this.notifier = notifier;
+        this.resultsInboxFanoutFailures = meterRegistry.counter(RESULTS_INBOX_FANOUT_FAILURES);
     }
 
     /**
@@ -576,6 +598,27 @@ public class ThesisMutationService {
         return response;
     }
 
+    @Transactional
+    public void retryPublishedResultsNotifications(UUID id, Jwt actor) {
+        roundReadPort.requireExisting(id);
+        String status = jdbc.queryForObject(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id",
+                params().addValue("id", id), String.class);
+        if (!RoundStatus.RESULTS_PUBLISHED.name().equals(status)) {
+            throw conflict("ROUND_STATE_CONFLICT",
+                    "Round results must be published before inbox notifications can be retried");
+        }
+        try {
+            notifier.notifyResultsPublished(id);
+        } catch (RuntimeException exception) {
+            recordResultsInboxFanoutFailure(id, exception);
+            throw exception;
+        }
+        audit.record(subject(actor), null, "THESIS_RESULTS_NOTIFICATIONS_RETRIED", "THESIS_ROUND",
+                id.toString(), "Published thesis results inbox notifications retried", null,
+                Map.of("status", RoundStatus.RESULTS_PUBLISHED.name()));
+    }
+
     /**
      * Runs the fan-out only after the mutation commits: the notifier methods
      * run REQUIRES_NEW, so an in-transaction call would still publish a
@@ -600,13 +643,19 @@ public class ThesisMutationService {
         try {
             notifier.notifyResultsPublished(roundId);
         } catch (RuntimeException exception) {
-            log.warn("Thesis results committed but inbox fan-out failed for round {}", roundId);
+            recordResultsInboxFanoutFailure(roundId, exception);
         }
         try {
             notifier.emailResultsPublished(roundId);
         } catch (RuntimeException exception) {
             log.warn("Thesis results committed but email fan-out failed for round {}", roundId);
         }
+    }
+
+    private void recordResultsInboxFanoutFailure(UUID roundId, RuntimeException exception) {
+        resultsInboxFanoutFailures.increment();
+        log.error("Thesis results committed but inbox fan-out failed for round {} exceptionType={}",
+                roundId, SensitiveLogRedactor.exceptionType(exception));
     }
 
     /**
