@@ -1,6 +1,9 @@
 import { createRequestId } from '@/lib/api';
 
-export type SessionChangeKind = 'changed' | 'signed-out';
+// 'session-expired' is a shared death (cookie gone for every tab): receivers
+// may keep their current page as the post-login return target. 'signed-out' is
+// a deliberate sign-out by this user and deliberately carries no return target.
+export type SessionChangeKind = 'changed' | 'signed-out' | 'session-expired';
 
 interface SessionChangePayload {
   revision: string;
@@ -55,7 +58,7 @@ function parsePayload(raw: unknown): SessionChangePayload | null {
   if (typeof source !== 'string' || !UUID_PATTERN.test(source)) {
     return null;
   }
-  if (kind !== 'changed' && kind !== 'signed-out') {
+  if (kind !== 'changed' && kind !== 'signed-out' && kind !== 'session-expired') {
     return null;
   }
   return { revision, source, kind };

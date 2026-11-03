@@ -356,8 +356,7 @@ test('catalogue requests remain gated until submit, quick-pill, or View All acti
 
 test('topic catalogue blocks searches outside the server request budget', () => {
   const source = read('src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx');
-  assert.ok(source.includes('TOPIC_SEARCH_MAX_LENGTH = 200'), 'the client length budget must match the API');
-  assert.ok(source.includes('TOPIC_SEARCH_MAX_TOKENS = 16'), 'the client token budget must match the API');
+  assert.ok(source.includes("from '@/lib/thesis-topic-search'"), 'the page must share the budget helper');
   assert.ok(source.includes('maxLength={TOPIC_SEARCH_MAX_LENGTH}'), 'the input must prevent longer terms');
   assert.ok(source.includes('isTopicSearchWithinBudget(searchInput)'), 'the client must reject over-budget submissions');
   assert.ok(source.includes('searchLimitError'), 'over-budget submissions need a localized error');

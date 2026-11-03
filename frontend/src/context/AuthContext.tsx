@@ -18,7 +18,7 @@ import { surfaceFromHost } from '@/lib/surfaces';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { clearLogoutInProgress, hasCsrfSessionHint, markLogoutInProgress, readCsrfSessionHint } from '@/lib/session-hint';
-import { loginHref, portalFromPathname, portalFromUser } from '@/lib/login-portal';
+import { loginHref, portalFromPathname, portalFromUser, sessionExpiredLoginHref } from '@/lib/login-portal';
 import { getBrowserQueryClient } from '@/lib/query';
 import { publishSessionChange, subscribeSessionChanges, type SessionChangeKind } from '@/lib/session-sync';
 
@@ -404,7 +404,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoggingOut(false);
       clearLogoutInProgress();
       clearSessionState();
-      if (kind === 'signed-out') {
+      if (kind === 'session-expired') {
+        // A shared session death: keep this tab's page as the return target so
+        // a re-login comes back here instead of the portal root.
+        window.location.replace(sessionExpiredLoginHref(href));
+      } else if (kind === 'signed-out') {
         window.location.replace(
           loginHref(href, portalFromPathname(window.location.pathname), 'signed-out'),
         );
@@ -482,8 +486,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           surfaceFromHost(window.location.host)?.mode === 'bff'
           && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
         ) {
-          publishSessionChange('signed-out');
-          handleExternalSessionChange('signed-out');
+          publishSessionChange('session-expired');
+          handleExternalSessionChange('session-expired');
           return;
         }
 
@@ -499,8 +503,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           )?.response?.status;
           const refreshRejected = [400, 401, 403].includes(refreshStatus ?? 0);
           if (refreshRejected && readCsrfSessionHint() === csrfHintBefore) {
-            publishSessionChange('signed-out');
-            handleExternalSessionChange('signed-out');
+            publishSessionChange('session-expired');
+            handleExternalSessionChange('session-expired');
           }
           return;
         }
