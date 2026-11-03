@@ -533,7 +533,7 @@ test('the notification inbox exposes older pages instead of silently capping', (
   assert.match(source, /const \[totalPages, setTotalPages\]/);
   assert.match(source, /loadedPages < totalPages/, 'the control appears only while older pages exist');
   assert.match(source, /const loadOlder = useCallback|async function loadOlder/);
-  assert.match(source, /setLoadedPages\(nextPage\)/);
+  assert.match(source, /setLoadedPages\(Math\.max\(0, nextPage - \(removalsRef\.current - removalsBefore\)\)\)/);
   // The first paint reads one bounded page plus the server-side unread count.
   assert.match(source, /notificationsApi\.getMy\(\{\s*page: 1,\s*limit: INBOX_PAGE_SIZE/);
   assert.match(source, /notificationsApi\.unreadCount\(\{ force: true \}\)/);
