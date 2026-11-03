@@ -8,6 +8,7 @@ import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos;
 import io.campuscore.restfulapi.academic.web.AcademicAttendanceReadDtos;
 import io.campuscore.restfulapi.academic.web.AcademicEnrollmentReadDtos;
+import io.campuscore.restfulapi.academic.web.AcademicReadDtos;
 import io.campuscore.restfulapi.academic.web.AcademicSectionReadDtos;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos;
 import io.campuscore.restfulapi.attendance.AttendanceDtos;
@@ -16,6 +17,7 @@ import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos;
 import io.campuscore.restfulapi.events.web.EventDtos;
 import io.campuscore.restfulapi.library.web.LibraryDtos;
 import io.campuscore.restfulapi.learning.web.LearningDtos;
+import io.campuscore.restfulapi.people.web.PeopleReadDtos;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantController;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantInternalController;
@@ -189,7 +191,12 @@ class OpenApiAccuracyContractTest {
                 CareerDtos.StaffGrantResponse.class,
                 AdmissionDtos.StaffGrantResponse.class,
                 LibraryDtos.StaffGrantResponse.class,
-                EventDtos.StaffGrantResponse.class);
+                EventDtos.StaffGrantResponse.class,
+                CareerDtos.TransitionRequest.class,
+                AdmissionDtos.TransitionRequest.class,
+                AcademicReadDtos.DepartmentSummary.class,
+                AcademicSectionReadDtos.DepartmentSummary.class,
+                PeopleReadDtos.DepartmentSummary.class);
 
         List<String> componentNames = dtoTypes.stream().map(OpenApiAccuracyContractTest::componentName).toList();
 
@@ -211,6 +218,10 @@ class OpenApiAccuracyContractTest {
         assertSchemaHasFields(schemas, "SectionSummary", "sectionNumber", "course");
         assertSchemaHasFields(schemas, "LecturerSummary", "id", "displayName");
         assertSchemaHasFields(schemas, "SemesterSummary", "name");
+        assertSchemaHasFields(schemas, "TransitionRequest", "expectedVersion");
+        assertSchemaHasFields(schemas, "CareerTransitionRequest", "expectedVersion", "reason");
+        assertSchemaHasFields(schemas, "DepartmentSummary", "id", "code", "name");
+        assertSchemaHasFields(schemas, "CatalogDepartmentSummary", "nameEn", "nameVi", "facultyId");
     }
 
     @Test
