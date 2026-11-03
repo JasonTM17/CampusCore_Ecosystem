@@ -10,6 +10,17 @@ function readSource(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
 }
 
+/** Loads the real URL guard — it is dependency-free, so no stub is needed. */
+function loadSafeUrl() {
+  const { outputText } = ts.transpileModule(readSource('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: 'safe-url.ts',
+  });
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', outputText)(require, mod, mod.exports);
+  return mod.exports;
+}
+
 // Loads src/lib/query.ts with @tanstack/react-query stubbed so the module
 // code really executes: the fake client records clear() calls and every
 // `new QueryClient()` is observable through the instances array.
@@ -244,6 +255,16 @@ function mountAuthProvider(options = {}) {
     react,
     'next/navigation': { useRouter: () => router, usePathname: () => pathname.value },
     '@/i18n': { useI18n: () => ({ href: (p) => `/en${p}` }) },
+    '@/i18n/paths': {
+      addLocalePrefix: (value) => value,
+      stripLocaleFromPathname: (value) => {
+        const match = value.match(/^\/(en|vi)(?=\/|$)/);
+        return {
+          locale: match ? match[1] : '',
+          pathname: match ? value.replace(/^\/(en|vi)/, '') || '/' : value,
+        };
+      },
+    },
     '@/types/api': {},
     '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/api': {
@@ -969,6 +990,7 @@ function loadApiModule(options = {}) {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
+    '@/lib/safe-url': loadSafeUrl(),
     '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/observability': {
       REQUEST_ID_HEADER: 'X-Request-Id',
