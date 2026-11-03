@@ -120,12 +120,13 @@ public class ThesisProgressService {
         boolean publishedResult = "RESULTS_PUBLISHED".equals(roundStatus)
                 && approvedGroup
                 && scoreFinalized;
-        // Students must never see a score or council assignment before the
-        // round publishes results — the finalize step is internal evidence only.
+        // A topic score belongs to the approved group that defended it; reject
+        // and cancellation paths may leave the shared topic score in place.
+        // Students see result fields only when their own published result exists.
         boolean resultsVisible = "RESULTS_PUBLISHED".equals(roundStatus);
-        BigDecimal visibleFinalScore = resultsVisible ? finalScore : null;
-        Instant visibleFinalizedAt = resultsVisible ? finalScoreFinalizedAt : null;
-        UUID visibleCouncilId = resultsVisible ? councilId : null;
+        BigDecimal visibleFinalScore = publishedResult ? finalScore : null;
+        Instant visibleFinalizedAt = publishedResult ? finalScoreFinalizedAt : null;
+        UUID visibleCouncilId = resultsVisible && approvedGroup ? councilId : null;
         List<Boolean> evidence = List.of(
                 groupId != null,
                 groupId != null,
