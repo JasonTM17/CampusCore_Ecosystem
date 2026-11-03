@@ -244,7 +244,7 @@ export function AnnouncementFeedCard({
               <button
                 type="button"
                 onClick={handleShare}
-                className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="relative z-10 inline-flex h-8 w-8 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 title={copy.copyLink}
                 aria-label={copy.share}
               >
@@ -366,7 +366,7 @@ export function AnnouncementFeedCard({
             <button
               type="button"
               onClick={handleShare}
-              className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="relative z-10 inline-flex h-8 w-8 min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               title={copy.copyLink}
               aria-label={copy.share}
             >

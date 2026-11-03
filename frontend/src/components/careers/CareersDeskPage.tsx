@@ -486,6 +486,7 @@ export function CareersDeskPage() {
                       value={reason(opportunity.id)}
                       onChange={(event) => setReason(opportunity.id, event.target.value)}
                       placeholder={copy.reasonPlaceholder}
+                      aria-label={`${copy.reasonPlaceholder}: ${opportunity.title}`}
                     />
                   ) : null}
                   {opportunity.status === 'PUBLISHED' ? (
@@ -588,6 +589,7 @@ export function CareersDeskPage() {
                           value={reason(application.id)}
                           onChange={(event) => setReason(application.id, event.target.value)}
                           placeholder={copy.reasonPlaceholder}
+                          aria-label={`${copy.reasonPlaceholder}: ${application.candidateEmail || application.id}`}
                         />
                         <Button size="sm" variant="outline" disabled={isBusy}
                           data-testid={`careers-app-reject-${application.id}`}
@@ -653,6 +655,7 @@ export function CareersDeskPage() {
                   value={reason(`review-${opportunity.id}`)}
                   onChange={(event) => setReason(`review-${opportunity.id}`, event.target.value)}
                   placeholder={copy.reasonPlaceholder}
+                  aria-label={`${copy.reasonPlaceholder}: ${opportunity.title}`}
                 />
                 <Button size="sm" variant="outline" disabled={isBusy}
                   data-testid={`careers-reject-opp-${opportunity.id}`}

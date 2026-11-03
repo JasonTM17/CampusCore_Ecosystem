@@ -825,7 +825,7 @@ export default function EnrollmentsPage() {
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                          className="min-h-[44px] min-w-[44px] px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                           onClick={() => void handleDrop(enrollment.id, courseLabel)}
                                           disabled={isDropping === enrollment.id}
                                           aria-label={`${copy.dropCourse} ${courseLabel}`}
@@ -908,7 +908,7 @@ export default function EnrollmentsPage() {
                                   {isDroppableEnrollment(enrollment.status) ? (
                                     <button
                                       type="button"
-                                      className="ml-auto inline-flex items-center gap-1 font-medium text-destructive"
+                                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 px-3 py-2.5 font-medium text-destructive"
                                       onClick={() => void handleDrop(enrollment.id, courseLabel)}
                                       disabled={isDropping === enrollment.id}
                                     >

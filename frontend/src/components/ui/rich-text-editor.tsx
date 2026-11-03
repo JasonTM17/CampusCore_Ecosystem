@@ -458,6 +458,7 @@ export function RichTextEditor({
             onClick={handleRedo}
             disabled={historyIndex >= history.length - 1 || readOnly}
             title={copy.redo}
+            aria-label={copy.redo}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Redo2 className="h-4 w-4" />
@@ -471,6 +472,7 @@ export function RichTextEditor({
             onClick={() => insertText('**', '**', copy.boldInsert)}
             disabled={readOnly}
             title={copy.bold}
+            aria-label={copy.bold}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Bold className="h-4 w-4" />
@@ -480,6 +482,7 @@ export function RichTextEditor({
             onClick={() => insertText('*', '*', copy.italicInsert)}
             disabled={readOnly}
             title={copy.italic}
+            aria-label={copy.italic}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Italic className="h-4 w-4" />
@@ -489,6 +492,7 @@ export function RichTextEditor({
             onClick={() => insertText('~~', '~~', copy.strikethroughInsert)}
             disabled={readOnly}
             title={copy.strikethrough}
+            aria-label={copy.strikethrough}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Strikethrough className="h-4 w-4" />
@@ -498,6 +502,7 @@ export function RichTextEditor({
             onClick={() => insertText('`', '`', 'code')}
             disabled={readOnly}
             title={copy.inlineCode}
+            aria-label={copy.inlineCode}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Code className="h-4 w-4" />
@@ -511,6 +516,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('# ', copy.heading1Insert)}
             disabled={readOnly}
             title={copy.heading1}
+            aria-label={copy.heading1}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading1 className="h-4 w-4" />
@@ -520,6 +526,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('## ', copy.heading2Insert)}
             disabled={readOnly}
             title={copy.heading2}
+            aria-label={copy.heading2}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading2 className="h-4 w-4" />
@@ -529,6 +536,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('### ', copy.heading3Insert)}
             disabled={readOnly}
             title={copy.heading3}
+            aria-label={copy.heading3}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading3 className="h-4 w-4" />
@@ -542,6 +550,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('- ', copy.listItem)}
             disabled={readOnly}
             title={copy.bulletedList}
+            aria-label={copy.bulletedList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <List className="h-4 w-4" />
@@ -551,6 +560,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('1. ', copy.orderedItem)}
             disabled={readOnly}
             title={copy.numberedList}
+            aria-label={copy.numberedList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <ListOrdered className="h-4 w-4" />
@@ -560,6 +570,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('- [ ] ', copy.taskItem)}
             disabled={readOnly}
             title={copy.taskList}
+            aria-label={copy.taskList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <CheckSquare className="h-4 w-4" />
@@ -569,6 +580,7 @@ export function RichTextEditor({
             onClick={() => insertLinePrefix('> ', copy.quoteItem)}
             disabled={readOnly}
             title={copy.blockquote}
+            aria-label={copy.blockquote}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Quote className="h-4 w-4" />
@@ -582,6 +594,7 @@ export function RichTextEditor({
             onClick={() => insertSnippet(`> [!NOTE]\n> ${copy.noteExample}`)}
             disabled={readOnly}
             title={copy.insertNote}
+            aria-label={copy.insertNote}
             className="rounded p-1.5 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-40"
           >
             <AlertCircle className="h-4 w-4" />
@@ -591,6 +604,7 @@ export function RichTextEditor({
             onClick={() => insertSnippet(`> [!WARNING]\n> ${copy.warningExample}`)}
             disabled={readOnly}
             title={copy.insertWarning}
+            aria-label={copy.insertWarning}
             className="rounded p-1.5 text-amber-600 dark:text-amber-400 transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-40"
           >
             <AlertCircle className="h-4 w-4" />
@@ -614,6 +628,7 @@ export function RichTextEditor({
             onClick={() => insertText('![', '](https://example.com/image.png)', copy.imageDescription)}
             disabled={readOnly}
             title={copy.insertImage}
+            aria-label={copy.insertImage}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <ImageIcon className="h-4 w-4" />
@@ -627,6 +642,7 @@ export function RichTextEditor({
             }
             disabled={readOnly}
             title={copy.table.insert}
+            aria-label={copy.table.insert}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Table className="h-4 w-4" />
@@ -638,6 +654,7 @@ export function RichTextEditor({
             }
             disabled={readOnly}
             title={copy.codeBlock}
+            aria-label={copy.codeBlock}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <FileCode className="h-4 w-4" />
@@ -647,6 +664,7 @@ export function RichTextEditor({
             onClick={() => insertSnippet('---')}
             disabled={readOnly}
             title={copy.horizontalRule}
+            aria-label={copy.horizontalRule}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Minus className="h-4 w-4" />
@@ -659,8 +677,11 @@ export function RichTextEditor({
                 type="button"
                 onClick={() => setTemplatesOpen(!templatesOpen)}
                 disabled={readOnly}
+                aria-haspopup="true"
+                aria-expanded={templatesOpen}
                 className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                 title={copy.templatesTitle}
+                aria-label={copy.templatesTitle}
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{copy.templatesButton}</span>
@@ -673,7 +694,16 @@ export function RichTextEditor({
                     onClick={() => setTemplatesOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-border/80 bg-popover p-1 shadow-lg">
+                  <div
+                    role="menu"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        setTemplatesOpen(false);
+                      }
+                    }}
+                    className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-border/80 bg-popover p-1 shadow-lg"
+                  >
                     <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       {copy.quickTemplateTitle}
                     </div>
@@ -681,6 +711,7 @@ export function RichTextEditor({
                       <button
                         key={idx}
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           handleTextChange(isVi ? tmpl.contentVi : tmpl.contentEn);
                           setTemplatesOpen(false);
@@ -711,6 +742,7 @@ export function RichTextEditor({
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 0)}
               onClick={() => setViewMode('write')}
               title={copy.viewTabs.writeTitle}
+              aria-label={copy.viewTabs.writeTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'write' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -728,6 +760,7 @@ export function RichTextEditor({
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 1)}
               onClick={() => setViewMode('split')}
               title={copy.viewTabs.splitTitle}
+              aria-label={copy.viewTabs.splitTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'split' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -745,6 +778,7 @@ export function RichTextEditor({
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 2)}
               onClick={() => setViewMode('preview')}
               title={copy.viewTabs.previewTitle}
+              aria-label={copy.viewTabs.previewTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'preview' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -760,6 +794,7 @@ export function RichTextEditor({
             type="button"
             onClick={() => setHelpDialogOpen(true)}
             title={copy.formattingGuide}
+            aria-label={copy.formattingGuide}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <HelpCircle className="h-4 w-4" />
@@ -770,6 +805,7 @@ export function RichTextEditor({
             type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? copy.exitFullscreen : copy.fullscreen}
+            aria-label={isFullscreen ? copy.exitFullscreen : copy.fullscreen}
             className={cn(
               'rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground',
               isFullscreen && 'bg-primary/20 text-primary'

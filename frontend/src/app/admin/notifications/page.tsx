@@ -747,14 +747,14 @@ export default function AdminNotificationsPage() {
               })}
             </div>
             <AdminTableScroll className="hidden md:block">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-[720px] text-sm" aria-label={copy.sentTitle}>
                 <thead>
                   <tr className="bg-secondary text-left text-muted-foreground">
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.title}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.type}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.recipient}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.time}</th>
-                    <th className="px-2 py-3 text-right font-medium">
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.title}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.type}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.recipient}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.time}</th>
+                    <th scope="col" className="px-2 py-3 text-right font-medium">
                       {copy.sentHeaders.actions}
                     </th>
                   </tr>

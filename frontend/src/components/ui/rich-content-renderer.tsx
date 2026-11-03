@@ -788,6 +788,7 @@ export function RichContentRenderer({
                     type="checkbox"
                     readOnly
                     checked={item.checked}
+                    aria-label={item.content.trim()}
                     className="mt-1 h-4 w-4 rounded border-border/80 text-primary accent-primary"
                   />
                   <span className={cn(item.checked && 'line-through text-muted-foreground')}>

@@ -769,13 +769,15 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
               void submitReturn();
             }}
           >
-            <p className="text-sm leading-6 text-muted-foreground">
+            <label htmlFor="announcement-return-reason" className="block text-sm leading-6 text-muted-foreground">
               {lifecycleCopy.returnReasonLabel}
-            </p>
+            </label>
             <p className="rounded-md border border-border/70 bg-secondary/25 p-4 font-semibold text-foreground">
               {returnTarget.title}
             </p>
             <Textarea
+              id="announcement-return-reason"
+              aria-label={lifecycleCopy.returnReasonLabel}
               autoFocus
               value={returnReason}
               onChange={(event) => setReturnReason(event.target.value)}

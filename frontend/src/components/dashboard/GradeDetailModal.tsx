@@ -194,16 +194,16 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-border/70">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm" aria-label={copy.component}>
                 <thead className="bg-secondary/40 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">
+                    <th scope="col" className="px-4 py-3 font-semibold">
                       {copy.component}
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold">
+                    <th scope="col" className="px-4 py-3 text-center font-semibold">
                       {copy.weight}
                     </th>
-                    <th className="px-4 py-3 text-right font-semibold">
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">
                       {copy.score}
                     </th>
                   </tr>
