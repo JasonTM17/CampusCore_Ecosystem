@@ -1717,3 +1717,10 @@ test('catalogue edits with no changed fields do not call the update endpoint', a
     });
   }
 });
+
+test('a campus-wide announcement save never carries a section scope', () => {
+  const adminPage = read('src/app/admin/announcements/page.tsx');
+  assert.match(adminPage, /sectionId: draft\.isGlobal \? null : draft\.sectionId \|\| null/);
+  const quickEdit = read('src/components/announcements/AnnouncementEditModal.tsx');
+  assert.match(quickEdit, /sectionId: isGlobal \? null : announcement\.sectionId/);
+});
