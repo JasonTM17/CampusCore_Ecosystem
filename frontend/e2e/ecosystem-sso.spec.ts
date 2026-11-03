@@ -286,4 +286,21 @@ test.describe('ecosystem-sso (P05 browser BFF)', () => {
     await page.goto(`${PORTAL}/en/login`);
     await expect(page.locator('body')).toContainText(/sign in|đăng nhập/i);
   });
+
+  test('login-page: BFF surfaces expose only the SSO action, never the credential form', async ({ page }) => {
+    await page.goto(`${PORTAL}/login`);
+
+    // BFF mode resolves from the host after hydration, so the SSO action is
+    // the page's single sign-in control — visibly and by accessible name.
+    const sso = page.getByRole('link', { name: /sso/i });
+    await expect(sso).toBeVisible();
+    await expect(sso).toBeFocused();
+    await expect(sso).toHaveAttribute('href', /^\/session\/login\?return=/);
+
+    // The BFF proxy answers /api/v1/auth/login with PATH_NOT_ALLOWED (it is not
+    // in the allowlist), so no credential control may be rendered at all.
+    await expect(page.locator('form')).toHaveCount(0);
+    await expect(page.locator('input#email, input[type="email"]')).toHaveCount(0);
+    await expect(page.locator('input#password, input[type="password"]')).toHaveCount(0);
+  });
 });
