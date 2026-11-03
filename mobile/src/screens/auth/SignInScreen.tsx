@@ -146,6 +146,11 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
                 <Button label={copy.signIn.retry} loading={session.bootStatus === 'checking'} onPress={() => void session.retryBoot?.()} />
               </View>
             ) : null}
+            {!isPreview && session.bootStatus === 'reauthRequired' ? (
+              <View accessibilityLiveRegion="polite">
+                <UiText variant="bodySmall" tone="error">{copy.errors.unauthorized}</UiText>
+              </View>
+            ) : null}
             {error ? (
               <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorPanel}>
                 <UiText variant="bodySmall" tone="error">

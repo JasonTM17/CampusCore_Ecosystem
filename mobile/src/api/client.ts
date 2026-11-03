@@ -706,11 +706,11 @@ export interface ApiClientOptions {
 export type ApiMode = 'preview' | 'live';
 
 /**
- * Result of a delegated refresh. Only `signedOut` ends the session: the issuer
- * definitively rejected the grant. `unavailable` (network, timeout, 5xx) keeps
- * the session and surfaces a retryable failure so a later request can retry.
+ * Result of a delegated refresh. `signedOut` is a definitive rejection;
+ * `reauthRequired` quarantines a dispatched attempt whose rotation is unknown.
+ * Only pre-dispatch `unavailable` failures remain locally retryable.
  */
-export type SessionRefreshOutcome = 'refreshed' | 'signedOut' | 'unavailable';
+export type SessionRefreshOutcome = 'refreshed' | 'signedOut' | 'reauthRequired' | 'unavailable';
 
 /**
  * `protected` (default) sends the Bearer token and joins the single-flight
@@ -1009,6 +1009,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       flight.promise = Promise.resolve()
         .then(() => epochChanged(requestEpoch) ? 'signedOut' : options.refreshSession?.())
         .then(normalizeRefreshOutcome)
+        .then((outcome) => {
+          if ((outcome === 'signedOut' || outcome === 'reauthRequired') && !epochChanged(requestEpoch)) {
+            onSessionExpired?.();
+          }
+          return outcome;
+        })
         .finally(() => {
           // A late old flight cannot clear the replacement session's flight.
           if (sessionRefreshFlight === flight) sessionRefreshFlight = null;
@@ -1194,8 +1200,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
             if (refreshOutcome === 'unavailable') {
               throw new ApiClientError('The network request failed', 0, requestId, 'NETWORK_ERROR');
             }
-            // Definitive rejection: the store already wiped.
-            onSessionExpired?.();
+            // Terminal outcomes notify once in the shared refresh flight.
           }
         } else if (!staleLane) {
           headers.set('Authorization', `Bearer ${rotated}`);
@@ -1371,6 +1376,7 @@ export const apiClient = createApiClient({
     const result = await sessionStore.refreshAccessToken();
     // Legacy refresh mirrors have no outcome kind; a rotated token is success.
     if (result.accessToken !== null) return 'refreshed';
+    if (result.kind === 'reauthRequired') return 'reauthRequired';
     return result.kind === 'unavailable' ? 'unavailable' : 'signedOut';
   },
   sessionEpoch: () => sessionStore.sessionEpoch(),
