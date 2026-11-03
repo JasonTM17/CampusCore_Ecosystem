@@ -24,6 +24,7 @@ function transpile(file, name) {
   const rewritten = outputText
     .replaceAll("'../../api/client'", "'./client.mjs'")
     .replaceAll("'../../api/paging'", "'./paging.mjs'")
+    .replaceAll("'../academic/idempotency-attempts'", "'./idempotency-attempts.mjs'")
     .replaceAll("'../student/shared/resource-error'", "'./resource-error.mjs'")
     .replaceAll("'./lane-model'", "'./lane-model.mjs'")
     .replaceAll("'./lane-paging'", "'./lane-paging.mjs'");
@@ -34,6 +35,8 @@ function transpile(file, name) {
 fs.writeFileSync(
   path.join(tempRoot, 'client.mjs'),
   [
+    'let __keySeq = 0;',
+    'export const createAssistantClientRequestId = () => `test-key-${++__keySeq}`;',
     'export const apiClient = {',
     "  get: (...args) => globalThis.__laneWire.get(...args),",
     "  requestWithMeta: (...args) => globalThis.__laneWire.requestWithMeta(...args),",
@@ -47,6 +50,7 @@ transpile('src/screens/student/shared/resource-error.ts', 'resource-error.ts');
 transpile('src/screens/lanes/lane-model.ts', 'lane-model.ts');
 transpile('src/screens/lanes/lane-paging.ts', 'lane-paging.ts');
 transpile('src/screens/lanes/lane-request.ts', 'lane-request.ts');
+transpile('src/screens/academic/idempotency-attempts.ts', 'idempotency-attempts.ts');
 transpile('src/screens/lanes/lane-api.ts', 'lane-api.ts');
 
 const load = (name) => import(pathToFileURL(path.join(tempRoot, `${name}.mjs`)).href);
@@ -77,8 +81,9 @@ function wire({ body = [], headers = {}, failure } = {}) {
       if (failure) throw failure;
       return { data: body, headers: new Headers(headers), requestId: 'request-1' };
     },
-    post: async (requestPath, postBody) => {
-      calls.push({ kind: 'post', path: requestPath, body: postBody });
+    post: async (requestPath, postBody, init) => {
+      calls.push({ kind: 'post', path: requestPath, body: postBody, init });
+      if (failure) throw failure;
       return {};
     },
   };
@@ -210,6 +215,65 @@ test('queue actions keep expectedVersion and idempotency-shaped bodies', async (
     { expectedVersion: 3, reason: 'no match' },
     { expectedVersion: 9 },
   ]);
+});
+
+const notificationDraft = (title) => ({
+  userId: '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b',
+  title,
+  message: 'Bring the form',
+  type: 'INFO',
+});
+
+const sentKeys = (calls) => calls.map((call) => call.init?.headers?.['Idempotency-Key']);
+
+test('a notification send carries an Idempotency-Key bound to the draft body', async () => {
+  const calls = wire();
+  await laneApi.sendNotification(notificationDraft('Reminder'));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/notifications');
+  assert.deepEqual(calls[0].body, {
+    userId: '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b',
+    title: 'Reminder',
+    message: 'Bring the form',
+    type: 'INFO',
+  });
+  assert.ok(sentKeys(calls)[0], 'the send carries an Idempotency-Key header');
+});
+
+test('a resend after a lost response replays the same idempotency key', async () => {
+  const calls = wire({ failure: { status: 0 } });
+  const draft = notificationDraft('Lost send');
+
+  await assert.rejects(laneApi.sendNotification(draft));
+  await assert.rejects(laneApi.sendNotification(draft));
+
+  const keys = sentKeys(calls);
+  assert.equal(keys.length, 2, 'the manual resend is sent');
+  assert.ok(keys[0], 'the first attempt carries an Idempotency-Key header');
+  assert.equal(keys[1], keys[0], 'the resend of an unchanged draft replays its key');
+});
+
+test('editing the draft after an unknown send starts a new intent', async () => {
+  const calls = wire({ failure: { status: 0 } });
+
+  await assert.rejects(laneApi.sendNotification(notificationDraft('Reminder')));
+  await assert.rejects(laneApi.sendNotification(notificationDraft('Edited reminder')));
+
+  const keys = sentKeys(calls);
+  assert.notEqual(keys[1], keys[0], 'an edited compose must not replay the old key');
+});
+
+test('a confirmed send ends the intent so the next compose mints a fresh key', async () => {
+  const calls = wire();
+  const draft = notificationDraft('Settled send');
+
+  await laneApi.sendNotification(draft);
+  await laneApi.sendNotification(draft);
+
+  const keys = sentKeys(calls);
+  assert.equal(keys.length, 2);
+  assert.notEqual(keys[1], keys[0], 'a settled compose does not replay its key');
 });
 
 test('the library desk keeps its single unpaged read, with no page parameters', async () => {
