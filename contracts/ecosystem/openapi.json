@@ -24213,6 +24213,33 @@
         ]
       }
     },
+    "/api/v1/thesis/rounds/{id}/publish-results/notifications/retry": {
+      "post": {
+        "description": "Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm",
+        "operationId": "retryPublishedResultsNotifications",
+        "parameters": [
+          {
+            "description": "Mã UUID của đợt",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "summary": "Gửi lại thông báo kết quả khóa luận",
+        "tags": [
+          "Thesis Lifecycle Mutations"
+        ]
+      }
+    },
     "/api/v1/thesis/rounds/{id}/report-deadline": {
       "put": {
         "description": "Dời hạn nộp báo cáo (reportDeadline) của đợt đang REGISTRATION_CLOSED sang thời điểm mới; không đổi hạn chấm GVPB; thao tác được ghi audit",
@@ -24259,6 +24286,7 @@
     },
     "/api/v1/thesis/rounds/{id}/reports": {
       "get": {
+        "description": "Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. Thêm page/limit để phân trang kèm X-Total-Count.",
         "operationId": "listReportsByRound",
         "parameters": [
           {
@@ -24268,6 +24296,26 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy tối đa 100 dòng đầu",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
             }
           }
         ],
@@ -24283,9 +24331,19 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Báo cáo đã được phân quyền",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
+        "summary": "Báo cáo của đợt",
         "tags": [
           "Thesis Lifecycle Mutations"
         ]
