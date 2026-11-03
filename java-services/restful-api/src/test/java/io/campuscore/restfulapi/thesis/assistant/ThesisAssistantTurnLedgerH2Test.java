@@ -413,6 +413,27 @@ class ThesisAssistantTurnLedgerH2Test {
     }
 
     @Test
+    void retentionDrainsExpiredConversationBatches() {
+        String owner = "retention-batch-" + UUID.randomUUID();
+        Timestamp expired = Timestamp.from(Instant.now().minusSeconds(1));
+        for (int i = 0; i < 201; i++) {
+            jdbc.update("INSERT INTO assistant.chat_conversation (id,owner_id,locale,expires_at,state) "
+                            + "VALUES (:id,:owner,'en',:expired,'ACTIVE')",
+                    p("id", UUID.randomUUID()).addValue("owner", owner).addValue("expired", expired));
+        }
+
+        assertEquals(201, count("SELECT COUNT(*) FROM assistant.chat_conversation "
+                + "WHERE owner_id=:owner AND expires_at<=CURRENT_TIMESTAMP AND state<>'PURGED'", p("owner", owner)));
+
+        ThesisAssistantRetentionJob job = new ThesisAssistantRetentionJob(
+                legacyHistory, turns, new AssistantCancellationRegistry());
+        job.purgeExpiredConversations();
+
+        assertEquals(0, count("SELECT COUNT(*) FROM assistant.chat_conversation "
+                + "WHERE owner_id=:owner AND expires_at<=CURRENT_TIMESTAMP AND state<>'PURGED'", p("owner", owner)));
+    }
+
+    @Test
     void legacyRetentionCannotDeleteAnExpiredConversationWithAnActiveTurn() {
         String owner = "legacy-retention-active-" + UUID.randomUUID();
         UUID key = UUID.randomUUID();
