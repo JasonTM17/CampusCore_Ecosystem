@@ -112,6 +112,13 @@ export function Modal({
     document.body.style.overflow = 'hidden';
 
     requestAnimationFrame(() => {
+      // A field that claimed focus during mount (autoFocus) keeps it; the
+      // close button is only the fallback for dialogs with no focused child.
+      const dialog = dialogRef.current;
+      const active = document.activeElement;
+      if (dialog && active && active !== dialog && dialog.contains(active)) {
+        return;
+      }
       closeButtonRef.current?.focus();
       if (!closeButtonRef.current) {
         dialogRef.current?.focus();

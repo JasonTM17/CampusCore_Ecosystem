@@ -332,4 +332,3 @@ class ThesisArchiveSearchPostgresIT {
         return value == null || value.isBlank() ? fallback : value;
     }
 }
-

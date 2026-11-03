@@ -205,7 +205,7 @@ test('library desk requests 20-row pages and fences by both request and requeste
 test('library desk resets the filter to page zero and refreshes the current page after mutations', () => {
   const source = read('src/components/library/LibraryDeskPage.tsx');
 
-  assert.match(source, /const changeFilter = \(nextFilter: LoanStatus \| ''\) => \{\s*setFilter\(nextFilter\);\s*setPage\(0\);\s*void load\(nextFilter, 0\);/, 
+  assert.match(source, /const changeFilter = \(nextFilter: LoanStatus \| ''\) => \{\s*setFilter\(nextFilter\);\s*setPage\(0\);\s*void load\(nextFilter, 0\);/,
     'a new status filter starts on page zero');
   assert.match(source, /const reloadCurrent = useCallback\(\s*\(\) => load\(currentSelection\.current\.status, currentSelection\.current\.page\),\s*\[load\],\s*\)/);
   assert.match(source, /await reloadCurrent\(\);/, 'mutations keep the reader on the current page');

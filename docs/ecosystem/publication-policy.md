@@ -126,10 +126,11 @@ both repositories' `SELECT_COLUMNS` gain `status`, `authorId`,
   conditions, 404 otherwise.
 - Authed feeds (`/my`, `/{id}` via `userWhere`): add
   `"status" = 'PUBLISHED'` — drafts never surface in audience feeds.
-- `get()` bypass extension: for `status != 'PUBLISHED'` rows the unscoped
-  bypass extends to the whole writer set (`LECTURER`/`ADMIN`/
-  `SUPER_ADMIN`) — reviewers and authors can open unpublished posts;
-  audience scoping still applies to PUBLISHED reads (KM-C1a).
+- `get()` bypass extension: for `status != 'PUBLISHED'` rows, authors can
+  open their own rows, `ADMIN`/`SUPER_ADMIN` can open any row, and any
+  writer-role account can open an `IN_REVIEW` review-queue row. A lecturer
+  cannot open another author's `DRAFT` or `ARCHIVED` detail (404); audience
+  scoping still applies to PUBLISHED reads (KM-C1a).
 - `GET /api/v1/announcements` gains `LECTURER`; lecturer results are
   scoped to `"authorId" = :sub OR "status" = 'IN_REVIEW'` (own posts +
   the review queue). `ADMIN`/`SUPER_ADMIN` keep the unscoped list

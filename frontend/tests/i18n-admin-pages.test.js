@@ -313,4 +313,3 @@ test('admin page copy lives in the catalogue, not in the page modules', () => {
     }
   }
 });
-

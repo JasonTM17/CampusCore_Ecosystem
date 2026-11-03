@@ -12,6 +12,7 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/i18n';
+import { stripLocaleFromPathname } from '@/i18n/paths';
 import { LoginResponse, User, TwoFactorChallengeResponse } from '@/types/api';
 import { surfaceFromHost } from '@/lib/surfaces';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
@@ -642,7 +643,19 @@ export function useRequireAuth(
     }
 
     if (!user) {
-      router.push(loginHref(href, portalFromPathname(typeof window === 'undefined' ? '' : window.location.pathname), 'session-expired'));
+      const requested =
+        typeof window === 'undefined'
+          ? null
+          : stripLocaleFromPathname(window.location.pathname).pathname +
+            window.location.search;
+      router.push(
+        loginHref(
+          href,
+          portalFromPathname(typeof window === 'undefined' ? '' : window.location.pathname),
+          'session-expired',
+          requested,
+        ),
+      );
       return;
     }
 

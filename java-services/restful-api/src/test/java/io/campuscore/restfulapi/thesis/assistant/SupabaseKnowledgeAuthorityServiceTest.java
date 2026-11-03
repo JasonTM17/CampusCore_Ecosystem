@@ -62,6 +62,41 @@ class SupabaseKnowledgeAuthorityServiceTest {
     }
 
     @Test
+    void updateForwardsExpectedVersionToKnowledgeAdminRpc() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        HttpRequest[] sent = new HttpRequest[1];
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            sent[0] = invocation.getArgument(0);
+            return response(200, "{\"documentId\":\"11111111-1111-4111-8111-111111111111\",\"revisionId\":\"22222222-2222-4222-8222-222222222222\",\"version\":2,\"state\":\"DRAFT\"}");
+        });
+        ObjectMapper mapper = new ObjectMapper();
+        SupabaseKnowledgeAuthorityService service = new SupabaseKnowledgeAuthorityService(properties(), mapper, http);
+
+        service.update(UUID.randomUUID(), new KnowledgeRequest(
+                "registration", "en", "Registration", "Public guidance", "registrar", 10, "REGISTRATION", 1), "admin-a");
+
+        JsonNode body = mapper.readTree(readBody(sent[0]));
+        assertEquals("UPDATE", body.path("p_action").asText());
+        assertEquals(1, body.path("p_payload").path("expectedVersion").asInt());
+    }
+
+    @Test
+    void staleVersionFailureUsesTheSharedConflictCode() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        HttpResponse<String> rejected = response(400, "{\"message\":\"stale_version\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(rejected);
+        SupabaseKnowledgeAuthorityService service = new SupabaseKnowledgeAuthorityService(properties(), new ObjectMapper(), http);
+
+        DomainException failure = assertThrows(DomainException.class,
+                () -> service.update(UUID.randomUUID(), new KnowledgeRequest(
+                        "registration", "en", "Registration", "Public guidance", "registrar", 10, "REGISTRATION", 1), "admin-a"));
+
+        assertEquals(409, failure.status().value());
+        assertEquals("STALE_VERSION", failure.code());
+    }
+
+    @Test
     void secondAdminFailureIsMappedWithoutReflectingSupabaseBody() throws Exception {
         HttpClient http = mock(HttpClient.class);
         HttpResponse<String> rejected = response(400,

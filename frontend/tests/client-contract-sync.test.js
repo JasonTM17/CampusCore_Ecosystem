@@ -166,6 +166,7 @@ function loadSiteAppearanceApi() {
     },
     '@/i18n/paths': { addLocalePrefix: (p) => p, stripLocaleFromPathname: (p) => p },
     '@/lib/public-api-url': { resolvePublicApiBaseUrl: () => '/api/v1' },
+    '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
     '@/lib/session-hint': { CSRF_COOKIE_NAME: 'cc_csrf', isLogoutInProgress: () => false },
     '@/lib/session-sync': { publishSessionChange: noop },
     '@/lib/surfaces': { surfaceFromHost: () => null },

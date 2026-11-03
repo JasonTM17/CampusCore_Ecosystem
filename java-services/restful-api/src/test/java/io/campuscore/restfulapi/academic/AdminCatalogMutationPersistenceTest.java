@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.academic;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -16,6 +17,7 @@ import io.campuscore.restfulapi.academic.service.AdminCatalogMutationService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -273,14 +275,17 @@ class AdminCatalogMutationPersistenceTest {
                 "sa", "");
         JdbcTemplate competingJdbc = new JdbcTemplate(competingDataSource);
         AtomicBoolean interleaved = new AtomicBoolean();
+        // The guard holds the Section row FOR UPDATE while it reads the seat
+        // count, so a concurrent bump cannot slip into the check-to-write gap;
+        // it lands as a committed write before the guarded read instead.
         doAnswer(invocation -> {
             if (interleaved.compareAndSet(false, true)) {
                 competingJdbc.update("UPDATE \"academic\".\"Section\""
                         + " SET \"enrolledCount\" = 22 WHERE \"id\" = 'section-existing'");
             }
             return invocation.callRealMethod();
-        }).when(namedJdbc).update(
-                argThat(sql -> sql.startsWith("UPDATE \"academic\".\"Section\" SET")),
+        }).when(namedJdbc).queryForMap(
+                argThat(sql -> sql.contains("\"academic\".\"Section\"") && sql.contains("FOR UPDATE")),
                 any(SqlParameterSource.class));
 
         assertThatThrownBy(() -> catalog.update(
@@ -961,6 +966,99 @@ class AdminCatalogMutationPersistenceTest {
         assertThat(jdbc.queryForObject(
                 "SELECT \"capacity\" FROM \"academic\".\"Section\" WHERE \"id\" = ?",
                 Integer.class, "section-existing")).isEqualTo(30);
+    }
+
+    @Test
+    void sectionPlacementUpdateLocksTheSectionRowBeforeTheEnrollmentCount() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.update("\"academic\".\"Section\"", "section-existing", Map.of("courseId", "course-new"));
+
+        int sectionLock = indexOfStatement(statements, "\"academic\".\"Section\"", "FOR UPDATE");
+        int enrollmentCount = indexOfStatement(statements, "\"academic\".\"Enrollment\"", "COUNT");
+        assertThat(sectionLock)
+                .as("the placement guard must hold the Section row while it counts enrollments")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(enrollmentCount).isGreaterThan(sectionLock);
+    }
+
+    @Test
+    void sectionScheduleWriteLocksTheBookedClassroomRowsBeforeWriting() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.update(
+                "\"academic\".\"Section\"",
+                "section-existing",
+                Map.of("schedules", List.of(
+                        Map.of("dayOfWeek", 2, "startTime", "09:00", "endTime", "11:00", "classroomId", "room-2"))));
+
+        int roomLock = indexOfStatement(statements, "\"academic\".\"Classroom\"", "FOR UPDATE");
+        int scheduleWrite = indexOfStatement(statements, "\"academic\".\"SectionSchedule\"", "DELETE");
+        assertThat(roomLock)
+                .as("a schedule writer must serialize on the booked Classroom rows before writing")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(scheduleWrite).isGreaterThan(roomLock);
+    }
+
+    @Test
+    void lecturerReassignmentLocksTheLecturerRowBeforeTheConflictCheck() {
+        insertLecturer("lecturer-9");
+        List<String> statements = captureSqlStatements();
+
+        catalog.update("\"academic\".\"Section\"", "section-existing", Map.of("lecturerId", "lecturer-9"));
+
+        assertThat(indexOfStatement(statements, "\"academic\".\"Lecturer\"", "FOR UPDATE"))
+                .as("assigning a lecturer must serialize on the Lecturer row before the conflict check")
+                .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void semesterWriteLocksTheAcademicYearRowBeforeTheOverlapCheck() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.createSemester(Map.of(
+                "name", "Serialized Term",
+                "academicYearId", "year-new",
+                "startDate", "2027-02-01",
+                "endDate", "2027-06-30"));
+
+        int yearLock = indexOfStatement(statements, "\"academic\".\"AcademicYear\"", "FOR UPDATE");
+        int overlapCount = indexOfStatement(statements, "\"academic\".\"Semester\"", "COUNT");
+        assertThat(yearLock)
+                .as("the overlap check must serialize on the AcademicYear row")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(overlapCount).isGreaterThan(yearLock);
+    }
+
+    private List<String> captureSqlStatements() {
+        List<String> statements = new ArrayList<>();
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForMap(anyString(), any(SqlParameterSource.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForObject(anyString(), any(SqlParameterSource.class), any(Class.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForList(anyString(), any(SqlParameterSource.class), any(Class.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).update(anyString(), any(SqlParameterSource.class));
+        return statements;
+    }
+
+    private static int indexOfStatement(List<String> statements, String table, String marker) {
+        for (int index = 0; index < statements.size(); index++) {
+            String sql = statements.get(index);
+            if (sql.contains(table) && sql.contains(marker)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private void createTables() {

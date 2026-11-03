@@ -24,6 +24,8 @@ type PasswordFieldKey = 'oldPassword' | 'newPassword' | 'confirmPassword' | 'two
 const MAX_AVATAR_DATA_URL_LENGTH = 200_000;
 const MAX_AVATAR_DIMENSION = 320;
 const ALLOWED_AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+// Mirrors UpdateProfileRequest.address @Size(max = 500) / VARCHAR(500).
+const PROFILE_ADDRESS_MAX = 500;
 
 function createProfileAvatarDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -157,6 +159,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [addressError, setAddressError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [avatarPreview, setAvatarPreview] = useState('');
   const [visiblePasswordFields, setVisiblePasswordFields] = useState<Record<PasswordFieldKey, boolean>>({
@@ -402,12 +405,17 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
+    setAddressError('');
 
     // Client-side mirror of the backend @Pattern rule so a bad number fails
     // here instead of round-tripping a 400.
     const phone = formData.phone.trim();
     if (phone && !/^\+?[0-9][0-9\s()./-]{4,78}$/.test(phone)) {
       setProfileError(messages.profile.phoneInvalid);
+      return;
+    }
+    if (formData.address.trim().length > PROFILE_ADDRESS_MAX) {
+      setAddressError(messages.profile.addressTooLong);
       return;
     }
 
@@ -656,11 +664,14 @@ export default function ProfilePage() {
                     id="profile-address"
                     type="text"
                     value={formData.address}
-                    onChange={(e) =>
-                      setFormData((current) => ({ ...current, address: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setAddressError('');
+                      setFormData((current) => ({ ...current, address: e.target.value }));
+                    }}
                     placeholder={messages.profile.fields.addressPlaceholder}
                     icon={<MapPin className="h-4 w-4" />}
+                    maxLength={PROFILE_ADDRESS_MAX}
+                    error={addressError || undefined}
                   />
                 </div>
               </div>
