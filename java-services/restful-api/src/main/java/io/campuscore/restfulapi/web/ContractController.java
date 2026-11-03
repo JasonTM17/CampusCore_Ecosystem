@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.web;
 import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ContractController {
 
     @GetMapping
+    @SecurityRequirements
     @Operation(summary = "Kiểm tra phiên bản giao ước API", description = "Trả về thông số kiến trúc, phiên bản API và trạng thái sẵn sàng của dịch vụ RESTful.")
     @ApiResponse(responseCode = "200", description = "Thông số phiên bản hệ thống")
     public Map<String, Object> contract() {

@@ -32,6 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.oauth2.jwt.Jwt;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,6 +62,8 @@ public class AnnouncementWriteController {
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
     public AnnouncementResponse create(
             @AuthenticationPrincipal Jwt jwt,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+                    content = @Content(schema = @Schema(implementation = CreateAnnouncementRequest.class)))
             @RequestBody JsonNode request) {
         return announcements.create(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"),
                 jwt.getClaimAsString("lecturerId"), CreateAnnouncementRequest.from(request));
@@ -75,6 +79,8 @@ public class AnnouncementWriteController {
     public AnnouncementResponse update(
             @Parameter(description = "Mã định danh thông báo (UUID)", required = true) @PathVariable String id,
             @AuthenticationPrincipal Jwt jwt,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+                    content = @Content(schema = @Schema(implementation = UpdateAnnouncementRequest.class)))
             @RequestBody JsonNode request) {
         return announcements.update(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"),
                 jwt.getClaimAsString("lecturerId"), id, UpdateAnnouncementRequest.from(request));

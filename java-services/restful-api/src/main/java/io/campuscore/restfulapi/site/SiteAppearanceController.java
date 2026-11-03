@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.web.DomainException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Duration;
 import org.springframework.http.CacheControl;
@@ -52,6 +53,7 @@ public class SiteAppearanceController {
         this.store = store;
     }
 
+    @SecurityRequirements
     @Operation(summary = "Lấy cấu hình giao diện hệ thống", description = "Truy xuất cấu hình giao diện công khai: bảng màu, khẩu hiệu trang chủ, thứ tự bài viết")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy xuất cấu hình giao diện thành công")

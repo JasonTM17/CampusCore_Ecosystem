@@ -14,6 +14,7 @@ import io.campuscore.restfulapi.auth.web.TwoFactorDtos.VerifyTwoFactorLoginReque
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -130,6 +131,7 @@ public class TwoFactorController {
     }
 
     @PostMapping("auth/two-factor/verify")
+    @SecurityRequirements
     @Operation(summary = "Hoàn tất đăng nhập bằng mã OTP", description = "Bước hai của đăng nhập khi tài khoản bật xác thực hai yếu tố: xác minh mã OTP rồi phát hành Access/Refresh Token như đăng nhập thường.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đăng nhập thành công, phát hành token"),
