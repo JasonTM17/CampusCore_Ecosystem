@@ -460,6 +460,7 @@ export async function casePgit(args, runner = {}) {
       'attendance_g1_test',
       'campuscore_w14_index_fresh_test',
       'campuscore_w14_index_upgrade_test',
+      'policy_migration_test_knowledge_version_current_supabase',
       // correction-migration ITs require a *fresh* db per scenario whose name
       // matches /policy_migration_test_[a-z0-9_]+ (asserted by the fixtures)
       ...policyScenarios.map((s) => `policy_migration_test_policy_${s}`),
@@ -521,6 +522,10 @@ export async function casePgit(args, runner = {}) {
       ])),
       CAMPUSCORE_POLICY_MIGRATION_USER: 'campuscore',
       CAMPUSCORE_POLICY_MIGRATION_PASSWORD: 'campuscore_password',
+      CAMPUSCORE_KNOWLEDGE_VERSION_CURRENT_SUPABASE_URL:
+        `${jdbcBase}/policy_migration_test_knowledge_version_current_supabase`,
+      CAMPUSCORE_KNOWLEDGE_VERSION_USER: 'campuscore',
+      CAMPUSCORE_KNOWLEDGE_VERSION_PASSWORD: 'campuscore_password',
       ...Object.fromEntries(certScenarios.map((s) => [
         `CAMPUSCORE_CERTIFICATE_MIGRATION_${s.toUpperCase()}_URL`,
         `${jdbcBase}/policy_migration_test_cert_${s}`,
@@ -595,7 +600,16 @@ export async function casePgit(args, runner = {}) {
   } finally {
     if (stackStarted) {
       const down = composeCase(args, ['down', '-v', '--remove-orphans']);
-      if (!down.ok) attachCleanupFailure(failed, failure);
+      result.composeDown = down.ok ? 'PASS' : 'FAIL';
+      const remaining = down.ok ? composeCase(args, ['ps', '-q']) : { ok: false, out: down.out };
+      result.containerGone = remaining.ok && remaining.out.trim() === '';
+      result.containerGoneCheck = 'Compose ps -q is empty after compose down';
+      const cleanupFailed = !down.ok || !result.containerGone;
+      if (cleanupFailed) {
+        result.cleanupError = !down.ok ? down.out.trim().slice(-1000) : remaining.out.trim().slice(-1000);
+      }
+      writeJson(dir, args.resultName || 'pgit.json', result);
+      if (cleanupFailed) attachCleanupFailure(failed, failure);
     }
   }
 }

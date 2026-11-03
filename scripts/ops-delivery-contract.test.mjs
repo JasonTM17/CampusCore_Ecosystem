@@ -487,7 +487,7 @@ test('platform pgit tears down the project it created when compose up fails', as
     net.createServer = originalCreateServer;
     net.connect = originalConnect;
   }
-  assert.deepEqual(composeCalls.map((argv) => argv[0]), ['up', 'down']);
+  assert.deepEqual(composeCalls.map((argv) => argv[0]), ['up', 'down', 'ps']);
 });
 
 test('immutable migration gate rejects a renamed migration whose contents changed', (t) => {
