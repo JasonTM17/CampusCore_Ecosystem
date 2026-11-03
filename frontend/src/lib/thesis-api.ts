@@ -480,6 +480,7 @@ export interface AssistantReply {
     | 'PROVIDER_TRUNCATED'
     | 'HISTORY_UNAVAILABLE'
     | 'QUOTA_EXCEEDED'
+    | 'QUOTA_ACCOUNTING_UNAVAILABLE'
     | 'CANCELLED'
     | string;
   locale: 'en' | 'vi';

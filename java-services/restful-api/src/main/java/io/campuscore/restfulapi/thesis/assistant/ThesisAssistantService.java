@@ -1033,22 +1033,22 @@ public class ThesisAssistantService {
             }
         }
         java.time.LocalDate chargedDate = null;
-        boolean chargeAttempted = false;
         if (turns != null && properties != null && properties.quotaEnforced()
                 && org.springframework.util.StringUtils.hasText(ownerId)) {
             try {
                 chargedDate = turns.chargeStandaloneQuota(ownerId, properties.userDailyQuota(),
                         properties.globalDailyQuota());
-                chargeAttempted = true;
             } catch (DataAccessException exception) {
-                // An accounting outage must not block a working provider;
-                // the charge is best-effort and the outage is short-lived.
-                // chargeAttempted stays false so the request is NOT refused
-                // as quota-exceeded — a metering outage is not a denial.
                 org.slf4j.LoggerFactory.getLogger(ThesisAssistantService.class)
                         .warn("off-topic quota charge failed with {}", exception.getClass().getSimpleName());
+                boolean vi = "vi".equals(normalizedLocale);
+                String text = vi
+                        ? "Hiện chưa thể xác nhận hạn mức câu hỏi. Vui lòng thử lại sau."
+                        : "The daily question quota cannot be checked right now. Please try again later.";
+                return new ChatResponse(text, MODEL, true, "QUOTA_ACCOUNTING_UNAVAILABLE", normalizedLocale,
+                        List.of());
             }
-            if (chargeAttempted && chargedDate == null) {
+            if (chargedDate == null) {
                 boolean vi = "vi".equals(normalizedLocale);
                 String text = vi
                         ? "Bạn đã đạt hạn mức câu hỏi trong ngày. Hạn mức sẽ được làm mới sau nửa đêm — bạn quay lại vào ngày mai nhé."
