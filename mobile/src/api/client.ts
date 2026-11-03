@@ -323,6 +323,10 @@ export interface MobileLearningSubmission {
   submittedAt?: string | null;
   returnedAt?: string | null;
   reviewedAt?: string | null;
+  draftText?: string | null;
+  draftFileName?: string | null;
+  draftContentType?: string | null;
+  draftSizeBytes?: number | null;
   version: number;
 }
 
