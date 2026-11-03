@@ -125,7 +125,7 @@ test.describe('public and auth', () => {
   test('public signup explains that student accounts are issued by the Academic Office', async ({ page }) => {
     await page.goto('/en/register');
     await expect(page.getByRole('heading', { name: /request an issued account|yêu cầu cấp tài khoản/i })).toBeVisible();
-    await expect(page.getByRole('main').getByText(/academic office|phòng đào tạo/i).first()).toBeVisible();
+    await expect(page.getByRole('main').getByText(/academic office|phòng đào tạo/i).filter({ visible: true }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /sign in|đăng nhập/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /forgot password/i })).toHaveCount(0);
   });

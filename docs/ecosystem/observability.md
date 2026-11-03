@@ -298,7 +298,7 @@ Tất cả các định nghĩa cảnh báo được lưu trữ dạng tệp cấ
 | Mức độ | Thời gian Phản hồi | Kênh Thông báo | Hành động Xử lý & Liên kết Runbook |
 | :--- | :--- | :--- | :--- |
 | `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Quy trình go-live/rollback tương lai: [release-runbook.md](release-runbook.md). |
-| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [release-runbook.md](release-runbook.md) và gate `verification` trong [verification.md](verification.md). |
+| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [release-runbook.md](release-runbook.md) và các gate trong [verification.md](verification.md). |
 | `info` | Trong ngày | Dashboard Review | Theo dõi xu hướng sử dụng tài nguyên hoặc reset quota. Xem [deepseek-assistant.md](../integrations/deepseek-assistant.md). |
 
 ---
