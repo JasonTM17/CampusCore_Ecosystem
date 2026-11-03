@@ -130,7 +130,7 @@ test('moved literals live in the fragment, not in the page modules', () => {
   }
 });
 
-test('wave-17 safe notification links stay on the notifications center', () => {
+test('safe notification links stay on the notifications center', () => {
   const source = read('src/components/dashboard/NotificationsCenterPage.tsx');
   assert.match(source, /import \{ safeInternalPath \} from '@\/lib\/safe-url'/);
   assert.match(source, /const link = safeInternalPath\(notification\.link\)/);

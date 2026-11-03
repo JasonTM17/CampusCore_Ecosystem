@@ -692,7 +692,7 @@ test('event staff lifecycle mutations use per-action pending state and reject re
 });
 
 // ---------------------------------------------------------------------------
-// W14 / F-17 — password recovery answers uniformly, never "no such account"
+// Password recovery answers uniformly, never "no such account"
 // ---------------------------------------------------------------------------
 
 test('forgot-password folds every lookup answer into the same confirmation', () => {
@@ -746,7 +746,7 @@ test('forgot-password folds every lookup answer into the same confirmation', () 
 });
 
 // ---------------------------------------------------------------------------
-// W14 / F-15 — a 403 on sign-in is an infrastructure gate, not an account oracle
+// A 403 on sign-in is an infrastructure gate, not an account oracle
 // ---------------------------------------------------------------------------
 
 test('sign-in 403 semantics cannot enumerate accounts, so the generic blocked copy stays', () => {

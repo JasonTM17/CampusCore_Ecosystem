@@ -11,7 +11,7 @@ interface AssistantStreamProgressProps {
 }
 
 /**
- * F-14: dedicated polite live region for stream progress.
+ * Dedicated polite live region for stream progress.
  *
  * The message log keeps `role="log"` and `aria-busy` while a turn streams;
  * this region reports that a reply is arriving without exposing token-level

@@ -257,7 +257,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   );
   const [blocks, setBlocks] = useState<ContentBlock[]>(defaultBlocks);
   const [hasUnsavedNoticeOrder, setHasUnsavedNoticeOrder] = useState(false);
-  // F-2: the order save runs a site-appearance PUT plus one PUT per dragged
+  // The order save runs a site-appearance PUT plus one PUT per dragged
   // row; without an in-flight lock a double click re-runs the whole chain.
   const [isSavingNoticeOrder, setIsSavingNoticeOrder] = useState(false);
   // The pinned-notices list is a `tbody` SortableList, which cannot carry its own
@@ -551,7 +551,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
 
   // Save announcements order to site appearance & Spring Boot backend
   const handleSaveNoticeOrder = async () => {
-    // F-2: the header button is rendered with animate-pulse while the order is
+    // The header button is rendered with animate-pulse while the order is
     // unsaved, which invites the double click that used to re-run the whole
     // PUT chain. One run at a time, and both triggers reflect it.
     if (isSavingNoticeOrder) return;

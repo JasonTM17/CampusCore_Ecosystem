@@ -244,7 +244,7 @@ test('real group full modal uses the current five-member policy in both locales'
   }).outputText;
   for (const locale of ['vi', 'en']) {
     const record = { exports: {} };
-    // W18 P5: memberCopy spreads thesisWorkflow.workspace.members; the locale
+    // Member copy spreads thesisWorkflow.workspace.members; the locale
     // copy now comes from the mounted fragment.
     const messages = getMessages(locale);
     Function('locale', 'messages', 'workspaceCopy', 'module', output)(

@@ -214,7 +214,7 @@ export default function ThesisTopicCatalogPage() {
           />
         </label>
         <Button type="submit" disabled={workspace.workspaceLoading} className="h-11 sm:w-32">
-          {workspace.workspaceLoading || topicsPage.loading ? (
+          {workspace.workspaceLoading || (searchActive && topicsPage.loading) ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
             <Search className="mr-2 h-4 w-4" aria-hidden="true" />

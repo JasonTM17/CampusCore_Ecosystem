@@ -371,3 +371,17 @@ test('archive paging is independent while the group read stays bounded', () => {
   assert.doesNotMatch(page, /thesisApi\.listGroups\(selectedRoundId\)/,
     'the complete round group read no longer runs from the workspace');
 });
+
+test('catalogue search submit button does not show a spinner before a search is active', () => {
+  const source = read('src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx');
+  assert.match(
+    source,
+    /workspace\.workspaceLoading\s*\|\|\s*\(searchActive\s*&&\s*topicsPage\.loading\)/,
+    'the catalog search button must gate topicsPage.loading on searchActive so the idle state shows Search instead of a perpetual spinner',
+  );
+  assert.doesNotMatch(
+    source,
+    /workspace\.workspaceLoading\s*\|\|\s*topicsPage\.loading\s*\?/,
+    'topicsPage.loading must not be consumed unconditionally in the submit button when searchActive is false',
+  );
+});
