@@ -425,7 +425,9 @@ export function formatDuration(ms) {
 
 export async function probeHttp(fetchImpl, probe) {
   try {
-    const response = await fetchImpl(probe.url, { redirect: 'manual' });
+    const response = probe.check
+      ? await probe.check()
+      : await fetchImpl(probe.url, { redirect: 'manual' });
     const status = typeof response?.status === 'number' ? response.status : 0;
     const ok = probe.accept ? Boolean(probe.accept({ status })) : status >= 200 && status < 400;
     return { name: probe.name, url: probe.url, ok, status };
@@ -717,10 +719,22 @@ function publishedPort(deps, composePrefix, service, containerPort, fallback) {
   return match ? Number(match[1]) : fallback;
 }
 
-function healthProbes({ apiPort, webPort }) {
+function healthProbes({ apiPort, webPort, prefix, deps }) {
   return [
     { name: 'API liveness', url: `http://127.0.0.1:${apiPort}/api/v1/health/liveness`, accept: ({ status }) => status === 200 },
-    { name: 'web', url: `http://127.0.0.1:${webPort}/`, accept: ({ status }) => status < 500 },
+    {
+      name: 'API readiness',
+      url: 'docker compose exec restful-api /api/v1/health/readiness',
+      check: () => {
+        const result = deps.run('docker', [
+          ...prefix, 'exec', '-T', 'restful-api', 'sh', '-c',
+          'wget --quiet --tries=1 --header="X-Health-Key: $HEALTH_READINESS_KEY" -O- http://127.0.0.1:4010/api/v1/health/readiness >/dev/null',
+        ], { cwd: deps.root, timeout: 10_000 });
+        return { status: result.code === 0 ? 200 : 503 };
+      },
+      accept: ({ status }) => status === 200,
+    },
+    { name: 'web', url: `http://127.0.0.1:${webPort}/`, accept: ({ status }) => status >= 200 && status < 400 },
   ];
 }
 
@@ -766,7 +780,7 @@ async function up(flags, deps) {
   let healthy = true;
   try {
     await pollHealth({
-      probes: healthProbes({ apiPort, webPort }),
+      probes: healthProbes({ apiPort, webPort, prefix, deps }),
       timeoutMs: HEALTH_TIMEOUT_MS,
       intervalMs: HEALTH_INTERVAL_MS,
       fetch: deps.fetch,
@@ -802,7 +816,8 @@ async function status(flags, deps) {
 
   const webPort = publishedPort(deps, prefix, 'web', 3000, effectiveHostPort(deps.env, 'FRONTEND_HOST_PORT', 3000));
   const apiPort = publishedPort(deps, prefix, 'restful-api', 4010, effectiveHostPort(deps.env, 'RESTFUL_API_HOST_PORT', 4010));
-  const results = await Promise.all(healthProbes({ apiPort, webPort }).map((probe) => probeHttp(deps.fetch, probe)));
+  const results = await Promise.all(healthProbes({ apiPort, webPort, prefix, deps })
+    .map((probe) => probeHttp(deps.fetch, probe)));
   log('');
   log('Health');
   for (const result of results) {

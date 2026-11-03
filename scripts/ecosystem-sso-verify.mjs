@@ -11,7 +11,7 @@
 // case exits BLOCKED-equivalent nonzero rather than passing on unit tests.
 // Everything it starts is torn down in `finally`.
 
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -147,34 +147,11 @@ function stopChildren() {
   stopChildrenTree(children);
 }
 
-// Shell-spawned children (npm.cmd -> node) can survive a tree kill on
-// Windows and keep the preview ports bound — sweep any listener still
-// holding a preview port so the next run does not boot into a zombie.
-function killPortListeners(ports) {
-  if (process.platform !== 'win32') return;
-  let table = '';
-  try {
-    table = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
-  } catch {
-    return;
-  }
-  const killed = new Set();
-  for (const line of table.split('\n')) {
-    const match = line.match(/TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
-    if (match && ports.includes(Number(match[1])) && !killed.has(match[2])) {
-      killed.add(match[2]);
-      try {
-        execFileSync('taskkill', ['/pid', match[2], '/t', '/f'],
-          { stdio: 'ignore' });
-      } catch { /* best effort */ }
-    }
-  }
-}
-
 async function casePreview(args) {
   const dir = path.resolve(REPO, args.evidence);
   fs.mkdirSync(dir, { recursive: true });
   const result = { case: 'browser-sso-preview', project: args.project };
+  let ownsStack = false;
   try {
     // Preflight: openssl + free ports + disposable project name.
     const which = tryRun('openssl', ['version']);
@@ -188,6 +165,7 @@ async function casePreview(args) {
     }
 
     // 1. Disposable API stack in the BFF lane.
+    ownsStack = true;
     const up = tryRun('docker', composeArgs(args,
       ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']),
       { timeoutMs: 600000 });
@@ -257,10 +235,13 @@ async function casePreview(args) {
     result.error = String(error.message || error).slice(-3000);
   } finally {
     stopChildren();
-    killPortListeners([WEB_PORT, ID_TLS_PORT]);
-    const down = tryRun('docker', composeArgs(args,
-      ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
-    result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    if (ownsStack) {
+      const down = tryRun('docker', composeArgs(args,
+        ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
+      result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    } else {
+      result.teardown = 'not-created';
+    }
   }
   fs.writeFileSync(path.join(dir, 'preview.json'),
     `${JSON.stringify(result, null, 2)}\n`, 'utf8');
