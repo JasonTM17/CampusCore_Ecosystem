@@ -45,6 +45,22 @@ class ThesisAssistantRetentionJobTest {
     }
 
     @Test
+    void retentionPurgeStopsAtHardBatchCap() {
+        ThesisAssistantRepository repository = mock(ThesisAssistantRepository.class);
+        ThesisAssistantTurnRepository turns = mock(ThesisAssistantTurnRepository.class);
+        when(turns.purgeExpiredConversations(any())).thenReturn(java.util.Collections.nCopies(100, null));
+        when(repository.purgeExpired()).thenReturn(100);
+
+        ThesisAssistantRetentionJob job = new ThesisAssistantRetentionJob(
+                repository, turns, mock(AssistantCancellationRegistry.class));
+
+        job.purgeExpiredConversations();
+
+        verify(turns, times(100)).purgeExpiredConversations(any());
+        verify(repository, times(100)).purgeExpired();
+    }
+
+    @Test
     void idleGateSkipsTheRepositoryEntirely() {
         AtomicLong nanos = new AtomicLong(1_000_000_000L);
         AssistantRecoveryActivity activity =
