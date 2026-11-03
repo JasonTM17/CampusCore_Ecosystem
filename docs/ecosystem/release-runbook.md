@@ -42,7 +42,7 @@ backup, verify và restore đối chiếu `storage_key` trong dump với tar, ch
 (chi tiết ở [ops/backup/README.md](../../ops/backup/README.md)).
 
 Sau drill: verify archive bằng `ops/backup/verify-backup.sh` nếu restore
-bằng tay. Restore **luôn** vào DB isolated (`demo_restore_*`) — script từ
+bằng tay. Restore **luôn** vào DB isolated (`campuscore_restore_*`) — script từ
 chối overwrite DB nguồn.
 
 ## 3. Host probe
