@@ -295,6 +295,22 @@ export function progressPercent(progress: Pick<ThesisProgress, 'completedMilesto
   return Math.round((done / THESIS_MILESTONES.length) * 100);
 }
 
+/**
+ * A final score belongs to an approved group's published result. The group is
+ * the authority: a rejected/cancelled membership, or a progress payload left
+ * over from another group, must never surface one.
+ */
+export function canShowFinalScore(
+  group: Pick<ThesisGroup, 'id' | 'status' | 'approvalStatus'> | null | undefined,
+  progress: Pick<ThesisProgress, 'groupId' | 'groupStatus' | 'approvalStatus' | 'finalScore'> | null | undefined,
+): boolean {
+  if (!group || !progress || typeof progress.finalScore !== 'number') return false;
+  if (group.approvalStatus !== 'APPROVED' || group.status === 'CANCELLED') return false;
+  if (progress.groupId && group.id && progress.groupId !== group.id) return false;
+  if (progress.approvalStatus && progress.approvalStatus !== 'APPROVED') return false;
+  return progress.groupStatus !== 'CANCELLED';
+}
+
 /** A report can be written only by the leader of an approved group (server: GROUP_STATE_CONFLICT otherwise). */
 export function canWriteReport(group: Pick<ThesisGroup, 'approvalStatus' | 'status'> | null | undefined, leader: boolean): boolean {
   return Boolean(group && leader && group.approvalStatus === 'APPROVED' && group.status !== 'CANCELLED');

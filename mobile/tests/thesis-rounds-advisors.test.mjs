@@ -48,6 +48,24 @@ test('the default round is the selection, else registration, else published topi
   assert.equal(model.isRegistrationOpen(round('c', 'PROPOSALS_PUBLISHED')), false);
 });
 
+test('a final score is visible only for an approved group and its own progress payload', () => {
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const approvedProgress = {
+    groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED', finalScore: 8.25,
+  };
+  assert.equal(model.canShowFinalScore(approved, approvedProgress), true);
+  assert.equal(model.canShowFinalScore(
+    { ...approved, status: 'REJECTED', approvalStatus: 'REJECTED' },
+    { ...approvedProgress, groupStatus: 'REJECTED', approvalStatus: 'REJECTED' },
+  ), false);
+  assert.equal(model.canShowFinalScore(
+    { ...approved, status: 'CANCELLED' },
+    { ...approvedProgress, groupStatus: 'CANCELLED' },
+  ), false);
+  assert.equal(model.canShowFinalScore(approved, { ...approvedProgress, groupId: 'g2' }), false);
+  assert.equal(model.canShowFinalScore(approved, { ...approvedProgress, finalScore: null }), false);
+});
+
 test('topic search ignores case and Vietnamese accents over title, department and brief', () => {
   const topics = [
     { title: 'Trợ lý học vụ', description: 'Câu trả lời có nguồn', departmentId: 'CNTT' },

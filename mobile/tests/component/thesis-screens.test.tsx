@@ -438,6 +438,32 @@ describe('progress and report', () => {
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
   });
 
+  test('a rejected group never renders a stale final score', async () => {
+    setWidth(360);
+    seed({
+      group: group({ status: 'REJECTED', approvalStatus: 'REJECTED' }),
+      progress: progress({
+        attentionState: 'GROUP_REJECTED',
+        approvalStatus: 'REJECTED',
+        groupStatus: 'REJECTED',
+        finalScore: 8.25,
+      }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(copy.attention.GROUP_REJECTED)).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+  });
+
+  test('an approved group renders the published final score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: { ...approvedProgress, finalScore: 8.25 },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(new RegExp(`^${copy.finalScore}:`))).toBeOnTheScreen();
+  });
+
   test('the progress bar is announced with the Vietnamese progress label', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
