@@ -139,6 +139,7 @@ jobs:
             scripts/dependency-baseline.test.mjs \
             scripts/diagnostic-target-policy.test.mjs \
             scripts/doc-links.test.mjs \
+            scripts/e2e-process-control.test.mjs \
             scripts/eas-profile-check.test.mjs \
             scripts/ecosystem-backup-drill.test.mjs \
             scripts/ecosystem-devices-verify.test.mjs \
