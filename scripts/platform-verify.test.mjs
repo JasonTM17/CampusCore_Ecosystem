@@ -34,6 +34,20 @@ test('platform-verify requires every requested IT class to execute without skips
   assert.deepEqual(checks.map((check) => check.executed), [8, 2]);
 });
 
+test('platform-verify matches Surefire include globs and ignores exclusion selectors', () => {
+  const checks = inspectRequestedItReports([
+    '*PostgresIT',
+    '!*CorrectionMigrationPostgresIT',
+  ], [
+    report('io.campuscore.BffSessionPostgresIT', { tests: 3 }),
+  ]);
+
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0].class, '*PostgresIT');
+  assert.equal(checks[0].passed, true);
+  assert.equal(checks[0].executed, 3);
+});
+
 test('platform-verify hard-fails a requested class that has no report', () => {
   const [check] = inspectRequestedItReports(['MissingPostgresIT'], [
     report('io.campuscore.restfulapi.attendance.AttendanceGeofencePostgresIT'),
