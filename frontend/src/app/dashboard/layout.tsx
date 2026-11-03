@@ -535,7 +535,9 @@ export default function DashboardLayout({
     if (isLoading || isLoggingOut) return;
     if (!user) {
       const portal = portalFromPathname(pathname);
-      router.replace(loginHref(href, portal, 'unauthorized'));
+      router.replace(
+        loginHref(href, portal, 'unauthorized', pathname + window.location.search),
+      );
       return;
     }
     if (!fullAdminAccess) return;

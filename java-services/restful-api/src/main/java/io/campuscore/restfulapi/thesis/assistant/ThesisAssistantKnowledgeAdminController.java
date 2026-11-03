@@ -114,7 +114,8 @@ public class ThesisAssistantKnowledgeAdminController {
 
     @Operation(summary = "Cập nhật bản nháp tài liệu tri thức", description = "Chỉnh sửa nội dung tài liệu bản nháp của người tạo hoặc sinh phiên bản mới")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Cập nhật thành công")
+        @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+        @ApiResponse(responseCode = "409", description = "Bản nháp đã thay đổi kể từ lần đọc gần nhất")
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
@@ -135,9 +136,16 @@ public class ThesisAssistantKnowledgeAdminController {
         int version;
         if (!drafts.isEmpty() && owner.equals(drafts.get(0).createdBy())) {
             revision = drafts.get(0).id();
-            version = drafts.get(0).version();
-            jdbc.update("UPDATE assistant.knowledge_document_revision SET domain=:domain,locale=:locale,slug=:slug,title=:title,content=:content,source=:source,priority=:priority WHERE id=:id AND state='DRAFT'",
-                    revisionParams(revision, request, priority));
+            int currentVersion = drafts.get(0).version();
+            if (request.expectedVersion() != null && request.expectedVersion() != currentVersion) {
+                throw staleVersion();
+            }
+            version = nextVersion(id);
+            int changed = jdbc.update("UPDATE assistant.knowledge_document_revision SET version=:version,domain=:domain,locale=:locale,slug=:slug,title=:title,content=:content,source=:source,priority=:priority WHERE id=:id AND version=:expectedVersion AND state='DRAFT'",
+                    revisionParams(revision, request, priority)
+                            .addValue("version", version)
+                            .addValue("expectedVersion", request.expectedVersion() == null ? currentVersion : request.expectedVersion()));
+            if (changed != 1) throw staleVersion();
         } else {
             version = nextVersion(id);
             revision = UUID.randomUUID();
@@ -310,6 +318,7 @@ public class ThesisAssistantKnowledgeAdminController {
     private static boolean blank(String value) { return value == null || value.isBlank(); }
     static String requireActor(Jwt actor) { String subject = actor == null ? null : actor.getSubject(); if (blank(subject)) throw new DomainException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Authentication is required"); return subject; }
     private static DomainException notFound(UUID id) { return new DomainException(HttpStatus.NOT_FOUND, "KNOWLEDGE_NOT_FOUND", "Knowledge document not found: " + id); }
+    private static DomainException staleVersion() { return new DomainException(HttpStatus.CONFLICT, "STALE_VERSION", "The record changed; reload before editing"); }
     private static MapSqlParameterSource p() { return new MapSqlParameterSource(); }
 
     private record RevisionRow(UUID id, int version, String createdBy) { }
@@ -318,12 +327,15 @@ public class ThesisAssistantKnowledgeAdminController {
             this(slug, locale, title, content, source, priority, "THESIS");
         }
     }
-    public record KnowledgeRequest(String slug, String locale, String title, String content, String source, Integer priority, String domain) {
+    public record KnowledgeRequest(String slug, String locale, String title, String content, String source, Integer priority, String domain, Integer expectedVersion) {
         public KnowledgeRequest {
             domain = domain == null || domain.isBlank() ? "THESIS" : domain.trim().toUpperCase(java.util.Locale.ROOT);
         }
+        public KnowledgeRequest(String slug, String locale, String title, String content, String source, Integer priority, String domain) {
+            this(slug, locale, title, content, source, priority, domain, null);
+        }
         public KnowledgeRequest(String slug, String locale, String title, String content, String source, Integer priority) {
-            this(slug, locale, title, content, source, priority, "THESIS");
+            this(slug, locale, title, content, source, priority, "THESIS", null);
         }
     }
     public record KnowledgeRevision(UUID documentId, UUID revisionId, int version, String state,

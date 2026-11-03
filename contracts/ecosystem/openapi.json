@@ -4598,6 +4598,10 @@
           "domain": {
             "type": "string"
           },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
           "locale": {
             "type": "string"
           },
@@ -6859,6 +6863,8 @@
             "items": {
               "$ref": "#/components/schemas/StudentAttendanceEntry"
             },
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array"
           }
         },
@@ -9035,6 +9041,16 @@
               }
             },
             "description": "Cập nhật thành công"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bản nháp đã thay đổi kể từ lần đọc gần nhất"
           }
         },
         "summary": "Cập nhật bản nháp tài liệu tri thức",
@@ -9328,7 +9344,7 @@
     },
     "/api/v1/admin/registration/credit-limit-applications": {
       "get": {
-        "description": "Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt",
+        "description": "Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất",
         "operationId": "creditLimitApplications",
         "parameters": [
           {
@@ -9339,6 +9355,26 @@
             "schema": {
               "default": "PENDING",
               "type": "string"
+            }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
             }
           }
         ],
@@ -9354,7 +9390,16 @@
                 }
               }
             },
-            "description": "Lấy danh sách đơn thành công"
+            "description": "Lấy danh sách đơn thành công",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)",
@@ -9646,6 +9691,16 @@
               }
             },
             "description": "Cập nhật thành công"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bản nháp đã thay đổi kể từ lần đọc gần nhất"
           }
         },
         "summary": "Cập nhật bản nháp tài liệu tri thức",
@@ -18484,6 +18539,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; mặc định 100",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -18498,7 +18573,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Roster lớp học phần",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách roster với trạng thái nộp bài",
@@ -19556,6 +19640,28 @@
     "/api/v1/library/requests/my": {
       "get": {
         "operationId": "myLoans",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; mặc định 100",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -19568,7 +19674,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Đơn mượn của tôi",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Đơn mượn của tôi",
@@ -21033,6 +21148,17 @@
       "post": {
         "description": "Quản trị viên gửi thông báo đến một hoặc nhiều người dùng",
         "operationId": "create_1",
+        "parameters": [
+          {
+            "description": "Khóa chống trùng lặp Idempotency",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -21053,6 +21179,16 @@
               }
             },
             "description": "Tạo thông báo thành công"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Idempotency-Key được tái sử dụng với nội dung khác"
           }
         },
         "summary": "Phát thông báo hệ thống mới (Admin)",

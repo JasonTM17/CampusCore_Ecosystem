@@ -126,6 +126,8 @@ jobs:
           set -o pipefail
           node --test \
             scripts/alert-uri-policy.test.mjs \
+            scripts/caddy-validate.test.mjs \
+            scripts/check-migration-immutability.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
@@ -138,6 +140,7 @@ jobs:
             scripts/dependency-baseline.test.mjs \
             scripts/diagnostic-target-policy.test.mjs \
             scripts/doc-links.test.mjs \
+            scripts/e2e-process-control.test.mjs \
             scripts/eas-profile-check.test.mjs \
             scripts/ecosystem-backup-drill.test.mjs \
             scripts/ecosystem-devices-verify.test.mjs \
@@ -671,42 +674,18 @@ jobs:
           # origin/main (shallow clones make the merge-base diff empty).
           fetch-depth: 0
       - name: Flyway migrations are immutable once merged
-        shell: bash
-        run: |
-          set -euo pipefail
-          base_ref=origin/main
-          migration_blobs() {
-            local meta file
-            while IFS=$'\t' read -r -d '' meta file; do
-              case "$file" in
-                java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
-                  printf '%s\n' "${meta##* }"
-                  ;;
-              esac
-            done < <(git ls-tree -r -z "$1" -- java-services)
-          }
-          head_blobs="$(migration_blobs HEAD)"
-          while IFS=$'\t' read -r -d '' meta file; do
-            case "$file" in
-              java-services/*/db/migration/*.sql|java-services/*/db/migration-h2/*.sql)
-                blob="${meta##* }"
-                if ! grep -Fqx -- "$blob" <<< "$head_blobs"; then
-                  echo "IMMUTABLE migration content changed or removed: $file"
-                  echo "Corrective changes are new forward migrations (V<n+1>); see db/migration/README.md."
-                  exit 1
-                fi
-                ;;
-            esac
-          done < <(git ls-tree -r -z "$base_ref" -- java-services)
+        run: node scripts/check-migration-immutability.mjs origin/main
       - name: Generate disposable Compose secrets
         run: node scripts/compose-secrets.mjs --ensure
       - name: Validate fail-closed base Compose
         run: docker compose -f docker-compose.yml config -q
+      - name: Validate Caddyfile
+        run: node scripts/caddy-validate.mjs
       - name: Supabase content tooling tests
         shell: bash
         run: |
           set -o pipefail
-          node --test scripts/supabase/assistant-knowledge.test.mjs 2>&1 | tee /tmp/supabase-tests.log
+          node --test scripts/supabase/assistant-knowledge.test.mjs scripts/supabase/assistant-knowledge-version.test.mjs 2>&1 | tee /tmp/supabase-tests.log
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/supabase-tests.log", "utf8");
@@ -769,7 +748,8 @@ jobs:
           ASSISTANT="$assistant" python3 -c 'import json, os; data=json.loads(os.environ["ASSISTANT"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
           rag_rejection="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T rag-service wget --server-response --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: wrong-token' --header='X-Assistant-Owner: ci-rag-probe' --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O /dev/null http://localhost:4011/internal/rag/assistant/chat 2>&1 || true)"
           printf '%s\n' "$rag_rejection" | grep -Eq 'HTTP/[0-9.]+ 403'
-          rag_internal="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T rag-service sh -c 'wget --no-verbose --tries=1 --header="Content-Type: application/json" --header="X-Rag-Service-Token: $ASSISTANT_RAG_SERVICE_TOKEN" --header="X-Assistant-Owner: ci-rag-probe" --post-data="{\"message\":\"Điều kiện đăng ký đề tài là gì?\",\"locale\":\"vi\",\"clientRequestId\":\"00000000-0000-0000-0000-000000000003\"}" -O- http://localhost:4011/internal/rag/assistant/chat')"
+          rag_owner_assertion="$(set -a; . ./.env; set +a; python3 -c 'import base64, hashlib, hmac, json, os, time; b64=lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode(); now=int(time.time()); head=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode()); body=b64(json.dumps({"iss":"https://campuscore.invalid/restful-api","sub":"ci-rag-probe","aud":["campuscore-internal-rag"],"capability":"assistant","iat":now,"exp":now+30},separators=(",",":")).encode()); sig=b64(hmac.new(os.environ["ASSISTANT_RAG_OWNER_ASSERTION_SECRET"].encode(),(head+"."+body).encode(),hashlib.sha256).digest()); print(head+"."+body+"."+sig)')"
+          rag_internal="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T rag-service sh -c 'wget --no-verbose --tries=1 --header="Content-Type: application/json" --header="X-Rag-Service-Token: $ASSISTANT_RAG_SERVICE_TOKEN" --header="X-Assistant-Owner: ci-rag-probe" --header="X-Assistant-Owner-Assertion: '"$rag_owner_assertion"'" --post-data="{\"message\":\"Điều kiện đăng ký đề tài là gì?\",\"locale\":\"vi\",\"clientRequestId\":\"00000000-0000-0000-0000-000000000003\"}" -O- http://localhost:4011/internal/rag/assistant/chat')"
           RAG_INTERNAL="$rag_internal" python3 -c 'import json, os; data=json.loads(os.environ["RAG_INTERNAL"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
           docker compose -f docker-compose.yml -f docker-compose.local.yml stop postgres
           # With the database stopped, Hikari must evict its dead pooled

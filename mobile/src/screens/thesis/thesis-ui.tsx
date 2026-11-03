@@ -80,8 +80,8 @@ export function ThesisStepper({
 }
 
 export function DateLine({ label, text }: { label: string; text?: string | null }) {
-  if (!text) return null;
   const { window } = useTheme();
+  if (!text) return null;
   const stacked = window.fontScale >= 1.3 || window.width < 360;
   return (
     <View style={[styles.dateLine, stacked ? styles.dateLineStacked : undefined]}>

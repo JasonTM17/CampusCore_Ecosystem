@@ -107,6 +107,33 @@ export async function fetchArrayListPage<T>(
   return toArrayListPage(response.data, requestPage, response.headers, requestLimit);
 }
 
+/**
+ * Reads successive pages until the collected rows reach `X-Total-Count` or a
+ * short page arrives. `maxPages` bounds a server that keeps returning full
+ * pages, and a trusted total beyond that budget is an error rather than a
+ * silently truncated list.
+ */
+export async function fetchAllArrayListPages<T>(
+  load: (page: number, limit: number) => Promise<ArrayListResponse<T>>,
+  { limit = 100, maxPages = 50 }: { limit?: number; maxPages?: number } = {},
+): Promise<T[]> {
+  const pageSize = Math.max(1, Math.trunc(limit) || 1);
+  const pageBudget = Math.max(1, Math.trunc(maxPages) || 1);
+  const rows: T[] = [];
+  let total: number | undefined;
+  for (let page = 0; page < pageBudget; page += 1) {
+    const result = await fetchArrayListPage(page, pageSize, load);
+    total = result.total;
+    rows.push(...result.items);
+    if (total !== undefined && rows.length >= total) return rows;
+    if (result.items.length < pageSize) return rows;
+  }
+  if (total !== undefined && rows.length < total) {
+    throw new Error('the list did not reach its reported total within the page limit');
+  }
+  return rows;
+}
+
 export function hasPreviousPage(page: number): boolean {
   return page > 0;
 }

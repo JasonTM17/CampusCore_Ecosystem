@@ -107,6 +107,30 @@ test('a zero-GPA semester with no earned credits renders as "no result yet"', ()
   assert.equal(cards[0].creditsEarned, 0);
 });
 
+test('an all-F semester keeps its real 0.00 average instead of the empty dash', () => {
+  const cards = visuals.semesterProgressCards([
+    {
+      semesterId: 'hk253',
+      semesterName: 'HK253',
+      records: [],
+      gpa: 0,
+      creditsEarned: 0,
+      creditsAttempted: 12,
+    },
+    {
+      semesterId: 'hk254',
+      semesterName: 'HK254',
+      records: [{ studentId: 's1' }],
+      gpa: 0,
+      creditsEarned: 0,
+      creditsAttempted: 0,
+    },
+  ]);
+
+  assert.equal(cards[0].gpa, 0);
+  assert.equal(cards[1].gpa, 0);
+});
+
 test('progress cards tolerate missing transcript data', () => {
   assert.deepEqual(visuals.semesterProgressCards(null), []);
   assert.deepEqual(visuals.semesterProgressCards(undefined), []);

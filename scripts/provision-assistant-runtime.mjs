@@ -20,8 +20,9 @@
 //   3. Ensures LOGIN + the ASSISTANT_DB_PASSWORD password ONLY when needed:
 //      if the role can already log in, the script first tries to connect with
 //      ASSISTANT_DB_PASSWORD and leaves the credential untouched on success.
-//      A password reset happens only when the role is NOLOGIN or the probe
-//      connection fails (unknown password).
+//      A password reset happens only when the role is NOLOGIN or PostgreSQL
+//      confirms an invalid password (SQLSTATE 28P01). Other authorization
+//      rejections fail closed because they do not prove the password is wrong.
 //
 // INPUT (environment)
 //   ASSISTANT_DB_PASSWORD       required; at least 16 characters; fail-closed.
@@ -615,12 +616,12 @@ export async function provision(env = process.env, log = defaultLog, connect = c
       log('runtime_role_login: enabled-already');
       log('runtime_role_password: verified (unchanged)');
     } catch (error) {
-      // Only a rejected credential justifies a reset: SQLSTATE 28P01
-      // (invalid_password) or 28000 (invalid_authorization). A connection
-      // limit, TLS or transient error must fail the run, not restore the old
-      // password over an out-of-band rotation.
-      if (!(error instanceof PostgresError
-          && (error.fields.C === '28P01' || error.fields.C === '28000'))) {
+      // Only invalid_password proves that the supplied credential is wrong.
+      if (error instanceof PostgresError && error.fields.C === '28000') {
+        throw new Error(
+          'PostgreSQL rejected runtime role authentication with SQLSTATE 28000; check pg_hba rules and role login rights.');
+      }
+      if (!(error instanceof PostgresError && error.fields.C === '28P01')) {
         throw error;
       }
       await admin.query(

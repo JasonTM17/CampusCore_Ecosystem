@@ -45,22 +45,49 @@ function parseArgs(argv) {
   return args;
 }
 
-export function inspectRequestedItReports(requestedClasses, reports) {
-  return requestedClasses.filter((requestedClass) => !requestedClass.startsWith('!')).map((requestedClass) => {
-    const isGlob = requestedClass.includes('*');
-    const matches = reports.filter((report) => {
-      const suite = report.xml.match(/<testsuite\b([^>]*)>/);
-      const suiteName = suite?.[1].match(/\bname="([^"]+)"/)?.[1]
-        || report.file.replace(/^TEST-/, '').replace(/\.xml$/, '');
-      const target = requestedClass.includes('.') ? suiteName : suiteName.split('.').at(-1);
-      if (isGlob) {
-        const expression = requestedClass.split('*')
-          .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-          .join('.*');
-        return new RegExp(`^${expression}$`).test(target);
+function parseRequestedItSelectors(requestedClasses) {
+  const selectors = (Array.isArray(requestedClasses) ? requestedClasses : [requestedClasses])
+    .flatMap((selector) => String(selector ?? '').split(','))
+    .map((selector) => selector.trim())
+    .filter(Boolean)
+    .map((raw) => {
+      const excluded = raw.startsWith('!');
+      let pattern = excluded ? raw.slice(1) : raw;
+      if (pattern.includes('/')) {
+        const pathSelector = /^\*\*\/([^/]+)$/.exec(pattern);
+        if (!pathSelector) {
+          throw new Error(`Unsupported Maven --its selector "${raw}"; path globs must use **/<class-name pattern>.`);
+        }
+        pattern = pathSelector[1];
       }
-      return target === requestedClass;
+      if (!pattern) throw new Error(`Unsupported empty Maven --its selector "${raw}".`);
+      return { raw, pattern, excluded, isGlob: /[*?]/.test(pattern) };
     });
+  return {
+    includes: selectors.filter((selector) => !selector.excluded),
+    excludes: selectors.filter((selector) => selector.excluded),
+  };
+}
+
+function reportMatchesSelector(selector, report) {
+  const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+  const suiteName = suite?.[1].match(/\bname="([^"]+)"/)?.[1]
+    || report.file.replace(/^TEST-/, '').replace(/\.xml$/, '');
+  const target = selector.pattern.includes('.') ? suiteName : suiteName.split('.').at(-1);
+  if (!selector.isGlob) return target === selector.pattern;
+  const expression = selector.pattern.split(/([*?])/)
+    .map((part) => part === '*' ? '.*' : part === '?' ? '.' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('');
+  return new RegExp(`^${expression}$`).test(target);
+}
+
+export function inspectRequestedItReports(requestedClasses, reports) {
+  const { includes, excludes } = parseRequestedItSelectors(requestedClasses);
+  return includes.map((selector) => {
+    const requestedClass = selector.raw;
+    const isGlob = selector.isGlob;
+    const matches = reports.filter((report) => reportMatchesSelector(selector, report)
+      && !excludes.some((excluded) => reportMatchesSelector(excluded, report)));
     if (matches.length === 0 || (!isGlob && matches.length !== 1)) {
       return {
         class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
@@ -367,6 +394,7 @@ export async function caseStack(args, runner = {}) {
 /* case: pgit — disposable postgres + full *PostgresIT failsafe run        */
 /* ------------------------------------------------------------------ */
 export async function casePgit(args, runner = {}) {
+  parseRequestedItSelectors(args.its);
   const composeCase = runner.composeTry ?? composeTry;
   const dir = ensureEvidenceDir(args);
   args_env = {

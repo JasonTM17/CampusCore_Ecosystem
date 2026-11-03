@@ -365,6 +365,7 @@ export const thesisWorkflowEn = {
     openTopicCatalog: 'Open the topic catalog',
     quotaBarLabel: 'Topic quota: {count} of {max}',
     quotaTopicSuffix: 'topics',
+    quotaUnavailable: 'Unavailable',
     statusAvailable: 'Available',
     statusFull: 'Full',
     table: {
@@ -879,6 +880,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
     openTopicCatalog: 'Mở danh mục đề tài',
     quotaBarLabel: 'Chỉ tiêu đề tài: {count}/{max}',
     quotaTopicSuffix: 'đề tài',
+    quotaUnavailable: 'Chưa tải được',
     statusAvailable: 'Còn nhận',
     statusFull: 'Đủ',
     table: {

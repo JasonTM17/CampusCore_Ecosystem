@@ -7,11 +7,12 @@ mounts secret files, and no committed file may hold a real value. Values stay in
 the services that need them — PostgreSQL, the API, the RAG sidecar and the
 assistant provisioner; the web container receives build-time public values only.
 
-Rotate before first use. `JWT_SECRET`, `JWT_REFRESH_SECRET` and
-`HEALTH_READINESS_KEY` ship known placeholders, and
-`SECURITY_JWT_REJECT_KNOWN_DEFAULTS=true` makes a release-like run refuse to
-start on them. That refusal is the intended fail-closed behavior, not a setup
-bug.
+Rotate before first use. `JWT_SECRET` and `JWT_REFRESH_SECRET` ship known
+placeholders, and `SECURITY_JWT_REJECT_KNOWN_DEFAULTS=true` makes a release-like
+run refuse to start on them. That refusal is the intended fail-closed behavior,
+not a setup bug. `HEALTH_READINESS_KEY` also ships the known placeholder
+`local-course-health-key`, but that flag does not cover it: rotate the readiness
+key separately and never deploy the template value.
 
 - Generate values with `openssl rand -base64 48` (or another cryptographically
   secure generator) and keep them in `.env` only.
