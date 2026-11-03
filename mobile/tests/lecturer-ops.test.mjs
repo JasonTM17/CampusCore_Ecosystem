@@ -88,6 +88,17 @@ test('grade csv, summary and letter scale match the web generator', () => {
   assert.equal(csv.escapeCsvField('a,"b"\nc'), webAttendance.escapeCsvField('a,"b"\nc'));
 });
 
+test('escapeCsvField neutralizes formula characters preceded by line breaks', () => {
+  assert.equal(
+    csv.escapeCsvField('\n=HYPERLINK("https://attacker.example","Review")'),
+    '"\'\n=HYPERLINK(""https://attacker.example"",""Review"")"',
+  );
+  assert.equal(csv.escapeCsvField('\r\n+1234'), '"\'\r\n+1234"');
+  assert.equal(csv.escapeCsvField('\n-5'), '"\'\n-5"');
+  assert.equal(csv.escapeCsvField('\n@SUM(1,2)'), '"\'\n@SUM(1,2)"');
+  assert.equal(csv.escapeCsvField('\n\t123'), '"\'\n\t123"');
+});
+
 test('csv file names and data uri carry no path separators', () => {
   assert.equal(csv.attendanceCsvFilename('01', '2026-10-28'), 'diem-danh-01-2026-10-28.csv');
   assert.equal(csv.gradeCsvFilename('CS101', '01', '2026-10-28'), 'Bang_diem_CS101_Lop_01_2026-10-28.csv');

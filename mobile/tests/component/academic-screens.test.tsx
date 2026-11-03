@@ -176,6 +176,30 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getByText('Có lỗi xảy ra. Vui lòng thử lại.')).toBeOnTheScreen();
   });
+
+  test('renders appealed grades with score and appeal status on transcript', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        ...transcript,
+        semesters: [
+          {
+            semesterId: 't1',
+            semesterName: 'HK1',
+            gpa: 3.5,
+            creditsEarned: 3,
+            creditsAttempted: 3,
+            records: [
+              { id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 8.5, letterGrade: 'A', gradeStatus: 'APPEALED' },
+            ],
+          },
+        ],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+    expect(screen.getByText('8,5')).toBeOnTheScreen();
+    expect(screen.getAllByText('A').length).toBeGreaterThan(0);
+    expect(screen.getByText('Đang phúc khảo')).toBeOnTheScreen();
+  });
 });
 
 describe('enrollments and courses', () => {
@@ -299,6 +323,20 @@ describe('grades', () => {
     expect(navigate).toHaveBeenCalledWith('transcript');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
+
+  test('includes appealed grades in the grades list and GPA summary', async () => {
+    mockQueries['academic.grades'] = {
+      data: [
+        { id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 2.0, letterGrade: 'F', gradeStatus: 'APPEALED', semesterId: 't1', semester: 'HK1' },
+        { id: 'g2', courseCode: 'CS102', courseName: 'Cấu trúc dữ liệu', credits: 3, finalGrade: 9.0, letterGrade: 'A', gradeStatus: 'APPEALED', semesterId: 't1', semester: 'HK1' },
+      ],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('CS101')).toBeOnTheScreen();
+    expect(screen.getByText('CS102')).toBeOnTheScreen();
+    expect(screen.getAllByText('Đang phúc khảo').length).toBe(2);
+    expect(screen.getAllByText('2,00').length).toBeGreaterThan(0);
+  });
 });
 
 describe('schedule and attendance', () => {
@@ -310,6 +348,25 @@ describe('schedule and attendance', () => {
     expect(dayCells.every((cell) => cell.props.accessibilityRole === 'button')).toBe(true);
     expect(dayCells.every((cell) => Boolean(cell.props.accessibilityLabel))).toBe(true);
     expect(dayCells.filter((cell) => cell.props.accessibilityState?.selected)).toHaveLength(1);
+  });
+
+  test('week day button conveys today in its accessible label', async () => {
+    await render(wrap(<ScheduleScreen {...props} />));
+    const dayCells = screen.getAllByTestId(/^day-/);
+    const todayCells = dayCells.filter((cell) =>
+      typeof cell.props.accessibilityLabel === 'string' &&
+      (cell.props.accessibilityLabel.includes('hôm nay') || cell.props.accessibilityLabel.includes('today'))
+    );
+    expect(todayCells).toHaveLength(1);
+  });
+
+  test('surfaces a semesters query error and does not silently select a term', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { error: 'Không thể tải danh sách học kỳ', errorStatus: 503 };
+    await render(wrap(<ScheduleScreen {...props} />));
+    expect(screen.getByText('Không thể tải danh sách học kỳ')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /CS101 Nhập môn lập trình/ })).toBeNull();
   });
 
   test('schedule lists the term sessions and reports calendar export as unavailable', async () => {

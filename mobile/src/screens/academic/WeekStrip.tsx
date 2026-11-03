@@ -4,28 +4,35 @@ import { UiText } from '../../components/ui/UiText';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { civilDayOf, civilKey } from './academic-model';
+import { useLocale } from '../../i18n/locale-provider';
+import { academicMessages } from '../../i18n/academic-messages';
 
 export interface WeekStripProps {
   days: Date[];
   selectedIndex: number;
   todayKey: string;
   labels: readonly string[];
+  todayLabel?: string;
   onSelect(index: number): void;
 }
 
-export function WeekStrip({ days, selectedIndex, todayKey, labels, onSelect }: WeekStripProps) {
+export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, onSelect }: WeekStripProps) {
   const { colors } = useTheme();
+  const { locale } = useLocale();
+  const copy = academicMessages[locale];
+  const resolvedToday = todayLabel ?? copy.today;
   return (
     <View testID="week-strip" style={styles.dayStrip}>
       {days.map((date, index) => {
         const selected = index === selectedIndex;
         const isToday = civilKey(date) === todayKey;
+        const baseLabel = `${labels[index]} ${civilDayOf(date)}`;
         return (
           <Pressable
             key={civilKey(date)}
             testID={`day-${civilKey(date)}`}
             accessibilityRole="button"
-            accessibilityLabel={`${labels[index]} ${civilDayOf(date)}`}
+            accessibilityLabel={isToday ? `${baseLabel}, ${resolvedToday}` : baseLabel}
             accessibilityState={{ selected }}
             onPress={() => onSelect(index)}
             style={[styles.dayCell, { backgroundColor: selected ? colors.primaryFixed : 'transparent' }]}

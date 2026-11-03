@@ -112,6 +112,9 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                       label={record.letterGrade ?? copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade}
                       tone={letterTone(record.letterGrade)}
                     />
+                    {record.gradeStatus === 'APPEALED' ? (
+                      <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
+                    ) : null}
                   </View>
                 </View>
               </View>

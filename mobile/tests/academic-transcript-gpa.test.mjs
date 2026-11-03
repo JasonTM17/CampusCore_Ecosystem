@@ -118,9 +118,15 @@ test('the grades summary keeps the best attempt for both GPA and the 10-point av
   assert.equal(gpa.summarizeBestAttempts(records).gpa, 4);
 });
 
-test('published filter keeps only published grades', () => {
-  const rows = [record('A', 3, 'A', 9), record('B', 3, 'B', 7, { gradeStatus: 'DRAFT' }), record('C', 3, null, null, { gradeStatus: 'NOT_GRADED' })];
-  assert.deepEqual(gpa.publishedOnly(rows).map((row) => row.courseCode), ['A']);
+test('published filter keeps only published and appealed grades', () => {
+  const rows = [
+    record('A', 3, 'A', 9),
+    record('B', 3, 'B', 7, { gradeStatus: 'DRAFT' }),
+    record('C', 3, null, null, { gradeStatus: 'NOT_GRADED' }),
+    record('D', 3, 'B', 8, { gradeStatus: 'APPEALED' }),
+  ];
+  assert.deepEqual(gpa.publishedOnly(rows).map((row) => row.courseCode), ['A', 'D']);
+  assert.equal(gpa.isPublishedGrade(rows[3]), true);
 });
 
 const transcriptPayload = {

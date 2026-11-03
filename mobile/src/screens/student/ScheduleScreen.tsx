@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
@@ -93,7 +93,11 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
   const enrollments = useMemo(() => (preview ? previewEnrollments : enrollmentsQuery.data ?? []), [preview, enrollmentsQuery.data]);
   const semesters = useMemo(() => (preview ? [previewSemester] : semestersQuery.data ?? []), [preview, semestersQuery.data]);
   const options = useMemo(() => termOptions(enrollments, semesters, locale), [enrollments, semesters, locale]);
-  const termId = termChoice ?? defaultTermId(semesters, enrollments) ?? '';
+  const warning = preview
+    ? null
+    : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
+  const semestersFailed = !preview && semestersQuery.error !== null && (semestersQuery.data?.length ?? 0) === 0;
+  const termId = termChoice ?? (semestersFailed ? '' : defaultTermId(semesters, enrollments) ?? '');
   const semester = semesters.find((entry) => entry.id === termId);
   const termEnrollments = useMemo(
     () => enrollments.filter((item) => item.semesterId === termId),
@@ -120,8 +124,8 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       title={copy.scheduleTitle}
       loading={!preview && enrollmentsQuery.isLoading}
       error={preview ? null : enrollmentsQuery.error}
-      warning={preview ? null : enrollmentsQuery.warning}
-      onRetry={() => void enrollmentsQuery.reload()}
+      warning={warning}
+      onRetry={() => void Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()])}
       onRefresh={preview ? undefined : pull.onRefresh}
       refreshing={!preview && pull.refreshing}
       list={{ data: scheduleRows,
@@ -132,6 +136,9 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
         footer: <><ScreenSpacer /><ScheduleExport enrollments={termEnrollments} semester={semester} /></>,
       }}
     >
+      {semestersFailed ? (
+        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+      ) : null}
       <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
       <SegmentTabs
         label={copy.viewLabel}
@@ -153,6 +160,7 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
             selectedIndex={selectedDayIndex}
             todayKey={civilKey(today)}
             labels={copy.dayShort}
+            todayLabel={copy.today}
             onSelect={(index) => { setSelectedDayIndex(index); setOpenId(null); }}
           />
           {(() => {

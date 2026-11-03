@@ -63,6 +63,9 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
                 <View style={styles.gradeResult}>
                   <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
                   <StatusPill label={record.letterGrade ?? '—'} tone="success" />
+                  {record.gradeStatus === 'APPEALED' ? (
+                    <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
+                  ) : null}
                 </View>
               ) : <StatusPill label={result} tone="warning" />}
             </View>
