@@ -213,7 +213,6 @@ public class AdminCatalogMutationService {
         String classroomId = text(input, "classroomId", null);
         if (classroomId != null) {
             requireCatalogReference(CLASSROOM, "classroomId", classroomId);
-            requireRoomFitsCapacity(classroomId, capacity);
         }
         // The INSERT takes FOR KEY SHARE on the referenced Lecturer/Classroom
         // rows, so their serialization locks must already be held: a FOR
@@ -223,6 +222,9 @@ public class AdminCatalogMutationService {
             bookedRoomIds.add(input.get("classroomId").toString());
         }
         lockScheduleResources(bookedRoomIds, input.get("lecturerId"));
+        if (classroomId != null) {
+            requireRoomFitsCapacity(classroomId, capacity);
+        }
         jdbc.update(
                 "INSERT INTO " + SECTION
                         + " (\"id\", \"sectionNumber\", \"courseId\", \"semesterId\", \"lecturerId\", \"classroomId\", \"capacity\", \"status\")"
@@ -243,6 +245,9 @@ public class AdminCatalogMutationService {
 
     @Transactional
     public Map<String, Object> update(String table, String id, Map<String, Object> input) {
+        if (CLASSROOM.equals(table) && input.containsKey("capacity")) {
+            lockScheduleResources(List.of(id), null);
+        }
         Map<String, Object> before = rowOrNull(table, id);
         Map<String, String> columns = allowedColumns(table);
         // Update runs the same invariants as create: without them a course
@@ -762,10 +767,13 @@ public class AdminCatalogMutationService {
         Map<String, Object> current = requireRowForUpdate(SECTION, id);
         boolean touchesCapacity = input.containsKey("capacity");
         boolean touchesRoom = input.containsKey("classroomId");
+        String classroomId = touchesRoom
+                ? text(input, "classroomId", null)
+                : (String) current.get("classroomId");
+        int capacity = touchesCapacity
+                ? number(input, "capacity", 0)
+                : ((Number) current.get("capacity")).intValue();
         if (touchesCapacity || touchesRoom) {
-            int capacity = touchesCapacity
-                    ? number(input, "capacity", 0)
-                    : ((Number) current.get("capacity")).intValue();
             requireSectionCapacity(capacity);
             if (touchesCapacity) {
                 // A section cannot shrink below the students already seated: the
@@ -777,13 +785,28 @@ public class AdminCatalogMutationService {
                             "Capacity cannot go below the number of enrolled students (" + enrolled + ")");
                 }
             }
-            String classroomId = touchesRoom
-                    ? text(input, "classroomId", null)
-                    : (String) current.get("classroomId");
             if (classroomId != null) {
                 requireCatalogReference(CLASSROOM, "classroomId", classroomId);
-                requireRoomFitsCapacity(classroomId, capacity);
             }
+        }
+        boolean checksScheduleResources = input.containsKey("schedules")
+                || input.containsKey("lecturerId") || input.containsKey("semesterId");
+        if (touchesCapacity || touchesRoom || checksScheduleResources) {
+            Object lecturer = input.containsKey("lecturerId")
+                    ? input.get("lecturerId")
+                    : current.get("lecturerId");
+            List<String> roomIds = new ArrayList<>(scheduledClassroomIds(id));
+            roomIds.addAll(scheduleClassroomIds(input.get("schedules")));
+            if (current.get("classroomId") != null) {
+                roomIds.add(current.get("classroomId").toString());
+            }
+            if (classroomId != null) {
+                roomIds.add(classroomId);
+            }
+            lockScheduleResources(roomIds, lecturer);
+        }
+        if ((touchesCapacity || touchesRoom) && classroomId != null) {
+            requireRoomFitsCapacity(classroomId, capacity);
         }
         String courseId = text(input, "courseId", null);
         if (input.containsKey("courseId") && courseId != null) {
@@ -811,18 +834,6 @@ public class AdminCatalogMutationService {
                             "Course and semester cannot change after enrollments have been recorded");
                 }
             }
-        }
-        if (input.containsKey("schedules") || input.containsKey("lecturerId")
-                || input.containsKey("semesterId")) {
-            Object lecturer = input.containsKey("lecturerId")
-                    ? input.get("lecturerId")
-                    : current.get("lecturerId");
-            List<String> roomIds = new ArrayList<>(scheduledClassroomIds(id));
-            roomIds.addAll(scheduleClassroomIds(input.get("schedules")));
-            if (input.get("classroomId") != null) {
-                roomIds.add(input.get("classroomId").toString());
-            }
-            lockScheduleResources(roomIds, lecturer);
         }
     }
 

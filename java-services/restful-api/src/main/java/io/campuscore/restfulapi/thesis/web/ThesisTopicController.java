@@ -62,6 +62,7 @@ public class ThesisTopicController {
             jakarta.servlet.http.HttpServletRequest request,
             @AuthenticationPrincipal Jwt actor) {
         requireSingleSearch(request);
+        ThesisTopicCatalogSearch.requireWithinBudget(search);
         return respond(roundId, status, search, page, limit, actor);
     }
 
