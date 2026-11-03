@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import net from 'node:net';
 
-import { parseJdbcUrl, provision, WireClient } from './provision-assistant-runtime.mjs';
+import { parseJdbcUrl, PostgresError, provision, WireClient } from './provision-assistant-runtime.mjs';
 
 test('parseJdbcUrl reads host, port, and database from the Spring URL', () => {
   assert.deepEqual(
@@ -59,9 +59,10 @@ test('provision fails closed without a primary database connection', async () =>
 function fakeSocket() {
   const socket = new EventEmitter();
   socket.writes = [];
+  socket.destroyed = false;
   socket.setTimeout = () => socket;
   socket.write = (chunk) => { socket.writes.push(Buffer.from(chunk)); return true; };
-  socket.destroy = () => socket;
+  socket.destroy = () => { socket.destroyed = true; return socket; };
   socket.end = () => socket;
   return socket;
 }
@@ -181,4 +182,101 @@ test('a tampered SCRAM server signature aborts the handshake', async () => {
 test('a valid SCRAM server signature completes authentication', async () => {
   const socket = fakeSocket();
   await scramExchange(socket, 'a-16-plus-character-password', 'valid');
+});
+
+// --- Idle-timeout coverage: a half-open peer must fail, never hang ----------
+
+test('an idle socket during SSL negotiation fails instead of hanging', { timeout: 5000 }, async () => {
+  const socket = fakeSocket();
+  const client = new WireClient({ ...REMOTE_TARGET, sslmode: 'require' });
+  await withStubbedConnect(socket, async () => {
+    const pending = client.connect('a-16-plus-character-password');
+    socket.emit('connect');
+    await tick();
+    socket.emit('timeout');
+    await assert.rejects(pending, /timed out/i);
+    assert.equal(socket.destroyed, true);
+  });
+});
+
+test('an idle socket waiting for authentication fails instead of hanging', { timeout: 5000 }, async () => {
+  const socket = fakeSocket();
+  const client = new WireClient({ host: '127.0.0.1', port: 5432, database: 'postgres', user: 'admin', sslmode: 'disable' });
+  await withStubbedConnect(socket, async () => {
+    const pending = client.connect('a-16-plus-character-password');
+    socket.emit('connect');
+    await tick();
+    socket.emit('timeout');
+    await assert.rejects(pending, /timed out/i);
+    assert.equal(socket.destroyed, true);
+  });
+});
+
+test('an idle socket mid-query fails instead of hanging', { timeout: 5000 }, async () => {
+  const socket = fakeSocket();
+  const client = new WireClient({ host: '127.0.0.1', port: 5432, database: 'postgres', user: 'admin', sslmode: 'disable' });
+  await withStubbedConnect(socket, async () => {
+    const pending = client.connect('a-16-plus-character-password');
+    socket.emit('connect');
+    await tick();
+    socket.emit('data', Buffer.concat([authRequest(3), AUTH_OK, READY]));
+    await pending;
+    const query = client.query('SELECT 1');
+    await tick();
+    socket.emit('timeout');
+    await assert.rejects(query, /timed out/i);
+    assert.equal(socket.destroyed, true);
+  });
+});
+
+// --- Probe-error policy: only an auth failure may reset the password --------
+
+const PROVISION_ENV = {
+  ASSISTANT_DB_PASSWORD: 'rotated-value-123456',
+  SPRING_DATASOURCE_URL: 'jdbc:postgresql://db.example.com:5432/postgres',
+  SPRING_DATASOURCE_USERNAME: 'admin',
+  SPRING_DATASOURCE_PASSWORD: 'admin-password',
+};
+
+function recordedConnector(probeError) {
+  const issued = [];
+  const connect = async (target) => {
+    if (target.user === 'campuscore_assistant_runtime') {
+      if (probeError) throw probeError;
+      return { query: async () => [], close() { } };
+    }
+    return {
+      query: async (sql) => {
+        issued.push(sql);
+        if (/FROM pg_roles/.test(sql)) {
+          return [['postgres', 't'], ['campuscore_assistant_runtime', 't']];
+        }
+        return [];
+      },
+      close() { },
+    };
+  };
+  return { connect, issued };
+}
+
+test('a connection-limit probe error aborts without resetting the role password', async () => {
+  const { connect, issued } = recordedConnector(
+    new PostgresError({ C: '53300', M: 'too many connections for role' }));
+  await assert.rejects(provision(PROVISION_ENV, () => { }, connect), /53300/);
+  assert.equal(issued.some((sql) => /ALTER ROLE/.test(sql)), false);
+});
+
+test('a transport-level probe error aborts without resetting the role password', async () => {
+  const { connect, issued } = recordedConnector(new Error('TLS handshake failed: certificate expired'));
+  await assert.rejects(provision(PROVISION_ENV, () => { }, connect), /TLS handshake failed/);
+  assert.equal(issued.some((sql) => /ALTER ROLE/.test(sql)), false);
+});
+
+test('a rejected probe password still resets the role password', async () => {
+  const { connect, issued } = recordedConnector(
+    new PostgresError({ C: '28P01', M: 'password authentication failed' }));
+  await provision(PROVISION_ENV, () => { }, connect);
+  assert.equal(
+    issued.some((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)),
+    true);
 });
