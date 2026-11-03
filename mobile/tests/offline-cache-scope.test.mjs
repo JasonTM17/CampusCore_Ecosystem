@@ -40,7 +40,7 @@ const jwt = (payload) => `${b64url({ alg: 'none' })}.${b64url(payload)}.sig`;
 const stubs = {
   react: `import { createRequire } from 'node:module';
 const R = createRequire(${pkgJson})('react');
-export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } = R;
+export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } = R;
 export default R;`,
   'jsx-runtime': `import { createRequire } from 'node:module';
 const J = createRequire(${pkgJson})('react/jsx-runtime');
@@ -74,6 +74,7 @@ transpile('query-cache', 'src/hooks/query-cache.ts');
 transpile('capabilities', 'src/auth/capabilities.ts');
 transpile('oidc-core', 'src/auth/oidc-core.ts');
 transpile('lane-flags', 'src/config/lane-flags.ts');
+transpile('thesis-selection', 'src/screens/thesis/thesis-selection.ts', { map: { react: url('stub-react') } });
 const cacheModule = await import(url('query-cache'));
 const {
   clearQueryCache,
@@ -101,6 +102,7 @@ function transpileSession(tag, laneModule) {
       '../auth/mobile-session-store': url('stub-store'),
       '../config/lane-flags': url(laneModule),
       '../hooks/query-cache': url('query-cache'),
+      '../screens/thesis/thesis-selection': url('thesis-selection'),
     },
   });
 }

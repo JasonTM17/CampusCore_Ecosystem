@@ -152,15 +152,33 @@ describe('topics, round and advisors', () => {
     expect(screen.getByText('Đợt 2')).toBeOnTheScreen();
   });
 
-  test('search ignores accents and narrows the loaded topics', async () => {
+  test('search asks the server and renders a match that is not on the first page', async () => {
     setWidth(360);
+    mockApi.topics.mockImplementation(async (_roundId: string, options: { page?: number; search?: string } = {}) => {
+      if (options.search !== 'tro ly') return page([TOPIC_B], true, 21);
+      return options.page ? page([topic('t9', 'Trợ lý học vụ nâng cao')], false, 2) : page([topic('t8', 'Trợ lý học vụ cơ bản')], true, 2);
+    });
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await screen.findByText('Thư viện di động');
+    await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'tro ly');
+    expect(await screen.findByText('Trợ lý học vụ cơ bản')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 0, limit: 20, search: 'tro ly' });
+    expect(screen.queryByText('Thư viện di động')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.loadMore }));
+    expect(await screen.findByText('Trợ lý học vụ nâng cao')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 1, limit: 20, search: 'tro ly' });
+  });
+
+  test('a search the server reports as empty shows the filtered empty state', async () => {
+    setWidth(360);
+    mockApi.topics.mockImplementation(async (_roundId: string, options: { search?: string } = {}) => (
+      options.search ? page([], false, 0) : page([TOPIC_A, TOPIC_B], false, 2)
+    ));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
     await screen.findByText('Trợ lý học vụ');
-    await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'thu vien');
-    expect(screen.queryByText('Trợ lý học vụ')).toBeNull();
-    expect(screen.getByText('Thư viện di động')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'khong co');
     expect(await screen.findByText(copy.emptyTopicsFiltered)).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 0, limit: 20, search: 'khong co' });
   });
 
   test('a long list pages in on request and appends without duplicates', async () => {
@@ -684,6 +702,40 @@ describe('progress and report', () => {
     expect(await screen.findByText('Báo cáo nhóm')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: copy.reportSubmit })).toBeNull();
     expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+  });
+
+  test('a failed report save keeps the typed title, note and link', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    // A reload returns a new object carrying the unchanged stored values.
+    mockApi.report.mockImplementation(async () => ({ groupId: 'g1', title: 'Báo cáo cũ', url: 'https://example.edu/cu' }));
+    mockApi.updateReport.mockRejectedValue(Object.assign(new Error('boom'), { status: 503 }));
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await fireEvent.changeText(await screen.findByLabelText(copy.reportTitle), 'Tiêu đề mới');
+    await fireEvent.changeText(screen.getByLabelText(copy.reportNote), 'Ghi chú mới');
+    await fireEvent.changeText(screen.getByLabelText(copy.reportUrl), 'https://example.edu/moi');
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportUpdate }));
+    expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
+    await waitFor(() => expect(mockApi.report).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText(copy.reportTitle).props.value).toBe('Tiêu đề mới');
+    expect(screen.getByLabelText(copy.reportNote).props.value).toBe('Ghi chú mới');
+    expect(screen.getByLabelText(copy.reportUrl).props.value).toBe('https://example.edu/moi');
+  });
+
+  test('a failed progress read shows a retryable error instead of a 0% progress card', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup() });
+    mockApi.progress.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Không tải được tiến độ.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: copy.retry })).toBeOnTheScreen();
+    expect(screen.queryByText('0%')).toBeNull();
+    // The group read is independent of the progress read and stays on screen.
+    expect(screen.getByText('Nguyễn An')).toBeOnTheScreen();
+    expect(mockApi.progress).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    await waitFor(() => expect(mockApi.progress).toHaveBeenCalledTimes(2));
   });
 });
 

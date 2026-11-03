@@ -26,6 +26,7 @@ import { LANE_FLAGS } from '../config/lane-flags';
 import { clearQueryCache, queryCacheIdentity, syncQueryCacheIdentity } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
+import { selectThesisRound } from '../screens/thesis/thesis-selection';
 
 /**
  * Session authority for the router world (mobile-policy §3). Owns the
@@ -152,6 +153,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     sessionStore.bumpEpoch();
     sessionStore.setAccessToken(null);
     clearQueryCache();
+    selectThesisRound(null);
     stateRef.current = initialState;
     setEpoch((current) => current + 1);
     setState(initialState);
@@ -305,6 +307,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     updateBootStatus('ready');
+    // Local session state includes the module-level thesis round selection.
+    selectThesisRound(null);
     // Preview never touches the credential store.
     if (stateRef.current.kind === 'preview') {
       setEpoch((e) => e + 1);

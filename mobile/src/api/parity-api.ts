@@ -30,6 +30,8 @@ export interface ListOptions extends PageParams {
 export interface ThesisTopicListOptions extends ListOptions {
   /** Defaults to PUBLISHED, the only status the student lane may browse. */
   status?: string;
+  /** Server-side catalogue search; blank and `all` mean no filter. */
+  search?: string;
 }
 
 /** A file part: a Blob on web/tests, or the `{ uri, name, type }` descriptor React Native uploads. */
@@ -121,7 +123,7 @@ export function createParityApi(client: ApiClient) {
     thesisTopics: (roundId: string, options: ThesisTopicListOptions = {}) =>
       readPage<MobileThesisTopic>(
         '/thesis/topics',
-        { roundId, status: options.status ?? 'PUBLISHED' },
+        { roundId, status: options.status ?? 'PUBLISHED', search: options.search },
         options,
       ),
     thesisGroups: (roundId: string, options: ListOptions = {}) =>

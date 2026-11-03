@@ -96,6 +96,7 @@ export interface ThesisCopy {
   progressPercent: string;
   progressNoGroup: string;
   progressNoGroupBody: string;
+  progressFailed: string;
   startRegistration: string;
   finalScore: string;
   askAssistant: string;
@@ -175,7 +176,7 @@ const vi: ThesisCopy = {
   viewLabel: 'Nội dung hiển thị',
 
   search: 'Tìm đề tài',
-  searchLabel: 'Tìm trong các đề tài đã tải',
+  searchLabel: 'Tìm đề tài',
   loadMore: 'Tải thêm',
   loadingMore: 'Đang tải thêm',
   loading: 'Đang tải',
@@ -255,6 +256,7 @@ const vi: ThesisCopy = {
   progressPercent: '{value}%',
   progressNoGroup: 'Bạn chưa tham gia đợt này',
   progressNoGroupBody: 'Tạo nhóm và chọn đề tài để bắt đầu.',
+  progressFailed: 'Không tải được tiến độ.',
   startRegistration: 'Bắt đầu đăng ký',
   finalScore: 'Điểm cuối',
   askAssistant: 'Hỏi trợ lý luận văn',
@@ -396,7 +398,7 @@ const en: ThesisCopy = {
   viewLabel: 'View',
 
   search: 'Search topics',
-  searchLabel: 'Search the loaded topics',
+  searchLabel: 'Search topics',
   loadMore: 'Load more',
   loadingMore: 'Loading more',
   loading: 'Loading',
@@ -476,6 +478,7 @@ const en: ThesisCopy = {
   progressPercent: '{value}%',
   progressNoGroup: 'You are not in this round',
   progressNoGroupBody: 'Create a group and choose a topic to begin.',
+  progressFailed: 'Progress could not be loaded.',
   startRegistration: 'Start registration',
   finalScore: 'Final score',
   askAssistant: 'Ask the thesis assistant',
