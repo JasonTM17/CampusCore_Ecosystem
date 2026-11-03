@@ -227,7 +227,7 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-describe('DS-MOB-01 lecturer attendance keeps dirty marks per sheet', () => {
+describe('lecturer attendance keeps dirty marks per sheet', () => {
   test('a section change keeps the unsaved marks and restores them on return', async () => {
     mockRuntime.queries = {
       'lecturer:schedule': { data: sections },
@@ -252,7 +252,7 @@ describe('DS-MOB-01 lecturer attendance keeps dirty marks per sheet', () => {
   });
 });
 
-describe('DS-MOB-02 lecturer grading keeps dirty edits per section', () => {
+describe('lecturer grading keeps dirty edits per section', () => {
   test('a section change keeps the typed score and restores it on return', async () => {
     mockRuntime.queries = {
       'lecturer:grading': { data: sections },
@@ -274,7 +274,7 @@ describe('DS-MOB-02 lecturer grading keeps dirty edits per section', () => {
   });
 });
 
-describe('DS-MOB-03 credit-limit All filter', () => {
+describe('credit-limit All filter', () => {
   test('selecting All sends the server-supported ALL value', async () => {
     await render(themed(<AdminCreditLimitsScreen />, 'en'));
     await screen.findByLabelText('Status: Pending');
@@ -287,7 +287,7 @@ describe('DS-MOB-03 credit-limit All filter', () => {
   });
 });
 
-describe('DS-MOB-04 attendance records read has its own state', () => {
+describe('attendance records read has its own state', () => {
   test('a failed records read shows a retryable error instead of the empty state', async () => {
     mockRuntime.queries = {
       'academic.semesters': { data: [] },
@@ -329,7 +329,23 @@ describe('DS-MOB-04 attendance records read has its own state', () => {
   });
 });
 
-describe('DS-MOB-05 registration in-flight guard', () => {
+describe('attendance term list failure', () => {
+  test('a failed semesters read is shown with its own retry', async () => {
+    mockRuntime.queries = {
+      'academic.semesters': { error: 'Terms unavailable' },
+      'academic.attendance.summary.': { data: [] },
+      'academic.attendance.records.': { data: [] },
+    };
+    await render(themed(<AttendanceScreen {...props} />, 'en'));
+
+    expect(await screen.findByText('Terms unavailable')).toBeOnTheScreen();
+    expect(screen.queryByText(academicMessages.en.term)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: academicMessages.en.retry }));
+    expect(mockRuntime.reloads['academic.semesters']).toHaveBeenCalled();
+  });
+});
+
+describe('registration in-flight guard', () => {
   test('two taps during the offline probe start only one enroll loop', async () => {
     const gate = deferred<boolean>();
     mockAcademic.isDeviceOffline.mockReturnValue(gate.promise);
@@ -365,7 +381,7 @@ describe('DS-MOB-05 registration in-flight guard', () => {
   });
 });
 
-describe('DS-MOB-06 grading pull spinner', () => {
+describe('grading pull spinner', () => {
   test('a background stale fetch does not show the pull spinner', async () => {
     mockRuntime.stale = true;
     const sectionsPending = deferred<void>();
@@ -392,7 +408,7 @@ describe('DS-MOB-06 grading pull spinner', () => {
   });
 });
 
-describe('DS-MOB-07 enrollment workspace semester read', () => {
+describe('enrollment workspace semester read', () => {
   const enrollment = {
     id: 'e1', sectionId: 's1', semesterId: 'sem-1', status: 'ENROLLED',
     section: {
@@ -425,7 +441,7 @@ describe('DS-MOB-07 enrollment workspace semester read', () => {
   });
 });
 
-describe('DS-MOB-08 check-in location settings fallback', () => {
+describe('check-in location settings fallback', () => {
   test('a failing intent and failing app settings never leave an unhandled rejection', async () => {
     const platform = jest.replaceProperty(Platform, 'OS', 'android');
     const sendIntent = jest.spyOn(Linking, 'sendIntent').mockRejectedValue(new Error('no intent'));
@@ -460,7 +476,7 @@ describe('DS-MOB-08 check-in location settings fallback', () => {
   });
 });
 
-describe('DS-MOB-09 dashboard next meetings', () => {
+describe('dashboard next meetings', () => {
   const enrollmentAt = (id: string, code: string, dayOfWeek: number, startTime: string, endTime: string) => ({
     id, sectionId: `sec-${id}`, semesterId: 'sem-1', status: 'ENROLLED',
     section: {
