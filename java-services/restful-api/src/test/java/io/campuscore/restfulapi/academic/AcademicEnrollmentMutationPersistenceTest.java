@@ -1194,6 +1194,42 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void adminApplicationListingPagesPastTheFiveHundredRowCap() throws Exception {
+        // The feed cap drops the oldest rows out of reach once the queue
+        // grows past it. page/limit opt into the shared X-Total-Count window
+        // so the console can walk the whole backlog; without them the legacy
+        // bare-array-of-500 contract is unchanged.
+        String oldestId = "cl-page-0";
+        for (int index = 0; index < 501; index++) {
+            jdbc.update(
+                    "INSERT INTO \"academic\".\"CreditLimitApplication\""
+                            + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"requestedLimit\", \"reason\","
+                            + " \"status\", \"createdAt\")"
+                            + " VALUES (?, 'student-1', 'semester-1', 'round-open', 30, ?, 'PENDING', ?)",
+                    "cl-page-" + index,
+                    "Cần đăng ký vượt định mức vì thiếu tín chỉ tốt nghiệp, đã được cố vấn học tập xác nhận.",
+                    localDateTime(BASE_TIME.plusSeconds(index)));
+        }
+
+        mvc.perform(get("/api/v1/admin/registration/credit-limit-applications")
+                        .queryParam("status", "PENDING")
+                        .queryParam("page", "5")
+                        .queryParam("limit", "100")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "501"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(oldestId));
+
+        mvc.perform(get("/api/v1/admin/registration/credit-limit-applications")
+                        .queryParam("status", "PENDING")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andExpect(jsonPath("$.length()").value(500));
+    }
+
+    @Test
     void adminDropCompletesIdempotencySoRetriesReplayInsteadOfConflicting() throws Exception {
         MvcResult enrolled = mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
