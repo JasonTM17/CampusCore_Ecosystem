@@ -1,5 +1,5 @@
 /**
- * Request-origin guard for the Next edge proxy (P4e, Sol package).
+ * Request-origin guard for the Next edge proxy (edge proxy hardening).
  *
  * Policy (plans/reports/orchestrate-261101-w14/sol-p4/result.md §3):
  * - Only mutating methods are checked; GET/HEAD/OPTIONS pass through.

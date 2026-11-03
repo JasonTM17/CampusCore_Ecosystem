@@ -142,7 +142,7 @@ test('student enrollments use complete mobile cards and a separate desktop table
   assert.match(mobileCards, /messages\.common\.statuses\.UNKNOWN/);
   assert.match(mobileCards, /isDroppableEnrollment\(enrollment\.status\)/);
   assert.match(mobileCards, /onClick=\{\(\) => void handleDrop\(enrollment\.id, courseLabel\)\}/);
-  // W18 P6: the page title moved to the studentPortal fragment, so the oracle
+  // The page title moved to the studentPortal fragment, so the oracle
   // follows the copy instead of pinning it inside the page module.
   const studentPortal = read('src/i18n/messages-student-portal.ts');
   assert.match(studentPortal, /title: 'My courses'/);
@@ -157,7 +157,7 @@ test('student enrollments use complete mobile cards and a separate desktop table
 
 test('enrollment and thesis status fallbacks stay human-readable', () => {
   const enrollmentPage = read('src/app/admin/enrollments/page.tsx');
-  // W17 P3: the status vocabulary moved to the adminAcademics fragment; the page
+  // The status vocabulary lives in the adminAcademics fragment; the page
   // still resolves unknown service enums through it before the shared fallback.
   const enrollmentCatalogue = read('src/i18n/messages-admin-academics.ts');
   assert.match(enrollmentCatalogue, /ENROLLED: 'Đã đăng ký'/);
