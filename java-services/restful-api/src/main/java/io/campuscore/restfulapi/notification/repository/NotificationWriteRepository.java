@@ -138,21 +138,23 @@ public class NotificationWriteRepository {
             String message,
             String type,
             String link,
-            Instant createdAfter) {
+            Instant createdAfter,
+            Instant createdBefore) {
         if (userIds == null || userIds.isEmpty()) {
             return Set.of();
         }
         return new HashSet<>(jdbc.queryForList(
                 "SELECT DISTINCT user_id FROM " + TABLE
                         + " WHERE user_id IN (:userIds) AND title = :title AND message = :message"
-                        + " AND type = :type AND link = :link AND created_at >= :createdAfter",
+                        + " AND type = :type AND link = :link AND created_at >= :createdAfter AND created_at <= :createdBefore",
                 new MapSqlParameterSource()
                         .addValue("userIds", userIds)
                         .addValue("title", title)
                         .addValue("message", message)
                         .addValue("type", type)
                         .addValue("link", link)
-                        .addValue("createdAfter", Timestamp.from(createdAfter)),
+                        .addValue("createdAfter", Timestamp.from(createdAfter))
+                        .addValue("createdBefore", Timestamp.from(createdBefore)),
                 String.class));
     }
 

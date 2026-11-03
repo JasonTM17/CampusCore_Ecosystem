@@ -38,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ThesisNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ThesisNotificationService.class);
+    /** Notices written by the original fan-out land within seconds of the publication instant. */
+    private static final long LEGACY_FANOUT_WINDOW_SECONDS = 600;
 
     static final String STUDENT_LINK = "/dashboard/thesis";
     static final String LECTURER_LINK = "/dashboard/lecturer/thesis";
@@ -146,7 +148,8 @@ public class ThesisNotificationService {
                 commands.stream().map(CreateNotificationCommand::id).toList());
         Set<String> existingUsers = notifications.findMatchingUsers(
                 userIds, title, message, "SUCCESS", STUDENT_LINK,
-                publishedRound.updatedAt().minusSeconds(30));
+                publishedRound.updatedAt().minusSeconds(30),
+                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS));
         return notifications.createBatch(commands.stream()
                 .filter(command -> !existing.contains(command.id()) && !existingUsers.contains(command.userId()))
                 .toList());
