@@ -12,8 +12,8 @@ const REFRESH_KEY = 'cu.refresh';
 const INSTALL_KEY = 'cu.install';
 const MARKER_KEY = 'installMarker';
 const DEFAULT_CLIENT_ID = 'cu-mobile';
-/** App-level deadline for a token request, independent of the platform fetch timeout. */
-const DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
+/** App-level deadline for refresh, independent of the OIDC code-exchange timeout. */
+const DEFAULT_TOKEN_TIMEOUT_MS = 20_000;
 
 export interface SecureKv {
   getItemAsync(key: string, options?: unknown): Promise<string | null>;
@@ -37,6 +37,7 @@ export interface BootstrapResult {
 export type RefreshResult =
   | { kind: 'refreshed'; accessToken: string }
   | { kind: 'signedOut' | 'stale'; accessToken: null }
+  | { kind: 'reauthRequired'; accessToken: null }
   | { kind: 'unavailable'; accessToken: null; reason: 'network' | 'issuer' | 'configuration' | 'response' | 'storage' };
 
 export interface SessionStoreDeps {
@@ -46,7 +47,7 @@ export interface SessionStoreDeps {
   issuer: string;
   clientId?: string;
   fetchImpl?: typeof fetch;
-  /** Token-request deadline; an abort is reported as a retryable network loss. */
+  /** Token-request deadline; a dispatched abort requires a fresh sign-in. */
   timeoutMs?: number;
   now?: () => number;
   newId?: () => string;
@@ -63,8 +64,8 @@ export interface SessionStore {
   /**
    * grant_type=refresh_token against {issuer}/oauth2/token (client_id only —
    * KM-3 probe). Epoch check gates the SecureStore WRITE, not just the
-   * resolve: a refresh in-flight across a sign-out must not persist rotated
-   * material over the wipe (KM-6).
+   * resolve: the old credential is removed before dispatch, and an in-flight
+   * refresh across a sign-out must not persist rotated material over the wipe.
    */
   refreshAccessToken(): Promise<RefreshResult>;
   /**
@@ -121,6 +122,12 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   }
 
   const stale = (): RefreshResult => ({ kind: 'stale', accessToken: null });
+  function reauthRequired(epoch: number): RefreshResult {
+    if (epoch !== sessionEpoch) return stale();
+    accessToken = null;
+    return { kind: 'reauthRequired', accessToken: null };
+  }
+
   function unavailable(epoch: number, reason: Extract<RefreshResult, { kind: 'unavailable' }>['reason']): RefreshResult {
     if (epoch !== sessionEpoch) return stale();
     accessToken = null;
@@ -134,51 +141,109 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   }
 
   async function refresh(epoch: number): Promise<RefreshResult> {
+    let tokenUrl: string | null = null;
     try {
-      const credential = await mutate(async () => epoch === sessionEpoch ? secure.getItemAsync(REFRESH_KEY) : null);
-      if (epoch !== sessionEpoch) return stale();
-      if (!credential) {
-        accessToken = null;
-        return { kind: 'signedOut', accessToken: null };
+      const parsedIssuer = new URL(issuer);
+      if ((parsedIssuer.protocol === 'https:' || parsedIssuer.protocol === 'http:')
+        && parsedIssuer.host && !parsedIssuer.username && !parsedIssuer.password) {
+        tokenUrl = `${issuer}/oauth2/token`;
       }
-      let response: Response;
-      let body: Record<string, unknown> | null;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), tokenTimeoutMs);
-      try {
-        response = await fetchImpl(`${issuer}/oauth2/token`, {
-          method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: oauthForm({ grant_type: 'refresh_token', client_id: clientId, refresh_token: credential }),
-          signal: controller.signal,
-        });
-        body = parseJson(await response.text());
-      } catch {
-        return unavailable(epoch, 'network');
-      } finally {
-        clearTimeout(timer);
-      }
-      return await mutate(async (): Promise<RefreshResult> => {
-        if (epoch !== sessionEpoch) return stale();
-        // Only a terminal refresh-grant rejection destroys credentials. Outage
-        // bodies are not authoritative even if they contain that error.
-        if (!response.ok && (response.status === 400 || response.status === 401)) {
+    } catch {
+      tokenUrl = null;
+    }
+
+    let prepared: {
+      kind: 'ready';
+      credential: string;
+      url: string;
+      body: string;
+    } | { kind: 'stale' } | { kind: 'signedOut' }
+      | { kind: 'unavailable'; reason: 'configuration' };
+    try {
+      prepared = await mutate(async () => {
+        if (epoch !== sessionEpoch) return { kind: 'stale' } as const;
+        const credential = await secure.getItemAsync(REFRESH_KEY);
+        if (epoch !== sessionEpoch) return { kind: 'stale' } as const;
+        if (!credential) {
           accessToken = null;
-          await secure.deleteItemAsync(REFRESH_KEY);
-          return epoch === sessionEpoch ? { kind: 'signedOut', accessToken: null } : stale();
+          return { kind: 'signedOut' } as const;
         }
-        if (!response.ok) return unavailable(epoch, response.status === 429 || response.status >= 500 ? 'issuer' : 'configuration');
-        const nextAccess = typeof body?.access_token === 'string' && body.access_token.trim() ? body.access_token : null;
-        if (!nextAccess) return unavailable(epoch, 'response');
-        const nextRefresh = typeof body?.refresh_token === 'string' && body.refresh_token.trim() ? body.refresh_token : null;
-        if (nextRefresh) await secure.setItemAsync(REFRESH_KEY, nextRefresh);
-        if (epoch !== sessionEpoch) return stale();
-        accessToken = nextAccess;
-        return { kind: 'refreshed', accessToken: nextAccess };
+        if (!tokenUrl || !clientId.trim()) {
+          return { kind: 'unavailable', reason: 'configuration' } as const;
+        }
+        let body: string;
+        try {
+          body = oauthForm({ grant_type: 'refresh_token', client_id: clientId, refresh_token: credential });
+        } catch {
+          return { kind: 'unavailable', reason: 'configuration' } as const;
+        }
+        await secure.deleteItemAsync(REFRESH_KEY);
+        if (epoch !== sessionEpoch) return { kind: 'stale' } as const;
+        return { kind: 'ready', credential, url: tokenUrl, body } as const;
       });
     } catch {
       return unavailable(epoch, 'storage');
     }
+    if (prepared.kind === 'stale') return stale();
+    if (prepared.kind === 'signedOut') return { kind: 'signedOut', accessToken: null };
+    if (prepared.kind === 'unavailable') return unavailable(epoch, prepared.reason);
+    if (epoch !== sessionEpoch) return stale();
+
+    // The credential is absent from persistent storage before this dispatch.
+    let response: Response;
+    let body: Record<string, unknown> | null;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<{ kind: 'timeout' }>((resolve) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        resolve({ kind: 'timeout' });
+      }, tokenTimeoutMs);
+    });
+    try {
+      if (epoch !== sessionEpoch) return stale();
+      const result = await Promise.race([
+        (async () => {
+          const received = await fetchImpl(prepared.url, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: prepared.body,
+            signal: controller.signal,
+          });
+          const parsed = parseJson(await received.text());
+          return { kind: 'response' as const, response: received, body: parsed };
+        })(),
+        deadline,
+      ]);
+      if (result.kind === 'timeout') return reauthRequired(epoch);
+      response = result.response;
+      body = result.body;
+    } catch {
+      return reauthRequired(epoch);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    return await mutate(async (): Promise<RefreshResult> => {
+      if (epoch !== sessionEpoch) return stale();
+      // A terminal rejection is known; other dispatched responses may have
+      // committed rotation, so their credential remains quarantined.
+      if (!response.ok && (response.status === 400 || response.status === 401)) {
+        accessToken = null;
+        return epoch === sessionEpoch ? { kind: 'signedOut', accessToken: null } : stale();
+      }
+      if (!response.ok) return reauthRequired(epoch);
+      const nextAccess = typeof body?.access_token === 'string' && body.access_token.trim() ? body.access_token : null;
+      const nextRefresh = typeof body?.refresh_token === 'string' && body.refresh_token.trim() ? body.refresh_token : null;
+      if (!nextAccess || !nextRefresh || nextRefresh === prepared.credential) return reauthRequired(epoch);
+      try {
+        await secure.setItemAsync(REFRESH_KEY, nextRefresh);
+      } catch {
+        return reauthRequired(epoch);
+      }
+      if (epoch !== sessionEpoch) return stale();
+      accessToken = nextAccess;
+      return { kind: 'refreshed', accessToken: nextAccess };
+    });
   }
 
   return {

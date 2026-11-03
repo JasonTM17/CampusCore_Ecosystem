@@ -238,11 +238,15 @@ async function mountSession() {
 
 async function withSession(accessToken, body) {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  let token = accessToken;
+  let epoch = 0;
   globalThis.__sessionStoreStub = {
     loadBootstrap: async () => ({ refreshToken: null }),
     refreshAccessToken: async () => ({ accessToken: null }),
-    getAccessToken: () => accessToken,
-    sessionEpoch: () => 0,
+    getAccessToken: () => token,
+    setAccessToken: (next) => { token = next; },
+    sessionEpoch: () => epoch,
+    bumpEpoch: () => { epoch += 1; },
     signOut: async () => {},
   };
   const { SessionProvider, useSession } = await mountSession();
@@ -259,6 +263,7 @@ async function withSession(accessToken, body) {
       React.createElement(SessionProvider, null, React.createElement(Probe)),
     );
   });
+  globalThis.__sessionStoreStub.setAccessToken(accessToken);
   try {
     await body(holder, (fn) => TestRenderer.act(fn));
   } finally {

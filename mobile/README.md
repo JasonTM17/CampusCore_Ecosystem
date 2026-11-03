@@ -70,11 +70,15 @@ the refresh token persists solely in `expo-secure-store` (`cu.refresh`,
 `WHEN_UNLOCKED_THIS_DEVICE_ONLY`), and a two-layer install marker
 (`cu.install` + an AsyncStorage `installMarker` twin) wipes stale refresh
 material after reinstall. A live request that receives `401` attempts one issuer-side refresh rotation and
-retries once, excluding login/refresh/logout paths to avoid auth loops. Only a
-definitive 400 or 401 refresh grant rejection terminates the session and returns
-to sign in; transient network errors, request timeouts (bounded to 10 seconds for
-boot refresh and code exchange), and 5xx server outages preserve the stored
-session in `expo-secure-store` for subsequent retry. The session keeps
+retries once only after a complete replacement pair is stored, excluding
+login/refresh/logout paths to avoid auth loops. The old refresh credential is
+deleted before dispatch. A definitive 400 or 401 rejection, or any ambiguous
+dispatched result such as timeout, response loss, body-read failure, malformed
+success, failure to save the replacement, 429, or 5xx, returns to sign-in
+without restoring the old credential. Storage or
+configuration failures before dispatch remain locally retryable. Refresh has a
+20-second deadline; the OIDC code exchange keeps its separate 10-second limit.
+The session keeps
 `signedOut`, `preview`, and `authenticated` as distinct states; role
 switching is available only inside the explicit preview state and is never
 an authorization substitute.
