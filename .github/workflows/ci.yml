@@ -693,7 +693,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node --test scripts/supabase/assistant-knowledge.test.mjs 2>&1 | tee /tmp/supabase-tests.log
+          node --test scripts/supabase/assistant-knowledge.test.mjs scripts/supabase/assistant-knowledge-version.test.mjs 2>&1 | tee /tmp/supabase-tests.log
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/supabase-tests.log", "utf8");
