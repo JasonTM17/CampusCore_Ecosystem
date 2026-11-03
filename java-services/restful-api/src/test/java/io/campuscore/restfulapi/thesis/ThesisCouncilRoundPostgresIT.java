@@ -302,8 +302,8 @@ class ThesisCouncilRoundPostgresIT {
 
     private void insertCounterReviewScore(Fixture fx, String lecturerId, BigDecimal score) {
         jdbc.update("INSERT INTO thesis.thesis_topic_score (id, topic_id, council_id, lecturer_id, component, score) "
-                        + "VALUES (?, ?, ?, ?, 'GVPB', ?)",
-                UUID.randomUUID(), fx.topicId(), fx.councilId(), lecturerId, score);
+                        + "VALUES (?, ?, NULL, ?, 'GVPB', ?)",
+                UUID.randomUUID(), fx.topicId(), lecturerId, score);
     }
 
     private Fixture fixture(String tag) {
@@ -343,6 +343,7 @@ class ThesisCouncilRoundPostgresIT {
         jdbc.update("INSERT INTO thesis.thesis_topic (id, round_id, department_id, title, description, max_groups, status, created_by) "
                         + "VALUES (?, ?, 'department-demo', ?, 'council race fixture', 1, 'PUBLISHED', ?)",
                 topicId, roundId, "Council race topic " + tag, userOf(supervisor));
+        jdbc.update("UPDATE thesis.thesis_topic SET gvpb_lecturer_id = ? WHERE id = ?", reviewer, topicId);
         jdbc.update("INSERT INTO thesis.thesis_topic_supervisor (id, topic_id, lecturer_id, supervisor_order) VALUES (?, ?, ?, 1)",
                 UUID.randomUUID(), topicId, supervisor);
         jdbc.update("INSERT INTO thesis.thesis_council_topic (id, council_id, topic_id, assigned_by) VALUES (?, ?, ?, ?)",

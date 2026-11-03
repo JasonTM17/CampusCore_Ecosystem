@@ -668,26 +668,13 @@ public class ThesisMutationService {
             if (assignedReviewer == null || assignedReviewer.isBlank()) {
                 continue;
             }
-            List<Map<String, Object>> scoreRows = jdbc.query(
-                    "SELECT id, council_id, lecturer_id, score FROM thesis.thesis_topic_score "
-                            + "WHERE topic_id = :topicId AND component = 'GVPB'",
-                    params().addValue("topicId", topicId),
-                    (rs, rowNum) -> {
-                        Map<String, Object> score = new LinkedHashMap<>();
-                        score.put("id", rs.getObject("id", UUID.class));
-                        score.put("council_id", rs.getObject("council_id", UUID.class));
-                        score.put("lecturer_id", rs.getString("lecturer_id"));
-                        score.put("score", rs.getBigDecimal("score"));
-                        return score;
-                    });
-            if (scoreRows.size() != 1) {
+            var evidence = ThesisGvpbEvidenceValidator.findCanonicalScore(jdbc, topicId, assignedReviewer);
+            if (evidence.isEmpty()) {
                 continue;
             }
-            Map<String, Object> sourceScore = scoreRows.getFirst();
-            BigDecimal scoreValue = (BigDecimal) sourceScore.get("score");
-            if (sourceScore.get("council_id") != null
-                    || !assignedReviewer.equals(sourceScore.get("lecturer_id"))
-                    || scoreValue == null || scoreValue.compareTo(GVPB_DEFENSE_THRESHOLD) >= 0) {
+            ThesisGvpbEvidenceValidator.Evidence sourceScore = evidence.get();
+            BigDecimal scoreValue = sourceScore.score();
+            if (scoreValue.compareTo(GVPB_DEFENSE_THRESHOLD) >= 0) {
                 continue;
             }
 
@@ -706,9 +693,9 @@ public class ThesisMutationService {
             afterState.put("result_reason", "GVPB_BELOW_THRESHOLD");
             afterState.put("result_resolved_by", publisher);
             afterState.put("result_resolved_at", resolvedAt);
-            afterState.put("source_score_id", sourceScore.get("id"));
+            afterState.put("source_score_id", sourceScore.id());
             afterState.put("source_score_value", scoreValue);
-            afterState.put("reviewer_id", sourceScore.get("lecturer_id"));
+            afterState.put("reviewer_id", assignedReviewer);
             afterState.put("gvpb_deadline", deadline);
             afterState.put("threshold", GVPB_DEFENSE_THRESHOLD);
             audit.record(subject(actor), null, "THESIS_RESULT_DISPOSITION_RESOLVED", "THESIS_TOPIC",

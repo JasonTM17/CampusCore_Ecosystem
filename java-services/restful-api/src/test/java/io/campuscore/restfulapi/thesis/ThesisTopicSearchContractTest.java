@@ -289,8 +289,18 @@ class ThesisTopicSearchContractTest {
         UUID topicId = seededIds.get(fixture.topics().getFirst().id());
         jdbc.update("UPDATE thesis.thesis_topic SET final_score=8.5, result_status='GRADED',"
                 + " gvpb_lecturer_id=? WHERE id=?", REVIEWER, topicId);
+        RequestPostProcessor activeMember = ThesisAuthorityFixture.student(jdbc, "ts-student");
+        UUID groupId = UUID.randomUUID();
+        jdbc.update("INSERT INTO thesis.thesis_group "
+                        + "(id,round_id,leader_student_id,topic_id,status,approval_status) "
+                        + "VALUES (?,?,?,?,'APPROVED','APPROVED')",
+                groupId, roundId, "ts-student", topicId);
+        jdbc.update("INSERT INTO thesis.thesis_group_member "
+                        + "(id,group_id,round_id,student_id,member_order,is_leader,active_participation) "
+                        + "VALUES (?,?,?, ?,1,TRUE,TRUE)",
+                UUID.randomUUID(), groupId, roundId, "ts-student");
 
-        MvcResult before = page(roundId, "tri tue nhan tao", 0, 20, student());
+        MvcResult before = page(roundId, "tri tue nhan tao", 0, 20, activeMember);
         TopicResponse masked = body(before).getFirst();
         assertThat(masked.finalScore()).isNull();
         assertThat(masked.resultStatus()).isNull();
@@ -298,7 +308,7 @@ class ThesisTopicSearchContractTest {
 
         jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED' WHERE id=?", roundId);
 
-        MvcResult after = page(roundId, "tri tue nhan tao", 0, 20, student());
+        MvcResult after = page(roundId, "tri tue nhan tao", 0, 20, activeMember);
         TopicResponse visible = body(after).getFirst();
         assertThat(visible.finalScore()).isEqualByComparingTo("8.5");
         assertThat(visible.resultStatus()).isEqualTo("GRADED");

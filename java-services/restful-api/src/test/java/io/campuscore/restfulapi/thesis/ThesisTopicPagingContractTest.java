@@ -297,13 +297,13 @@ class ThesisTopicPagingContractTest {
         scoredTopic(roundId, "Published score", 9.25, "GRADED", REVIEWER);
 
         assertThat(single(roundId, student())).satisfies(topic -> {
-            assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("GRADED");
+            assertThat(topic.finalScore()).isNull();
+            assertThat(topic.resultStatus()).isNull();
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, lecturer(LECT_B))).satisfies(topic -> {
-            assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("GRADED");
+            assertThat(topic.finalScore()).isNull();
+            assertThat(topic.resultStatus()).isNull();
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, lecturer(REVIEWER))).satisfies(topic -> {
@@ -312,8 +312,8 @@ class ThesisTopicPagingContractTest {
             assertThat(topic.gvpbLecturerId()).isEqualTo(REVIEWER);
         });
         assertThat(single(roundId, departmentHead())).satisfies(topic -> {
-            assertThat(topic.finalScore()).isEqualByComparingTo("9.25");
-            assertThat(topic.resultStatus()).isEqualTo("GRADED");
+            assertThat(topic.finalScore()).isNull();
+            assertThat(topic.resultStatus()).isNull();
             assertThat(topic.gvpbLecturerId()).isNull();
         });
         assertThat(single(roundId, facultyHead())).satisfies(topic -> {
@@ -330,6 +330,46 @@ class ThesisTopicPagingContractTest {
                 departmentHead(), facultyHead(), admin())) {
             assertThat(single(roundId, actor)).usingRecursiveComparison()
                     .isEqualTo(legacyUnpaged(roundId, null, actor).getFirst());
+        }
+    }
+
+    @Test
+    void publishedResultsRequireAnActiveApprovedMembershipAcrossEveryCatalogueRead() throws Exception {
+        UUID gradedRound = round("RESULTS_PUBLISHED");
+        UUID gradedTopic = scoredTopic(gradedRound, "Published graded result", 9.25, "GRADED", REVIEWER);
+        UUID nonQualifiedRound = round("RESULTS_PUBLISHED");
+        UUID nonQualifiedTopic = topic(nonQualifiedRound, "Published non-qualified result", TopicStatus.PUBLISHED,
+                "department-demo", subject(LECT_B));
+        jdbc.update("UPDATE thesis.thesis_topic SET result_status = 'NOT_QUALIFIED', "
+                        + "result_reason = 'GVPB_BELOW_THRESHOLD', result_resolved_by = 'fixture-publisher', "
+                        + "result_resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+                nonQualifiedTopic);
+
+        String activeMemberId = "tp-result-active-member";
+        String rejectedMemberId = "tp-result-rejected-member";
+        String cancelledMemberId = "tp-result-cancelled-member";
+        String inactiveMemberId = "tp-result-inactive-member";
+        resultGroup(gradedRound, gradedTopic, activeMemberId, "APPROVED", "APPROVED", true);
+        resultGroup(nonQualifiedRound, nonQualifiedTopic, activeMemberId, "APPROVED", "APPROVED", true);
+        resultGroup(gradedRound, gradedTopic, rejectedMemberId, "REJECTED", "REJECTED", true);
+        resultGroup(gradedRound, gradedTopic, cancelledMemberId, "CANCELLED", "APPROVED", true);
+        resultGroup(gradedRound, gradedTopic, inactiveMemberId, "APPROVED", "APPROVED", false);
+
+        var activeMember = ThesisAuthorityFixture.student(jdbc, activeMemberId);
+        assertResultVisible(gradedRound, gradedTopic, activeMember,
+                new BigDecimal("9.25"), "GRADED", null, false);
+        assertResultVisible(nonQualifiedRound, nonQualifiedTopic, activeMember,
+                null, "NOT_QUALIFIED", "GVPB_BELOW_THRESHOLD", true);
+
+        List<RequestPostProcessor> unauthorized = List.of(
+                ThesisAuthorityFixture.student(jdbc, "tp-result-outsider"),
+                lecturer(LECT_B),
+                ThesisAuthorityFixture.student(jdbc, rejectedMemberId),
+                ThesisAuthorityFixture.student(jdbc, cancelledMemberId),
+                ThesisAuthorityFixture.student(jdbc, inactiveMemberId));
+        for (RequestPostProcessor actor : unauthorized) {
+            assertResultMasked(gradedRound, gradedTopic, actor);
+            assertResultMasked(nonQualifiedRound, nonQualifiedTopic, actor);
         }
     }
 
@@ -506,6 +546,49 @@ class ThesisTopicPagingContractTest {
         return page.getFirst();
     }
 
+    private void assertResultVisible(UUID roundId, UUID topicId, RequestPostProcessor actor,
+            BigDecimal finalScore, String resultStatus, String resultReason, boolean hasResolvedAt) throws Exception {
+        assertTopicResult(detail(topicId, actor), finalScore, resultStatus, resultReason, hasResolvedAt);
+        assertTopicResult(findTopic(legacyUnpaged(roundId, null, actor), topicId),
+                finalScore, resultStatus, resultReason, hasResolvedAt);
+        assertTopicResult(findTopic(body(page(roundId, null, actor, 0, 20)), topicId),
+                finalScore, resultStatus, resultReason, hasResolvedAt);
+    }
+
+    private void assertResultMasked(UUID roundId, UUID topicId, RequestPostProcessor actor) throws Exception {
+        TopicResponse detail = detail(topicId, actor);
+        assertTopicResult(detail, null, null, null, false);
+        assertThat(detail.gvpbLecturerId()).isNull();
+        TopicResponse unpaged = findTopic(legacyUnpaged(roundId, null, actor), topicId);
+        assertTopicResult(unpaged, null, null, null, false);
+        assertThat(unpaged.gvpbLecturerId()).isNull();
+        TopicResponse paged = findTopic(body(page(roundId, null, actor, 0, 20)), topicId);
+        assertTopicResult(paged, null, null, null, false);
+        assertThat(paged.gvpbLecturerId()).isNull();
+    }
+
+    private TopicResponse detail(UUID topicId, RequestPostProcessor actor) throws Exception {
+        MvcResult result = mvc.perform(get("/api/v1/thesis/topics/{id}", topicId).with(actor))
+                .andExpect(status().isOk()).andReturn();
+        return objectMapper.readValue(result.getResponse().getContentAsString(), TopicResponse.class);
+    }
+
+    private static TopicResponse findTopic(List<TopicResponse> topics, UUID topicId) {
+        return topics.stream().filter(topic -> topic.id().equals(topicId)).findFirst().orElseThrow();
+    }
+
+    private static void assertTopicResult(TopicResponse topic, BigDecimal finalScore,
+            String resultStatus, String resultReason, boolean hasResolvedAt) {
+        assertThat(topic.finalScore()).isEqualTo(finalScore);
+        assertThat(topic.resultStatus()).isEqualTo(resultStatus);
+        assertThat(topic.resultReason()).isEqualTo(resultReason);
+        if (hasResolvedAt) {
+            assertThat(topic.resultResolvedAt()).isNotNull();
+        } else {
+            assertThat(topic.resultResolvedAt()).isNull();
+        }
+    }
+
     // ---------- fixtures ----------
 
     private UUID round(String status) {
@@ -538,6 +621,19 @@ class ThesisTopicPagingContractTest {
                 id, roundId, departmentId, title, "Paging fixture description", 2, status.name(), createdBy,
                 finalScore, resultStatus, reviewer);
         return id;
+    }
+
+    private void resultGroup(UUID roundId, UUID topicId, String studentId,
+            String status, String approvalStatus, boolean activeParticipation) {
+        UUID groupId = UUID.randomUUID();
+        jdbc.update("INSERT INTO thesis.thesis_group "
+                        + "(id, round_id, leader_student_id, topic_id, status, approval_status) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)",
+                groupId, roundId, studentId, topicId, status, approvalStatus);
+        jdbc.update("INSERT INTO thesis.thesis_group_member "
+                        + "(id, group_id, round_id, student_id, member_order, is_leader, active_participation) "
+                        + "VALUES (?, ?, ?, ?, 1, TRUE, ?)",
+                UUID.randomUUID(), groupId, roundId, studentId, activeParticipation);
     }
 
     private void supervise(UUID topicId, String lecturerId) {

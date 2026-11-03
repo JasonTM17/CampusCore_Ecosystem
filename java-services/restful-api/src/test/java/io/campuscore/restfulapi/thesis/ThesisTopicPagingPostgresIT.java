@@ -137,6 +137,8 @@ class ThesisTopicPagingPostgresIT {
         assertThat(beforePaged).isEqualTo(beforeLegacy);
         assertThat(beforePaged.getFirst().finalScore()).isNull();
         assertThat(beforePaged.getFirst().resultStatus()).isNull();
+        assertThat(beforePaged.getFirst().resultReason()).isNull();
+        assertThat(beforePaged.getFirst().resultResolvedAt()).isNull();
         assertThat(beforePaged.getFirst().gvpbLecturerId()).isNull();
 
         jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED' WHERE id=?", roundId);
@@ -144,8 +146,10 @@ class ThesisTopicPagingPostgresIT {
         List<TopicResponse> afterLegacy = topics.list(roundId, null, student);
         List<TopicResponse> afterPaged = collectPages(student, 1);
         assertThat(afterPaged).isEqualTo(afterLegacy);
-        assertThat(afterPaged.getFirst().finalScore()).isEqualByComparingTo("8.5");
-        assertThat(afterPaged.getFirst().resultStatus()).isEqualTo("GRADED");
+        assertThat(afterPaged.getFirst().finalScore()).isNull();
+        assertThat(afterPaged.getFirst().resultStatus()).isNull();
+        assertThat(afterPaged.getFirst().resultReason()).isNull();
+        assertThat(afterPaged.getFirst().resultResolvedAt()).isNull();
         assertThat(afterPaged.getFirst().gvpbLecturerId()).isNull();
     }
 
