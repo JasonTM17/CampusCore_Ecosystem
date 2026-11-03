@@ -200,6 +200,7 @@ function loadAssistantPanel({ hooks, stream, thesisApi }) {
       return { cn: (...values) => values.filter(Boolean).join(' ') };
     }
     if (name === '@/lib/plural') return plural;
+    if (name === '@/lib/login-portal') return { sessionExpiredLoginHref: () => '/login' };
     if (name === '@/i18n') {
       return {
         useI18n: () => ({

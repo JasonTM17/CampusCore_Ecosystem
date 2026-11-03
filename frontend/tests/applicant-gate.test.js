@@ -26,6 +26,9 @@ function loadModule(relativePath, aliases = {}) {
 
 const loginPortal = loadModule('src/lib/login-portal.ts', {
   '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
+  '@/i18n/paths': loadModule('src/i18n/paths.ts', {
+    '@/i18n/config': loadModule('src/i18n/config.ts'),
+  }),
 });
 const hubModules = loadModule('src/lib/hub-modules.ts');
 
