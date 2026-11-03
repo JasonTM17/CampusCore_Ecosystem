@@ -399,7 +399,7 @@ export const attendanceGeofenceVi: AttendanceGeofenceMessages = {
     statusActive: 'Hoạt động',
     statusInactive: 'Đã tắt',
     colName: 'Tên',
-    colCampus: 'Campus',
+    colCampus: 'Cơ sở',
     colCentre: 'Tâm',
     colRadius: 'Bán kính',
     colStatus: 'Trạng thái',
