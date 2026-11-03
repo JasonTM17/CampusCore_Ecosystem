@@ -568,6 +568,57 @@ class AnnouncementWritePersistenceTest {
     }
 
     @Test
+    void campusWideAnnouncementCannotCarryTargetYears() throws Exception {
+        // A row stored before the write gate must still reach every student:
+        // campus-wide delivery ignores the year filter.
+        jdbc.update("""
+                INSERT INTO "engagement"."Announcement"
+                ("id", "title", "content", "priority", "targetRoles", "targetYears",
+                 "isGlobal", "createdAt", "updatedAt", "status", "authorId")
+                VALUES ('legacy-global', 'Legacy campus notice', 'Body.', 'NORMAL',
+                        ARRAY['STUDENT'], ARRAY[3], TRUE,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'PUBLISHED', 'admin-1')
+                """);
+        mvc.perform(get("/api/v1/announcements/my").with(yearOneStudentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id=='legacy-global')]").isNotEmpty());
+
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Campus-wide with years",
+                                  "content": "Body.",
+                                  "isGlobal": true,
+                                  "targetYears": [3]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"title\" = 'Campus-wide with years'",
+                Integer.class));
+
+        seedAnnouncement();
+        jdbc.update("UPDATE \"engagement\".\"Announcement\""
+                + " SET \"isGlobal\" = TRUE, \"sectionId\" = NULL, \"lecturerId\" = NULL,"
+                + " \"targetYears\" = ARRAY[] WHERE \"id\" = 'existing-announcement'");
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"targetYears\":[3],\"reason\":\"Thêm năm\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"id\" = 'existing-announcement' AND \"title\" = 'Original title'"
+                        + " AND CARDINALITY(\"targetYears\") = 0 AND \"version\" = 0",
+                Integer.class));
+    }
+
+    @Test
     void targetedAnnouncementWithoutAudienceCannotEnterReviewOrPublish() throws Exception {
         mvc.perform(post("/api/v1/announcements")
                         .with(adminJwt("admin-1"))
@@ -980,6 +1031,16 @@ class AnnouncementWritePersistenceTest {
                         + " WHERE \"id\" = 'existing-announcement'",
                 Integer.class);
         org.junit.jupiter.api.Assertions.assertEquals(1, remaining);
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor yearOneStudentJwt() {
+        return fixtureJwt(jdbc, "student-1", token -> token
+                        .subject("student-1")
+                        .claim("email", "student-1@campuscore.edu")
+                        .claim("roles", List.of("STUDENT"))
+                        .claim("studentId", "student-profile")
+                        .claim("student", Map.of("year", 1)), "STUDENT")
+                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt(String subject) {

@@ -521,6 +521,58 @@ class EventContractPersistenceTest {
     }
 
     @Test
+    void attendanceBatchIsBounded() throws Exception {
+        String eventId = createDraft(staffJwt, 501,
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/publish").with(staffJwt));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/open-registration").with(staffJwt)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt));
+        startEventNow(eventId);
+        for (int index = 1; index <= 501; index++) {
+            jdbc.update("INSERT INTO events.\"Registration\""
+                            + " (\"id\", \"eventId\", \"studentId\", \"status\", \"version\")"
+                            + " VALUES (?, ?, ?, 'REGISTERED', 0)",
+                    "bulk-att-" + index, eventId, "bulk-student-" + index);
+        }
+        jdbc.update("UPDATE events.\"Event\" SET \"registeredCount\" = 501 WHERE \"id\" = ?", eventId);
+
+        List<Map<String, Object>> oversized = java.util.stream.IntStream.rangeClosed(1, 501)
+                .mapToObj(index -> Map.<String, Object>of(
+                        "registrationId", "bulk-att-" + index,
+                        "status", "ATTENDED",
+                        "version", 0))
+                .toList();
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", oversized))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_ATTENDANCE_BATCH_TOO_LARGE"));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Registration\""
+                        + " WHERE \"eventId\" = ? AND \"attendanceStatus\" = 'ATTENDED'",
+                Integer.class, eventId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Audit\" WHERE \"eventId\" = ? AND \"action\" = 'ATTENDED'",
+                Integer.class, eventId)).isZero();
+
+        List<Map<String, Object>> accepted = java.util.stream.IntStream.rangeClosed(1, 10)
+                .mapToObj(index -> Map.<String, Object>of(
+                        "registrationId", "bulk-att-" + index,
+                        "status", "ATTENDED",
+                        "version", 0))
+                .toList();
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", accepted))))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Registration\""
+                        + " WHERE \"eventId\" = ? AND \"attendanceStatus\" = 'ATTENDED'",
+                Integer.class, eventId)).isEqualTo(10);
+    }
+
+    @Test
     void eventNotYetStartedRejectsAttendance() throws Exception {
         String eventId = createDraft(staffJwt, 3,
                 Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));

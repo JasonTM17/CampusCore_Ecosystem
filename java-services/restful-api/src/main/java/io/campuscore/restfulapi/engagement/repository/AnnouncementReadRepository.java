@@ -381,10 +381,12 @@ public class AnnouncementReadRepository {
         conditions.add("\"archivedAt\" IS NULL");
 
         if (visibility.studentId() != null) {
+            // A campus-wide row reaches every student regardless of any years a
+            // legacy editor stored on it; years only narrow targeted notices.
             if (visibility.studentYear() == null) {
-                conditions.add("CARDINALITY(\"targetYears\") = 0");
+                conditions.add("(\"isGlobal\" = TRUE OR CARDINALITY(\"targetYears\") = 0)");
             } else {
-                conditions.add("(CARDINALITY(\"targetYears\") = 0"
+                conditions.add("(\"isGlobal\" = TRUE OR CARDINALITY(\"targetYears\") = 0"
                         + " OR :studentYear = ANY(\"targetYears\"))");
                 parameters.addValue("studentYear", visibility.studentYear());
             }

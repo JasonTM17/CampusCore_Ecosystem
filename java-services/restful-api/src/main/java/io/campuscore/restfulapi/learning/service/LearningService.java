@@ -128,7 +128,7 @@ public class LearningService {
                         + " \"fileName\", \"contentType\", \"sizeBytes\", \"checksum\", \"uploaderId\")"
                         + " VALUES (:id, :sectionId, :title, :description, :fileKey,"
                         + " :fileName, :contentType, :sizeBytes, :checksum, :uploaderId)",
-                materialParams(id, sectionId, request, stored, lecturerId));
+                materialParams(id, sectionId, request, request.description(), stored, lecturerId));
         audit(null, null, lecturerId, "MATERIAL_CREATED", "material=" + id);
         return findMaterial(id);
     }
@@ -142,6 +142,9 @@ public class LearningService {
         if (request.title() == null || request.title().isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
+        // Partial PUT: an omitted description keeps the stored text.
+        String description = request.description() == null
+                ? (String) material.get("description") : request.description();
         boolean newFile = request.contentBase64() != null && !request.contentBase64().isBlank();
         Map<String, Object> stored;
         if (newFile) {
@@ -165,7 +168,7 @@ public class LearningService {
                         + " \"updatedAt\" = CURRENT_TIMESTAMP"
                         + " WHERE \"id\" = :id AND \"version\" = :expected",
                 materialParams(materialId, String.valueOf(material.get("sectionId")), request,
-                        stored, lecturerId)
+                        description, stored, lecturerId)
                         .addValue("expected", request.version()));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
@@ -238,6 +241,18 @@ public class LearningService {
                     "Only draft assignments can be edited");
         }
         requireVersion(request == null ? null : request.version(), assignment);
+        if (request.title() == null || request.title().isBlank()) {
+            throw problem(HttpStatus.BAD_REQUEST, "ASSIGNMENT_TITLE_REQUIRED",
+                    "Assignment title is required");
+        }
+        // Partial PUT: omitted fields keep the locked row's values instead of
+        // clearing the deadline, grade scale, or description.
+        String description = request.description() == null
+                ? (String) assignment.get("description") : request.description();
+        Instant deadlineAt = request.deadlineAt() == null
+                ? toInstant(assignment.get("deadlineAt")) : request.deadlineAt();
+        Double maxScore = request.maxScore() == null
+                ? toDouble(assignment.get("maxScore")) : request.maxScore();
         int updated = jdbc.update("UPDATE " + ASSIGNMENT
                         + " SET \"title\" = :title, \"description\" = :description,"
                         + " \"deadlineAt\" = :deadlineAt, \"maxScore\" = :maxScore,"
@@ -245,9 +260,9 @@ public class LearningService {
                         + " WHERE \"id\" = :id AND \"version\" = :expected",
                 new MapSqlParameterSource("id", assignmentId)
                         .addValue("title", request.title())
-                        .addValue("description", request.description())
-                        .addValue("deadlineAt", ts(request.deadlineAt()))
-                        .addValue("maxScore", request.maxScore())
+                        .addValue("description", description)
+                        .addValue("deadlineAt", ts(deadlineAt))
+                        .addValue("maxScore", maxScore)
                         .addValue("expected", request.version()));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
@@ -372,6 +387,7 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Only submitted work can be returned with feedback");
         }
+        requireValidScore(String.valueOf(submission.get("assignmentId")), request.score());
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'RETURNED', \"returnedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
@@ -412,6 +428,8 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
                     "The submission changed; reload before reviewing");
         }
+        requireValidScore(String.valueOf(submission.get("assignmentId")),
+                request == null ? null : request.score());
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'REVIEWED', \"reviewedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
@@ -578,6 +596,24 @@ public class LearningService {
                     java.security.MessageDigest.getInstance("SHA-256").digest(data));
         } catch (java.security.NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);
+        }
+    }
+
+    /** Feedback is the student-visible grade: keep it inside the assignment scale and NUMERIC(6,2). */
+    private void requireValidScore(String assignmentId, Double score) {
+        if (score == null) {
+            return;
+        }
+        Double maxScore = toDouble(jdbc.queryForMap(
+                "SELECT \"maxScore\" FROM " + ASSIGNMENT + " WHERE \"id\" = :id",
+                new MapSqlParameterSource("id", assignmentId)).get("maxScore"));
+        boolean invalid = score.isNaN() || score.isInfinite() || score < 0 || score > 9999.99
+                || (maxScore != null && score > maxScore);
+        boolean tooPrecise = !invalid
+                && java.math.BigDecimal.valueOf(score).stripTrailingZeros().scale() > 2;
+        if (invalid || tooPrecise) {
+            throw problem(HttpStatus.BAD_REQUEST, "FEEDBACK_SCORE_INVALID",
+                    "Score must be between zero and the assignment maximum with at most two decimals");
         }
     }
 
@@ -777,11 +813,11 @@ public class LearningService {
     }
 
     private static MapSqlParameterSource materialParams(String id, String sectionId,
-            MaterialUpsertRequest request, Map<String, Object> stored, String uploaderId) {
+            MaterialUpsertRequest request, String description, Map<String, Object> stored, String uploaderId) {
         return new MapSqlParameterSource("id", id)
                 .addValue("sectionId", sectionId)
                 .addValue("title", request.title())
-                .addValue("description", request.description())
+                .addValue("description", description)
                 .addValue("fileKey", stored == null ? null : stored.get("key"))
                 .addValue("fileName", stored == null ? request.fileName() : stored.get("fileName"))
                 .addValue("contentType", stored == null ? request.contentType() : stored.get("contentType"))

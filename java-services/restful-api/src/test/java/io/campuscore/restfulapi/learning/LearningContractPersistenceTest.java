@@ -15,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -273,6 +274,48 @@ class LearningContractPersistenceTest {
                 .andExpect(jsonPath("$.status").value("ARCHIVED"));
     }
 
+    @Test
+    void assignmentTitleEditKeepsDeadlineAndMaxScore() throws Exception {
+        Instant deadline = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        MvcResult created = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/assignments")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(createAssignmentJson(deadline)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(created.getResponse().getContentAsString());
+        String assignmentId = body.get("id").asText();
+        String createdDeadline = body.get("deadlineAt").asText();
+
+        mvc.perform(put("/api/v1/learning/staff/assignments/" + assignmentId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Bai tap 1 (revised)\",\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Bai tap 1 (revised)"))
+                .andExpect(jsonPath("$.description").value("submit a report"))
+                .andExpect(jsonPath("$.deadlineAt").value(createdDeadline))
+                .andExpect(jsonPath("$.maxScore").value(10.0));
+    }
+
+    @Test
+    void materialTitleEditKeepsDescription() throws Exception {
+        MvcResult created = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 3 slides\",\"description\":\"lecture notes\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String materialId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+
+        mvc.perform(put("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 3 slides (revised)\",\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("lecture notes"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"description\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                String.class, materialId)).isEqualTo("lecture notes");
+    }
+
     // ---------------------------------------------------------------
     // Authority — section assignment, never role alone
     // ---------------------------------------------------------------
@@ -385,6 +428,57 @@ class LearningContractPersistenceTest {
                 "SELECT COUNT(*) FROM notifications.notification WHERE user_id = 'student-1'",
                 Integer.class);
         assertThat(notices).isEqualTo(2);
+    }
+
+    @Test
+    void returnRejectsOutOfRangeScoreWithoutStateChange() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "answer", false);
+        Integer version = jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId);
+
+        for (String score : List.of("10000", "-1", "11")) {
+            mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/return")
+                            .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"comment\":\"Please revise\",\"score\":" + score
+                                    + ",\"expectedVersion\":" + version + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId)).isEqualTo("SUBMITTED");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId)).isEqualTo(version);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FeedbackRecord\" WHERE \"submissionId\" = ?",
+                Integer.class, submissionId)).isZero();
+
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/return")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Full marks\",\"score\":10,\"expectedVersion\":" + version + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RETURNED"));
+
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "resubmit-after-return")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESUBMITTED"));
+        Integer reviewVersion = jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId);
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/review")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"ok\",\"score\":11,\"expectedVersion\":" + reviewVersion + "}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId)).isEqualTo("RESUBMITTED");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FeedbackRecord\" WHERE \"submissionId\" = ?",
+                Integer.class, submissionId)).isEqualTo(1);
     }
 
     // ---------------------------------------------------------------
@@ -805,6 +899,49 @@ class LearningContractPersistenceTest {
                 .andExpect(status().isForbidden());
         mvc.perform(delete("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void overlongAndBlankLearningFieldsAreRejected() throws Exception {
+        String longTitle = "T".repeat(301);
+        mvc.perform(post("/api/v1/learning/staff/sections/sec-a/assignments")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + longTitle + "\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"Assignment\" WHERE \"title\" = ?",
+                Integer.class, longTitle)).isZero();
+
+        String assignmentId = createDraftAssignment(Instant.now().plus(2, ChronoUnit.DAYS));
+        mvc.perform(put("/api/v1/learning/staff/assignments/" + assignmentId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"   \",\"version\":1}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject(
+                "SELECT \"title\" FROM learning.\"Assignment\" WHERE \"id\" = ?",
+                String.class, assignmentId)).isEqualTo("Bai tap 1");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Assignment\" WHERE \"id\" = ?",
+                Integer.class, assignmentId)).isEqualTo(1);
+
+        MvcResult material = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 1 notes\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String materialId = objectMapper.readTree(material.getResponse().getContentAsString())
+                .get("id").asText();
+        mvc.perform(put("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 1 notes\",\"fileName\":\"" + "F".repeat(301)
+                                + "\",\"version\":1}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject(
+                "SELECT \"fileName\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                String.class, materialId)).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                Integer.class, materialId)).isEqualTo(1);
     }
 
     @Test
