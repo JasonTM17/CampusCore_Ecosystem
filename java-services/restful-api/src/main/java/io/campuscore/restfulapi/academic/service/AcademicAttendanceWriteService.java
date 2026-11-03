@@ -11,6 +11,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -50,6 +51,11 @@ public class AcademicAttendanceWriteService {
         if (request != null && request.records() != null && request.records().size() > MAX_BATCH_RECORDS) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "ATTENDANCE_BATCH_TOO_LARGE",
                     "A single attendance batch may include at most " + MAX_BATCH_RECORDS + " records");
+        }
+        if (request != null && request.records() != null
+                && request.records().stream().anyMatch(Objects::isNull)) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_RECORD",
+                    "Attendance records must not contain null entries");
         }
         if (!repository.sectionExists(normalizedSectionId)) {
             throw new DomainException(HttpStatus.NOT_FOUND, "SECTION_NOT_FOUND", "Section not found: " + sectionId);

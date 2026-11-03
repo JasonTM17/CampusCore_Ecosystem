@@ -471,9 +471,10 @@ export function AdminNotificationsScreen() {
     if (found.length === 0) setPreviewing(true);
   };
 
-  // A notification reaches its recipient immediately and the server has no
-  // idempotency key, so a failed send is never retried automatically; when the
-  // outcome is unknown the admin is told to check the history first.
+  // A notification reaches its recipient immediately and a failed send is
+  // never retried automatically; when the outcome is unknown the admin is told
+  // to check the history first. A manual resend of the unchanged draft replays
+  // the idempotency key, so the server dedupes it.
   const send = async () => {
     if (inFlight.current) return;
     inFlight.current = true;

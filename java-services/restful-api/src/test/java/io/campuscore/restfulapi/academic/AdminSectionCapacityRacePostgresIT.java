@@ -116,8 +116,8 @@ class AdminSectionCapacityRacePostgresIT {
         while (System.nanoTime() < deadline) {
             Integer waiting = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid()"
-                            + " AND wait_event_type = 'Lock' AND query ILIKE '%Section%'"
-                            + " AND (query ILIKE '%capacity%' OR query ILIKE '%FOR UPDATE%')",
+                            + " AND wait_event_type = 'Lock'"
+                            + " AND query ILIKE 'SELECT * FROM \"academic\".\"Section\"%FOR UPDATE%'",
                     Map.of(), Integer.class);
             if (waiting != null && waiting > 0) {
                 return true;

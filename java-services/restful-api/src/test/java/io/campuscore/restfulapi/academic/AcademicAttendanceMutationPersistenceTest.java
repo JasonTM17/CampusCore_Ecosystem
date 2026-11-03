@@ -1,15 +1,20 @@
 package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.academic.service.AcademicAttendanceWriteService;
+import io.campuscore.restfulapi.academic.web.AcademicAttendanceMutationDtos.SectionAttendanceUpdateRequest;
+import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +45,9 @@ class AcademicAttendanceMutationPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AcademicAttendanceWriteService attendance;
 
     @BeforeEach
     void prepareFixture() {
@@ -82,6 +90,38 @@ class AcademicAttendanceMutationPersistenceTest {
                 "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1' AND \"status\" = 'PRESENT'",
                 Integer.class);
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void nullAttendanceEntryIsRejectedBeforeAnyRowsAreWritten() throws Exception {
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[null]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        assertThat(attendanceCount()).isZero();
+        assertThatThrownBy(() -> attendance.recordSectionAttendance(
+                "section-1", null, List.of("ADMIN"),
+                new SectionAttendanceUpdateRequest("2026-08-25", Collections.singletonList(null))))
+                .isInstanceOf(DomainException.class)
+                .satisfies(failure -> assertThat(((DomainException) failure).getStatus().value()).isEqualTo(400));
+        assertThat(attendanceCount()).isZero();
+
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedCount").value(1));
+        assertThat(attendanceCount()).isEqualTo(1);
+    }
+
+    private Integer attendanceCount() {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1'",
+                Integer.class);
     }
 
     @Test

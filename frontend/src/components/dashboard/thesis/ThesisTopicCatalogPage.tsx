@@ -26,6 +26,13 @@ import { thesisApi, type ThesisTopic } from '@/lib/thesis-api';
 import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
 
 const CATALOG_PAGE_SIZE = 20;
+const TOPIC_SEARCH_MAX_LENGTH = 200;
+const TOPIC_SEARCH_MAX_TOKENS = 16;
+
+function isTopicSearchWithinBudget(value: string) {
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  return value.length <= TOPIC_SEARCH_MAX_LENGTH && tokens.length <= TOPIC_SEARCH_MAX_TOKENS;
+}
 
 export default function ThesisTopicCatalogPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
@@ -33,6 +40,7 @@ export default function ThesisTopicCatalogPage() {
   const searchParams = useSearchParams();
   const explicitRoundId = searchParams.get('roundId') || '';
   const [searchInput, setSearchInput] = useState('');
+  const [searchError, setSearchError] = useState('');
   const [showAll, setShowAll] = useState(false);
   // Course requirement: the topic catalog only appears after a search, so no
   // topic is fetched or rendered until the query is submitted.
@@ -107,6 +115,11 @@ export default function ThesisTopicCatalogPage() {
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!isTopicSearchWithinBudget(searchInput)) {
+      setSearchError(searchCopy.searchLimitError);
+      return;
+    }
+    setSearchError('');
     if (!searchInput.trim()) {
       setShowAll(true);
       setSubmittedQuery('all');
@@ -118,6 +131,11 @@ export default function ThesisTopicCatalogPage() {
 
   const handleSelectPill = (pill: string) => {
     const query = pill.split('(')[0].trim();
+    if (!isTopicSearchWithinBudget(query)) {
+      setSearchError(searchCopy.searchLimitError);
+      return;
+    }
+    setSearchError('');
     setSearchInput(query);
     setShowAll(false);
     setSubmittedQuery(query);
@@ -208,7 +226,12 @@ export default function ThesisTopicCatalogPage() {
           <Input
             type="search"
             value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
+            maxLength={TOPIC_SEARCH_MAX_LENGTH}
+            aria-invalid={Boolean(searchError)}
+            onChange={(event) => {
+              setSearchError('');
+              setSearchInput(event.target.value);
+            }}
             placeholder={searchCopy.searchPlaceholder}
             className="h-11 normal-case tracking-normal"
           />
@@ -222,6 +245,7 @@ export default function ThesisTopicCatalogPage() {
           {searchCopy.searchAction}
         </Button>
       </form>
+      {searchError ? <p role="alert" className="text-sm text-destructive">{searchError}</p> : null}
 
       {workspace.error ? (
         <ErrorState

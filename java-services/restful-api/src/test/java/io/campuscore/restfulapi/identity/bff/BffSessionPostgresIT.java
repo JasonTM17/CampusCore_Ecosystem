@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -153,23 +154,39 @@ class BffSessionPostgresIT {
         insertSession(opaque, userId, "portal", CLIENT, grant.getId());
 
         AtomicInteger refreshCalls = new AtomicInteger();
+        CountDownLatch releaseRefresh = new CountDownLatch(1);
         doAnswer(invocation -> {
             refreshCalls.incrementAndGet();
-            Thread.sleep(120); // widen the race window
+            if (!releaseRefresh.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("refresh release barrier timeout");
+            }
             return rotateGrant(grant.getId());
         }).when(tokenClient).refresh(any(), anyString());
 
         ExecutorService pool = Executors.newFixedThreadPool(4);
         CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch workersReady = new CountDownLatch(4);
+        List<Thread> workers = new CopyOnWriteArrayList<>();
         try {
             List<Future<BffSessionService.ResolvedSession>> futures = new java.util.ArrayList<>();
             for (int i = 0; i < 4; i++) {
                 futures.add(pool.submit(() -> {
+                    workers.add(Thread.currentThread());
+                    workersReady.countDown();
                     await(start);
                     return sessions.resolveForBusiness(surface("portal"), opaque);
                 }));
             }
+            assertThat(workersReady.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
             start.countDown();
+            // The exchange stays open until every sibling is parked on the
+            // single-flight monitor — a broken one would enter an exchange
+            // of its own instead, which the call counter exposes.
+            assertThat(awaitSingleFlightQuorum(workers, refreshCalls))
+                    .as("every resolver must reach the single-flight lock or the"
+                            + " token exchange before the first refresh completes")
+                    .isTrue();
+            releaseRefresh.countDown();
             int ok = 0;
             for (Future<BffSessionService.ResolvedSession> future : futures) {
                 if (future.get(WAIT_SECONDS, TimeUnit.SECONDS).ok()) {
@@ -181,6 +198,7 @@ class BffSessionPostgresIT {
             // token; the queued siblings saw the rotated fresh access token.
             assertThat(refreshCalls.get()).isEqualTo(1);
         } finally {
+            releaseRefresh.countDown();
             pool.shutdownNow();
         }
     }
@@ -193,8 +211,15 @@ class BffSessionPostgresIT {
         String opaque = BffSessionStore.randomId(24);
         insertSession(opaque, userId, "portal", CLIENT, grant.getId());
 
+        CountDownLatch refreshInFlight = new CountDownLatch(1);
+        CountDownLatch logoutCommitted = new CountDownLatch(1);
         doAnswer(invocation -> {
-            Thread.sleep(150); // give logout time to commit mid-refresh
+            // The logout must commit strictly inside the exchange window;
+            // a fixed delay could slip it past the rotation on a slow runner.
+            refreshInFlight.countDown();
+            if (!logoutCommitted.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("logout commit barrier timeout");
+            }
             return rotateGrant(grant.getId());
         }).when(tokenClient).refresh(any(), anyString());
 
@@ -212,8 +237,11 @@ class BffSessionPostgresIT {
             });
             Future<?> logger = pool.submit(() -> {
                 await(start);
-                Thread.sleep(40);
+                if (!refreshInFlight.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("refresh in-flight barrier timeout");
+                }
                 sessions.logout(surface("portal"), "http://portal.test", opaque);
+                logoutCommitted.countDown();
                 return null;
             });
             start.countDown();
@@ -225,6 +253,7 @@ class BffSessionPostgresIT {
             assertThat(countLiveSessions(userId)).isEqualTo(0);
             assertThat(countAuthz(userId)).isEqualTo(0);
         } finally {
+            logoutCommitted.countDown();
             pool.shutdownNow();
         }
     }
@@ -710,6 +739,27 @@ class BffSessionPostgresIT {
                         + " WHERE principal_name = ?",
                 Integer.class, userId);
         return count == null ? 0 : count;
+    }
+
+    /**
+     * Resolves once every worker either waits on the striped single-flight
+     * monitor ({@link Thread.State#BLOCKED}) or has entered a token exchange
+     * of its own — the latter only happens when the serialization under test
+     * is missing.
+     */
+    private static boolean awaitSingleFlightQuorum(List<Thread> workers, AtomicInteger exchanges)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            long parked = workers.stream()
+                    .filter(worker -> worker.getState() == Thread.State.BLOCKED)
+                    .count();
+            if (parked >= workers.size() - 1 || exchanges.get() >= workers.size()) {
+                return true;
+            }
+            Thread.sleep(10);
+        }
+        return false;
     }
 
     private static void await(CountDownLatch latch) {
