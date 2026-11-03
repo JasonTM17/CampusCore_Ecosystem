@@ -9,7 +9,7 @@ import { StatusBadge } from '@/components/thesis/StatusBadge';
 import { SupervisedGroupMembers } from '@/components/dashboard/thesis/SupervisedGroupMembers';
 import type { I18nMessages } from '@/i18n/messages';
 import { isHttpUrl } from '@/lib/safe-url';
-import { type ThesisGroup, type ThesisGroupReport } from '@/lib/thesis-api';
+import { type ThesisGroup, type ThesisGroupReport, type ThesisRoundStatus } from '@/lib/thesis-api';
 
 interface SupervisedGroupListProps {
   messages: I18nMessages;
@@ -19,6 +19,7 @@ interface SupervisedGroupListProps {
   reportsByGroup: Record<string, ThesisGroupReport | null>;
   isActionPending: boolean;
   getTopicTitle: (topicId?: string | null) => string;
+  roundStatus?: ThesisRoundStatus;
   isRoundOpen: (group: ThesisGroup) => boolean;
   /** R3 supervisor or admin — proposed-but-not-supervised topics stay read-only. */
   canReviewGroup?: (group: ThesisGroup) => boolean;
@@ -40,6 +41,7 @@ export default function SupervisedGroupList({
   reportsByGroup,
   isActionPending,
   getTopicTitle,
+  roundStatus,
   isRoundOpen,
   canReviewGroup,
   onGroupUpdated,
@@ -48,6 +50,10 @@ export default function SupervisedGroupList({
   onDownloadReport,
 }: SupervisedGroupListProps) {
   const pageCopy = messages.thesisWorkflow.page;
+  const isReviewLocked =
+    roundStatus === 'CANCELLED' ||
+    roundStatus === 'RESULTS_PUBLISHED' ||
+    roundStatus === 'CLOSED';
 
   return (
     <Card variant="muted" className="border-primary/20">
@@ -83,7 +89,7 @@ export default function SupervisedGroupList({
               // The backend reviewer check is R3 supervision (or admin), not
               // topic authorship — a department head who merely proposed the
               // topic must not see dead approve/reject buttons.
-              const mayReview = !canReviewGroup || canReviewGroup(group);
+              const mayReview = !isReviewLocked && (!canReviewGroup || canReviewGroup(group));
               return (
                 <div
                   key={group.id}
