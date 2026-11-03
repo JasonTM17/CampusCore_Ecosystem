@@ -2744,6 +2744,23 @@ export interface components {
       scope?: string;
       userId?: string;
     };
+    CareerTransitionRequest: {
+      /** Format: int32 */
+      expectedVersion?: number;
+      reason?: string;
+    };
+    CatalogDepartmentSummary: {
+      code?: string;
+      description?: string;
+      descriptionEn?: string;
+      descriptionVi?: string;
+      facultyId?: string;
+      id?: string;
+      isActive?: boolean;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     CatalogSectionResponse: {
       alreadyEnrolled?: boolean;
       /** Format: int32 */
@@ -3002,7 +3019,7 @@ export interface components {
       createdAt?: string;
       /** Format: int32 */
       credits?: number;
-      department?: components["schemas"]["DepartmentSummary"];
+      department?: components["schemas"]["CatalogDepartmentSummary"];
       departmentId?: string;
       description?: string;
       descriptionEn?: string;
@@ -4554,7 +4571,14 @@ export interface components {
       code?: string;
       /** Format: int32 */
       credits?: number;
-      department?: components["schemas"]["DepartmentSummary"];
+      department?: components["schemas"]["SectionDepartmentSummary"];
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
+    SectionDepartmentSummary: {
+      code?: string;
       id?: string;
       name?: string;
       nameEn?: string;
@@ -8017,7 +8041,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8159,7 +8183,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8310,7 +8334,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8331,7 +8355,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8352,7 +8376,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8373,7 +8397,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8394,7 +8418,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8415,7 +8439,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
