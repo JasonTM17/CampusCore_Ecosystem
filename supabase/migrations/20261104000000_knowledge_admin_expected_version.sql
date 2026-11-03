@@ -17,6 +17,7 @@ declare
     v_doc uuid;
     v_revision uuid;
     v_version integer;
+    v_document_version integer;
     v_expected_version integer;
     v_created_by text;
     v_next_version integer;
@@ -113,6 +114,12 @@ begin
     if v_action = 'UPDATE' then
         perform 1 from assistant.knowledge_document where id = p_document_id for update;
         if not found then raise exception 'knowledge_not_found' using errcode = 'P0001'; end if;
+        v_expected_version := nullif(v_payload ->> 'expectedVersion', '')::integer;
+        select coalesce(max(r.version), 0) into v_document_version
+        from assistant.knowledge_document_revision r where r.document_id = p_document_id;
+        if v_expected_version is not null and v_expected_version <> v_document_version then
+            raise exception 'stale_version' using errcode = 'P0001';
+        end if;
         select r.id, r.version into v_revision, v_version
         from assistant.knowledge_document_revision r
         where r.document_id = p_document_id and r.state = 'DRAFT' and r.created_by = v_actor
@@ -127,10 +134,6 @@ begin
                     lower(btrim(v_payload ->> 'locale')), btrim(v_payload ->> 'slug'), btrim(v_payload ->> 'title'),
                     btrim(v_payload ->> 'content'), btrim(v_payload ->> 'source'), coalesce((v_payload ->> 'priority')::smallint, 100), v_actor);
         else
-            v_expected_version := nullif(v_payload ->> 'expectedVersion', '')::integer;
-            if v_expected_version is not null and v_expected_version <> v_version then
-                raise exception 'stale_version' using errcode = 'P0001';
-            end if;
             select coalesce(max(r.version), 0) + 1 into v_next_version
             from assistant.knowledge_document_revision r where r.document_id = p_document_id;
             update assistant.knowledge_document_revision

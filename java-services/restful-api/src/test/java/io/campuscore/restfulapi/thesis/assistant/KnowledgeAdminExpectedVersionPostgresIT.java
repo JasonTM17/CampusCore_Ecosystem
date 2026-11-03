@@ -104,6 +104,7 @@ class KnowledgeAdminExpectedVersionPostgresIT {
             assertExpectedFunctionPrivileges(privilegesAfter);
 
             assertVersionUpdates(fixture);
+            assertDocumentVersionUpdates(fixture);
             assertConcurrentUpdates(fixture);
         } finally {
             deleteTree(inputDirectory);
@@ -157,6 +158,55 @@ class KnowledgeAdminExpectedVersionPostgresIT {
         assertThat(draftVersion(fixture, created.documentId())).isEqualTo(3);
     }
 
+    private static void assertDocumentVersionUpdates(Fixture fixture) throws Exception {
+        String otherActor = ACTOR + "-other";
+        RpcResult created = serviceCall(fixture, "CREATE", null,
+                payload("document-versioned-draft", "Version one", "Initial document version", null));
+        for (int expectedVersion = 1; expectedVersion < 5; expectedVersion++) {
+            RpcResult updated = serviceCall(fixture, "UPDATE", created.documentId(),
+                    payload("document-versioned-draft", "Version " + (expectedVersion + 1),
+                            "Document version " + (expectedVersion + 1), expectedVersion));
+            assertThat(updated.version()).isEqualTo(expectedVersion + 1);
+        }
+
+        seedPublishedRevision(fixture, created.documentId(), otherActor);
+
+        String draftBeforeStaleUpdate = draftRow(fixture, created.documentId());
+        SQLException staleDraft = null;
+        try {
+            serviceCall(fixture, "UPDATE", created.documentId(),
+                    payload("document-versioned-draft", "Stale draft", "This stale draft must not persist", 5));
+        } catch (SQLException error) {
+            staleDraft = error;
+        }
+        assertThat((Object) staleDraft).as("document version 5 must be stale after version 6 is published").isNotNull();
+        assertThat(staleDraft.getSQLState()).isEqualTo("P0001");
+        assertThat(staleDraft.getMessage()).contains("stale_version");
+        assertThat(draftRow(fixture, created.documentId())).isEqualTo(draftBeforeStaleUpdate);
+
+        RpcResult matchingDraft = serviceCall(fixture, "UPDATE", created.documentId(),
+                payload("document-versioned-draft", "Version seven", "Matching document version six", 6));
+        assertThat(matchingDraft.version()).isEqualTo(7);
+        assertThat(draftVersion(fixture, created.documentId())).isEqualTo(7);
+
+        SQLException staleFork = null;
+        try {
+            serviceCall(fixture, "UPDATE", created.documentId(),
+                    payload("document-versioned-draft", "Stale fork", "This stale fork must not persist", 6), otherActor);
+        } catch (SQLException error) {
+            staleFork = error;
+        }
+        assertThat((Object) staleFork).as("a stale expected version must reject a new draft fork").isNotNull();
+        assertThat(staleFork.getSQLState()).isEqualTo("P0001");
+        assertThat(staleFork.getMessage()).contains("stale_version");
+        assertThat(draftCount(fixture, created.documentId(), otherActor)).isZero();
+
+        RpcResult matchingFork = serviceCall(fixture, "UPDATE", created.documentId(),
+                payload("document-versioned-draft", "Version eight", "Matching fork version seven", 7), otherActor);
+        assertThat(matchingFork.version()).isEqualTo(8);
+        assertThat(draftVersion(fixture, created.documentId(), otherActor)).isEqualTo(8);
+    }
+
     private static void assertConcurrentUpdates(Fixture fixture) throws Exception {
         RpcResult created = serviceCall(fixture, "CREATE", null, payload("concurrent-draft", "Original", "Concurrent baseline", null));
         assertThat(created.version()).isEqualTo(1);
@@ -207,6 +257,29 @@ class KnowledgeAdminExpectedVersionPostgresIT {
         assertThat(stale.getFirst().error().getMessage()).contains("stale_version");
         assertThat(draftVersion(fixture, created.documentId())).isEqualTo(2);
         assertThat(draftTitle(fixture, created.documentId())).isIn("Concurrent writer one", "Concurrent writer two");
+    }
+
+    private static void seedPublishedRevision(Fixture fixture, java.util.UUID documentId, String actor) throws SQLException {
+        try (Connection connection = fixture.connect();
+             PreparedStatement draft = connection.prepareStatement("""
+                     UPDATE assistant.knowledge_document_revision SET version=5
+                      WHERE document_id=? AND state='DRAFT' AND created_by=?
+                     """);
+             PreparedStatement published = connection.prepareStatement("""
+                     INSERT INTO assistant.knowledge_document_revision
+                         (id, document_id, version, state, domain, locale, slug, title, content, source, priority, created_by, reviewed_by, published_at)
+                     VALUES (?, ?, 6, 'PUBLISHED', 'THESIS', 'en', 'document-versioned-draft', 'Version six',
+                             'Published document version six', 'knowledge-version-postgres-it', 50, ?, ?, now())
+                     """)) {
+            draft.setObject(1, documentId);
+            draft.setString(2, ACTOR);
+            if (draft.executeUpdate() != 1) throw new SQLException("Expected one owned draft to seed at version five");
+            published.setObject(1, java.util.UUID.randomUUID());
+            published.setObject(2, documentId);
+            published.setString(3, actor);
+            published.setString(4, ACTOR);
+            published.executeUpdate();
+        }
     }
 
     private static RpcOutcome concurrentUpdate(
@@ -288,13 +361,23 @@ class KnowledgeAdminExpectedVersionPostgresIT {
     }
 
     private static RpcResult serviceCall(Fixture fixture, String action, java.util.UUID documentId, String payload) throws SQLException {
+        return serviceCall(fixture, action, documentId, payload, ACTOR);
+    }
+
+    private static RpcResult serviceCall(
+            Fixture fixture, String action, java.util.UUID documentId, String payload, String actor) throws SQLException {
         try (Connection connection = fixture.connect()) {
             execute(connection, "SET ROLE service_role");
-            return adminCall(connection, action, documentId, payload);
+            return adminCall(connection, action, documentId, payload, actor);
         }
     }
 
     private static RpcResult adminCall(Connection connection, String action, java.util.UUID documentId, String payload) throws SQLException {
+        return adminCall(connection, action, documentId, payload, ACTOR);
+    }
+
+    private static RpcResult adminCall(
+            Connection connection, String action, java.util.UUID documentId, String payload, String actor) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT result ->> 'documentId', (result ->> 'version')::integer, result ->> 'state'
                   FROM (SELECT assistant.knowledge_admin(?, ?::uuid, ?::jsonb, ?) AS result) call
@@ -303,7 +386,7 @@ class KnowledgeAdminExpectedVersionPostgresIT {
             if (documentId == null) statement.setNull(2, Types.VARCHAR);
             else statement.setString(2, documentId.toString());
             statement.setString(3, payload);
-            statement.setString(4, ACTOR);
+            statement.setString(4, actor);
             try (ResultSet rows = statement.executeQuery()) {
                 if (!rows.next()) throw new SQLException("knowledge_admin returned no result");
                 return new RpcResult(java.util.UUID.fromString(rows.getString(1)), rows.getInt(2), rows.getString(3));
@@ -319,17 +402,32 @@ class KnowledgeAdminExpectedVersionPostgresIT {
     }
 
     private static int draftVersion(Fixture fixture, java.util.UUID documentId) throws SQLException {
+        return draftVersion(fixture, documentId, ACTOR);
+    }
+
+    private static int draftVersion(Fixture fixture, java.util.UUID documentId, String actor) throws SQLException {
         return Integer.parseInt(scalar(fixture, """
                 SELECT version::text FROM assistant.knowledge_document_revision
                  WHERE document_id=? AND state='DRAFT' AND created_by=? ORDER BY version DESC LIMIT 1
-                """, documentId, ACTOR));
+                """, documentId, actor));
     }
 
     private static String draftRow(Fixture fixture, java.util.UUID documentId) throws SQLException {
+        return draftRow(fixture, documentId, ACTOR);
+    }
+
+    private static String draftRow(Fixture fixture, java.util.UUID documentId, String actor) throws SQLException {
         return scalar(fixture, """
                 SELECT to_jsonb(revision)::text FROM assistant.knowledge_document_revision revision
                  WHERE document_id=? AND state='DRAFT' AND created_by=? ORDER BY version DESC LIMIT 1
-                """, documentId, ACTOR);
+                """, documentId, actor);
+    }
+
+    private static int draftCount(Fixture fixture, java.util.UUID documentId, String actor) throws SQLException {
+        return Integer.parseInt(scalar(fixture, """
+                SELECT count(*)::text FROM assistant.knowledge_document_revision
+                 WHERE document_id=? AND state='DRAFT' AND created_by=?
+                """, documentId, actor));
     }
 
     private static String draftTitle(Fixture fixture, java.util.UUID documentId) throws SQLException {
