@@ -29,8 +29,7 @@ public final class AcademicAttendanceMutationDtos {
 
             @NotNull(message = "records list is required")
             @Size(max = 500, message = "records must not exceed 500 entries")
-            @Valid
-            List<StudentAttendanceEntry> records
+            List<@NotNull(message = "records entries are required") @Valid StudentAttendanceEntry> records
     ) {
     }
 
