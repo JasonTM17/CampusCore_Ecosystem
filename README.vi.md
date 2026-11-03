@@ -29,8 +29,8 @@ Expo Mobile App (mobile/) ─────┘         │ /internal/rag (mạng n
 ## Quick start (local)
 
 Yêu cầu: **Docker Desktop 24+** đang chạy, tối thiểu 4 GB RAM, và các cổng của cụm local bên dưới
-đang trống. Chỉ cần thêm **Java 21 + Maven 3.9** khi chạy test/jar ngoài Docker và **Node 20+** khi chạy
-test frontend hoặc Expo CLI.
+đang trống. Chỉ cần thêm **Java 21 + Maven 3.9** khi chạy test/jar ngoài Docker, **Node 20+** cho
+frontend Next.js, và **Node 22.13+** cho Expo CLI/app mobile.
 
 ```powershell
 git clone https://github.com/JasonTM17/CampusCore_Ecosystem.git

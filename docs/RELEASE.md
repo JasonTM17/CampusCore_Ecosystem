@@ -25,7 +25,8 @@ mvn -q -f java-services/pom.xml verify
 docker compose config
 docker compose up -d --build postgres mailpit rag-service restful-api web
 curl.exe http://127.0.0.1:4010/api/v1/health/liveness
-curl.exe -H "X-Health-Key: local-course-health-key" http://127.0.0.1:4010/api/v1/health/readiness
+$env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
+curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://127.0.0.1:4010/api/v1/health/readiness
 curl.exe http://127.0.0.1:4010/v3/api-docs
 curl.exe http://127.0.0.1:3000/
 curl.exe http://127.0.0.1:8025/
