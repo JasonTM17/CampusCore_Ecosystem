@@ -245,6 +245,7 @@ function mountAuthProvider(options = {}) {
     'next/navigation': { useRouter: () => router, usePathname: () => pathname.value },
     '@/i18n': { useI18n: () => ({ href: (p) => `/en${p}` }) },
     '@/types/api': {},
+    '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/api': {
       authApi,
       SessionVerificationError: SessionVerificationErrorStub,
@@ -3138,6 +3139,25 @@ test('session poll: a definitive refresh rejection publishes signed-out once and
     assert.match(env.replaces[0], /\/en\/login/);
     assert.equal(env.reloads.length, 0);
     assert.equal(mounted.render().isLoading, true, 'the fence stays raised behind the redirect');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a 401 on a BFF surface signs out without a browser refresh', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider({ surface: { mode: 'bff' } });
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.equal(mounted.refreshCalls.length, 0, 'the BFF lane has no browser refresh route');
+    assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
+    assert.equal(env.replaces.length, 1);
   } finally {
     env.restore();
   }

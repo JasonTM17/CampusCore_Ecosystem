@@ -559,8 +559,8 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        {bffSurface ? (
-          <div className="pt-1">
+        {bffSurface && !challenge ? (
+          <div className="space-y-3 pb-5 pt-1">
             {/* Full-page navigation: the opaque host-only session cookie is
                 written by the surface host itself. `return` stays relative —
                 the Java allowlist rejects anything else. */}
@@ -571,8 +571,17 @@ export default function LoginPage() {
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {loginCopy.sso}
             </a>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <span className="w-full border-t border-border/70" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-background px-2 text-muted-foreground">{loginCopy.or}</span>
+              </div>
+            </div>
           </div>
-        ) : challenge ? (
+        ) : null}
+        {challenge ? (
           <form
             onSubmit={handleVerifySubmit}
             className="space-y-5"
