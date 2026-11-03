@@ -13,20 +13,16 @@ import { ThesisRoundPicker } from './ThesisRoundPicker';
 import {
   THESIS_MILESTONES,
   canShowFinalScore,
+  isNotQualified,
   memberLabel,
   milestoneState,
+  milestoneTone,
   progressPercent,
   statusTone,
   type MilestoneState,
 } from './thesis-model';
 import { AskAssistantButton, QueryNotices, ThesisStatusBadge, useThesisUi } from './thesis-ui';
 import { useActiveThesisRound, useThesisGroup } from './use-thesis';
-
-const MILESTONE_TONE: Record<MilestoneState, 'success' | 'primary' | 'neutral'> = {
-  done: 'success',
-  current: 'primary',
-  pending: 'neutral',
-};
 
 /** Server-derived progress of the student's group in the selected round, with the report. */
 export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
@@ -37,12 +33,15 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
   const state = useThesisGroup(active.round?.id ?? null);
   const { group, progress } = state;
   const percent = progressPercent(progress);
-  const attention = progress && progress.attentionState !== 'NONE' ? copy.attention[progress.attentionState] : '';
+  const notQualified = isNotQualified(progress);
+  const outcome = notQualified ? copy.attention.NOT_QUALIFIED : '';
+  const attention = !notQualified && progress && progress.attentionState !== 'NONE' ? copy.attention[progress.attentionState] : '';
   const idle = !state.loading && !state.error;
   const milestoneLabel = (milestone: string) => copy.milestones[milestone] ?? milestone;
-  const stateLabel = (value: MilestoneState) => (
-    value === 'done' ? copy.milestoneDone : value === 'current' ? copy.milestoneCurrent : copy.milestonePending
-  );
+  const stateLabel = (value: MilestoneState) => {
+    if (value === 'skipped') return copy.milestoneSkipped;
+    return value === 'done' ? copy.milestoneDone : value === 'current' ? copy.milestoneCurrent : copy.milestonePending;
+  };
 
   return (
     <ScreenShell title={copy.progressTitle}>
@@ -76,8 +75,12 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   </View>
                   <ThesisStatusBadge status={group.approvalStatus === 'APPROVED' ? 'APPROVED' : group.status} copy={copy} />
                 </View>
-                <ProgressBar value={percent} tone={percent === 100 ? 'success' : 'primary'} />
-                {attention ? <UiText accessibilityRole="alert" variant="bodySmall" tone="warning" style={styles.line}>{attention}</UiText> : null}
+                <ProgressBar value={percent} tone={percent === 100 && !notQualified ? 'success' : 'primary'} />
+                {outcome ? (
+                  <UiText accessibilityRole="alert" variant="label" tone="warning" style={styles.line}>{outcome}</UiText>
+                ) : attention ? (
+                  <UiText accessibilityRole="alert" variant="bodySmall" tone="warning" style={styles.line}>{attention}</UiText>
+                ) : null}
                 {group.approvalStatus === 'REJECTED' && group.rejectionReason ? (
                   <UiText variant="bodySmall" tone="error" style={styles.line}>{`${copy.groupRejectedReason}: ${group.rejectionReason}`}</UiText>
                 ) : null}
@@ -92,18 +95,24 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   <Card style={styles.card}>
                     {THESIS_MILESTONES.map((milestone, index) => {
                       const value = milestoneState(progress, milestone);
+                      const tone = milestoneTone(value, notQualified);
+                      const skipped = value === 'skipped';
                       return (
                         <View key={milestone} style={styles.milestoneRow}>
                           <View style={styles.milestoneTrack}>
                             <View style={[styles.milestoneNode, {
-                              backgroundColor: value === 'done' ? colors.successFixed : value === 'current' ? colors.primaryFixed : colors.surfaceLow,
-                              borderColor: value === 'done' ? colors.success : value === 'current' ? colors.primary : colors.outlineVariant,
+                              backgroundColor: tone === 'success' ? colors.successFixed : tone === 'primary' ? colors.primaryFixed : colors.surfaceLow,
+                              borderColor: tone === 'success' ? colors.success : tone === 'primary' ? colors.primary : colors.outlineVariant,
                             }]} />
                             {index < THESIS_MILESTONES.length - 1 ? <View style={[styles.milestoneConnector, { backgroundColor: colors.outlineVariant }]} /> : null}
                           </View>
-                          <View style={styles.milestoneCopy}>
+                          <View
+                            style={styles.milestoneCopy}
+                            accessible={skipped}
+                            accessibilityLabel={skipped ? `${milestoneLabel(milestone)}: ${stateLabel(value)}` : undefined}
+                          >
                             <UiText variant="label" style={styles.milestoneLabel}>{milestoneLabel(milestone)}</UiText>
-                            <StatusPill label={stateLabel(value)} tone={MILESTONE_TONE[value]} />
+                            <StatusPill label={stateLabel(value)} tone={tone} />
                           </View>
                         </View>
                       );
