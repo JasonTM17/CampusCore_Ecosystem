@@ -122,6 +122,23 @@ test('frontend catalogues define matching recursive keys and placeholders', () =
   assert.ok(catalogCount >= 22, `Expected at least 22 catalogues tested, found ${catalogCount}`);
 });
 
+test('Vietnamese catalogue translates the department banner and the geofence campus column', () => {
+  const academics = loadModule('src/i18n/messages-admin-academics.ts', aliases);
+  const geofence = loadModule('src/i18n/messages-attendance-geofence.ts', aliases);
+
+  const pairs = [
+    ['departments banner image alt', academics.adminAcademicsEn.departments.banner.imageAlt, academics.adminAcademicsVi.departments.banner.imageAlt],
+    ['departments banner lab label', academics.adminAcademicsEn.departments.banner.labLabel, academics.adminAcademicsVi.departments.banner.labLabel],
+    ['geofence campus column', geofence.attendanceGeofenceEn.admin.colCampus, geofence.attendanceGeofenceVi.admin.colCampus],
+  ];
+
+  for (const [label, en, vi] of pairs) {
+    assert.notEqual(en, undefined, `${label} is missing in EN`);
+    assert.notEqual(vi, undefined, `${label} is missing in VI`);
+    assert.notEqual(vi, en, `${label} must be translated in the VI catalogue, not copied from EN`);
+  }
+});
+
 test('admin analytics charts reads distribution copy from the catalogue', () => {
   const charts = read('src/components/admin/AdminAnalyticsCharts.tsx');
   assert.doesNotMatch(
