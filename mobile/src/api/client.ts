@@ -1639,8 +1639,6 @@ export const campusApi = {
     apiClient.get<MobileLibraryTitle>(
       `/library/catalogue/${encodeURIComponent(titleId)}`,
     ),
-  libraryMyLoans: () =>
-    apiClient.get<MobileLibraryLoan[]>('/library/requests/my'),
   libraryRequest: (copyId: string) =>
     apiClient.post<MobileLibraryLoan>(
       '/library/requests',
