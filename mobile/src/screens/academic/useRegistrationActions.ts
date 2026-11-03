@@ -21,18 +21,21 @@ export interface RegistrationActionsInput {
   reload: () => Promise<void>;
   /** Section ids still in the catalog; selections for vanished sections are dropped. */
   catalogIds: readonly string[];
+  /** The settled workspace value; false clears the basket and blocks Register. */
+  roundOpen?: boolean;
 }
 
 /** Selection, idempotent enroll and drop. Offline blocks every mutation; a failure keeps the selection. */
-export function useRegistrationActions({ copy, locale, preview, knownOffline, reload, catalogIds }: RegistrationActionsInput) {
+export function useRegistrationActions({ copy, locale, preview, knownOffline, reload, catalogIds, roundOpen }: RegistrationActionsInput) {
   const [basket, dispatch] = useReducer(basketReducer, emptyBasket);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<RegistrationNotice | null>(null);
   const inFlight = useRef(false);
 
   useEffect(() => {
-    if (catalogIds.length > 0) dispatch({ type: 'prune', validIds: catalogIds });
-  }, [catalogIds]);
+    if (roundOpen === false) dispatch({ type: 'clear' });
+    else if (catalogIds.length > 0) dispatch({ type: 'prune', validIds: catalogIds });
+  }, [catalogIds, roundOpen]);
 
   const blocked = useCallback(async (): Promise<boolean> => {
     if (preview || inFlight.current) return true;
@@ -52,12 +55,13 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
   }, [copy, knownOffline, preview]);
 
   const registerSelected = useCallback(async () => {
-    if (await blocked()) return;
+    if (roundOpen === false || await blocked()) return;
     setBusy(true);
     setNotice(null);
     try {
       let registered = 0;
       let offline = false;
+      let hiddenFailure: string | null = null;
       for (const sectionId of basket.selected) {
         try {
           await enrollInSection(sectionId, locale);
@@ -69,17 +73,22 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
             break;
           }
           const code = (error as { code?: string } | null)?.code ?? null;
-          dispatch({ type: 'fail', sectionId, failure: { code, messageKey: registrationErrorKey(code) ?? 'generic' } });
+          const messageKey = registrationErrorKey(code) ?? 'generic';
+          dispatch({ type: 'fail', sectionId, failure: { code, messageKey } });
+          // A failed section that left the catalog has no row to carry its error.
+          if (!catalogIds.includes(sectionId)) hiddenFailure = messageKey;
         }
       }
       if (offline) setNotice({ tone: 'error', text: copy.offlineNoMutation });
+      else if (hiddenFailure) setNotice({ tone: 'error', text: copy.errors[hiddenFailure] ?? copy.errors.generic });
       else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(countForm(registered, copy.registeredOne, copy.registered), { n: registered }) });
+      // The lock covers the refresh that withdraws the just-enrolled Select.
+      await reload();
     } finally {
       inFlight.current = false;
       setBusy(false);
     }
-    await reload();
-  }, [basket.selected, blocked, copy, locale, reload]);
+  }, [basket.selected, blocked, catalogIds, copy, locale, reload, roundOpen]);
 
   const drop = useCallback(async (enrollmentId: string) => {
     if (await blocked()) return;

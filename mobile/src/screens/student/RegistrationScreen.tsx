@@ -2,7 +2,7 @@ import { groupedRows } from '../../components/perf/grouped-rows';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, HeroCard, IconChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, HeroCard, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
@@ -22,7 +22,7 @@ import {
   type SectionMeeting,
 } from '../academic/registration-browse';
 import { RegistrationControls } from '../academic/RegistrationControls';
-import { AcademicShell, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { AcademicShell, academicErrorMessage, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 import { useRegistrationActions } from '../academic/useRegistrationActions';
 
 const PAGE_SIZE = 20;
@@ -59,6 +59,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const catalogIds = useMemo(() => sections.map((section) => section.id), [sections]);
   const actions = useRegistrationActions({
     copy, locale, preview, knownOffline: query.errorStatus === 0, reload: query.reload, catalogIds,
+    roundOpen: workspace?.roundOpen,
   });
 
   const enrolledMeetings = useMemo<SectionMeeting[]>(
@@ -71,7 +72,15 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const roundOpen = workspace?.roundOpen ?? false;
 
   const toView = (section: BrowseSection): SectionView => {
-    const availability = sectionAvailability(section, { roundOpen, enrolledMeetings, creditsRemaining: workspace?.eligibility?.creditsRemaining });
+    // The basket joins the checks: a second section must fit beside the picks.
+    const others = sections.filter((item) => item.id !== section.id && actions.basket.selected.includes(item.id));
+    const availability = sectionAvailability(section, {
+      roundOpen,
+      enrolledMeetings: others.length === 0 ? enrolledMeetings : [...enrolledMeetings, ...others.flatMap((item) => item.schedules ?? [])],
+      creditsRemaining: typeof workspace?.eligibility?.creditsRemaining === 'number'
+        ? workspace.eligibility.creditsRemaining - others.reduce((sum, item) => sum + (item.credits ?? 0), 0)
+        : workspace?.eligibility?.creditsRemaining,
+    });
     const failure = actions.basket.failures[section.id];
     const enrollment = (workspace?.enrollments ?? []).find((item) => item.sectionId === section.id && isDroppableEnrollment(item.status));
     return {
@@ -174,7 +183,7 @@ return (
       >
         <View style={styles.heroActions}>
           {roundOpen ? <StatusPill label={copy.availability.open} tone="success" /> : null}
-          {selectedCount > 0 ? (
+          {selectedCount > 0 && roundOpen ? (
             <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
           ) : null}
         </View>
@@ -182,7 +191,10 @@ return (
           <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
         ) : null}
       </HeroCard>
-      {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
+      {workspace?.eligibilityError ? (
+        <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+      ) : null}
+      {!roundOpen ? <StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /> : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
       <ScreenSpacer />
       {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
