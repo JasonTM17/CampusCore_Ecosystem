@@ -223,13 +223,15 @@ test('the dispatch sheet formats dates through the shared locale helper', () => 
   // signature date consumes formatDate, and the prose heading takes single
   // day/month/year parts from Intl.DateTimeFormat under the shared BCP-47 tag
   // — partial formatDate options cannot express them because formatDate
-  // merges year+month+day defaults (the triple-date regression).
+  // merges year+month+day defaults (the triple-date regression). The prose
+  // parts are pinned to the campus zone so they cannot drift from officialDate
+  // on a reader outside UTC+7.
   assert.ok((DISPATCH.match(/officialDate/g) ?? []).length >= 2);
   assert.doesNotMatch(DISPATCH, /formatDate\(dateObj,\s*\{\s*day: 'numeric'\s*\}/);
   assert.doesNotMatch(DISPATCH, /formatDate\(dateObj,\s*\{\s*month: 'long'\s*\}/);
-  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*day: 'numeric'\s*\}/);
-  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*month: 'long'\s*\}/);
-  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*year: 'numeric'\s*\}/);
+  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*day: 'numeric',\s*timeZone: CAMPUS_TIME_ZONE\s*\}/);
+  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*month: 'long',\s*timeZone: CAMPUS_TIME_ZONE\s*\}/);
+  assert.match(DISPATCH, /Intl\.DateTimeFormat\(localeCodes\[locale\],\s*\{\s*year: 'numeric',\s*timeZone: CAMPUS_TIME_ZONE\s*\}/);
 });
 
 /** Day/month/year arithmetic re-implemented in a component instead of the i18n helper. */

@@ -15,6 +15,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CAMPUS_TIME_ZONE } from '@/lib/attendance-checkin';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import { localeCodes } from '@/i18n/config';
@@ -200,6 +201,7 @@ export function EditorialArticleMagazine({
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
+                timeZone: CAMPUS_TIME_ZONE,
               },
             )}
           </span>

@@ -30,7 +30,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface Classroom {
@@ -70,6 +70,8 @@ export default function AdminClassroomsPage() {
   const [editingRoom, setEditingRoom] = useState<Classroom | null>(null);
   const classroomsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     building: '',
     roomNumber: '',
@@ -225,21 +227,29 @@ export default function AdminClassroomsPage() {
   };
 
   const handleDelete = async (room: Classroom) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage
-        .replace('{building}', () => room.building)
-        .replace('{roomNumber}', () => room.roomNumber),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingRoomId(room.id);
 
     try {
-      await classroomsApi.delete(room.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage
+          .replace('{building}', () => room.building)
+          .replace('{roomNumber}', () => room.roomNumber),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await classroomsApi.delete(room.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (classrooms.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -248,6 +258,9 @@ export default function AdminClassroomsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingRoomId(null);
     }
   };
 
@@ -398,6 +411,7 @@ export default function AdminClassroomsPage() {
                         variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDelete(room)}
+                        disabled={deletingRoomId !== null}
                         aria-label={deleteLabel(room.building, room.roomNumber)}
                         title={deleteLabel(room.building, room.roomNumber)}
                       >
@@ -455,6 +469,7 @@ export default function AdminClassroomsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(room)}
+                              disabled={deletingRoomId !== null}
                               aria-label={deleteLabel(room.building, room.roomNumber)}
                               title={deleteLabel(room.building, room.roomNumber)}
                             >

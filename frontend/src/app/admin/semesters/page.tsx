@@ -30,7 +30,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
@@ -115,6 +115,8 @@ export default function AdminSemestersPage() {
   const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
   const semestersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingSemesterId, setDeletingSemesterId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     nameEn: '',
     nameVi: '',
@@ -300,20 +302,28 @@ export default function AdminSemestersPage() {
   };
 
   const handleDelete = async (semester: Semester) => {
-    const semesterLabel = getLocalizedName(locale, semester, semester.name);
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{name}', () => semesterLabel),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingSemesterId(semester.id);
 
     try {
-      await adminSemestersApi.delete(semester.id);
+      const semesterLabel = getLocalizedName(locale, semester, semester.name);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{name}', () => semesterLabel),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await adminSemestersApi.delete(semester.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (semesters.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -322,6 +332,9 @@ export default function AdminSemestersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingSemesterId(null);
     }
   };
 
@@ -487,6 +500,7 @@ export default function AdminSemestersPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(semester)}
+                          disabled={deletingSemesterId !== null}
                           aria-label={deleteLabel(semesterLabel)}
                           title={deleteLabel(semesterLabel)}
                         >
@@ -563,6 +577,7 @@ export default function AdminSemestersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(semester)}
+                              disabled={deletingSemesterId !== null}
                               aria-label={deleteLabel(semesterLabel)}
                               title={deleteLabel(semesterLabel)}
                             >

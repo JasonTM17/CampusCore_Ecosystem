@@ -69,6 +69,7 @@ import {
 } from '@/i18n/messages-sortable';
 import { getLocalizedName } from '@/lib/academic-content';
 import { findAnnouncementLengthViolation } from '@/lib/announcement-limits';
+import { campusLocalDateTimeToUtcIso, toCampusLocalDateTimeInput } from '@/lib/attendance-checkin';
 import { campusErrorCode, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import { cn } from '@/lib/utils';
@@ -152,16 +153,10 @@ const historyFields = [
 type HistoryField = (typeof historyFields)[number];
 
 function localDateTime(value: string | null | undefined) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
-  const pad = (part: number) => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return toCampusLocalDateTimeInput(value, { seconds: false });
 }
 function isoDateTime(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  return value ? campusLocalDateTimeToUtcIso(value) : null;
 }
 
 function parseYears(value: string) {

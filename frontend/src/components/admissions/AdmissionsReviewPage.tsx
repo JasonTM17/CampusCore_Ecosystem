@@ -446,8 +446,9 @@ export function AdmissionsReviewPage() {
                       </Button>
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground">{copy.returnNote}</label>
+                      <label htmlFor="admissions-return-note" className="text-sm text-muted-foreground">{copy.returnNote}</label>
                       <Textarea
+                        id="admissions-return-note"
                         data-testid="admissions-return-note"
                         value={returnNote}
                         onChange={(event) => setReturnNote(event.target.value)}
@@ -455,8 +456,9 @@ export function AdmissionsReviewPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground">{copy.decisionNote}</label>
+                      <label htmlFor="admissions-decision-note" className="text-sm text-muted-foreground">{copy.decisionNote}</label>
                       <Textarea
+                        id="admissions-decision-note"
                         data-testid="admissions-decision-note"
                         value={decisionNote}
                         onChange={(event) => setDecisionNote(event.target.value)}

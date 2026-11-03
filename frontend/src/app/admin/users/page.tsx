@@ -175,6 +175,7 @@ export default function AdminUsersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, formatDate, messages } = useI18n();
   const { users: copy } = messages.adminPages;
+  const creditUnit = messages.studentPages.schedule.creditsAbbreviation;
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -1419,7 +1420,7 @@ export default function AdminUsersPage() {
                           curricula.length > 0
                             ? curricula.map((curriculum) => ({
                                 value: curriculum.id,
-                                label: `${curriculum.nameVi || curriculum.name}${curriculum.totalCredits ? ` (${curriculum.totalCredits} TC)` : ''}`,
+                                label: `${curriculum.nameVi || curriculum.name}${curriculum.totalCredits ? ` (${curriculum.totalCredits} ${creditUnit})` : ''}`,
                               }))
                             : [{ value: '', label: copy.loadingCurricula }]
                         }

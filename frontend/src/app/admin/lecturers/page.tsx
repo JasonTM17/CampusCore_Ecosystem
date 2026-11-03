@@ -30,7 +30,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
@@ -83,6 +83,8 @@ export default function AdminLecturersPage() {
   const [editingLecturer, setEditingLecturer] = useState<Lecturer | null>(null);
   const lecturersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingLecturerId, setDeletingLecturerId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     employeeId: '',
     userId: '',
@@ -238,19 +240,27 @@ export default function AdminLecturersPage() {
   };
 
   const handleDelete = async (lecturer: Lecturer) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{employeeId}', () => lecturer.employeeId),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingLecturerId(lecturer.id);
 
     try {
-      await lecturersApi.delete(lecturer.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{employeeId}', () => lecturer.employeeId),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await lecturersApi.delete(lecturer.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (lecturers.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -259,6 +269,9 @@ export default function AdminLecturersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingLecturerId(null);
     }
   };
 
@@ -432,6 +445,7 @@ export default function AdminLecturersPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(lecturer)}
+                          disabled={deletingLecturerId !== null}
                           aria-label={deleteLabel(lecturer.employeeId)}
                           title={deleteLabel(lecturer.employeeId)}
                         >
@@ -500,6 +514,7 @@ export default function AdminLecturersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(lecturer)}
+                              disabled={deletingLecturerId !== null}
                               aria-label={deleteLabel(lecturer.employeeId)}
                               title={deleteLabel(lecturer.employeeId)}
                             >

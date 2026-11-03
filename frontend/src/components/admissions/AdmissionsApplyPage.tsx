@@ -349,8 +349,9 @@ export function AdmissionsApplyPage() {
           <section className="space-y-4">
             <div className="rounded-xl border border-border bg-card p-4">
               <h2 className="text-lg font-semibold">{copy.newApplication}</h2>
-              <label className="mt-3 block text-sm text-muted-foreground">{copy.cycle}</label>
+              <label htmlFor="admissions-cycle" className="mt-3 block text-sm text-muted-foreground">{copy.cycle}</label>
               <Input
+                id="admissions-cycle"
                 data-testid="admissions-cycle-input"
                 value={cycle}
                 onChange={(event) => setCycle(event.target.value)}
@@ -388,8 +389,9 @@ export function AdmissionsApplyPage() {
 
                 <div className="mt-4 space-y-3">
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.fullName}</label>
+                    <label htmlFor="admissions-fullname" className="text-sm text-muted-foreground">{copy.fullName}</label>
                     <Input
+                      id="admissions-fullname"
                       data-testid="admissions-fullname"
                       value={form.fullName}
                       disabled={!isEditable(selected)}
@@ -397,8 +399,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.dateOfBirth}</label>
+                    <label htmlFor="admissions-dob" className="text-sm text-muted-foreground">{copy.dateOfBirth}</label>
                     <Input
+                      id="admissions-dob"
                       data-testid="admissions-dob"
                       type="date"
                       value={form.dateOfBirth}
@@ -407,8 +410,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.schoolName}</label>
+                    <label htmlFor="admissions-school" className="text-sm text-muted-foreground">{copy.schoolName}</label>
                     <Input
+                      id="admissions-school"
                       data-testid="admissions-school"
                       value={form.schoolName}
                       disabled={!isEditable(selected)}
@@ -416,8 +420,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.intendedMajor}</label>
+                    <label htmlFor="admissions-major" className="text-sm text-muted-foreground">{copy.intendedMajor}</label>
                     <Input
+                      id="admissions-major"
                       data-testid="admissions-major"
                       value={form.intendedMajor}
                       disabled={!isEditable(selected)}
@@ -425,8 +430,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.essay}</label>
+                    <label htmlFor="admissions-essay" className="text-sm text-muted-foreground">{copy.essay}</label>
                     <Textarea
+                      id="admissions-essay"
                       data-testid="admissions-essay"
                       value={form.essay}
                       disabled={!isEditable(selected)}

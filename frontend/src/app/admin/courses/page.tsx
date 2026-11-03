@@ -31,7 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedDescription,
@@ -130,6 +130,8 @@ export default function AdminCoursesPage() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const coursesEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     code: '',
     nameEn: '',
@@ -312,19 +314,27 @@ export default function AdminCoursesPage() {
   };
 
   const handleDelete = async (course: Course) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{code}', () => course.code),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingCourseId(course.id);
 
     try {
-      await coursesApi.delete(course.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{code}', () => course.code),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await coursesApi.delete(course.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (courses.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -333,6 +343,9 @@ export default function AdminCoursesPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingCourseId(null);
     }
   };
 
@@ -524,6 +537,7 @@ export default function AdminCoursesPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(course)}
+                          disabled={deletingCourseId !== null}
                           aria-label={deleteLabel(courseLabel)}
                           title={deleteLabel(courseLabel)}
                         >
@@ -604,6 +618,7 @@ export default function AdminCoursesPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(course)}
+                              disabled={deletingCourseId !== null}
                               aria-label={deleteLabel(courseLabel)}
                               title={deleteLabel(courseLabel)}
                             >

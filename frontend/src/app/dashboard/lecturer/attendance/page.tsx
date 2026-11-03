@@ -90,6 +90,7 @@ export default function LecturerAttendancePage() {
   // Rows cleared via Reset whose RESET entry has not been saved yet.
   const [resetStudentIds, setResetStudentIds] = useState<Set<string>>(new Set());
   const [sectionSummary, setSectionSummary] = useState<SectionAttendanceSummary | null>(null);
+  const [summaryRefreshFailed, setSummaryRefreshFailed] = useState(false);
   const [existingReadFailed, setExistingReadFailed] = useState(false);
   // Request generations: a stale sections/roster response must never overwrite
   // the newer selection — writing D1's roster under D2 would persist marks to
@@ -170,6 +171,7 @@ export default function LecturerAttendancePage() {
     const generation = ++rosterGenerationRef.current;
     setRoster([]);
     setSectionSummary(null);
+    setSummaryRefreshFailed(false);
     setExistingReadFailed(false);
     if (!sectionId) {
       return;
@@ -352,15 +354,30 @@ export default function LecturerAttendancePage() {
       setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
 
-      // Refresh section summary after saving
+      // Refresh section summary after saving — a failed read must not leave
+      // the pre-save rate on screen looking freshly confirmed.
       const summary = await attendanceApi.getSectionSummary(savedSectionId).catch(() => null);
       if (!saveIsCurrent()) return;
-      if (summary) setSectionSummary(summary);
+      if (summary) {
+        setSectionSummary(summary);
+      }
+      setSummaryRefreshFailed(!summary);
     } catch {
       toast.error(attendanceMessages.saveFailed);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const refreshSummary = async () => {
+    const sectionId = selectedSectionId;
+    if (!sectionId) return;
+    const summary = await attendanceApi.getSectionSummary(sectionId).catch(() => null);
+    if (selectionRef.current.sectionId !== sectionId) return;
+    if (summary) {
+      setSectionSummary(summary);
+    }
+    setSummaryRefreshFailed(!summary);
   };
 
   const selectedSection = useMemo(
@@ -600,6 +617,15 @@ export default function LecturerAttendancePage() {
           />
         </div>
       )}
+
+      {summaryRefreshFailed ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 print:hidden">
+          <span>{attendanceMessages.summaryRefreshFailed}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refreshSummary()}>
+            {messages.common.actions.retry}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Roster & Attendance Sheet */}
       {isLoadingSections ? (

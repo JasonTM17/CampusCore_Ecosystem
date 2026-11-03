@@ -67,6 +67,7 @@ const lucideStub = new Proxy(
 const utilsStub = { cn: (...args) => args.filter(Boolean).join(' ') };
 
 const sanitizer = loadTs('src/lib/html-sanitizer.ts');
+const attendanceCheckin = loadTs('src/lib/attendance-checkin.ts');
 const announcementWorkspace = loadTs('src/i18n/messages-announcements.ts');
 const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
 const presentation = loadTs('src/lib/announcement-presentation.ts', {
@@ -80,6 +81,7 @@ const FIXTURE = JSON.parse(read('tests/fixtures/announcement-content-policy.json
 function rendererStubs() {
   return {
     '@/lib/html-sanitizer': sanitizer,
+    '@/lib/attendance-checkin': attendanceCheckin,
     '@/lib/utils': utilsStub,
     'lucide-react': lucideStub,
     // CodeBlock/SafeImage read the active locale for their copy-button and
