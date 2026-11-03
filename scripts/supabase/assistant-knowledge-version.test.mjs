@@ -22,7 +22,7 @@ function functionDefinition(sql, name) {
 const normalizeSql = (sql) =>
   sql.replace(/^create\s+or\s+replace\s+function/i, 'create function').replace(/\s+/g, ' ').trim().toLowerCase();
 
-test('the latest knowledge admin migration preserves its lock wrapper and guards draft versions', () => {
+test('the latest knowledge admin migration preserves its lock wrapper and guards the document version', () => {
   const files = fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort();
   assert.equal(files.at(-1), migrationName, 'expected the version guard to be the last migration');
 
@@ -41,7 +41,16 @@ test('the latest knowledge admin migration preserves its lock wrapper and guards
   assert.match(updateBranch, /nullif\(v_payload\s*->>\s*'expectedVersion',\s*''\)::integer/i);
   assert.match(
     updateBranch,
-    /if v_expected_version is not null and v_expected_version <> v_version then\s+raise exception 'stale_version' using errcode = 'P0001';/i,
+    /select coalesce\(max\(r\.version\),\s*0\)\s*into v_document_version\s*from assistant\.knowledge_document_revision r\s*where r\.document_id\s*=\s*p_document_id;/i,
+  );
+  assert.match(
+    updateBranch,
+    /if v_expected_version is not null and v_expected_version <> v_document_version then\s+raise exception 'stale_version' using errcode = 'P0001';/i,
+  );
+  assert.doesNotMatch(updateBranch, /v_expected_version is not null and v_expected_version <> v_version/i);
+  assert.ok(
+    updateBranch.indexOf('v_expected_version <> v_document_version') < updateBranch.indexOf('if v_revision is null then'),
+    'expectedVersion must be checked before either the owned-draft or fork branch',
   );
   assert.match(updateBranch, /select coalesce\(max\(r\.version\),\s*0\)\s*\+\s*1 into v_next_version/i);
   assert.match(updateBranch, /set version = v_next_version,/i);

@@ -128,6 +128,13 @@ public class ThesisAssistantKnowledgeAdminController {
         String owner = requireActor(actor);
         ensureDocument(id);
         lockDocument(id);
+        Integer latestVersion = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(version),0) FROM assistant.knowledge_document_revision WHERE document_id=:id",
+                p().addValue("id", id), Integer.class);
+        int currentDocumentVersion = latestVersion == null ? 0 : latestVersion;
+        if (request.expectedVersion() != null && request.expectedVersion() != currentDocumentVersion) {
+            throw staleVersion();
+        }
         int priority = priority(request);
         List<RevisionRow> drafts = jdbc.query(
                 "SELECT id,version,created_by FROM assistant.knowledge_document_revision WHERE document_id=:document AND state='DRAFT' ORDER BY version DESC LIMIT 1 FOR UPDATE",
@@ -137,14 +144,11 @@ public class ThesisAssistantKnowledgeAdminController {
         if (!drafts.isEmpty() && owner.equals(drafts.get(0).createdBy())) {
             revision = drafts.get(0).id();
             int currentVersion = drafts.get(0).version();
-            if (request.expectedVersion() != null && request.expectedVersion() != currentVersion) {
-                throw staleVersion();
-            }
             version = nextVersion(id);
             int changed = jdbc.update("UPDATE assistant.knowledge_document_revision SET version=:version,domain=:domain,locale=:locale,slug=:slug,title=:title,content=:content,source=:source,priority=:priority WHERE id=:id AND version=:expectedVersion AND state='DRAFT'",
                     revisionParams(revision, request, priority)
                             .addValue("version", version)
-                            .addValue("expectedVersion", request.expectedVersion() == null ? currentVersion : request.expectedVersion()));
+                            .addValue("expectedVersion", currentVersion));
             if (changed != 1) throw staleVersion();
         } else {
             version = nextVersion(id);
