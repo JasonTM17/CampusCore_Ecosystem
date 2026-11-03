@@ -3,6 +3,8 @@ package io.campuscore.restfulapi.academic.service;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -213,6 +215,14 @@ public class AdminCatalogMutationService {
             requireCatalogReference(CLASSROOM, "classroomId", classroomId);
             requireRoomFitsCapacity(classroomId, capacity);
         }
+        // The INSERT takes FOR KEY SHARE on the referenced Lecturer/Classroom
+        // rows, so their serialization locks must already be held: a FOR
+        // UPDATE upgrade under a peer's KEY SHARE deadlocks.
+        List<String> bookedRoomIds = new ArrayList<>(scheduleClassroomIds(input.get("schedules")));
+        if (input.get("classroomId") != null) {
+            bookedRoomIds.add(input.get("classroomId").toString());
+        }
+        lockScheduleResources(bookedRoomIds, input.get("lecturerId"));
         jdbc.update(
                 "INSERT INTO " + SECTION
                         + " (\"id\", \"sectionNumber\", \"courseId\", \"semesterId\", \"lecturerId\", \"classroomId\", \"capacity\", \"status\")"
@@ -491,11 +501,66 @@ public class AdminCatalogMutationService {
         int capacity = jdbc.queryForObject(
                 "SELECT \"capacity\" FROM " + SECTION + " WHERE \"id\" = :sectionId",
                 parameters, Integer.class);
-        List<String> classroomIds = jdbc.queryForList(
-                "SELECT DISTINCT \"classroomId\" FROM " + SECTION_SCHEDULE + " WHERE \"sectionId\" = :sectionId",
-                parameters, String.class);
-        for (String classroomId : classroomIds) {
+        for (String classroomId : scheduledClassroomIds(sectionId)) {
             requireRoomFitsCapacity(classroomId, capacity);
+        }
+    }
+
+    private List<String> scheduledClassroomIds(String sectionId) {
+        return jdbc.queryForList(
+                "SELECT DISTINCT \"classroomId\" FROM " + SECTION_SCHEDULE + " WHERE \"sectionId\" = :sectionId",
+                new MapSqlParameterSource("sectionId", sectionId), String.class);
+    }
+
+    private String sectionLecturerId(String sectionId) {
+        return jdbc.queryForObject(
+                "SELECT \"lecturerId\" FROM " + SECTION + " WHERE \"id\" = :sectionId",
+                new MapSqlParameterSource("sectionId", sectionId), String.class);
+    }
+
+    private static List<String> scheduleClassroomIds(Object value) {
+        if (!(value instanceof List<?> schedules)) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>();
+        for (Object item : schedules) {
+            if (item instanceof Map<?, ?> schedule) {
+                String classroomId = optionalScheduleText(schedule, "classroomId", null);
+                if (classroomId != null) {
+                    ids.add(classroomId);
+                }
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Schedule writers serialize on the catalog rows they contend for: the
+     * conflict count is a check-then-act read with no backing constraint, so
+     * without a shared lock two writers each validate against the other's
+     * uncommitted rows and double-book a room or lecturer. Classroom rows
+     * lock in sorted id order like every other multi-row lock; the assigned
+     * lecturer locks after them. Callers must take these locks before any
+     * INSERT or UPDATE whose foreign-key checks take FOR KEY SHARE on the
+     * same rows (Section.lecturerId/classroomId, SectionSchedule.classroomId)
+     * — a FOR UPDATE upgrade under a peer's KEY SHARE deadlocks.
+     */
+    private void lockScheduleResources(Collection<String> classroomIds, Object lecturerId) {
+        List<String> rooms = classroomIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+        if (!rooms.isEmpty()) {
+            jdbc.queryForList(
+                    "SELECT \"id\" FROM " + CLASSROOM + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
+                    new MapSqlParameterSource("ids", rooms), String.class);
+        }
+        if (lecturerId != null && !lecturerId.toString().isBlank()) {
+            jdbc.queryForList(
+                    "SELECT \"id\" FROM " + LECTURER + " WHERE \"id\" = :id FOR UPDATE",
+                    new MapSqlParameterSource("id", lecturerId.toString()), String.class);
         }
     }
 
@@ -505,6 +570,9 @@ public class AdminCatalogMutationService {
      * collisions the registrar then had to resolve by hand.
      */
     private void assertNoSectionConflicts(String sectionId) {
+        // Re-taking rows the caller already holds is a no-op; it keeps the
+        // serialization invariant local to this check for any future caller.
+        lockScheduleResources(scheduledClassroomIds(sectionId), sectionLecturerId(sectionId));
         // Compare individual slots: MIN(start)/MAX(end) would occupy the free
         // gap between two sessions and incorrectly reject another class there.
         String overlappingSlots = " FROM " + SECTION_SCHEDULE + " ss"
@@ -581,6 +649,12 @@ public class AdminCatalogMutationService {
         if (academicYearId == null || academicYearId.isBlank() || startAt == null || endAt == null) {
             return;
         }
+        // Same-year writers serialize on the AcademicYear row: without it two
+        // concurrent creates both count zero committed siblings and commit
+        // overlapping terms.
+        jdbc.queryForList(
+                "SELECT \"id\" FROM " + ACADEMIC_YEAR + " WHERE \"id\" = :academicYearId FOR UPDATE",
+                new MapSqlParameterSource("academicYearId", academicYearId), String.class);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("academicYearId", academicYearId)
                 .addValue("startDate", java.time.OffsetDateTime.ofInstant(startAt, java.time.ZoneOffset.UTC))
@@ -678,10 +752,17 @@ public class AdminCatalogMutationService {
         if (input.containsKey("status")) {
             requireSectionStatus(text(input, "status", null));
         }
+        // Every guarded read below — the placement enrollment count and the
+        // schedule-conflict resources — and the UPDATE that follows must hold
+        // the Section row: registration serializes seats on it (Student ->
+        // Section), so an unlocked guard lets a committing enrollment slip
+        // between the count and the write and fork the enrollment's placement
+        // snapshot. Locking first also keeps all admin writers on the same
+        // Section -> Classroom -> Lecturer order.
+        Map<String, Object> current = requireRowForUpdate(SECTION, id);
         boolean touchesCapacity = input.containsKey("capacity");
         boolean touchesRoom = input.containsKey("classroomId");
         if (touchesCapacity || touchesRoom) {
-            Map<String, Object> current = requireRow(SECTION, id);
             int capacity = touchesCapacity
                     ? number(input, "capacity", 0)
                     : ((Number) current.get("capacity")).intValue();
@@ -717,7 +798,6 @@ public class AdminCatalogMutationService {
             requireCatalogReference(LECTURER, "lecturerId", lecturerId);
         }
         if (input.containsKey("courseId") || input.containsKey("semesterId")) {
-            Map<String, Object> current = requireRow(SECTION, id);
             boolean placementChanged = input.containsKey("courseId")
                     && !Objects.equals(input.get("courseId"), current.get("courseId"))
                     || input.containsKey("semesterId")
@@ -732,12 +812,35 @@ public class AdminCatalogMutationService {
                 }
             }
         }
+        if (input.containsKey("schedules") || input.containsKey("lecturerId")
+                || input.containsKey("semesterId")) {
+            Object lecturer = input.containsKey("lecturerId")
+                    ? input.get("lecturerId")
+                    : current.get("lecturerId");
+            List<String> roomIds = new ArrayList<>(scheduledClassroomIds(id));
+            roomIds.addAll(scheduleClassroomIds(input.get("schedules")));
+            if (input.get("classroomId") != null) {
+                roomIds.add(input.get("classroomId").toString());
+            }
+            lockScheduleResources(roomIds, lecturer);
+        }
     }
 
     private Map<String, Object> requireRow(String table, String id) {
         try {
             return get(table, id);
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
+        }
+    }
+
+    /** Same read as {@link #requireRow} but holds the row FOR UPDATE until commit. */
+    private Map<String, Object> requireRowForUpdate(String table, String id) {
+        try {
+            return jdbc.queryForMap(
+                    "SELECT * FROM " + table + " WHERE \"id\" = :id FOR UPDATE",
+                    new MapSqlParameterSource("id", id));
+        } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
         }
     }
