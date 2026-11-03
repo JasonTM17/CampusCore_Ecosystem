@@ -32,7 +32,7 @@ export function useDashboardPrefetch(pathname: string): void {
       stop();
       if (!isCurrent()) return;
       const prefetch = <T,>(key: string, resource: string,
-        read: (api: typeof import('../api/client'), signal: AbortSignal) => Promise<T>) => {
+        read: (api: typeof import('../api/client')) => Promise<T>) => {
         if (isQueryCacheFresh(key, resourceStaleTime(resource))) return;
         cancel.push(schedulePrefetch({ isCurrent,
           load: async (signal) => {
@@ -42,10 +42,12 @@ export function useDashboardPrefetch(pathname: string): void {
             if (signal.aborted || !isCurrent() || api.apiClient.mode !== 'live') throw new Error('PREFETCH_CANCELLED');
             const requestEpoch = store.sessionEpoch();
             // Join a screen read already in flight for this cache identity so the
-            // first paint and the speculative read share one request.
+            // first paint and the speculative read share one request. The prefetch
+            // signal stays an entry-time gate only: the shared request must outlive
+            // this cancellable lane so joined screens never see its abort.
             const data = await coalesceQueryRequest(
               JSON.stringify([key, requestEpoch]),
-              () => read(api, signal),
+              () => read(api),
             );
             return { data, requestEpoch, store };
           },
@@ -54,9 +56,9 @@ export function useDashboardPrefetch(pathname: string): void {
           },
         }));
       };
-      prefetch(enrollmentKey, 'academic.enrollments', ({ apiClient, apiRoutes }, signal) => apiClient.get<MobileEnrollment[]>(apiRoutes.enrollments, { signal }));
-      prefetch(unreadKey, 'content.notifications.unread-count', async ({ apiClient }, signal) => {
-        const data = await apiClient.get<{ unreadCount?: number }>('/notifications/my/unread-count', { signal });
+      prefetch(enrollmentKey, 'academic.enrollments', ({ apiClient, apiRoutes }) => apiClient.get<MobileEnrollment[]>(apiRoutes.enrollments));
+      prefetch(unreadKey, 'content.notifications.unread-count', async ({ apiClient }) => {
+        const data = await apiClient.get<{ unreadCount?: number }>('/notifications/my/unread-count');
         return typeof data?.unreadCount === 'number' ? data.unreadCount : 0;
       });
     };
