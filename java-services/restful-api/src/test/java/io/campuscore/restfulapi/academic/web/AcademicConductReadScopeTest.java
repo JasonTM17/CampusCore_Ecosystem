@@ -10,10 +10,14 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import io.campuscore.restfulapi.academic.service.AcademicConductService;
+import io.campuscore.restfulapi.academic.web.AcademicConductDtos.StudentConductSummaryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -107,6 +111,221 @@ class AcademicConductReadScopeTest {
                     .as("staff must not be scoped to section ownership")
                     .isNotEqualTo("CONDUCT_READ_REQUIRES_SECTION_OWNERSHIP");
         }
+    }
+
+    /*
+     * The ownership guard is only as strong as the COUNT it runs, so these
+     * cases exercise the real query against H2 instead of stubbing the count.
+     * A seat that never took effect (dropped or cancelled enrollment, or a
+     * cancelled section that never met) is not a teaching relationship; an
+     * active or finished seat is.
+     */
+
+    @Test
+    void droppedEnrollmentDoesNotCreateATeachingRelationship() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-dropped", LECTURER_DIRECTORY_ID, "OPEN");
+        seedEnrollment(seed, "enr-dropped", STUDENT, "sec-dropped", "DROPPED");
+
+        ResponseStatusException denied = assertThrows(ResponseStatusException.class,
+                () -> realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER")));
+
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getReason()).isEqualTo("CONDUCT_READ_REQUIRES_SECTION_OWNERSHIP");
+    }
+
+    @Test
+    void cancelledEnrollmentDoesNotCreateATeachingRelationship() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-cancelled", LECTURER_DIRECTORY_ID, "OPEN");
+        seedEnrollment(seed, "enr-cancelled", STUDENT, "sec-cancelled", "CANCELLED");
+
+        ResponseStatusException denied = assertThrows(ResponseStatusException.class,
+                () -> realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER")));
+
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getReason()).isEqualTo("CONDUCT_READ_REQUIRES_SECTION_OWNERSHIP");
+    }
+
+    @Test
+    void cancelledSectionDoesNotCreateATeachingRelationship() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-never-met", LECTURER_DIRECTORY_ID, "CANCELLED");
+        seedEnrollment(seed, "enr-never-met", STUDENT, "sec-never-met", "ENROLLED");
+
+        ResponseStatusException denied = assertThrows(ResponseStatusException.class,
+                () -> realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER")));
+
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getReason()).isEqualTo("CONDUCT_READ_REQUIRES_SECTION_OWNERSHIP");
+    }
+
+    @Test
+    void enrollmentUnderADifferentLecturerIsRefused() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-other", "lecturer-other-999", "OPEN");
+        seedEnrollment(seed, "enr-other", STUDENT, "sec-other", "ENROLLED");
+
+        ResponseStatusException denied = assertThrows(ResponseStatusException.class,
+                () -> realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER")));
+
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getReason()).isEqualTo("CONDUCT_READ_REQUIRES_SECTION_OWNERSHIP");
+    }
+
+    @Test
+    void activeEnrollmentKeepsTheLecturerRead() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-active", LECTURER_DIRECTORY_ID, "OPEN");
+        seedEnrollment(seed, "enr-active", STUDENT, "sec-active", "ENROLLED");
+
+        StudentConductSummaryDto summary =
+                realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER"));
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.studentId()).isEqualTo(STUDENT);
+    }
+
+    @Test
+    void completedEnrollmentKeepsTheLecturerRead() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-completed", LECTURER_DIRECTORY_ID, "CLOSED");
+        seedEnrollment(seed, "enr-completed", STUDENT, "sec-completed", "COMPLETED");
+
+        StudentConductSummaryDto summary =
+                realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("LECTURER"));
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.studentId()).isEqualTo(STUDENT);
+    }
+
+    @Test
+    void staffReadIsNotScopedByEnrollmentState() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+        seedSection(seed, "sec-staff", LECTURER_DIRECTORY_ID, "OPEN");
+        seedEnrollment(seed, "enr-staff", STUDENT, "sec-staff", "DROPPED");
+
+        StudentConductSummaryDto summary =
+                realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("ADMIN"));
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.studentId()).isEqualTo(STUDENT);
+    }
+
+    private static AcademicConductController realController(NamedParameterJdbcTemplate realJdbc) {
+        return new AcademicConductController(new AcademicConductService(realJdbc));
+    }
+
+    private static NamedParameterJdbcTemplate conductSchema() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("jdbc:h2:mem:conduct_scope_" + System.nanoTime()
+                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
+
+        JdbcTemplate ddl = new JdbcTemplate(dataSource);
+        ddl.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
+        ddl.execute("CREATE SCHEMA IF NOT EXISTS \"campuscore_auth\"");
+        ddl.execute("""
+            CREATE TABLE "campuscore_auth"."User" (
+                "id" VARCHAR(64) PRIMARY KEY,
+                "firstName" VARCHAR(64),
+                "lastName" VARCHAR(64)
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE "academic"."Student" (
+                "id" VARCHAR(64) PRIMARY KEY,
+                "userId" VARCHAR(64),
+                "studentId" VARCHAR(32)
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE "academic"."Section" (
+                "id" VARCHAR(64) PRIMARY KEY,
+                "lecturerId" VARCHAR(64),
+                "status" VARCHAR(32) NOT NULL
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE "academic"."Enrollment" (
+                "id" VARCHAR(64) PRIMARY KEY,
+                "studentId" VARCHAR(64),
+                "sectionId" VARCHAR(64),
+                "status" VARCHAR(32) NOT NULL
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE "academic"."Semester" (
+                "id" VARCHAR(64) PRIMARY KEY,
+                "name" VARCHAR(128),
+                "startDate" DATE
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE academic.conduct_semester_score (
+                id VARCHAR(64) PRIMARY KEY,
+                student_id VARCHAR(64),
+                semester_id VARCHAR(64),
+                criteria1_score NUMERIC(5,2),
+                criteria2_score NUMERIC(5,2),
+                criteria3_score NUMERIC(5,2),
+                criteria4_score NUMERIC(5,2),
+                criteria5_score NUMERIC(5,2),
+                total_score NUMERIC(5,2),
+                classification VARCHAR(64),
+                classification_vi VARCHAR(64),
+                status VARCHAR(32),
+                evaluator_name VARCHAR(128)
+            )
+        """);
+        ddl.execute("""
+            CREATE TABLE academic.conduct_activity (
+                id VARCHAR(64) PRIMARY KEY,
+                student_id VARCHAR(64),
+                semester_id VARCHAR(64),
+                title VARCHAR(256),
+                category VARCHAR(64),
+                points NUMERIC(5,2),
+                activity_date DATE,
+                organizer VARCHAR(128),
+                certificate_url VARCHAR(256)
+            )
+        """);
+        return new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    private static void seedStudent(JdbcOperations seed, String profileId) {
+        seed.update("INSERT INTO \"campuscore_auth\".\"User\" (\"id\", \"firstName\", \"lastName\") VALUES (?, ?, ?)",
+                "usr-" + profileId, "Student", "Test");
+        seed.update("INSERT INTO \"academic\".\"Student\" (\"id\", \"userId\", \"studentId\") VALUES (?, ?, ?)",
+                profileId, "usr-" + profileId, "22110099");
+    }
+
+    private static void seedSection(JdbcOperations seed, String sectionId, String lecturerId, String status) {
+        seed.update("INSERT INTO \"academic\".\"Section\" (\"id\", \"lecturerId\", \"status\") VALUES (?, ?, ?)",
+                sectionId, lecturerId, status);
+    }
+
+    private static void seedEnrollment(JdbcOperations seed, String enrollmentId, String profileId,
+            String sectionId, String status) {
+        seed.update("INSERT INTO \"academic\".\"Enrollment\" (\"id\", \"studentId\", \"sectionId\", \"status\")"
+                + " VALUES (?, ?, ?, ?)", enrollmentId, profileId, sectionId, status);
     }
 
     private static Jwt lecturer(String role) {
