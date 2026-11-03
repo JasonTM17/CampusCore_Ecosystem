@@ -65,6 +65,12 @@ test('Lecturer attendance sheet CSV and print export integrity', async (t) => {
     assert.equal(escapeCsvField('-10'), '"\'-10"');
     assert.equal(escapeCsvField('@mention'), '"\'@mention"');
     assert.equal(escapeCsvField('\t=1+1'), '"\'\t=1+1"');
+    for (const prefix of ['\n', '\r', '\r\n']) {
+      assert.ok(
+        escapeCsvField(`${prefix}=HYPERLINK("https://attacker.example","Review")`).startsWith(`"'${prefix}=`),
+        'formula-like cells after leading line breaks are neutralized',
+      );
+    }
     // Only the leading character is prefixed; ordinary text is untouched.
     assert.equal(escapeCsvField('safe text'), '"safe text"');
   });

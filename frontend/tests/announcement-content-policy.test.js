@@ -115,6 +115,17 @@ test('RT-P2-2 editor ships only plugins whose output survives the sanitizer', ()
   assert.doesNotMatch(sanitizeAnnouncementHtml('<p id="has space">x</p>'), /id=/);
 });
 
+test('blank target links cannot retain opener', () => {
+  const { sanitizeAnnouncementHtml } = loadTs('src/lib/html-sanitizer.ts');
+  const cleaned = sanitizeAnnouncementHtml(
+    '<a href="https://attacker.example" target="_blank" rel="opener">Read results</a>',
+  );
+
+  assert.match(cleaned, /target="_blank"/);
+  assert.match(cleaned, /rel="noopener noreferrer"/);
+  assert.doesNotMatch(cleaned, /rel="opener"/);
+});
+
 test('RT-P1-2 editor enforces the derived image cap and warns before the server limit', () => {
   const source = read('src/components/ui/tinymce-editor.tsx');
   // The cap comes from the shared module, not a second magic number.

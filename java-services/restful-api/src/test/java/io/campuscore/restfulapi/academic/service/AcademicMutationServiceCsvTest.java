@@ -21,6 +21,7 @@ class AcademicMutationServiceCsvTest {
         assertThat(AcademicMutationService.csv("@SUM(1)")).isEqualTo("\"'@SUM(1)\"");
         assertThat(AcademicMutationService.csv("\t=cmd")).isEqualTo("\"'\t=cmd\"");
         assertThat(AcademicMutationService.csv("\r=cmd")).isEqualTo("\"'\r=cmd\"");
+        assertThat(AcademicMutationService.csv("\n=cmd")).isEqualTo("\"'\n=cmd\"");
     }
 
     @Test
