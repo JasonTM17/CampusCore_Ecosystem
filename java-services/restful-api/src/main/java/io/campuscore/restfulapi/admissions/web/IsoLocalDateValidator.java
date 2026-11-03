@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.admissions.web;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 
 final class IsoLocalDateValidator implements ConstraintValidator<ValidIsoLocalDate, String> {
@@ -12,8 +13,8 @@ final class IsoLocalDateValidator implements ConstraintValidator<ValidIsoLocalDa
             return true;
         }
         try {
-            LocalDate.parse(value);
-            return true;
+            LocalDate date = LocalDate.parse(value);
+            return !date.isAfter(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")));
         } catch (DateTimeParseException exception) {
             return false;
         }

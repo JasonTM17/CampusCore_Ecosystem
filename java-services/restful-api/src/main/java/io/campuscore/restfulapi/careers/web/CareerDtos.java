@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.careers.web;
 
 import java.time.Instant;
 import java.util.List;
+import jakarta.validation.constraints.Size;
 
 /** DTO records for the P12 careers/applications surface (contract §9). */
 public final class CareerDtos {
@@ -42,11 +43,16 @@ public final class CareerDtos {
     }
 
     public record CreateOpportunityRequest(
+            @Size(max = 120)
             String organizationId,
+            @Size(max = 300)
             String title,
             String description,
+            @Size(max = 200)
             String location,
+            @Size(max = 60)
             String employmentType,
+            @Size(max = 200)
             String salaryText) {
     }
 

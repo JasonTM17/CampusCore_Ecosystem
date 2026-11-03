@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.events.web;
 import java.time.Instant;
 import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 
 /** Request/response records for the events domain (contract D4, phase-08). */
 public final class EventDtos {
@@ -11,9 +12,12 @@ public final class EventDtos {
     }
 
     public record CreateEventRequest(
+            @Size(max = 240)
             String title,
             String description,
+            @Size(max = 240)
             String location,
+            @Size(max = 160)
             String organizer,
             Integer capacity,
             Instant startsAt,
@@ -23,9 +27,12 @@ public final class EventDtos {
     }
 
     public record UpdateEventRequest(
+            @Size(max = 240)
             String title,
             String description,
+            @Size(max = 240)
             String location,
+            @Size(max = 160)
             String organizer,
             Integer capacity,
             Instant startsAt,

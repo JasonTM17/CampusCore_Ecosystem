@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -143,7 +144,7 @@ public class CareerStaffController {
     @PreAuthorize("isAuthenticated()")
     public OpportunityResponse createOpportunity(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateOpportunityRequest request) {
+            @Valid @RequestBody CreateOpportunityRequest request) {
         return careers.createOpportunity(staff(jwt), request);
     }
 
