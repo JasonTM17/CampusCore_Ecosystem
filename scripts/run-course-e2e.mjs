@@ -1,9 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import net from 'node:net';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedCourseE2e, seedReportE2e } from './course-e2e-fixture.mjs';
+import {
+  assertPortAvailable,
+  processGroupSpawnOptions,
+  stopProcessTree,
+  waitForPortClosed,
+} from './e2e-process-control.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +64,10 @@ async function main() {
       },
     });
   } finally {
-    await stopProcess(frontend);
+    await stopProcessTree(frontend, { port: frontendPort });
+    if (!(await waitForPortClosed(frontendPort))) {
+      console.error(`Frontend port ${frontendPort} is still in use after the E2E frontend was stopped; the next run may report a stale collision.`);
+    }
     if (stackStarted) {
       // The project name was preflighted as disposable and is unique to this
       // invocation; no developer/default Compose project can be touched.
@@ -104,25 +112,6 @@ function dockerQuery(args) {
   }
 }
 
-async function assertPortAvailable(portValue, label) {
-  const port = Number(portValue);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`${label} port is invalid; refusing E2E startup`);
-  }
-  // An occupied host port is a hard collision, not a reason to stop or
-  // reconfigure another developer's service.
-  const available = await new Promise((resolve) => {
-    const socket = new net.Socket();
-    const finish = (value) => { socket.destroy(); resolve(value); };
-    socket.setTimeout(250);
-    socket.once('connect', () => finish(false));
-    socket.once('error', () => finish(true));
-    socket.once('timeout', () => finish(true));
-    socket.connect(port, '127.0.0.1');
-  });
-  if (!available) throw new Error(`${label} port ${port} is already in use; refusing E2E collision`);
-}
-
 async function startFrontend() {
   const onWindows = process.platform === 'win32';
   const command = onWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
@@ -161,6 +150,7 @@ async function startFrontend() {
     env,
     stdio: 'inherit',
     shell: false,
+    ...processGroupSpawnOptions(),
     },
   );
 }
@@ -211,34 +201,6 @@ async function compose(args, options = {}) {
       POSTGRES_HOST_PORT: process.env.POSTGRES_HOST_PORT ?? '5433',
     },
     allowFailure: options.allowFailure ?? false,
-  });
-}
-
-async function stopProcess(child) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-
-  if (process.platform === 'win32' && child.pid) {
-    // npm.cmd/cmd.exe can leave the Next child alive after SIGTERM. Kill only
-    // this exact process tree so a failed run cannot leave port 3101 occupied;
-    // the runner never broadens this to a name- or port-based kill.
-    try {
-      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore',
-      });
-    } catch {
-      // The process may have exited between the status check and taskkill.
-    }
-  } else {
-  child.kill('SIGTERM');
-  }
-  await new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve();
-      return;
-    }
-    child.once('close', resolve);
   });
 }
 
