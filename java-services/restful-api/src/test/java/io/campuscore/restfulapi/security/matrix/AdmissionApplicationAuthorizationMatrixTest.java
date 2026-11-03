@@ -255,7 +255,7 @@ class AdmissionApplicationAuthorizationMatrixTest {
     }
 
     private static String attachmentBody() {
-        return "{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\",\"dataBase64\":\"aGVsbG8=\"}";
+        return "{\"fileName\":\"cv.pdf\",\"contentType\":\"application/pdf\",\"dataBase64\":\"JVBERi0xLjQgc3ludGhldGlj\"}";
     }
 
     private String applicationField(String id, String column) {

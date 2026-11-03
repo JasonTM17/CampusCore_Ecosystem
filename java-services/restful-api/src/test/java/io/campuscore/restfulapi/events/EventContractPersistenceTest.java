@@ -857,6 +857,52 @@ class EventContractPersistenceTest {
     }
 
     @Test
+    void registrationWindowMustEndBeforeEventStart() throws Exception {
+        Instant start = Instant.now().plus(2, ChronoUnit.HOURS);
+        Instant end = start.plus(2, ChronoUnit.HOURS);
+        List<MvcResult> invalidWindows = List.of(
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start.plus(1, ChronoUnit.HOURS), null)))
+                        .andReturn(),
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start, null)))
+                        .andReturn(),
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start.minus(1, ChronoUnit.HOURS), start)))
+                        .andReturn());
+
+        assertThat(invalidWindows.stream().map(result -> result.getResponse().getStatus()).toList())
+                .containsExactly(400, 400, 400);
+        for (MvcResult result : invalidWindows) {
+            assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).get("code").asText())
+                    .isEqualTo("EVENT_WINDOW_INVALID");
+        }
+    }
+
+    @Test
+    void createEventRejectsTextLongerThanItsColumns() throws Exception {
+        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+        String longTitle = "E".repeat(241);
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + longTitle + "\",\"organizer\":\"Student office\","
+                                + "\"capacity\":5,\"startsAt\":\"" + startsAt + "\",\"endsAt\":\"" + endsAt + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        String maxTitle = "E".repeat(240);
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + maxTitle + "\",\"organizer\":\"Student office\","
+                                + "\"capacity\":5,\"startsAt\":\"" + startsAt + "\",\"endsAt\":\"" + endsAt + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void completeRejectedBeforeEventStarts() throws Exception {
         String eventId = openEventId();
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))

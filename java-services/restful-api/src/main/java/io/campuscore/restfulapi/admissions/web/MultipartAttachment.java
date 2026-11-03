@@ -17,9 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
  * service code (ownership, checksum, size, idempotency, versioning) as the JSON
  * ones. Only the transport differs; the JSON body cap is not touched.
  *
- * <p>The multipart lane additionally refuses a declared content type outside
- * the policy allowlist and a body whose leading bytes contradict the declared
- * type. The part's file name is reduced to a single display-only segment.
+ * <p>Both transports apply the same declared-type allowlist and leading-byte
+ * signature checks. The part's file name is reduced to a single display-only
+ * segment.
  */
 public final class MultipartAttachment {
 
@@ -98,11 +98,6 @@ public final class MultipartAttachment {
         if (file.getSize() > MAX_BYTES) {
             throw tooLarge();
         }
-        String type = normalizedType(file.getContentType());
-        if (!policy.allows(type)) {
-            throw new DomainException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "ATTACHMENT_TYPE_UNSUPPORTED",
-                    "This file type is not accepted");
-        }
         byte[] bytes;
         try {
             bytes = file.getBytes();
@@ -113,13 +108,24 @@ public final class MultipartAttachment {
         if (bytes.length > MAX_BYTES) {
             throw tooLarge();
         }
+        String type = validateContentTypeAndSignature(file.getContentType(), bytes, policy);
+        return new Payload(displayName(file.getOriginalFilename()), type,
+                Base64.getEncoder().encodeToString(bytes));
+    }
+
+    /** Applies the lane allowlist and declared-type signature rule to either upload transport. */
+    public static String validateContentTypeAndSignature(String declared, byte[] bytes, Policy policy) {
+        String type = normalizedType(declared);
+        if (!policy.allows(type)) {
+            throw new DomainException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "ATTACHMENT_TYPE_UNSUPPORTED",
+                    "This file type is not accepted");
+        }
         byte[] signature = policy.signedTypes().get(type);
         if (signature != null && !startsWith(bytes, signature)) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_CONTENT_MISMATCH",
                     "The file content does not match its declared type");
         }
-        return new Payload(displayName(file.getOriginalFilename()), type,
-                Base64.getEncoder().encodeToString(bytes));
+        return type;
     }
 
     private static DomainException tooLarge() {

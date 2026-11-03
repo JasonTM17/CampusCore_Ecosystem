@@ -459,6 +459,10 @@ public class CareerService {
             Integer expectedVersion) {
         Map<String, Object> opportunity = lockOpportunity(opportunityId);
         requireOrgGrant(actorId, String.valueOf(opportunity.get("organizationId")));
+        if (!actorId.equals(String.valueOf(opportunity.get("submittedBy")))) {
+            throw problem(HttpStatus.FORBIDDEN, "SELF_PUBLISH_FORBIDDEN",
+                    "Only the opportunity creator can submit it for review");
+        }
         requireOpportunityTerminalGuard(opportunity);
         requireVersion(opportunity, expectedVersion);
         if (!"DRAFT".equals(String.valueOf(opportunity.get("status")))) {

@@ -276,10 +276,12 @@ public class AdmissionApplicantService {
         // columns and always parses on a later download.
         String fileName = request.fileName() == null || request.fileName().isBlank()
                 ? null : MultipartAttachment.displayName(request.fileName());
-        String contentType = MultipartAttachment.declaredType(request.contentType());
         // Decode + checksum before claiming so a same-key retry binds bytes
         // and the normalized metadata that will be persisted.
         byte[] bytes = decode(request.dataBase64(), fileName);
+        String contentType = MultipartAttachment.declaredType(request.contentType());
+        MultipartAttachment.validateContentTypeAndSignature(
+                contentType, bytes, MultipartAttachment.DOCUMENTS);
         String checksum = sha256(bytes);
         if (request.checksum() != null && !request.checksum().isBlank()
                 && !checksum.equalsIgnoreCase(request.checksum().trim())) {

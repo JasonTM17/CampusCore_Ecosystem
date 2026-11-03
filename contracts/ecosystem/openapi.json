@@ -2448,9 +2448,13 @@
             "type": "string"
           },
           "location": {
+            "maxLength": 240,
+            "minLength": 0,
             "type": "string"
           },
           "organizer": {
+            "maxLength": 160,
+            "minLength": 0,
             "type": "string"
           },
           "registrationClosesAt": {
@@ -2466,6 +2470,8 @@
             "type": "string"
           },
           "title": {
+            "maxLength": 240,
+            "minLength": 0,
             "type": "string"
           }
         },
@@ -2477,18 +2483,28 @@
             "type": "string"
           },
           "employmentType": {
+            "maxLength": 60,
+            "minLength": 0,
             "type": "string"
           },
           "location": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "organizationId": {
+            "maxLength": 120,
+            "minLength": 0,
             "type": "string"
           },
           "salaryText": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "title": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           }
         },
@@ -7776,9 +7792,13 @@
             "type": "string"
           },
           "location": {
+            "maxLength": 240,
+            "minLength": 0,
             "type": "string"
           },
           "organizer": {
+            "maxLength": 160,
+            "minLength": 0,
             "type": "string"
           },
           "registrationClosesAt": {
@@ -7794,6 +7814,8 @@
             "type": "string"
           },
           "title": {
+            "maxLength": 240,
+            "minLength": 0,
             "type": "string"
           },
           "version": {

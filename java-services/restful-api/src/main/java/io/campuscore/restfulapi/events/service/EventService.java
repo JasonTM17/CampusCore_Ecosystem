@@ -683,15 +683,19 @@ public class EventService {
                         .addValue("detail", detail));
     }
 
-    /** The window must be ordered and must close no later than the event starts. */
+    /** The registration window must end before the event starts. */
     private static void validateRegistrationWindow(Instant opensAt, Instant closesAt, Instant startsAt) {
         if (opensAt != null && closesAt != null && !closesAt.isAfter(opensAt)) {
             throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
                     "registrationClosesAt must be after registrationOpensAt");
         }
-        if (startsAt != null && closesAt != null && closesAt.isAfter(startsAt)) {
+        if (startsAt != null && opensAt != null && !opensAt.isBefore(startsAt)) {
             throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
-                    "registrationClosesAt must not be after startsAt");
+                    "registrationOpensAt must be before startsAt");
+        }
+        if (startsAt != null && closesAt != null && !closesAt.isBefore(startsAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "registrationClosesAt must be before startsAt");
         }
     }
 

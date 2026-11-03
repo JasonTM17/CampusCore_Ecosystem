@@ -13,6 +13,7 @@ import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -150,6 +151,27 @@ class AdmissionContractPersistenceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
         return id;
+    }
+
+    @Test
+    void futureDateOfBirthIsRejectedByApplicationValidation() throws Exception {
+        String id = createDraft(applicantJwt, "future-dob");
+
+        mvc.perform(put("/api/v1/admissions/applications/" + id)
+                        .with(applicantJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Nguyen Van A\",\"dateOfBirth\":\"2099-01-01\","
+                                + "\"schoolName\":\"THPT Demo\",\"intendedMajor\":\"CNTT\","
+                                + "\"expectedVersion\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mvc.perform(put("/api/v1/admissions/applications/" + id)
+                        .with(applicantJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Nguyen Van A\",\"dateOfBirth\":\"2008-01-15\","
+                                + "\"schoolName\":\"THPT Demo\",\"intendedMajor\":\"CNTT\","
+                                + "\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dateOfBirth").value("2008-01-15"));
     }
 
     private void claim(String id, RequestPostProcessor staff, int version) throws Exception {
@@ -314,7 +336,7 @@ class AdmissionContractPersistenceTest {
                         .with(applicantJwt).header("Idempotency-Key", "iso-att")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"score.pdf\",\"contentType\":\"application/pdf\","
-                                + "\"dataBase64\":\"" + b64("synthetic-score") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nsynthetic-score") + "\"}"))
                 .andExpect(status().isCreated());
         String attachmentId = jdbc.queryForObject(
                 "SELECT \"id\" FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
@@ -610,9 +632,39 @@ class AdmissionContractPersistenceTest {
     // ---------------------------------------------------------------
 
     @Test
+    void jsonAttachmentsRequireSupportedTypesAndMatchingSignatures() throws Exception {
+        String id = createDraft(applicantJwt, "attachment-policy-create");
+
+        var unsupported = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "attachment-policy-html")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.html\",\"contentType\":\"text/html\","
+                                + "\"dataBase64\":\"" + b64("<html>") + "\"}"))
+                .andReturn();
+
+        var mismatched = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "attachment-policy-signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.pdf\",\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64("not a PDF") + "\"}"))
+                .andReturn();
+
+        assertThat(List.of(unsupported.getResponse().getStatus(), mismatched.getResponse().getStatus()))
+                .containsExactly(415, 400);
+        assertThat(objectMapper.readTree(unsupported.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_TYPE_UNSUPPORTED");
+        assertThat(objectMapper.readTree(mismatched.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_CONTENT_MISMATCH");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
+                Integer.class, id)).isZero();
+    }
+
+    @Test
     void attachmentsChecksumDownloadAndCleanup() throws Exception {
         String id = createDraft(applicantJwt, "att-create");
-        String payload = "synthetic-transcript-bytes";
+        String payload = "%PDF-1.7\nsynthetic-transcript-bytes";
         String expectedSha = HexFormat.of().formatHex(
                 MessageDigest.getInstance("SHA-256").digest(payload.getBytes(StandardCharsets.UTF_8)));
 
@@ -667,12 +719,15 @@ class AdmissionContractPersistenceTest {
                                 + "\"dataBase64\":\"" + b64(payload) + "\","
                                 + "\"checksum\":\"" + expectedSha + "\"}"))
                 .andReturn();
+        byte[] pngPayload = {(byte) 0x89, 'P', 'N', 'G'};
+        String pngBase64 = java.util.Base64.getEncoder().encodeToString(pngPayload);
+        String pngSha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pngPayload));
         MvcResult changedType = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
                         .with(applicantJwt).header("Idempotency-Key", "att-upload")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"hoc-ba.pdf\",\"contentType\":\"application/x-transcript\","
-                                + "\"dataBase64\":\"" + b64(payload) + "\","
-                                + "\"checksum\":\"" + expectedSha + "\"}"))
+                        .content("{\"fileName\":\"hoc-ba.pdf\",\"contentType\":\"image/png\","
+                                + "\"dataBase64\":\"" + pngBase64 + "\","
+                                + "\"checksum\":\"" + pngSha + "\"}"))
                 .andReturn();
         assertThat(changedName.getResponse().getStatus()).isEqualTo(409);
         assertThat(objectMapper.readTree(changedName.getResponse().getContentAsString())
@@ -726,7 +781,7 @@ class AdmissionContractPersistenceTest {
                         .with(applicant2Jwt).header("Idempotency-Key", "att2-upload")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"tmp.pdf\",\"contentType\":\"application/pdf\","
-                                + "\"dataBase64\":\"" + b64("orphan-check") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\norphan-check") + "\"}"))
                 .andExpect(status().isCreated());
         String att2 = jdbc.queryForObject(
                 "SELECT \"id\" FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
@@ -779,7 +834,7 @@ class AdmissionContractPersistenceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"" + "n".repeat(301) + "\","
                                 + "\"contentType\":\"application/pdf\","
-                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
 
@@ -788,7 +843,7 @@ class AdmissionContractPersistenceTest {
                         .with(applicantJwt).header("Idempotency-Key", "meta-type")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"ok.pdf\",\"contentType\":\"not-a-media-type\","
-                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_INVALID"));
 
@@ -798,7 +853,7 @@ class AdmissionContractPersistenceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"scan.pdf\","
                                 + "\"contentType\":\" Application/PDF ; charset=utf-8\","
-                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.attachments[1].contentType").value("application/pdf"));
 

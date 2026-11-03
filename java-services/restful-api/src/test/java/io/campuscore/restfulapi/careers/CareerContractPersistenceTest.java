@@ -271,6 +271,47 @@ class CareerContractPersistenceTest {
     }
 
     @Test
+    void onlyOpportunityCreatorCanSubmitDraftForReview() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Owner draft");
+
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/submit-review")
+                        .with(reviewerInAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SELF_PUBLISH_FORBIDDEN"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?", String.class, opp))
+                .isEqualTo("DRAFT");
+
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/submit-review")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_REVIEW"));
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/publish")
+                        .with(reviewerInAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+    }
+
+    @Test
+    void createOpportunityRejectsTextLongerThanItsColumns() throws Exception {
+        String longTitle = "T".repeat(301);
+        mvc.perform(post("/api/v1/careers/staff/opportunities").with(recruiterAlpha)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"org-alpha\",\"title\":\"" + longTitle + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        String maxTitle = "T".repeat(300);
+        mvc.perform(post("/api/v1/careers/staff/opportunities").with(recruiterAlpha)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"org-alpha\",\"title\":\"" + maxTitle + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void organizationIsolationIsTotal() throws Exception {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Alpha Only");
         submitAndPublish(opp);
@@ -723,11 +764,45 @@ class CareerContractPersistenceTest {
     }
 
     @Test
+    void jsonAttachmentsRequireSupportedTypesAndMatchingSignatures() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Attachment policy");
+        submitAndPublish(opp);
+        String applicationId = apply(opp, "car-attachment-policy");
+        String html = java.util.Base64.getEncoder().encodeToString("<html>".getBytes());
+        String notPdf = java.util.Base64.getEncoder().encodeToString("not a PDF".getBytes());
+
+        var unsupported = mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-attachment-policy-html")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.html\",\"contentType\":\"text/html\","
+                                + "\"dataBase64\":\"" + html + "\"}"))
+                .andReturn();
+
+        var mismatched = mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-attachment-policy-signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.pdf\",\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + notPdf + "\"}"))
+                .andReturn();
+
+        assertThat(List.of(unsupported.getResponse().getStatus(), mismatched.getResponse().getStatus()))
+                .containsExactly(415, 400);
+        assertThat(objectMapper.readTree(unsupported.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_TYPE_UNSUPPORTED");
+        assertThat(objectMapper.readTree(mismatched.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_CONTENT_MISMATCH");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM careers.\"Attachment\" WHERE \"applicationId\" = ?",
+                Integer.class, applicationId)).isZero();
+    }
+
+    @Test
     void attachmentMetadataIsBoundedAndCanonical() throws Exception {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Metadata Job");
         submitAndPublish(opp);
         String applicationId = apply(opp, "car-meta-1");
-        String cv = java.util.Base64.getEncoder().encodeToString("meta-cv".getBytes());
+        String cv = java.util.Base64.getEncoder().encodeToString("%PDF-1.7\nmeta-cv".getBytes());
 
         // The JSON lane applies the same display-name rule as the multipart
         // lane: a long or path-like name is reduced, never a width failure.
@@ -735,7 +810,7 @@ class CareerContractPersistenceTest {
                         .with(candidate1).header("Idempotency-Key", "car-meta-name")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"" + "n".repeat(301) + "\","
-                                + "\"contentType\":\"text/plain\","
+                                + "\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
@@ -797,13 +872,14 @@ class CareerContractPersistenceTest {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Attachment Job");
         submitAndPublish(opp);
         String applicationId = apply(opp, "car-att-1");
-        String cv = java.util.Base64.getEncoder().encodeToString("fake-cv".getBytes());
-        String sha = sha256("fake-cv".getBytes());
+        byte[] pdf = "%PDF-1.7\nfake-cv".getBytes();
+        String cv = java.util.Base64.getEncoder().encodeToString(pdf);
+        String sha = sha256(pdf);
 
         // Idempotency-Key is required on the attachment lane.
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
@@ -812,7 +888,7 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"deadbeef\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("FILE_CHECKSUM_MISMATCH"));
@@ -821,7 +897,7 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"" + sha + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments.length()").value(1))
@@ -832,18 +908,18 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"" + sha + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments.length()").value(1));
 
         // Same key + different bytes conflicts — the hash binds content, so a
         // divergent retry can never silently replay a stale success.
-        String other = java.util.Base64.getEncoder().encodeToString("revised-cv".getBytes());
+        String other = java.util.Base64.getEncoder().encodeToString("%PDF-1.7\nrevised-cv".getBytes());
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + other + "\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));

@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
         ElementType.RECORD_COMPONENT})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ValidIsoLocalDate {
-    String message() default "must be a valid ISO local date";
+    String message() default "must be a valid ISO local date not after today";
 
     Class<?>[] groups() default {};
 
