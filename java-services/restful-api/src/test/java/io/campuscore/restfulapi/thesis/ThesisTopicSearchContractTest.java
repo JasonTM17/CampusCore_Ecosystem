@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
+import io.campuscore.restfulapi.thesis.repository.ThesisTopicReadRepository;
 import io.campuscore.restfulapi.thesis.search.ThesisTopicCatalogSearch;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
 
@@ -19,12 +20,14 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -61,6 +64,7 @@ class ThesisTopicSearchContractTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
+    @MockitoSpyBean private ThesisTopicReadRepository reads;
 
     private ThesisTopicSearchOracle.Fixture fixture;
     private Map<String, UUID> seededIds = Map.of();
@@ -227,6 +231,34 @@ class ThesisTopicSearchContractTest {
                         .queryParam("search", "ai", "web").with(student()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_SEARCH"));
+    }
+
+    @Test
+    void topicSearchRejectsValuesOutsideTheBudgetAndKeepsBoundaryResults() throws Exception {
+        UUID roundId = seedFixtureRound();
+        List<String> overBudget = List.of(
+                "z".repeat(201),
+                String.join(" ", java.util.Collections.nCopies(17, "qzx")));
+
+        for (String search : overBudget) {
+            Mockito.clearInvocations(reads);
+            mvc.perform(pageRequest(roundId, search, 0, 100).with(student()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_SEARCH"));
+            Mockito.verifyNoInteractions(reads);
+        }
+
+        List<String> boundarySearches = List.of(
+                "z".repeat(200),
+                String.join(" ", java.util.Collections.nCopies(16, "qzx")));
+        for (String search : boundarySearches) {
+            MvcResult result = page(roundId, search, 0, 100, student());
+            assertThat(result.getResponse().getStatus()).isEqualTo(200);
+            List<String> expectedIds = ThesisTopicSearchOracle.matchingIds(fixture.topics(), search);
+            assertThat(body(result)).extracting(topic -> topic.id().toString())
+                    .containsExactlyElementsOf(expectedJavaOrder(expectedIds).stream()
+                            .map(UUID::toString).toList());
+        }
     }
 
     @Test

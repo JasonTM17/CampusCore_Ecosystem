@@ -448,6 +448,7 @@ export const thesisWorkflowEn = {
   topicCatalog: {
     searchLabel: 'Search topics',
     searchPlaceholder: 'Enter topic title, specialization, or keyword…',
+    searchLimitError: 'Search must be 200 characters or fewer and use no more than 16 words.',
     searchAction: 'Search',
     viewAll: 'Browse all topics in this round',
     quickSuggest: 'Suggested topics:',
@@ -962,6 +963,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
   topicCatalog: {
     searchLabel: 'Tìm kiếm đề tài',
     searchPlaceholder: 'Nhập tên đề tài, chuyên ngành hoặc từ khóa…',
+    searchLimitError: 'Tìm kiếm tối đa 200 ký tự và 16 từ.',
     searchAction: 'Tìm kiếm',
     viewAll: 'Xem tất cả đề tài đợt này',
     quickSuggest: 'Gợi ý chuyên ngành:',
