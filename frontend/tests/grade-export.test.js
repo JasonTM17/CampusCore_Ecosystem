@@ -137,6 +137,12 @@ test('Lecturer grade sheet CSV export and print roster integrity', async (t) => 
     assert.equal(escapeCsvField('-2.5'), '"\'-2.5"');
     assert.equal(escapeCsvField('@cmd'), '"\'@cmd"');
     assert.equal(escapeCsvField('\t=1+1'), '"\'\t=1+1"');
+    for (const prefix of ['\n', '\r', '\r\n']) {
+      assert.ok(
+        escapeCsvField(`${prefix}=HYPERLINK("https://attacker.example","Review")`).startsWith(`"'${prefix}=`),
+        'formula-like cells after leading line breaks are neutralized',
+      );
+    }
     assert.equal(escapeCsvField(8.5), '"8.5"');
   });
 

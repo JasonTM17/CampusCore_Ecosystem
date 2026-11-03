@@ -133,6 +133,18 @@ const HTML_ARTICLE = [
   '<h3><strong>Quy</strong> trình</h3>',
 ].join('');
 
+test('out-of-range numeric URL references do not abort article rendering', () => {
+  const renderer = loadRenderer();
+
+  for (const entity of ['&#1114112;', '&#x110000;']) {
+    let rendered;
+    assert.doesNotThrow(() => {
+      rendered = renderer.renderHtmlDocument(`<p><a href="${entity}">Details</a></p>`);
+    }, entity);
+    assert.doesNotMatch(rendered, /href=/);
+  }
+});
+
 // --- (a) contents for HTML bodies -------------------------------------------
 
 test('RT-P3-a an HTML article produces contents entries with de-duplicated anchors', () => {

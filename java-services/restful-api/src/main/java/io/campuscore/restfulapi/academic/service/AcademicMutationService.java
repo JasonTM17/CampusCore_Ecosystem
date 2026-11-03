@@ -816,7 +816,7 @@ public class AcademicMutationService {
         }
         char first = text.charAt(0);
         return first == '=' || first == '+' || first == '-' || first == '@'
-                || first == '\t' || first == '\r';
+                || first == '\t' || first == '\r' || first == '\n';
     }
 
     private static DomainException problem(HttpStatus status, String code, String message) {

@@ -105,6 +105,16 @@ class AnnouncementHtmlSanitizerTest {
     }
 
     @Test
+    void blankTargetLinksCannotRetainOpener() {
+        String html = AnnouncementHtmlSanitizer.sanitize(
+                "<a href=\"https://attacker.example\" target=\"_blank\" rel=\"opener\">Read results</a>").html();
+
+        assertTrue(html.contains("target=\"_blank\""), html);
+        assertTrue(html.contains("rel=\"noopener noreferrer\""), html);
+        assertFalse(html.contains("rel=\"opener\""), html);
+    }
+
+    @Test
     void policyMatchesTheSharedAllowlistFixture() throws IOException {
         JsonNode policy = fixture();
         Set<String> fixtureTags = new HashSet<>();

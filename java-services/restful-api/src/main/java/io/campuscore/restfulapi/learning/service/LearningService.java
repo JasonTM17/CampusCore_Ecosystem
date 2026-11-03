@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.learning.service;
 
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
 import io.campuscore.restfulapi.learning.web.LearningDtos.FeedbackResponse;
@@ -542,10 +543,9 @@ public class LearningService {
         }
     }
 
-    /** Stores a file object when content is supplied; verifies the caller's
-     * declared checksum against the received bytes (LMS-T07). Returns the
-     * stored-object metadata (key/name/type/size/checksum) or null when no
-     * content was supplied. */
+    /** Stores a file object when content is supplied; validates the COURSEWORK
+     * type and size, then verifies the caller's checksum against the received
+     * bytes (LMS-T07). Returns stored-object metadata or null when absent. */
     Map<String, Object> storeFile(String actorId, String scope, String fileName, String contentType,
             String contentBase64, String checksum) {
         if (contentBase64 == null || contentBase64.isBlank()) {
@@ -558,13 +558,18 @@ public class LearningService {
             throw problem(HttpStatus.BAD_REQUEST, "FILE_ENCODING_INVALID",
                     "File content must be base64");
         }
+        if (bytes.length > MultipartAttachment.MAX_BYTES) {
+            throw problem(HttpStatus.BAD_REQUEST, "ATTACHMENT_SIZE_INVALID",
+                    "Attachment must be 1 byte to 5 MiB");
+        }
+        String mediaType = MultipartAttachment.validateContentTypeAndSignature(
+                contentType, bytes, MultipartAttachment.COURSEWORK);
         String sha256 = sha256(bytes);
         if (checksum != null && !checksum.isBlank() && !checksum.equalsIgnoreCase(sha256)) {
             throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "FILE_CHECKSUM_MISMATCH",
                     "File checksum does not match the content");
         }
         String key = "learning/" + scope + "/" + UUID.randomUUID();
-        String mediaType = normaliseContentType(contentType);
         jdbc.update("INSERT INTO " + FILE_OBJECT
                         + " (\"key\", \"contentType\", \"sizeBytes\", \"sha256\", \"data\")"
                         + " VALUES (:key, :contentType, :sizeBytes, :sha256, :data)",
