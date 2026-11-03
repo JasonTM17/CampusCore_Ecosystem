@@ -106,7 +106,7 @@ Any gap outside this explicit set is treated as an unexpected missing migration 
 
 ## 3. H2 Test Fixture Chain Boundary
 
-A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (65 files).
+A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (66 files).
 
 - **Purpose**: A lightweight, trimmed-down schema definition designed solely for rapid in-memory execution during Maven unit test passes (`mvn test`).
 - **Structure**: Skips non-essential historical data seeds (jumps directly from V24 to V85, and V93 to V109).
