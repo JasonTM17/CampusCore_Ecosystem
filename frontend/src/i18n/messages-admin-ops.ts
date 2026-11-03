@@ -2,6 +2,7 @@
 export interface AdminOpsCopy {
   assistantKnowledge: {
     errorSecondReview: string; errorForbidden: string; errorGeneric: string;
+    staleVersion: string;
     unknownState: string; otherDomain: string;
     ui: Record<string, string>;
   };
@@ -23,6 +24,8 @@ export const adminOpsEn: AdminOpsCopy = {
       'A different administrator must publish this revision. Reload to see the latest state.',
     errorForbidden: 'You are not allowed to perform this action.',
     errorGeneric: 'The action could not be completed. Please try again.',
+    staleVersion:
+      'This guidance changed after you opened it. Your edits are still here; reload to compare before saving.',
     unknownState: 'Unknown', otherDomain: 'Other',
     ui: {
       publicCampusuteGuidance: 'Public CampusUTE guidance',
@@ -100,6 +103,8 @@ export const adminOpsVi: AdminOpsCopy = {
       'Bản nháp cần một quản trị viên khác duyệt xuất bản. Hãy tải lại để xem trạng thái mới.',
     errorForbidden: 'Bạn không có quyền thực hiện thao tác này.',
     errorGeneric: 'Không thể hoàn thành thao tác. Vui lòng thử lại.',
+    staleVersion:
+      'Nội dung đã thay đổi sau khi bạn mở. Các chỉnh sửa vẫn được giữ; hãy tải lại để so sánh trước khi lưu.',
     unknownState: 'Chưa xác định', otherDomain: 'Khác',
     ui: {
       publicCampusuteGuidance: 'Phạm vi nội dung CampusUTE công khai',

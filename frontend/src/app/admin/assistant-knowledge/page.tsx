@@ -79,9 +79,17 @@ const blankForm: AssistantKnowledgeRequest = {
   priority: 100,
 };
 
+function isStaleVersionError(error: unknown) {
+  const response = (error as { response?: { data?: { code?: string } } })?.response;
+  return response?.data?.code === 'STALE_VERSION';
+}
+
 function actionError(error: unknown, locale: 'en' | 'vi') {
   const opsCopy = locale === 'vi' ? adminOpsVi.assistantKnowledge : adminOpsEn.assistantKnowledge;
   const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response;
+  if (isStaleVersionError(error)) {
+    return opsCopy.staleVersion;
+  }
   if (response?.status === 409 || response?.data?.code === 'KNOWLEDGE_SECOND_REVIEW_REQUIRED') {
     return opsCopy.errorSecondReview;
   }
@@ -589,12 +597,28 @@ export default function AdminAssistantKnowledgePage() {
     setIsSaving(true);
     setFormError('');
     try {
-      if (editing) await assistantKnowledgeApi.update(editing.documentId, form);
-      else await assistantKnowledgeApi.create(form);
+      if (editing) {
+        const saved = await assistantKnowledgeApi.update(editing.documentId, {
+          ...form,
+          expectedVersion: editing.version,
+        });
+        setEditing((current) => (
+          current && current.documentId === editing.documentId
+            ? { ...current, version: saved.version }
+            : current
+        ));
+      } else {
+        await assistantKnowledgeApi.create(form);
+      }
       setFormOpen(false);
       setNotice(opsUi.draftSaved);
       await load();
     } catch (saveError) {
+      if (isStaleVersionError(saveError)) {
+        // Refresh the list so the newer revision is visible; the open editor
+        // keeps the admin's typed content instead of replacing it.
+        await load();
+      }
       setFormError(actionError(saveError, locale));
     } finally {
       setIsSaving(false);
