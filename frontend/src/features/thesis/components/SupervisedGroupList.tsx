@@ -75,7 +75,11 @@ export default function SupervisedGroupList({
             {groups.map((group) => {
               const topicTitle = getTopicTitle(group.topicId);
               const isPending =
-                group.status === 'SUBMITTED' && group.approvalStatus === 'PENDING';
+                group.approvalStatus === 'PENDING' && group.status !== 'CANCELLED';
+              const canApprove = isPending && group.status === 'SUBMITTED' && Boolean(group.topicId);
+              // A topic-less draft has no approve path, but rejecting it is the
+              // only way to clear the publication block it creates.
+              const canReject = isPending && (group.status === 'SUBMITTED' || !group.topicId);
               // The backend reviewer check is R3 supervision (or admin), not
               // topic authorship — a department head who merely proposed the
               // topic must not see dead approve/reject buttons.
@@ -162,26 +166,30 @@ export default function SupervisedGroupList({
                   <div className="flex shrink-0 items-center gap-2">
                     {isPending && mayReview ? (
                       <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="bg-emerald-700 text-white hover:bg-emerald-800"
-                          onClick={() => void onApprove(group.id)}
-                          disabled={isActionPending}
-                        >
-                          <Check className="mr-1.5 h-4 w-4" />
-                          {messages.thesis.approve}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => onReject(group.id)}
-                          disabled={isActionPending}
-                        >
-                          <X className="mr-1.5 h-4 w-4" />
-                          {messages.thesis.reject}
-                        </Button>
+                        {canApprove ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-emerald-700 text-white hover:bg-emerald-800"
+                            onClick={() => void onApprove(group.id)}
+                            disabled={isActionPending}
+                          >
+                            <Check className="mr-1.5 h-4 w-4" />
+                            {messages.thesis.approve}
+                          </Button>
+                        ) : null}
+                        {canReject ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => onReject(group.id)}
+                            disabled={isActionPending}
+                          >
+                            <X className="mr-1.5 h-4 w-4" />
+                            {messages.thesis.reject}
+                          </Button>
+                        ) : null}
                       </>
                     ) : null}
                   </div>

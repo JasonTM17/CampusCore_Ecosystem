@@ -28,6 +28,33 @@ const ROUND_STATUS_PRIORITY: Readonly<Record<string, number>> = {
   RESULTS_PUBLISHED: 4,
 };
 
+/** A draft round is not a student-facing surface; staff still author it. */
+export function thesisRoundsForStudent(
+  rounds: ReadonlyArray<ThesisRound>,
+  isStudent: boolean,
+): ThesisRound[] {
+  return isStudent
+    ? rounds.filter((round) => round.status !== 'DRAFT')
+    : [...rounds];
+}
+
+/**
+ * Picks the round a workspace opens on. Registration rounds win, then closed
+ * rounds; a draft round is never a default even for a staff caller.
+ */
+export function pickDefaultThesisRound(
+  rounds: ReadonlyArray<ThesisRound>,
+): ThesisRound | undefined {
+  const visible = rounds.filter((round) => round.status !== 'DRAFT');
+  return (
+    visible.find((round) => round.status === 'REGISTRATION_OPEN' && round.thesisType === 'KLTN') ||
+    visible.find((round) => round.status === 'REGISTRATION_OPEN') ||
+    visible.find((round) => round.status === 'REGISTRATION_CLOSED' && round.thesisType === 'KLTN') ||
+    visible.find((round) => round.status === 'REGISTRATION_CLOSED') ||
+    visible[0]
+  );
+}
+
 /**
  * Orders thesis rounds for staff/dean observation workspaces so active
  * registration/execution cohorts surface ahead of future proposal-only or

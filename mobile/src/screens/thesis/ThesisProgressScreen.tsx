@@ -12,6 +12,7 @@ import { ThesisReportCard } from './ThesisReportCard';
 import { ThesisRoundPicker } from './ThesisRoundPicker';
 import {
   THESIS_MILESTONES,
+  canShowFinalScore,
   memberLabel,
   milestoneState,
   progressPercent,
@@ -80,7 +81,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                 {group.approvalStatus === 'REJECTED' && group.rejectionReason ? (
                   <UiText variant="bodySmall" tone="error" style={styles.line}>{`${copy.groupRejectedReason}: ${group.rejectionReason}`}</UiText>
                 ) : null}
-                {typeof progress?.finalScore === 'number' ? (
+                {canShowFinalScore(group, progress) && typeof progress?.finalScore === 'number' ? (
                   <UiText variant="label" style={styles.line}>{`${copy.finalScore}: ${formatNumber(progress.finalScore, { maximumFractionDigits: 2 })}`}</UiText>
                 ) : null}
               </Card>

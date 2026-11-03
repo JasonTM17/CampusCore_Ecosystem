@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
-import { pickPreferredThesisRound } from '@/lib/thesis-round';
+import { pickDefaultThesisRound, pickPreferredThesisRound, thesisRoundsForStudent } from '@/lib/thesis-round';
 import {
   thesisApi,
   type ThesisGroup,
@@ -61,7 +61,8 @@ export function useThesisWorkspace(
     try {
       const nextRounds = await thesisApi.listRounds();
       if (requestId !== roundsRequestRef.current) return;
-      const sortedRounds = [...nextRounds].sort((a, b) => {
+      const visibleRounds = thesisRoundsForStudent(nextRounds, isStudent);
+      const sortedRounds = [...visibleRounds].sort((a, b) => {
         // Academic rule priority: OPEN registration > KLTN thesis type > newest start date
         const isOpenA = a.status === 'REGISTRATION_OPEN' ? 0 : 1;
         const isOpenB = b.status === 'REGISTRATION_OPEN' ? 0 : 1;
@@ -84,20 +85,14 @@ export function useThesisWorkspace(
         if (initialRoundId && sortedRounds.some((round) => round.id === initialRoundId)) {
           return initialRoundId;
         }
-        const preferred =
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN' && r.thesisType === 'KLTN') ||
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN') ||
-          sortedRounds.find((r) => r.status === 'REGISTRATION_CLOSED' && r.thesisType === 'KLTN') ||
-          sortedRounds.find((r) => r.status === 'REGISTRATION_CLOSED') ||
-          sortedRounds[0];
-        return preferred?.id || '';
+        return pickDefaultThesisRound(sortedRounds)?.id || '';
       });
     } catch {
       if (requestId === roundsRequestRef.current) setError(loadFailedMessage);
     } finally {
       if (requestId === roundsRequestRef.current) setRoundsLoading(false);
     }
-  }, [initialRoundId, loadFailedMessage]);
+  }, [initialRoundId, isStudent, loadFailedMessage]);
 
   useEffect(() => {
     void loadRounds();
