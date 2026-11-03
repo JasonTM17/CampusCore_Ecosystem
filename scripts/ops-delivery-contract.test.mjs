@@ -72,7 +72,8 @@ class FakeSocket extends EventEmitter {
 net.Socket = FakeSocket;
 net.createServer = () => {
   const server = new EventEmitter();
-  server.listen = (_options, callback) => {
+  server.listen = (...args) => {
+    const callback = args.at(-1);
     if (process.env.VERIFY_TEST_ALLOC === 'error') {
       setImmediate(() => server.emit('error', new Error('stubbed port allocation failure')));
     } else {
@@ -85,6 +86,17 @@ net.createServer = () => {
   return server;
 };
 
+const signalHandlers = {};
+const originalProcessOnce = process.once.bind(process);
+process.once = (event, handler) => {
+  if (process.env.VERIFY_TEST_SIGNAL === event && ['SIGINT', 'SIGTERM'].includes(event)) {
+    signalHandlers[event] = handler;
+    return process;
+  }
+  return originalProcessOnce(event, handler);
+};
+let signalSent = false;
+
 childProcess.spawnSync = (command, args = []) => {
   record({ kind: 'spawnSync', command, args });
   if (command === 'docker' && args.includes('ps')) {
@@ -92,6 +104,13 @@ childProcess.spawnSync = (command, args = []) => {
       return { status: 0, stdout: '{"Service":"postgres","State":"exited"}\\n', stderr: '' };
     }
     return { status: 0, stdout: process.env.VERIFY_TEST_EXISTING === '1' ? 'abc123\\n' : '', stderr: '' };
+  }
+  if (command === 'docker' && args.includes('volume') && args.includes('ls')) {
+    return { status: 0, stdout: process.env.VERIFY_TEST_VOLUME_EXISTING === '1' ? 'project-volume\\n' : '', stderr: '' };
+  }
+  if (command === 'docker' && args.includes('up') && process.env.VERIFY_TEST_SIGNAL && !signalSent) {
+    signalSent = true;
+    signalHandlers[process.env.VERIFY_TEST_SIGNAL]?.();
   }
   if (command === 'docker' && args.includes('up') && process.env.VERIFY_TEST_MODE === 'verify-existing') {
     return { status: 1, stdout: '', stderr: 'stubbed compose startup failure' };
@@ -110,7 +129,19 @@ childProcess.execFileSync = (command, args = []) => {
   return '';
 };
 syncBuiltinESMExports();
-globalThis.fetch = async () => ({ status: 200 });
+let contractFirstHealth = true;
+globalThis.fetch = async (url, options = {}) => {
+  if (process.env.VERIFY_TEST_CONTRACT === '1'
+    && String(url).includes('/api/v1/health/liveness') && contractFirstHealth) {
+    contractFirstHealth = false;
+    throw new Error('stubbed port is free');
+  }
+  const supplied = options.headers?.['X-Request-Id'];
+  return new Response('{}', {
+    status: 200,
+    headers: { 'cache-control': 'no-store', 'x-request-id': supplied || 'generated-request-id' },
+  });
+};
 `, 'utf8');
   return preload;
 }
@@ -132,9 +163,38 @@ function runPreviewStub(fixture, scriptName, mode, evidenceName = scriptName) {
       VERIFY_TEST_FIXTURE: fixture,
       VERIFY_TEST_RECORD: record,
       VERIFY_TEST_EXISTING: ['existing', 'verify-existing'].includes(mode) ? '1' : '0',
+      VERIFY_TEST_VOLUME_EXISTING: mode === 'existing-volume' ? '1' : '0',
+      VERIFY_TEST_SIGNAL: mode === 'signal' ? 'SIGINT' : '',
       VERIFY_TEST_MODE: mode === 'existing' ? 'verify-existing' : mode,
       VERIFY_TEST_PORT: mode === 'busy' ? 'busy' : 'free',
       VERIFY_TEST_CHILD_COUNT: '0',
+    },
+  });
+  const calls = existsSync(record)
+    ? readFileSync(record, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(JSON.parse)
+    : [];
+  return { result, calls };
+}
+
+function runContractStub(fixture) {
+  const preload = writeProcessStub(fixture);
+  const record = path.join(fixture, 'contract-volume.jsonl');
+  const evidence = path.join(fixture, 'contract-volume-evidence');
+  const result = spawnSync(process.execPath, [
+    '--import', pathToFileURL(preload).href,
+    path.join(repoRoot, 'scripts/contract-verify.mjs'),
+    'contract-probes', '--project', 'campuscore-contract-volume', '--evidence', evidence,
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 15000,
+    env: {
+      ...process.env,
+      VERIFY_TEST_FIXTURE: fixture,
+      VERIFY_TEST_RECORD: record,
+      VERIFY_TEST_EXISTING: '0',
+      VERIFY_TEST_VOLUME_EXISTING: '1',
+      VERIFY_TEST_CONTRACT: '1',
     },
   });
   const calls = existsSync(record)
@@ -275,6 +335,52 @@ test('preview collision refusal never tears down the pre-existing project', (t) 
   }
 });
 
+test('preview and contract verifiers refuse a project with volumes but no containers', (t) => {
+  const fixture = worktreeFixture(t, 'volume-collision');
+  const previewScripts = [
+    'ecosystem-content-verify',
+    'ecosystem-sso-verify',
+    'ecosystem-admissions-verify',
+    'ecosystem-careers-verify',
+    'ecosystem-events-verify',
+    'ecosystem-learning-verify',
+    'ecosystem-library-verify',
+  ];
+
+  for (const script of previewScripts) {
+    const { result, calls } = runPreviewStub(fixture, script, 'existing-volume', `${script}-volume-evidence`);
+    assert.equal(result.status, 1, `${script}: ${result.stdout}${result.stderr}`);
+    const docker = calls.filter((call) => call.command === 'docker');
+    assert.deepEqual(docker.map((call) => call.args.includes('volume') ? 'volume' : call.args.find((arg) => ['ps', 'up', 'down'].includes(arg))),
+      ['ps', 'volume'], JSON.stringify({ script, result, calls }));
+    assert.ok(docker.every((call) => !call.args.some((arg) => ['up', 'down'].includes(arg))));
+    const volumeQuery = docker.find((call) => call.args.includes('volume'));
+    assert.ok(volumeQuery.args.includes('label=com.docker.compose.project=campuscore-preview-safety'));
+  }
+
+  const { result, calls } = runContractStub(fixture);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  const docker = calls.filter((call) => call.command === 'docker');
+  assert.deepEqual(docker.map((call) => call.args.includes('volume') ? 'volume' : call.args.find((arg) => ['ps', 'up', 'down'].includes(arg))),
+    ['ps', 'volume'], JSON.stringify({ result, calls }));
+  assert.ok(docker.every((call) => !call.args.some((arg) => ['up', 'down'].includes(arg))));
+  const volumeQuery = docker.find((call) => call.args.includes('volume'));
+  assert.ok(volumeQuery.args.includes('label=com.docker.compose.project=campuscore-contract-volume'));
+});
+
+test('preview SIGINT tears down the stack started by this run before exit', (t) => {
+  const fixture = worktreeFixture(t, 'preview-sigint');
+  const { result, calls } = runPreviewStub(fixture, 'ecosystem-content-verify', 'signal');
+
+  assert.equal(result.status, 130, result.stdout + result.stderr);
+  const docker = calls.filter((call) => call.command === 'docker');
+  assert.deepEqual(docker.map((call) => call.args.includes('volume') ? 'volume' : call.args.find((arg) => ['ps', 'up', 'down'].includes(arg))),
+    ['ps', 'volume', 'up', 'down']);
+  const down = docker.find((call) => call.args.includes('down'));
+  assert.ok(down.args.includes('campuscore-preview-safety'));
+  assert.ok(down.args.includes('-v'));
+});
+
 test('preview port refusal never kills an unrelated listener', (t) => {
   const fixture = worktreeFixture(t, 'preview-port-refusal');
   for (const script of ['ecosystem-content-verify', 'ecosystem-sso-verify']) {
@@ -295,7 +401,8 @@ test('preview cleanup kills only child processes started by this run', (t) => {
       .map((call) => call.args[1]);
     assert.deepEqual(taskkillPids, childPids);
     const docker = calls.filter((call) => call.command === 'docker');
-    assert.deepEqual(docker.map((call) => call.args.find((arg) => ['ps', 'up', 'down'].includes(arg))), ['ps', 'up', 'down']);
+    assert.deepEqual(docker.map((call) => call.args.includes('volume') ? 'volume' : call.args.find((arg) => ['ps', 'up', 'down'].includes(arg))),
+      ['ps', 'volume', 'up', 'down']);
     const down = docker.find((call) => call.args.includes('down'));
     assert.ok(down.args.includes('campuscore-preview-safety'));
     assert.ok(down.args.includes('-v'));

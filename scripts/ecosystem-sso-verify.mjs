@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installKillGuard, stopChildrenTree } from './ecosystem-verify-shared.mjs';
+import { installKillGuard, preflightProjectVolumes, stopChildrenTree } from './ecosystem-verify-shared.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -29,8 +29,9 @@ const ID_TLS_PORT = 4443;
 const API_PORT = 4100;
 const BOOT_TIMEOUT_MS = 240000;
 
+let signalTeardown = null;
 const children = [];
-installKillGuard(children);
+installKillGuard(children, { teardown: () => signalTeardown?.() });
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
@@ -163,9 +164,12 @@ async function casePreview(args) {
     if (existing.out.trim()) {
       throw new Error(`compose project ${args.project} already exists — refusing collision`);
     }
+    preflightProjectVolumes(args.project, tryRun);
 
     // 1. Disposable API stack in the BFF lane.
     ownsStack = true;
+    signalTeardown = () => tryRun('docker', composeArgs(args,
+      ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
     const up = tryRun('docker', composeArgs(args,
       ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']),
       { timeoutMs: 600000 });
@@ -235,6 +239,7 @@ async function casePreview(args) {
     result.error = String(error.message || error).slice(-3000);
   } finally {
     stopChildren();
+    signalTeardown = null;
     if (ownsStack) {
       const down = tryRun('docker', composeArgs(args,
         ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });

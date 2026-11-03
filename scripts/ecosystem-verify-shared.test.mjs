@@ -42,11 +42,8 @@ test('non-win32: only live children get SIGTERM', () => {
 });
 
 test('installKillGuard: signal handlers tear the tree down then exit', () => {
-  const { calls, fn } = fakeExec();
-  const exits = [];
-  const children = [{ pid: 4242, exitCode: 0, kill: () => {} }];
+  const events = [];
   const onceCalls = [];
-  const origOnce = process.once.bind(process);
   // Capture the registered handlers without touching the real emitter.
   const fakeProcess = process;
   const registered = {};
@@ -54,15 +51,19 @@ test('installKillGuard: signal handlers tear the tree down then exit', () => {
   const prevOnce = process.once;
   process.once = spy;
   try {
-    installKillGuard(children, { exit: (code) => exits.push(code) });
+    installKillGuard([], {
+      exit: (code) => events.push(`exit:${code}`),
+      teardown: () => events.push('down'),
+    });
   } finally {
     process.once = prevOnce;
   }
   for (const event of ['SIGINT', 'SIGTERM', 'uncaughtException']) {
     assert.ok(registered[event], `${event} handler registered`);
   }
-  // exec injection happens inside stopChildrenTree — re-invoke via the guard
-  // using platform win32 path implicitly (process.platform on this host).
   registered.SIGINT();
-  assert.equal(exits[0], 130);
+  assert.deepEqual(events, ['down', 'exit:130']);
+  events.length = 0;
+  registered.SIGTERM();
+  assert.deepEqual(events, ['down', 'exit:143']);
 });

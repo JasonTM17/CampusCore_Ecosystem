@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from "no
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { preflightProjectVolumes } from "./ecosystem-verify-shared.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_HOST_PORT = 4100;
@@ -153,7 +154,7 @@ async function caseProbes(args, log) {
   let failed = false;
   let stackStarted = false;
   const teardown = () => {
-    run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
+    return run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
   };
 
   try {
@@ -170,6 +171,7 @@ async function caseProbes(args, log) {
     if (existing.status !== 0 || existing.stdout.trim() !== "") {
       throw new Error(`compose project ${project} is not empty or cannot be inspected — refusing to mutate or tear it down`);
     }
+    preflightProjectVolumes(project, (command, argv) => run(command, argv, { env, timeout: 60000 }));
 
     log(`up ${project} pg:${pgPort} api:${API_HOST_PORT}`);
     const up = run("docker", [...compose, "up", "-d", "--build"], { env, timeout: 900000 });
@@ -273,7 +275,14 @@ async function caseProbes(args, log) {
     evidence.verdict = "FAIL";
     log(`ERROR ${evidence.error}`);
   } finally {
-    if (stackStarted) teardown();
+    if (stackStarted) {
+      const result = teardown();
+      evidence.teardown = result.status === 0 ? "complete" : "degraded";
+      if (result.status !== 0) {
+        failed = true;
+        evidence.verdict = "FAIL";
+      }
+    }
   }
   return { evidence, failed };
 }

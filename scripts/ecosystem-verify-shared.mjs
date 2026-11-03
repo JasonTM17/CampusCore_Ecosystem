@@ -9,6 +9,17 @@
 
 import { execFileSync } from 'node:child_process';
 
+export function preflightProjectVolumes(project, runCommand) {
+  const result = runCommand('docker', [
+    'volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`,
+  ]);
+  const ok = result.ok ?? result.status === 0;
+  const output = result.out ?? result.stdout ?? '';
+  if (!ok) throw new Error('Compose volume ownership preflight failed; refusing startup.');
+  if (output.trim()) throw new Error('Refusing to adopt a Compose project that already contains volumes.');
+  return true;
+}
+
 export function stopChildrenTree(children, { exec, platform } = {}) {
   const run = exec || execFileSync;
   const isWin = (platform ?? process.platform) === 'win32';
@@ -29,13 +40,17 @@ export function stopChildrenTree(children, { exec, platform } = {}) {
 
 // Ctrl+C / kill should tear the preview tree down too, not just the happy
 // and caught-error paths.
-export function installKillGuard(children, { exit } = {}) {
+export function installKillGuard(children, { exit, teardown } = {}) {
   const done = exit || ((code) => process.exit(code));
-  process.once('SIGINT', () => { stopChildrenTree(children); done(130); });
-  process.once('SIGTERM', () => { stopChildrenTree(children); done(143); });
-  process.once('uncaughtException', (error) => {
+  const shutdown = (code, error) => {
     stopChildrenTree(children);
-    console.error(error);
-    done(1);
+    if (error) console.error(error);
+    try { teardown?.(); } catch { /* best effort while the process is stopping */ }
+    done(code);
+  };
+  process.once('SIGINT', () => shutdown(130));
+  process.once('SIGTERM', () => shutdown(143));
+  process.once('uncaughtException', (error) => {
+    shutdown(1, error);
   });
 }
