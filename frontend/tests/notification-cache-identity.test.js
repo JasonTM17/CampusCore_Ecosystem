@@ -37,6 +37,18 @@ function settle() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+/** Loads the real URL guard — it is dependency-free, so no stub is needed. */
+function loadSafeUrl() {
+  const rel = 'src/lib/safe-url.ts';
+  const { outputText } = ts.transpileModule(fs.readFileSync(path.join(root, rel), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: rel,
+  });
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', 'require', outputText)(moduleRecord, moduleRecord.exports, require);
+  return moduleRecord.exports;
+}
+
 function loadApiModule() {
   const postCalls = [];
   const getCalls = [];
@@ -93,6 +105,7 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: () => {},
     },
+    '@/lib/safe-url': loadSafeUrl(),
     '@/lib/surfaces': { surfaceFromHost: () => null },
     '@/lib/observability': {
       REQUEST_ID_HEADER: 'X-Request-Id',

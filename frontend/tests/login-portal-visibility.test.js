@@ -7,15 +7,25 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 
 async function loadLoginPortalModule() {
-  const source = fs.readFileSync(path.join(root, 'src/lib/login-portal.ts'), 'utf8');
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-    fileName: 'login-portal.ts',
-  });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+  const load = (relativePath) => {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+      fileName: relativePath,
+    });
+    const moduleRecord = { exports: {} };
+    Function('module', 'exports', 'require', outputText)(
+      moduleRecord,
+      moduleRecord.exports,
+      (specifier) =>
+        specifier === '@/lib/safe-url' ? load('src/lib/safe-url.ts') : require(specifier),
+    );
+    return moduleRecord.exports;
+  };
+  return load('src/lib/login-portal.ts');
 }
 
 test('the visible tab strip offers student, lecturer, and dean — never admin', async () => {

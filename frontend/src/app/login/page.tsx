@@ -24,6 +24,7 @@ import {
   type LoginPortal,
 } from '@/lib/login-portal';
 import { isTwoFactorChallenge, maskEmail, normalizeOtpCode } from '@/lib/two-factor';
+import { safeInternalPath } from '@/lib/safe-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 import { cn } from '@/lib/utils';
 
@@ -117,6 +118,10 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const portal = parseLoginPortal(searchParams.get('portal'));
   const portalCopy = messages.login.portals[portal];
+  // The page the visitor was bounced away from. Validated once at the top so
+  // every consumer — tabs, credential finish, two-factor finish, SSO return —
+  // can only ever navigate to a same-origin path.
+  const nextTarget = safeInternalPath(searchParams.get('next'));
   // Memoized so the prefill effect below depends on a stable reference.
   const demoCredentials = useMemo(() => demoCredentialsFor(portal), [portal]);
 
@@ -239,7 +244,7 @@ export default function LoginPage() {
           portal === 'admin' && belongsTo === 'dean'
             ? '/admin/thesis'
             : postLoginRoute(belongsTo);
-        router.push(href(target));
+        router.push(href(nextTarget ?? target));
         return;
       }
       await logout({ redirect: false });
@@ -248,11 +253,14 @@ export default function LoginPage() {
       return;
     }
 
-    if (portal === 'lecturer' && user.roles?.includes('TRUONG_BO_MON')) {
-      router.push(href('/dashboard/thesis'));
-    } else {
-      router.push(href(postLoginRoute(portal)));
-    }
+    router.push(
+      href(
+        nextTarget ??
+          (portal === 'lecturer' && user.roles?.includes('TRUONG_BO_MON')
+            ? '/dashboard/thesis'
+            : postLoginRoute(portal)),
+      ),
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -330,6 +338,9 @@ export default function LoginPage() {
     params.set('portal', next);
     if (reason) {
       params.set('reason', reason);
+    }
+    if (nextTarget) {
+      params.set('next', nextTarget);
     }
     return `${href('/login')}?${params.toString()}`;
   };
@@ -577,7 +588,7 @@ export default function LoginPage() {
                 the Java allowlist rejects anything else. */}
             <a
               ref={ssoActionRef}
-              href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
+              href={`/session/login?return=${encodeURIComponent(href(nextTarget ?? postLoginRoute(portal)))}`}
               className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />

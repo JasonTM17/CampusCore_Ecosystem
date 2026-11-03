@@ -24,7 +24,9 @@ function loadModule(relativePath, aliases = {}) {
   return moduleRecord.exports;
 }
 
-const loginPortal = loadModule('src/lib/login-portal.ts');
+const loginPortal = loadModule('src/lib/login-portal.ts', {
+  '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
+});
 const hubModules = loadModule('src/lib/hub-modules.ts');
 
 const effects = [];
@@ -53,6 +55,9 @@ const authContext = loadModule('src/context/AuthContext.tsx', {
     usePathname: () => '/apply',
   },
   '@/i18n': { useI18n: () => ({ href: (pathname) => pathname }) },
+  '@/i18n/paths': {
+    stripLocaleFromPathname: (pathname) => ({ locale: null, pathname }),
+  },
   '@/lib/surfaces': { surfaceFromHost: () => null },
   '@/lib/api': {
     authApi: { me: async () => null, login: async () => null, logout: async () => null },

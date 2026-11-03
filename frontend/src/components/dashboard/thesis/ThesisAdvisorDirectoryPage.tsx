@@ -283,6 +283,9 @@ export default function ThesisAdvisorDirectoryPage() {
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
+  // A failed rounds/topics read is not "no topics": without this flag the
+  // quota column would present a fabricated 0/5 as measured workload.
+  const [topicsLoadFailed, setTopicsLoadFailed] = useState(false);
   // 'failed' is an outage; 'ready' with an empty list is a genuinely
   // unpopulated directory. The two never render the same message.
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -323,7 +326,7 @@ export default function ThesisAdvisorDirectoryPage() {
       setLoadState('loading');
       setError('');
 
-      const [lecResult, deptRes, roundsList] = await Promise.all([
+      const [lecResult, deptRes, roundsResult] = await Promise.all([
         // The directory is the one required input. Its failure is reported
         // below; it is never silently replaced with invented faculty.
         // Walk every page: a limit-100 fetch truncated the directory at
@@ -334,7 +337,11 @@ export default function ThesisAdvisorDirectoryPage() {
         // Departments, rounds and topics only enrich the directory; losing
         // them degrades the enrichment, it does not invent a person.
         departmentsApi.getAll({ limit: 50 }).catch(() => ({ data: [] as Department[] })),
-        thesisApi.listRounds().catch(() => [] as ThesisRound[]),
+        // A failed round read hides the workload behind the same fabricated
+        // 0/5 as a failed topic read, so it is tracked with its own ok flag.
+        thesisApi.listRounds()
+          .then((data) => ({ ok: true as const, data }))
+          .catch(() => ({ ok: false as const, data: [] as ThesisRound[] })),
       ]);
 
       if (!active) return;
@@ -352,12 +359,17 @@ export default function ThesisAdvisorDirectoryPage() {
       setLoadState('ready');
 
       const targetRound =
-        roundsList.find((r) => r.id === preselectedRoundId) || roundsList[0];
-      if (targetRound) {
-        const topicList = await thesisApi
+        roundsResult.data.find((r) => r.id === preselectedRoundId) || roundsResult.data[0];
+      if (!roundsResult.ok) {
+        setTopicsLoadFailed(true);
+      } else if (targetRound) {
+        const topicResult = await thesisApi
           .listTopics(targetRound.id, 'PUBLISHED')
-          .catch(() => [] as ThesisTopic[]);
-        if (active) setTopics(topicList);
+          .then((data) => ({ ok: true as const, data }))
+          .catch(() => ({ ok: false as const, data: [] as ThesisTopic[] }));
+        if (!active) return;
+        setTopicsLoadFailed(!topicResult.ok);
+        setTopics(topicResult.data);
       }
     }
 
@@ -424,32 +436,36 @@ export default function ThesisAdvisorDirectoryPage() {
       // 2. Department filter
       const matchDept = selectedDepartmentId === 'all' || lec.departmentId === selectedDepartmentId;
 
-      // 3. Quota filter
+      // 3. Quota filter — inert while the read is down so "available" and
+      // "full" never run on the fabricated zero defaults.
       const workload = workloadFor(advisorWorkloadMap, lec.id);
       const isAvailable = workload.topicCount < workload.maxTopics;
       const matchQuota =
+        topicsLoadFailed ||
         quotaFilter === 'all' ||
         (quotaFilter === 'available' && isAvailable) ||
         (quotaFilter === 'full' && !isAvailable);
 
       return matchQuery && matchDept && matchQuota;
     });
-  }, [lecturers, searchQuery, selectedDepartmentId, quotaFilter, advisorWorkloadMap]);
+  }, [lecturers, searchQuery, selectedDepartmentId, quotaFilter, advisorWorkloadMap, topicsLoadFailed]);
 
   // Statistics counters
   const stats = useMemo(() => {
     const total = lecturers.length;
-    const available = lecturers.filter((l) => {
-      const w = workloadFor(advisorWorkloadMap, l.id);
-      return w.topicCount < w.maxTopics;
-    }).length;
+    const available = topicsLoadFailed
+      ? null
+      : lecturers.filter((l) => {
+          const w = workloadFor(advisorWorkloadMap, l.id);
+          return w.topicCount < w.maxTopics;
+        }).length;
     return {
       total,
       available,
       departmentsCount: departments.length,
       activeTopicsCount: topics.length,
     };
-  }, [lecturers, departments, topics, advisorWorkloadMap]);
+  }, [lecturers, departments, topics, advisorWorkloadMap, topicsLoadFailed]);
 
   // A narrowing filter re-pages the result set from the top.
   useEffect(() => {
@@ -570,6 +586,9 @@ export default function ThesisAdvisorDirectoryPage() {
       key: 'workload',
       title: copy.table.workload,
       render: (record) => {
+        if (topicsLoadFailed) {
+          return <span className="text-xs font-semibold text-muted-foreground">{copy.quotaUnavailable}</span>;
+        }
         const workload = workloadFor(advisorWorkloadMap, record.id);
         const isAvailable = workload.topicCount < workload.maxTopics;
         return (
@@ -707,7 +726,7 @@ export default function ThesisAdvisorDirectoryPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {copy.statsAcceptingStudents}
               </p>
-              <p className="mt-1 text-2xl font-bold text-status-success-foreground">{stats.available}</p>
+              <p className="mt-1 text-2xl font-bold text-status-success-foreground">{stats.available ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -762,6 +781,7 @@ export default function ThesisAdvisorDirectoryPage() {
               <div className="w-full sm:w-48">
                 <Select
                   aria-label={copy.quotaFilterLabel}
+                  disabled={topicsLoadFailed}
                   value={quotaFilter}
                   onChange={(e) => setQuotaFilter(e.target.value as 'all' | 'available' | 'full')}
                   options={[
@@ -833,8 +853,8 @@ export default function ThesisAdvisorDirectoryPage() {
                                 <span className="truncate" title={departmentName(lec.departmentId)}>{departmentName(lec.departmentId)}</span>
                               </p>
                               <div className="mt-1.5">
-                                <StatusPill tone={isAvailable ? 'success' : 'neutral'}>
-                                  {isAvailable ? copy.cardAvailable : copy.cardFullQuota}
+                                <StatusPill tone={topicsLoadFailed || !isAvailable ? 'neutral' : 'success'}>
+                                  {topicsLoadFailed ? copy.quotaUnavailable : isAvailable ? copy.cardAvailable : copy.cardFullQuota}
                                 </StatusPill>
                               </div>
                             </div>
@@ -870,16 +890,22 @@ export default function ThesisAdvisorDirectoryPage() {
 
                           {/* Supervision Quota & Metrics */}
                           <div className="mt-4 rounded-lg border border-border/70 bg-secondary/40 p-2.5">
-                            <div className="mb-1.5 flex items-center justify-between text-xs">
-                              <span className="flex items-center gap-1 text-muted-foreground">
-                                <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                                <span>{copy.cardAdvising}</span>
-                              </span>
-                              <span className="font-bold text-foreground">
-                                {workload.topicCount} / {workload.maxTopics} {copy.cardThesesSuffix}
-                              </span>
-                            </div>
-                            <QuotaBar {...workload} label={copy.quotaBarLabel} />
+                            {topicsLoadFailed ? (
+                              <span className="text-xs font-semibold text-muted-foreground">{copy.quotaUnavailable}</span>
+                            ) : (
+                              <>
+                                <div className="mb-1.5 flex items-center justify-between text-xs">
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                                    <span>{copy.cardAdvising}</span>
+                                  </span>
+                                  <span className="font-bold text-foreground">
+                                    {workload.topicCount} / {workload.maxTopics} {copy.cardThesesSuffix}
+                                  </span>
+                                </div>
+                                <QuotaBar {...workload} label={copy.quotaBarLabel} />
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -1046,16 +1072,22 @@ export default function ThesisAdvisorDirectoryPage() {
                 {copy.modalSupervisionHeading}
               </h4>
               <div className="space-y-2 rounded-lg border border-border/70 bg-secondary/40 p-3">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-muted-foreground">
-                    {copy.modalSupervisedTopics}
-                  </span>
-                  <span className="text-foreground">
-                    {workloadFor(advisorWorkloadMap, selectedAdvisor.id).topicCount} /{' '}
-                    {workloadFor(advisorWorkloadMap, selectedAdvisor.id).maxTopics}
-                  </span>
-                </div>
-                <QuotaBar {...workloadFor(advisorWorkloadMap, selectedAdvisor.id)} label={copy.quotaBarLabel} />
+                {topicsLoadFailed ? (
+                  <span className="text-xs font-semibold text-muted-foreground">{copy.quotaUnavailable}</span>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-muted-foreground">
+                        {copy.modalSupervisedTopics}
+                      </span>
+                      <span className="text-foreground">
+                        {workloadFor(advisorWorkloadMap, selectedAdvisor.id).topicCount} /{' '}
+                        {workloadFor(advisorWorkloadMap, selectedAdvisor.id).maxTopics}
+                      </span>
+                    </div>
+                    <QuotaBar {...workloadFor(advisorWorkloadMap, selectedAdvisor.id)} label={copy.quotaBarLabel} />
+                  </>
+                )}
               </div>
             </div>
 
