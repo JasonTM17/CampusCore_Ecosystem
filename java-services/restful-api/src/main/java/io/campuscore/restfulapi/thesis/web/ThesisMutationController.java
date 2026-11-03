@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +43,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -178,6 +180,17 @@ public class ThesisMutationController {
     public RoundResponse publishResults(@Parameter(description = "Mã UUID của đợt", required = true) @PathVariable UUID id,
             @AuthenticationPrincipal Jwt actor) {
         return mutations.publishResults(id, actor);
+    }
+
+    @Operation(summary = "Gửi lại thông báo kết quả khóa luận",
+            description = "Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm")
+    @PostMapping("/rounds/{id}/publish-results/notifications/retry")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void retryPublishedResultsNotifications(
+            @Parameter(description = "Mã UUID của đợt", required = true) @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt actor) {
+        mutations.retryPublishedResultsNotifications(id, actor);
     }
 
     @PostMapping("/topics")

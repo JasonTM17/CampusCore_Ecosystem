@@ -445,6 +445,46 @@ class NotificationWritePersistenceTest {
     }
 
     @Test
+    void reassigningAReadNotificationResetsReadStateButOtherEditsKeepIt() throws Exception {
+        Instant now = Instant.parse("2026-08-21T01:00:00Z");
+        insert("reassigned-read", STUDENT, true, now);
+        insert("same-owner-read", STUDENT, true, now.minusSeconds(60));
+
+        mvc.perform(put("/api/v1/notifications/reassigned-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"" + OTHER_USER + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(OTHER_USER))
+                .andExpect(jsonPath("$.isRead").value(false))
+                .andExpect(jsonPath("$.readAt").doesNotExist());
+
+        assertThat(readFlag("reassigned-read")).isFalse();
+        assertThat(readAt("reassigned-read")).isNull();
+        assertThat(unreadCount(OTHER_USER)).isEqualTo(1);
+
+        mvc.perform(put("/api/v1/notifications/same-owner-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Updated title\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRead").value(true))
+                .andExpect(jsonPath("$.readAt").exists());
+        assertThat(readFlag("same-owner-read")).isTrue();
+        assertThat(readAt("same-owner-read")).isNotNull();
+
+        mvc.perform(put("/api/v1/notifications/same-owner-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"" + STUDENT + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRead").value(true))
+                .andExpect(jsonPath("$.readAt").exists());
+        assertThat(readFlag("same-owner-read")).isTrue();
+        assertThat(readAt("same-owner-read")).isNotNull();
+    }
+
+    @Test
     void adminUpdateFailsClosedForInvalidBodyMissingNotificationAndStudentRole() throws Exception {
         Instant now = Instant.parse("2026-08-21T01:00:00Z");
         insert("target", STUDENT, false, now);

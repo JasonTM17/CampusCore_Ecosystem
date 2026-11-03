@@ -6,11 +6,13 @@ import io.campuscore.restfulapi.mail.service.EmailService;
 import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,8 +118,8 @@ public class ThesisNotificationService {
     /** Notifies every student in an approved group when the round publishes results. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int notifyResultsPublished(UUID roundId) {
-        String roundName = publishedRoundName(roundId);
-        if (roundName == null) {
+        PublishedRound publishedRound = publishedRoundForNotification(roundId);
+        if (publishedRound == null) {
             return 0;
         }
         List<String> userIds = jdbc.queryForList(
@@ -130,10 +132,24 @@ public class ThesisNotificationService {
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
-        return fanOut(userIds, "Kết quả khóa luận đã công bố",
-                "Kết quả đợt " + roundName.trim()
-                        + " đã công bố. Mở trang khóa luận để xem điểm của bạn.",
-                "SUCCESS", STUDENT_LINK);
+        Instant now = Instant.now(clock);
+        String roundName = publishedRound.name();
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + roundName.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        List<CreateNotificationCommand> commands = userIds.stream()
+                .map(userId -> new CreateNotificationCommand(
+                        resultsNotificationId(roundId, userId), userId,
+                        title, message, "SUCCESS", STUDENT_LINK, now))
+                .toList();
+        Set<String> existing = notifications.findExistingIds(
+                commands.stream().map(CreateNotificationCommand::id).toList());
+        Set<String> existingUsers = notifications.findMatchingUsers(
+                userIds, title, message, "SUCCESS", STUDENT_LINK,
+                publishedRound.updatedAt().minusSeconds(30));
+        return notifications.createBatch(commands.stream()
+                .filter(command -> !existing.contains(command.id()) && !existingUsers.contains(command.userId()))
+                .toList());
     }
 
     /**
@@ -228,6 +244,24 @@ public class ThesisNotificationService {
                         + " WHERE id = :id AND status = 'RESULTS_PUBLISHED'",
                 new MapSqlParameterSource("id", roundId), String.class);
         return names.isEmpty() ? null : names.getFirst();
+    }
+
+    private PublishedRound publishedRoundForNotification(UUID roundId) {
+        return jdbc.query(
+                "SELECT name, updated_at FROM thesis.thesis_registration_round"
+                        + " WHERE id = :id AND status = 'RESULTS_PUBLISHED' FOR UPDATE",
+                new MapSqlParameterSource("id", roundId), resultSet -> resultSet.next()
+                        ? new PublishedRound(
+                                resultSet.getString("name"), resultSet.getTimestamp("updated_at").toInstant())
+                        : null);
+    }
+
+    private static String resultsNotificationId(UUID roundId, String userId) {
+        return UUID.nameUUIDFromBytes(("campuscore:thesis:results:" + roundId + ":" + userId)
+                .getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private record PublishedRound(String name, Instant updatedAt) {
     }
 
     private static String valueOrEmpty(Object value) {

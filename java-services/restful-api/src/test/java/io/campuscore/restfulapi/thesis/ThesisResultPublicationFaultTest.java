@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +14,7 @@ import io.campuscore.restfulapi.mail.service.EmailService;
 import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisNotificationService;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +33,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,6 +60,12 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    @MockitoSpyBean
+    private ThesisNotificationService notificationSpy;
 
     private final List<String> attempts = new CopyOnWriteArrayList<>();
 
@@ -106,6 +115,62 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         } finally {
             jdbc.execute("ALTER TABLE notifications.notification DROP CONSTRAINT fixture_reject_results");
         }
+    }
+
+    @Test
+    void failedInboxFanOutCanBeRetriedByAdminWithoutDuplicateNotices() throws Exception {
+        var failures = meterRegistry.counter("campuscore.thesis.results.inbox.fanout.failures");
+        double failuresBefore = failures.count();
+        doThrow(new IllegalStateException("test-only-inbox-fault"))
+                .doCallRealMethod()
+                .when(notificationSpy).notifyResultsPublished(roundId);
+
+        mutations.publishResults(roundId, admin());
+        awaitMailIdle();
+
+        assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
+        assertThat(inboxCount()).isZero();
+        assertThat(failures.count()).isEqualTo(failuresBefore + 1);
+
+        String retryPath = "/api/v1/thesis/rounds/" + roundId + "/publish-results/notifications/retry";
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-student-1", "STUDENT")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+        assertThat(inboxCount()).isEqualTo(6);
+
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+        assertThat(inboxCount()).isEqualTo(6);
+    }
+
+    @Test
+    void retryDoesNotDuplicateLegacyResultNotices() throws Exception {
+        Instant publishedAt = Instant.now();
+        jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED', updated_at=? WHERE id=?",
+                Timestamp.from(publishedAt), roundId);
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + ROUND_NAME.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        for (int student = 1; student <= 6; student++) {
+            Instant createdAt = publishedAt.plusSeconds(1);
+            jdbc.update("""
+                    INSERT INTO notifications.notification
+                        (id, user_id, title, message, type, link, is_read, read_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'SUCCESS', '/dashboard/thesis', FALSE, NULL, ?, ?)
+                    """, "legacy-results-notice-" + student, "rmv-user-" + student,
+                    title, message, Timestamp.from(createdAt), Timestamp.from(createdAt));
+        }
+        assertThat(inboxCount()).isEqualTo(6);
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results/notifications/retry", roundId)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+
+        assertThat(inboxCount()).isEqualTo(6);
     }
 
     @Test
