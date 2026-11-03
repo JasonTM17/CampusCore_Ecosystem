@@ -22,7 +22,7 @@ The `assistant` schema must be exposed to the Supabase Data API for the authorit
 
 ## Migration authorities
 
-Flyway owns the schema of the Compose and application database. `supabase/migrations` is a separate remote path for the assistant authority. Never apply both families to one database, and never edit an applied Supabase migration. No Supabase environment exists here, so no corrective Supabase migration was written or run (`NOT_RUN`). The demo-password alignment (`20260922123000`) and the keepalive ping (`20260920210000`) are demo and operations behaviour and must not run on a production project.
+Flyway owns the schema of the Compose and application database. `supabase/migrations` is a separate remote path for the assistant authority. Never apply both families to one database, and never edit an applied Supabase migration except to keep the retired keepalive file as a documented no-op. No Supabase environment exists here, so no Supabase migration was applied (`NOT_RUN`). The demo-password alignment (`20260922123000`) only writes accounts when the session opts in with `SET campuscore.demo_seed = 'on'` and is a no-op when `campuscore_auth."User"` is absent. The keepalive ping (`20260920210000`) schedules nothing; the forward migration `20261103000000` unschedules any leftover `render_keepalive_warm_ping` job. Both remain demo and operations behaviour and must not be enabled on a production project.
 
 The two families diverge in ways that make a shared database unsafe:
 
