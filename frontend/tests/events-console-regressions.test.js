@@ -79,13 +79,13 @@ function staffDenied() {
   });
 }
 
-function loadPage(runtime, api, user) {
+function loadPage(runtime, api, user, toastOverride) {
   const eventsMessages = loadTs('src/i18n/events-messages.ts', {}).eventsMessages;
   const stubs = {
     react: runtime.fakeReact,
     'react/jsx-runtime': require('react/jsx-runtime'),
     'lucide-react': iconStub,
-    sonner: { toast: { success: () => {}, error: () => {} } },
+    sonner: { toast: toastOverride ?? { success: () => {}, error: () => {} } },
     '@/context/AuthContext': {
       useRequireAuth: () => ({
         user,
@@ -341,4 +341,76 @@ test('cancel registration is not offered once the event has started', async () =
     cardButton(tree, 'future', eventsCopy.cancelRegistration),
     'a future event still offers cancel',
   );
+});
+
+test('roster row numbers continue across pages instead of resetting to 1', async () => {
+  const api = {
+    staffList: async () => [eventRecord()],
+    staffListPage: async (page, limit) => ({ items: [eventRecord()], page, total: 45, totalPages: 3 }),
+    staffRosterPage: async (eventId, page, limit) => ({
+      items: Array.from({ length: 20 }, (_, index) => rosterEntry(page * 20 + index)),
+      page,
+      total: 45,
+      totalPages: 3,
+    }),
+    listPublished: async () => [],
+    myRegistrations: async () => [],
+    isEventsStaffDenied: () => false,
+    newIdempotencyKey: () => 'idempotency-key',
+  };
+  const { runtime, Page, tree } = await mountConsole(api);
+  const titleButton = elements(tree).find(
+    (element) => element.type === 'button' && textOf(element).includes('Ngay hoi viec lam'),
+  );
+  let next = await press(runtime, Page, titleButton);
+  next = await press(runtime, Page, byTestId(next, 'events-roster-next'));
+
+  const rows = elements(next).filter((element) => element.props?.['data-testid'] === 'events-roster-row');
+  assert.ok(rows.length > 0, 'roster rows exist on page 2');
+  const firstRowCell = elements(rows[0]).find((el) => el.type === 'td');
+  assert.equal(textOf(firstRowCell), '21', 'first row on page 2 should be numbered 21');
+});
+
+test('a successful staff mutation updates the row and does not report failure when the list refresh fails', async () => {
+  const toasts = [];
+  const toastStub = {
+    success: (msg) => toasts.push({ type: 'success', msg }),
+    error: (msg) => toasts.push({ type: 'error', msg }),
+  };
+  const draft = eventRecord({ id: 'e-draft', status: 'DRAFT' });
+  const published = { ...draft, status: 'PUBLISHED' };
+  let refreshAttempts = 0;
+  const api = {
+    staffList: async () => [draft],
+    staffListPage: async () => {
+      refreshAttempts += 1;
+      if (refreshAttempts > 1) {
+        throw new Error('network down');
+      }
+      return { items: [draft], page: 0, total: 1, totalPages: 1 };
+    },
+    staffPublish: async (id) => published,
+    listPublished: async () => [],
+    myRegistrations: async () => [],
+    isEventsStaffDenied: () => false,
+    newIdempotencyKey: () => 'idempotency-key',
+  };
+  installBrowserEnv();
+  global.window.location.search = '';
+  const runtime = createRuntime();
+  const Page = loadPage(runtime, api, STAFF, toastStub);
+  let tree = await settle(runtime, Page);
+
+  const publishBtn = elements(tree).find(
+    (element) => isButtonElement(element) && textOf(element).includes(eventsCopy.publish),
+  );
+  assert.ok(publishBtn, 'publish button exists on DRAFT event');
+  tree = await press(runtime, Page, publishBtn);
+
+  assert.ok(toasts.some((t) => t.type === 'success'), 'success toast shown after publish');
+  assert.equal(toasts.some((t) => t.type === 'error'), false, 'refresh error must not show mutation failure toast');
+  const remainingPublish = elements(tree).find(
+    (element) => isButtonElement(element) && textOf(element).includes(eventsCopy.publish),
+  );
+  assert.equal(remainingPublish, undefined, 'event is no longer DRAFT');
 });

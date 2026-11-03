@@ -88,3 +88,30 @@ test('grade sheet import ignores an empty sheet', () => {
   assert.equal(result.applied.length, 0);
   assert.equal(result.skipped.length, 1);
 });
+
+test('grade sheet import recognizes an MSSV header when a leading column is present', () => {
+  const csv = [
+    'STT,MSSV,ĐQT,ĐCK',
+    '1,CS-DEMO-155,6,7',
+  ].join('\n');
+
+  const result = parseGradeSheet(csv, STUDENTS);
+
+  assert.equal(result.applied.length, 1);
+  assert.equal(result.skipped.length, 0);
+  assert.deepEqual(result.applied[0], { enrollmentId: 'enr-1', processScore: 6, finalExamScore: 7 });
+});
+
+test('grade sheet import deduplicates the same student entered via code and email', () => {
+  const csv = [
+    'CS-DEMO-155,6,7',
+    'student155@campuscore.demo,8,9',
+  ].join('\n');
+
+  const result = parseGradeSheet(csv, STUDENTS);
+
+  assert.equal(result.applied.length, 1);
+  assert.equal(result.skipped.length, 1);
+  assert.equal(result.skipped[0].reason, 'duplicate');
+  assert.equal(result.applied[0].enrollmentId, 'enr-1');
+});

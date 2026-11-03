@@ -76,6 +76,7 @@ export function AdmissionsReviewPage() {
   const [total, setTotal] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<AdmissionApplication | null>(null);
+  const [detailError, setDetailError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isActing, setIsActing] = useState(false);
   const [error, setError] = useState('');
@@ -140,6 +141,7 @@ export function AdmissionsReviewPage() {
   const loadDetail = useCallback(async (id: string) => {
     const requestId = detailSequence.current.begin();
     setDetail(null);
+    setDetailError('');
     setChecklist([]);
     setReturnNote('');
     setDecisionNote('');
@@ -152,7 +154,7 @@ export function AdmissionsReviewPage() {
       setDetail(row);
     } catch (cause) {
       if (!detailSequence.current.isCurrent(requestId)) return;
-      setError(friendlyError(copy, cause));
+      setDetailError(friendlyError(copy, cause));
     }
   }, [copy]);
 
@@ -191,7 +193,10 @@ export function AdmissionsReviewPage() {
         await Promise.all([loadQueue(), loadDetail(selectedIdRef.current)]);
       }
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setDetailError(friendlyError(copy, cause));
+      if (selectedIdRef.current) {
+        void Promise.all([loadQueue(), loadDetail(selectedIdRef.current)]);
+      }
     } finally {
       setIsActing(false);
     }
@@ -199,7 +204,7 @@ export function AdmissionsReviewPage() {
 
   const claim = () => act(() => admissionsApi.claim(detail!.id, detail!.version), copy.claimedOk);
   const returnApplication = () => act(
-    () => admissionsApi.returnApplication(detail!.id, checklist, returnNote, detail!.version),
+    () => admissionsApi.returnApplication(detail!.id, cleanChecklist(checklist), returnNote, detail!.version),
     copy.returnedOk);
   const decide = (decision: 'ACCEPTED' | 'REJECTED') => act(
     () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version, cleanChecklist(checklist)),
@@ -281,28 +286,34 @@ export function AdmissionsReviewPage() {
               <EmptyState title={copy.queueEmpty} description="" />
             ) : (
               <ul className="space-y-3" data-testid="admissions-queue">
-                {queue.map((application) => (
-                  <li key={application.id}>
+                {queue.map((app) => (
+                  <li key={app.id}>
                     <button
                       type="button"
-                      data-testid={`admissions-queue-row-${application.id}`}
-                      onClick={() => setSelectedId(application.id)}
+                      data-testid={`admissions-queue-row-${app.id}`}
+                      onClick={() => {
+                        if (selectedId === app.id && (!detail || detailError)) {
+                          void loadDetail(app.id);
+                        } else {
+                          setSelectedId(app.id);
+                        }
+                      }}
                       className={cn(
                         'w-full rounded-xl border px-4 py-3 text-left transition',
-                        application.id === selectedId
+                        app.id === selectedId
                           ? 'border-primary bg-primary/10'
                           : 'border-border bg-card hover:border-primary/60',
                       )}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-medium">{application.fullName || application.applicantEmail}</p>
+                          <p className="font-medium">{app.fullName || app.applicantEmail}</p>
                           <p className="text-xs text-muted-foreground">
-                            {application.applicantEmail} • {application.cycle}
+                            {app.applicantEmail} • {app.cycle}
                           </p>
                         </div>
-                        <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', statusToneClass(STATUS_TONE[application.status]))}>
-                          {copy.statusLabels[application.status]}
+                        <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', statusToneClass(STATUS_TONE[app.status]))}>
+                          {copy.statusLabels[app.status]}
                         </span>
                       </div>
                     </button>
@@ -335,7 +346,20 @@ export function AdmissionsReviewPage() {
           </section>
 
           <section>
-            {selectedId && detail?.id !== selectedId ? <LoadingState label={copy.loading} /> : null}
+            {selectedId && detailError ? (
+              <div className="rounded-xl border border-border bg-card p-5" data-testid="admissions-detail-error">
+                <ErrorState
+                  title={copy.failed}
+                  description={detailError}
+                  onRetry={() => {
+                    setDetailError('');
+                    void loadDetail(selectedId);
+                  }}
+                />
+              </div>
+            ) : selectedId && detail?.id !== selectedId ? (
+              <LoadingState label={copy.loading} />
+            ) : null}
             {detail && detail.id === selectedId && (
               <div className="rounded-xl border border-border bg-card p-5" data-testid="admissions-review-detail">
                 <div className="flex items-center justify-between">

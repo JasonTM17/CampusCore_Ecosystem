@@ -35,6 +35,42 @@ export function isValidAttendanceSessionId(value: unknown): value is string {
   return typeof value === 'string' && SESSION_ID_PATTERN.test(value);
 }
 
+export function activeSessionStorageKey(sectionId: string, date: string): string {
+  return `cc_checkin_active_${sectionId}_${date}`;
+}
+
+export function saveActiveCheckinSession(sectionId: string, date: string, sessionId: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage && isValidAttendanceSessionId(sessionId)) {
+      window.sessionStorage.setItem(activeSessionStorageKey(sectionId, date), sessionId);
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+export function readActiveCheckinSession(sectionId: string, date: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const stored = window.sessionStorage.getItem(activeSessionStorageKey(sectionId, date));
+      return isValidAttendanceSessionId(stored) ? stored : null;
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+  return null;
+}
+
+export function clearActiveCheckinSession(sectionId: string, date: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(activeSessionStorageKey(sectionId, date));
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
 /** Canonical web landing path — session id only, never the rotating code. */
 export function buildCheckinLandingPath(sessionId: string): string | null {
   if (!isValidAttendanceSessionId(sessionId)) {
