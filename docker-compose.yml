@@ -71,6 +71,7 @@ services:
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-course-health-key}
       JWT_SECRET: ${JWT_SECRET:-local-course-jwt-secret-change-me}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-course-refresh-secret-change-me}
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: ${SECURITY_JWT_REJECT_KNOWN_DEFAULTS:-false}
       FLYWAY_ENABLED: ${FLYWAY_ENABLED:-true}
       # The rag service runs the same jar, so it also carries DemoAccountGate.
       # Without this switch its gate (default false) re-locked the seeded
@@ -128,6 +129,7 @@ services:
       DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-1000}
       JWT_SECRET: ${JWT_SECRET:-local-course-jwt-secret-change-me}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-course-refresh-secret-change-me}
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: ${SECURITY_JWT_REJECT_KNOWN_DEFAULTS:-false}
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-course-health-key}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       FLYWAY_ENABLED: "false"
@@ -154,6 +156,12 @@ services:
       # STARTTLS as required, which makes the health endpoint report DOWN.
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED:-false}
       MAIL_FROM: ${MAIL_FROM:-no-reply@campuscore.local}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3100}
+      # Only valid behind an edge that overwrites the forwarded client headers
+      # (the committed Caddyfile does); the token proves a request crossed it.
+      RATE_LIMIT_TRUST_PROXY_HEADERS: ${RATE_LIMIT_TRUST_PROXY_HEADERS:-false}
+      RATE_LIMIT_TRUST_REAL_IP: ${RATE_LIMIT_TRUST_REAL_IP:-false}
+      RATE_LIMIT_PROXY_TOKEN: ${RATE_LIMIT_PROXY_TOKEN:-}
       THESIS_REPORT_STORAGE_PROVIDER: ${THESIS_REPORT_STORAGE_PROVIDER:-local}
       THESIS_REPORT_STORAGE_BUCKET: ${THESIS_REPORT_STORAGE_BUCKET:-thesis-reports}
       THESIS_REPORT_STORAGE_LOCAL_ROOT: /var/lib/campuscore/thesis-reports
@@ -165,6 +173,8 @@ services:
       ASSISTANT_GLOBAL_DAILY_QUOTA: ${ASSISTANT_GLOBAL_DAILY_QUOTA:-200}
       ASSISTANT_QUOTA_ENFORCED: ${ASSISTANT_QUOTA_ENFORCED:-true}
       ASSISTANT_RETENTION_DAYS: ${ASSISTANT_RETENTION_DAYS:-90}
+      ASSISTANT_LEXICAL_FAST_PATH: ${ASSISTANT_LEXICAL_FAST_PATH:-true}
+      ASSISTANT_LEXICAL_CONFIDENT_SCORE: ${ASSISTANT_LEXICAL_CONFIDENT_SCORE:-11}
     ports:
       - "127.0.0.1:${RESTFUL_API_HOST_PORT:-4010}:4010"
     volumes:

@@ -130,6 +130,7 @@ jobs:
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
             scripts/compose-contract.test.mjs \
+            scripts/compose-env-forwarding.test.mjs \
             scripts/contract-verify-options.test.mjs \
             scripts/contract-verify-teardown.test.mjs \
             scripts/dependency-baseline.test.mjs \
