@@ -48,7 +48,7 @@ import { metricToneClass } from '@/components/ui/status';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { UnsavedChangesConfirmDialog } from '@/components/ui/unsaved-changes-confirm';
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
-import { campusTodayIso } from '@/lib/attendance-checkin';
+import { ATTENDANCE_NOTE_MAX, campusTodayIso } from '@/lib/attendance-checkin';
 import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
@@ -92,6 +92,7 @@ export default function LecturerAttendancePage() {
   const [sectionSummary, setSectionSummary] = useState<SectionAttendanceSummary | null>(null);
   const [summaryRefreshFailed, setSummaryRefreshFailed] = useState(false);
   const [existingReadFailed, setExistingReadFailed] = useState(false);
+  const [noteErrors, setNoteErrors] = useState<Record<string, string>>({});
   // Request generations: a stale sections/roster response must never overwrite
   // the newer selection — writing D1's roster under D2 would persist marks to
   // the wrong students on Save.
@@ -221,6 +222,7 @@ export default function LecturerAttendancePage() {
       });
 
       setRoster(rows);
+      setNoteErrors({});
       setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
       setSectionSummary(summary);
@@ -264,6 +266,12 @@ export default function LecturerAttendancePage() {
     setRoster((prev) =>
       prev.map((row) => (row.studentId === studentId ? { ...row, notes } : row)),
     );
+    setNoteErrors((prev) => {
+      if (!prev[studentId]) return prev;
+      const next = { ...prev };
+      delete next[studentId];
+      return next;
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -328,6 +336,22 @@ export default function LecturerAttendancePage() {
       toast.warning(attendanceMessages.noStatusSelected);
       return;
     }
+
+    const oversizedNotes = marked.filter(
+      (row) => (row.notes?.length ?? 0) > ATTENDANCE_NOTE_MAX,
+    );
+    if (oversizedNotes.length > 0) {
+      const message = attendanceMessages.noteTooLong.replace(
+        '{limit}',
+        String(ATTENDANCE_NOTE_MAX),
+      );
+      setNoteErrors(
+        Object.fromEntries(oversizedNotes.map((row) => [row.studentId, message])),
+      );
+      toast.error(message);
+      return;
+    }
+    setNoteErrors({});
 
     setIsSaving(true);
     const saveGeneration = ++saveSelectionRef.current;
@@ -830,6 +854,8 @@ export default function LecturerAttendancePage() {
                           onChange={(e) => handleNotesChange(row.studentId, e.target.value)}
                           placeholder={attendanceMessages.notesPlaceholder}
                           aria-label={`${attendanceMessages.notesPlaceholder} — ${row.studentName}`}
+                          maxLength={ATTENDANCE_NOTE_MAX}
+                          error={noteErrors[row.studentId]}
                           className="h-8 text-xs print:hidden"
                         />
                       </td>

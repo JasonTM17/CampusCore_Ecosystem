@@ -733,7 +733,10 @@ test('weekly grid keeps hydration-time media and clock reads out of render', () 
   const componentStart = grid.indexOf('export function WeeklyGrid');
   const renderPrelude = grid.slice(componentStart, grid.indexOf('useEffect', componentStart));
   assert.doesNotMatch(renderPrelude, /new Date\(\)/);
-  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?const jsDay = new Date\(\)\.getDay\(\)/);
+  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?setClientTodayDow\(campusTodayDow\)/);
+  assert.match(grid, /useCampusDayOfWeek/);
+  assert.doesNotMatch(grid, /new Date\(\)\.getDay\(\)/,
+    'the fallback must not derive today from the viewer calendar');
 });
 
 test('compact weekly agenda keeps list containment around its row buttons', () => {

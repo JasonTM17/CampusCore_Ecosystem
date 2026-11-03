@@ -26,6 +26,8 @@ export const GEOFENCE_LNG_MAX = 180;
 export const GEOFENCE_NAME_MAX = 240;
 export const GEOFENCE_CAMPUS_CODE_MAX = 60;
 export const GEOFENCE_NOTE_MAX = 500;
+/** Student attendance note and check-in review note cap on the API. */
+export const ATTENDANCE_NOTE_MAX = 1000;
 
 // Opaque id as issued by the backend (UUID today, any safe token tomorrow):
 // letter/digit start, then letters, digits, '-' or '_', 6–128 total.
