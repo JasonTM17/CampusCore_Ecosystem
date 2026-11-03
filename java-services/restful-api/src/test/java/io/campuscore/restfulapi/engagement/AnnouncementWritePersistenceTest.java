@@ -520,16 +520,51 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
-        // Clearing the section keeps the campus-wide switch itself valid.
+        // Clearing the section and lecturer keeps the campus-wide switch itself valid.
         mvc.perform(put("/api/v1/announcements/existing-announcement")
                         .with(adminJwt("admin-2"))
                         .contentType("application/json")
-                        .content("{\"isGlobal\":true,\"sectionId\":null,"
+                        .content("{\"isGlobal\":true,\"sectionId\":null,\"lecturerId\":null,"
                                 + "\"reason\":\"Mở rộng\",\"expectedVersion\":0}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isGlobal").value(true))
                 .andExpect(jsonPath("$.sectionId").doesNotExist())
                 .andExpect(jsonPath("$.section").doesNotExist());
+    }
+
+    @Test
+    void campusWideAnnouncementCannotTargetALecturerAndLegacyRowsStayEditable() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Campus-wide with lecturer",
+                                  "content": "Body.",
+                                  "isGlobal": true,
+                                  "lecturerId": "lecturer-1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        // A row stored with the refused pair by an earlier editor can still take an edit that
+        // leaves its audience alone; only an edit that touches the audience is validated.
+        seedAnnouncement();
+        jdbc.update("UPDATE \"engagement\".\"Announcement\" SET \"isGlobal\" = TRUE, \"sectionId\" = 'section-1'"
+                + " WHERE \"id\" = 'existing-announcement'");
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Legacy title fix\",\"reason\":\"Sửa tiêu đề\",\"expectedVersion\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Legacy title fix"));
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"isGlobal\":true,\"reason\":\"Giữ nguyên\",\"expectedVersion\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test

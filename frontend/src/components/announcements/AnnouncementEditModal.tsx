@@ -247,9 +247,9 @@ export function AnnouncementEditModal({
         // lecturer, cleared the year filter and wiped the publish/expiry
         // window. Carry each untouched field through unchanged.
         semesterId: announcement.semesterId,
-        // A campus-wide notice cannot keep a section scope; the server refuses the pair.
+        // A campus-wide notice cannot keep a section or lecturer scope; the server refuses the pair.
         sectionId: isGlobal ? null : announcement.sectionId,
-        lecturerId: announcement.lecturerId,
+        lecturerId: isGlobal ? null : announcement.lecturerId,
         targetYears: announcement.targetYears,
         publishAt: announcement.publishAt,
         expiresAt: announcement.expiresAt,
