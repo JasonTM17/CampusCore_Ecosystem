@@ -138,7 +138,7 @@ public class ThesisNotificationService {
         String roundName = publishedRound.name();
         String title = "Kết quả khóa luận đã công bố";
         String message = "Kết quả đợt " + roundName.trim()
-                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+                + " đã công bố. Mở trang khóa luận để xem kết quả của bạn.";
         List<CreateNotificationCommand> commands = userIds.stream()
                 .map(userId -> new CreateNotificationCommand(
                         resultsNotificationId(roundId, userId), userId,
@@ -146,10 +146,16 @@ public class ThesisNotificationService {
                 .toList();
         Set<String> existing = notifications.findExistingIds(
                 commands.stream().map(CreateNotificationCommand::id).toList());
-        Set<String> existingUsers = notifications.findMatchingUsers(
+        Set<String> existingUsers = new java.util.HashSet<>(notifications.findMatchingUsers(
                 userIds, title, message, "SUCCESS", STUDENT_LINK,
                 publishedRound.updatedAt().minusSeconds(30),
-                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS));
+                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS)));
+        String legacyScoreMessage = "Kết quả đợt " + roundName.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        existingUsers.addAll(notifications.findMatchingUsers(
+                userIds, title, legacyScoreMessage, "SUCCESS", STUDENT_LINK,
+                publishedRound.updatedAt().minusSeconds(30),
+                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS)));
         return notifications.createBatch(commands.stream()
                 .filter(command -> !existing.contains(command.id()) && !existingUsers.contains(command.userId()))
                 .toList());

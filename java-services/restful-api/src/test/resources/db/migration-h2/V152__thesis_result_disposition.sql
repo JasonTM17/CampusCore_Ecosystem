@@ -19,7 +19,7 @@ ALTER TABLE thesis.thesis_topic
             WHEN result_status = 'GRADED' THEN
                 final_score IS NOT NULL AND final_score BETWEEN 0 AND 10 AND result_reason IS NULL
             WHEN result_status = 'NOT_QUALIFIED' THEN
-                final_score IS NULL AND result_reason = 'GVPB_BELOW_THRESHOLD'
+                final_score IS NULL AND result_reason IS NOT NULL AND result_reason = 'GVPB_BELOW_THRESHOLD'
                 AND result_resolved_by IS NOT NULL AND TRIM(result_resolved_by) <> ''
                 AND result_resolved_at IS NOT NULL
                 AND final_score_finalized_by IS NULL AND final_score_finalized_at IS NULL
