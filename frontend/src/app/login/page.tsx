@@ -559,7 +559,20 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        {challenge ? (
+        {bffSurface ? (
+          <div className="pt-1">
+            {/* Full-page navigation: the opaque host-only session cookie is
+                written by the surface host itself. `return` stays relative —
+                the Java allowlist rejects anything else. */}
+            <a
+              href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
+              className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              {loginCopy.sso}
+            </a>
+          </div>
+        ) : challenge ? (
           <form
             onSubmit={handleVerifySubmit}
             className="space-y-5"
@@ -731,31 +744,6 @@ export default function LoginPage() {
             )}
           </Button>
 
-          {bffSurface ? (
-            <div className="space-y-3 pt-1">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <span className="w-full border-t border-border/70" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    {loginCopy.or}
-                  </span>
-                </div>
-              </div>
-              {/* Full-page navigation: the BFF login leg must ride a real
-                  redirect chain so the opaque host-only cookie is written by
-                  the surface host itself. `return` stays a relative path —
-                  the Java allowlist rejects anything else. */}
-              <a
-                href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
-                className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                {loginCopy.sso}
-              </a>
-            </div>
-          ) : null}
         </form>
         )}
 

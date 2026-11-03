@@ -136,7 +136,7 @@ test('the login controls meet the 44px touch target', () => {
   assertTouchTarget(mismatch, sourceFile, 'portal mismatch action', 'height');
 
   const sso = anchors.find((node) =>
-    ancestorText(node, sourceFile, 'form').includes('loginCopy.sso'),
+    expressionText(attributes(node, sourceFile).get('href'), sourceFile).includes('/session/login?return='),
   );
   assert.ok(sso, 'the SSO link must exist');
   assertTouchTarget(sso, sourceFile, 'SSO link', 'height');

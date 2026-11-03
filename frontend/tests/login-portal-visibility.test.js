@@ -65,3 +65,18 @@ test('portal parsing rejects look-alike strings and keeps dean deep links', asyn
   assert.equal(portalFromPathname('/vi/dashboard/thesis'), 'lecturer');
   assert.equal(portalFromPathname('/dashboard/thesis'), 'lecturer');
 });
+
+test('a BFF login surface renders the SSO entry before the credential form branch', () => {
+  const source = fs.readFileSync(path.join(root, 'src/app/login/page.tsx'), 'utf8');
+  const bffBranch = source.indexOf('{bffSurface ? (');
+  const ssoLabel = source.indexOf('{loginCopy.sso}', bffBranch);
+  const legacyBranch = source.indexOf(': challenge ? (', bffBranch);
+  const emailField = source.indexOf('htmlFor="email"');
+  const passwordField = source.indexOf('htmlFor="password"');
+
+  assert.ok(bffBranch >= 0, 'BFF surfaces need their own render branch');
+  assert.ok(ssoLabel > bffBranch && ssoLabel < legacyBranch, 'the BFF branch contains the SSO action');
+  assert.ok(legacyBranch > bffBranch, 'credential and two-factor forms belong to the legacy branch');
+  assert.ok(emailField > legacyBranch, 'the BFF branch must not render an email field');
+  assert.ok(passwordField > legacyBranch, 'the BFF branch must not render a password field');
+});

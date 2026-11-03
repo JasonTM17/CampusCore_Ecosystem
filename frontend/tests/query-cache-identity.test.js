@@ -890,7 +890,7 @@ test('login clears a stale shared logout marker before starting', async () => {
   await settle();
 });
 
-function loadApiModule() {
+function loadApiModule(options = {}) {
   const postCalls = [];
   const getCalls = [];
   const logoutInProgress = { value: false };
@@ -968,7 +968,7 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
-    '@/lib/surfaces': { surfaceFromHost: () => null },
+    '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/observability': {
       REQUEST_ID_HEADER: 'X-Request-Id',
       newRequestId: () => 'test-request-id',
@@ -1333,6 +1333,66 @@ test('session race transport: a pending two-factor verify must hold the logout d
   postCalls[1].resolve({ data: {} });
   assert.equal(await logoutOutcome, 'resolved');
   assert.equal(await verifyOutcome, 'resolved');
+});
+
+test('legacy sign-out refreshes an expired access token and retries once', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { exports: apiModule, postCalls } = loadApiModule();
+    const logout = apiModule.authApi.logout().then(
+      () => 'resolved',
+      () => 'rejected',
+    );
+    await settle();
+    assert.equal(postCalls[0].args[0], '/auth/logout');
+    postCalls[0].reject({ response: { status: 401 } });
+    await settle();
+
+    assert.equal(postCalls.length, 2, 'a 401 logout must try the refresh cookie');
+    assert.equal(postCalls[1].args[0], '/auth/refresh');
+    postCalls[1].resolve({ data: loginResponse(USER_A) });
+    await settle();
+
+    assert.equal(postCalls.length, 3, 'a successful refresh must retry logout once');
+    assert.equal(postCalls[2].args[0], '/auth/logout');
+    postCalls[2].resolve({ data: {} });
+    assert.equal(await logout, 'resolved');
+  } finally {
+    env.restore();
+  }
+});
+
+test('BFF sign-out posts to the session endpoint with the CSRF cookie', async () => {
+  const env = mountApiBrowserGlobals();
+  const previousFetch = globalThis.fetch;
+  const fetchCalls = [];
+  globalThis.fetch = async (url, init) => {
+    fetchCalls.push({ url, init });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ logoutUrl: 'https://identity.example/connect/logout' }),
+    };
+  };
+  try {
+    const { exports: apiModule, postCalls } = loadApiModule({ surface: { mode: 'bff' } });
+    const logout = apiModule.authApi.logout();
+    await settle();
+    postCalls[0]?.resolve({ data: {} });
+    const result = await logout;
+
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].url, '/session/logout');
+    assert.equal(fetchCalls[0].init.method, 'POST');
+    assert.equal(fetchCalls[0].init.headers['X-CSRF-Token'], 'hint-a');
+    assert.equal(fetchCalls[0].init.credentials, 'same-origin');
+    assert.equal(postCalls.length, 0, 'BFF sign-out must not use the legacy API path');
+    assert.equal(result.logoutUrl, 'https://identity.example/connect/logout');
+  } finally {
+    env.restore();
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
 });
 
 
@@ -2838,6 +2898,7 @@ function mountPollGlobals() {
   const cleared = [];
   const reloads = [];
   const replaces = [];
+  const assignments = [];
   const hadWindow = 'window' in globalThis;
   const hadDocument = 'document' in globalThis;
   const documentObj = { visibilityState: 'visible', cookie: 'cc_csrf=hint-a' };
@@ -2847,6 +2908,7 @@ function mountPollGlobals() {
       pathname: '/en/dashboard',
       reload: () => reloads.push('reload'),
       replace: (url) => replaces.push(url),
+      assign: (url) => assignments.push(url),
     },
     setInterval: (fn, ms) => {
       ticks.push({ fn, ms });
@@ -2859,6 +2921,7 @@ function mountPollGlobals() {
     cleared,
     reloads,
     replaces,
+    assignments,
     documentObj,
     restore() {
       if (!hadWindow) delete globalThis.window;
@@ -2914,6 +2977,59 @@ test('session poll: a stable signature survives consecutive ticks with no reload
     assert.deepEqual(mounted.sessionSync.published, []);
     assert.equal(mounted.render().user?.id, USER_A.id);
     assert.equal(mounted.render().isLoading, false, 'an unchanged poll must not raise loading');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: an expired access token refreshes before keeping the session', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+
+    assert.equal(mounted.refreshCalls.length, 1, 'a 401 must attempt the shared refresh');
+    mounted.refreshCalls[0].resolve(loginResponse(USER_A));
+    await settle();
+
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(env.replaces.length, 0, 'a refreshed session must not navigate to sign-in');
+    assert.equal(env.reloads.length, 0);
+    assert.equal(mounted.render().user?.id, USER_A.id);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a transient refresh failure preserves the session without a logout broadcast', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.equal(mounted.refreshCalls.length, 1);
+    mounted.refreshCalls[0].reject({ response: { status: 503 } });
+    await settle();
+
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(env.replaces.length, 0);
+    assert.equal(mounted.render().user?.id, USER_A.id);
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 3, 'the next interval retries after a transient refresh failure');
+    mounted.meCalls[2].resolve(USER_A);
+    await settle();
   } finally {
     env.restore();
   }
@@ -2981,7 +3097,28 @@ test('session poll: a logged-out document never probes', async () => {
   }
 });
 
-test('session poll: a confirmed 401 publishes signed-out once and navigates to localized login', async () => {
+test('BFF sign-out follows the issuer logout URL even when local redirection is disabled', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    const logout = mounted.context.logout({ redirect: false });
+    await settle();
+    mounted.refreshWaiterCalls[0].resolve();
+    await settle();
+    assert.equal(mounted.logoutCalls.length, 1);
+    mounted.logoutCalls[0].resolve({ logoutUrl: 'https://identity.example/connect/logout' });
+    await logout;
+
+    assert.deepEqual(env.assignments, ['https://identity.example/connect/logout']);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a definitive refresh rejection publishes signed-out once and navigates to localized login', async () => {
   const env = mountPollGlobals();
   try {
     const mounted = mountAuthProvider();
@@ -2992,6 +3129,9 @@ test('session poll: a confirmed 401 publishes signed-out once and navigates to l
     await settle();
     assert.equal(mounted.meCalls.length, 2);
     mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.equal(mounted.refreshCalls.length, 1, 'the poll confirms expiry through refresh first');
+    mounted.refreshCalls[0].reject({ response: { status: 401 } });
     await settle();
     assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
     assert.equal(env.replaces.length, 1);

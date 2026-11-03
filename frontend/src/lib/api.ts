@@ -761,11 +761,45 @@ export const authApi = {
     return response.data;
   },
 
-  logout: async (): Promise<void> => {
+  logout: async (): Promise<{ logoutUrl?: string }> => {
     clearNotificationCache();
     clearSemestersCache();
     clearDepartmentsCache();
-    await withSessionTransport(() =>
+    if (
+      isBrowser() &&
+      surfaceFromHost(window.location?.host ?? '')?.mode === 'bff' &&
+      process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
+    ) {
+      const csrfToken = getCookie(CSRF_COOKIE_NAME);
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        SESSION_TRANSPORT_TIMEOUT_MS,
+      );
+      try {
+        const response = await withSessionTransport(() =>
+          fetch('/session/logout', {
+            method: 'POST',
+            headers: csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : undefined,
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+          }));
+        if (!response.ok) {
+          throw new Error('BFF logout failed');
+        }
+        const body = await response.json() as { logoutUrl?: unknown };
+        return {
+          logoutUrl: typeof body.logoutUrl === 'string'
+            ? body.logoutUrl
+            : '/session/logged-out',
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    const sendLegacyLogout = () => withSessionTransport(() =>
       api.post(
         '/auth/logout',
         {},
@@ -775,6 +809,18 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
+    try {
+      await sendLegacyLogout();
+    } catch (error) {
+      const status = (error as { response?: { status?: number } } | undefined)
+        ?.response?.status;
+      if (status !== 401) {
+        throw error;
+      }
+      await refreshSessionSingleFlight();
+      await sendLegacyLogout();
+    }
+    return {};
   },
 
   refresh: async (): Promise<LoginResponse> => {

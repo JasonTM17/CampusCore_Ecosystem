@@ -12,7 +12,7 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/i18n';
-import { User, TwoFactorChallengeResponse } from '@/types/api';
+import { LoginResponse, User, TwoFactorChallengeResponse } from '@/types/api';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { clearLogoutInProgress, hasCsrfSessionHint, markLogoutInProgress, readCsrfSessionHint } from '@/lib/session-hint';
@@ -327,10 +327,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoggingOut(true);
     const recordedPath = pathname;
     logoutPathnameRef.current = recordedPath;
+    let bffLogoutUrl: string | undefined;
     try {
       await waitForPendingSessionRefresh();
       if (generation === sessionGenerationRef.current) {
-        await authApi.logout();
+        const result = await authApi.logout();
+        bffLogoutUrl = result.logoutUrl;
       }
     } catch {
       // Ignore logout API failures and still clear the client session.
@@ -339,6 +341,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getBrowserQueryClient().clear();
         setUserIdentity(null);
         publishSessionChange('signed-out');
+        if (bffLogoutUrl) {
+          window.location.assign(bffLogoutUrl);
+          return;
+        }
         if (options?.redirect === false) {
           logoutPathnameRef.current = null;
           logoutTargetPathRef.current = null;
@@ -464,9 +470,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const status = (error as { response?: { status?: number } } | undefined)
           ?.response?.status;
-        if (status === 401 && readCsrfSessionHint() === csrfHintBefore) {
-          publishSessionChange('signed-out');
-          handleExternalSessionChange('signed-out');
+        if (status !== 401 || readCsrfSessionHint() !== csrfHintBefore) {
+          return;
+        }
+
+        let refreshed: LoginResponse;
+        try {
+          refreshed = await refreshSessionSingleFlight();
+        } catch (refreshError) {
+          if (!isCurrent()) {
+            return;
+          }
+          const refreshStatus = (
+            refreshError as { response?: { status?: number } } | undefined
+          )?.response?.status;
+          const refreshRejected = [400, 401, 403].includes(refreshStatus ?? 0);
+          if (refreshRejected && readCsrfSessionHint() === csrfHintBefore) {
+            publishSessionChange('signed-out');
+            handleExternalSessionChange('signed-out');
+          }
+          return;
+        }
+
+        if (!isCurrent()) {
+          return;
+        }
+        const previous = latestIdentityRef.current;
+        if (!previous) {
+          return;
+        }
+        if (identitySignature(refreshed.user) !== identitySignature(previous)) {
+          handleExternalSessionChange('changed');
+        } else {
+          setUserIdentity(refreshed.user);
         }
       } finally {
         pollInFlight = false;
@@ -479,7 +515,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       window.clearInterval(timer);
     };
-  }, [handleExternalSessionChange]);
+  }, [handleExternalSessionChange, setUserIdentity]);
 
   useEffect(() => {
     if (
