@@ -73,7 +73,6 @@ const vi = {
   } as Record<LaneScreenId, string>,
   dashboard: {
     eyebrow: 'Sinh viên',
-    previewEyebrow: 'Xem thử',
     title: 'Tổng quan học tập',
     loading: 'Đang tải…',
     unavailable: 'Chưa tải được tổng quan',
@@ -82,7 +81,6 @@ const vi = {
     loadError: 'Không tải được tổng quan.',
     announcementsError: 'Không tải được thông báo.',
     currentSemester: 'HỌC KỲ HIỆN TẠI',
-    previewSemester: 'Học kỳ xem thử',
     previewData: 'Dữ liệu xem thử, không phải hồ sơ thật.',
     activeSections: '{n} lớp đang học',
     activeSectionsOne: '{n} lớp đang học',
@@ -188,7 +186,6 @@ const en: ShellCopy = {
   } as Record<LaneScreenId, string>,
   dashboard: {
     eyebrow: 'Student',
-    previewEyebrow: 'Preview',
     title: 'Academic dashboard',
     loading: 'Loading…',
     unavailable: 'Dashboard unavailable',
@@ -197,7 +194,6 @@ const en: ShellCopy = {
     loadError: 'Dashboard data is unavailable.',
     announcementsError: 'Announcements are unavailable.',
     currentSemester: 'CURRENT SEMESTER',
-    previewSemester: 'Preview semester',
     previewData: 'Preview data, not a real record.',
     activeSections: '{n} active sections',
     activeSectionsOne: '{n} active section',
