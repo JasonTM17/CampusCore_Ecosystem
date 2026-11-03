@@ -9,6 +9,7 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CAMPUS_TIME_ZONE } from '@/lib/attendance-checkin';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import { localeCodes } from '@/i18n/config';
@@ -59,12 +60,12 @@ export function AdministrativeDispatchSheet({
   // slashed date. formatDate always merges year+month+day defaults, so partial
   // options would still render the full date — ask Intl for each single part
   // through the same BCP-47 tag the provider uses.
-  const proseDay = new Intl.DateTimeFormat(localeCodes[locale], { day: 'numeric' }).format(dateObj);
-  const proseMonthRaw = new Intl.DateTimeFormat(localeCodes[locale], { month: 'long' }).format(dateObj);
+  const proseDay = new Intl.DateTimeFormat(localeCodes[locale], { day: 'numeric', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
+  const proseMonthRaw = new Intl.DateTimeFormat(localeCodes[locale], { month: 'long', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
   // vi-VN emits the standalone month capitalized ("Tháng 9"); prose dates
   // lowercase it ("ngày 21 tháng 9 năm 2026").
   const proseMonth = proseMonthRaw.charAt(0).toLowerCase() + proseMonthRaw.slice(1);
-  const proseYear = new Intl.DateTimeFormat(localeCodes[locale], { year: 'numeric' }).format(dateObj);
+  const proseYear = new Intl.DateTimeFormat(localeCodes[locale], { year: 'numeric', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
 
   // Deterministic official reference number based on ID/date
   const docHash =

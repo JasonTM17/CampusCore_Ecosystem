@@ -25,6 +25,7 @@ import { UnsavedChangesConfirmDialog } from '@/components/ui/unsaved-changes-con
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
 import { useI18n } from '@/i18n';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { campusTodayIso } from '@/lib/attendance-checkin';
 import {
   calculateGrade,
   computeGradeSummary,
@@ -715,7 +716,7 @@ export default function SectionGradingPage() {
       };
     });
 
-    const filename = `Bang_diem_${sectionData.courseCode}_Lop_${sectionData.sectionNumber}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `Bang_diem_${sectionData.courseCode}_Lop_${sectionData.sectionNumber}_${campusTodayIso()}.csv`;
     const csvContent = generateGradeCsv({
       sectionNumber: sectionData.sectionNumber,
       courseCode: sectionData.courseCode,

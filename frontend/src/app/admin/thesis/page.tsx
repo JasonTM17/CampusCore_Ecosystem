@@ -30,6 +30,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { metricToneClass, statusToneClass } from '@/components/ui/status';
 import { cn } from '@/lib/utils';
 import { toThesisLocalInput as toLocalInput } from '@/lib/thesis-datetime';
+import { campusLocalDateTimeToUtcIso } from '@/lib/attendance-checkin';
 import {
   EmptyState,
   ForbiddenState,
@@ -57,6 +58,13 @@ interface ThesisApiErrorShape {
 function getThesisErrorCode(error: unknown): string {
   const data = (error as ThesisApiErrorShape | undefined)?.response?.data;
   return data?.code ?? '';
+}
+
+/** datetime-local values are campus wall time; an invalid value must fail the submit. */
+function toCampusInstant(value: string): string {
+  const iso = campusLocalDateTimeToUtcIso(value);
+  if (!iso) throw new Error('Invalid campus datetime');
+  return iso;
 }
 
 /**
@@ -394,19 +402,19 @@ export default function AdminThesisPage() {
       await thesisApi.createRound({
         name: formName,
         thesisType: formType,
-        registrationStart: new Date(formStart).toISOString(),
-        registrationEnd: new Date(formEnd).toISOString(),
-        lecturerSubmitStart: new Date(formLecturerStart).toISOString(),
-        lecturerSubmitEnd: new Date(formLecturerEnd).toISOString(),
-        proposalPublishAt: formProposal ? new Date(formProposal).toISOString() : undefined,
-        gvpbDeadline: needsGvpb && formGvpb ? new Date(formGvpb).toISOString() : undefined,
+        registrationStart: toCampusInstant(formStart),
+        registrationEnd: toCampusInstant(formEnd),
+        lecturerSubmitStart: toCampusInstant(formLecturerStart),
+        lecturerSubmitEnd: toCampusInstant(formLecturerEnd),
+        proposalPublishAt: formProposal ? toCampusInstant(formProposal) : undefined,
+        gvpbDeadline: needsGvpb && formGvpb ? toCampusInstant(formGvpb) : undefined,
         reportDate:
           needsGvpb && formReportDate
-            ? new Date(formReportDate).toISOString()
+            ? toCampusInstant(formReportDate)
             : undefined,
         defenseDate:
           needsDefense && formDefenseDate
-            ? new Date(formDefenseDate).toISOString()
+            ? toCampusInstant(formDefenseDate)
             : undefined,
       });
       setSuccess(messages.thesis.admin.created);
@@ -516,12 +524,11 @@ export default function AdminThesisPage() {
   };
 
   const extendReportDeadline = async () => {
-    const parsed = extendDeadlineValue ? new Date(extendDeadlineValue) : null;
+    const parsed = extendDeadlineValue ? campusLocalDateTimeToUtcIso(extendDeadlineValue) : null;
     if (
       !extendDeadlineRoundId ||
       !parsed ||
-      Number.isNaN(parsed.getTime()) ||
-      parsed.getTime() <= Date.now()
+      Date.parse(parsed) <= Date.now()
     ) {
       setExtendDeadlineError(messages.thesis.admin.reportDeadlineInvalid);
       return;
@@ -531,7 +538,7 @@ export default function AdminThesisPage() {
     setSuccess('');
     setExtendDeadlineError('');
     try {
-      await thesisApi.extendReportDeadline(extendDeadlineRoundId, parsed.toISOString());
+      await thesisApi.extendReportDeadline(extendDeadlineRoundId, parsed);
       setSuccess(messages.thesis.admin.reportDeadlineSuccess);
       setShowExtendDeadlineModal(false);
       setExtendDeadlineRoundId('');
@@ -579,14 +586,14 @@ export default function AdminThesisPage() {
       await thesisApi.updateRound(editingRoundId, {
         name: formName,
         thesisType: formType,
-        registrationStart: new Date(formStart).toISOString(),
-        registrationEnd: new Date(formEnd).toISOString(),
-        lecturerSubmitStart: new Date(formLecturerStart).toISOString(),
-        lecturerSubmitEnd: new Date(formLecturerEnd).toISOString(),
-        proposalPublishAt: formProposal ? new Date(formProposal).toISOString() : undefined,
-        gvpbDeadline: needsGvpb && formGvpb ? new Date(formGvpb).toISOString() : undefined,
-        reportDate: needsGvpb && formReportDate ? new Date(formReportDate).toISOString() : undefined,
-        defenseDate: needsDefense && formDefenseDate ? new Date(formDefenseDate).toISOString() : undefined,
+        registrationStart: toCampusInstant(formStart),
+        registrationEnd: toCampusInstant(formEnd),
+        lecturerSubmitStart: toCampusInstant(formLecturerStart),
+        lecturerSubmitEnd: toCampusInstant(formLecturerEnd),
+        proposalPublishAt: formProposal ? toCampusInstant(formProposal) : undefined,
+        gvpbDeadline: needsGvpb && formGvpb ? toCampusInstant(formGvpb) : undefined,
+        reportDate: needsGvpb && formReportDate ? toCampusInstant(formReportDate) : undefined,
+        defenseDate: needsDefense && formDefenseDate ? toCampusInstant(formDefenseDate) : undefined,
       });
       setSuccess(messages.thesis.admin.editRoundSuccess);
       setShowEditRoundModal(false);

@@ -29,7 +29,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { toast } from 'sonner';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface AcademicYear {
@@ -69,6 +69,8 @@ export default function AdminAcademicYearsPage() {
   const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
   const academicYearsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingYearId, setDeletingYearId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     year: new Date().getFullYear(),
     startDate: '',
@@ -198,19 +200,27 @@ export default function AdminAcademicYearsPage() {
   };
 
   const handleDelete = async (record: AcademicYear) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{year}', () => String(record.year)),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingYearId(record.id);
 
     try {
-      await academicYearsApi.delete(record.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{year}', () => String(record.year)),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await academicYearsApi.delete(record.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       // Deleting the last row of a later page leaves a stale empty view;
       // step back so the page-effect refetches real content.
@@ -221,6 +231,9 @@ export default function AdminAcademicYearsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingYearId(null);
     }
   };
 
@@ -374,6 +387,7 @@ export default function AdminAcademicYearsPage() {
                         variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDelete(record)}
+                        disabled={deletingYearId !== null}
                         aria-label={deleteLabel(record.year)}
                         title={deleteLabel(record.year)}
                       >
@@ -426,6 +440,7 @@ export default function AdminAcademicYearsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(record)}
+                              disabled={deletingYearId !== null}
                               aria-label={deleteLabel(record.year)}
                               title={deleteLabel(record.year)}
                             >
