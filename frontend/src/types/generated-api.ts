@@ -2004,6 +2004,13 @@ export interface paths {
      */
     post: operations["publishResults"];
   };
+  "/api/v1/thesis/rounds/{id}/publish-results/notifications/retry": {
+    /**
+     * Gửi lại thông báo kết quả khóa luận
+     * @description Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm
+     */
+    post: operations["retryPublishedResultsNotifications"];
+  };
   "/api/v1/thesis/rounds/{id}/report-deadline": {
     /**
      * Gia hạn nộp báo cáo
@@ -2012,6 +2019,10 @@ export interface paths {
     put: operations["extendReportDeadline"];
   };
   "/api/v1/thesis/rounds/{id}/reports": {
+    /**
+     * Báo cáo của đợt
+     * @description Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. Thêm page/limit để phân trang kèm X-Total-Count.
+     */
     get: operations["listReportsByRound"];
   };
   "/api/v1/thesis/rounds/{id}/repository": {
@@ -13478,6 +13489,24 @@ export interface operations {
     };
   };
   /**
+   * Gửi lại thông báo kết quả khóa luận
+   * @description Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm
+   */
+  retryPublishedResultsNotifications: {
+    parameters: {
+      path: {
+        /** @description Mã UUID của đợt */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        content: never;
+      };
+    };
+  };
+  /**
    * Gia hạn nộp báo cáo
    * @description Dời hạn nộp báo cáo (reportDeadline) của đợt đang REGISTRATION_CLOSED sang thời điểm mới; không đổi hạn chấm GVPB; thao tác được ghi audit
    */
@@ -13502,15 +13531,29 @@ export interface operations {
       };
     };
   };
+  /**
+   * Báo cáo của đợt
+   * @description Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. Thêm page/limit để phân trang kèm X-Total-Count.
+   */
   listReportsByRound: {
     parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy tối đa 100 dòng đầu */
+        limit?: number;
+      };
       path: {
         id: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Báo cáo đã được phân quyền */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ReportResponse"][];
         };
