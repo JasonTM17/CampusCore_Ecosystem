@@ -8,6 +8,7 @@ project="${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME to the running local C
 db_user="${POSTGRES_USER:-campuscore}"
 source_db="${POSTGRES_DB:-campuscore_restful}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/child-tools.sh"
 repo_root="$(cd "$script_dir/../.." && pwd)"
 compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.yml}"
 archive_dir="$(cd "$(dirname "$archive")" && pwd)"
@@ -59,14 +60,15 @@ mkdir -m 700 "$reports_restore_dir"
 reports_created=1
 (
   cd "$archive_dir"
-  tar -xf "./$(basename "$reports_archive")" -C "$reports_restore_dir"
+  run_child_phase 'Thesis report archive extraction' tar -xf "./$(basename "$reports_archive")" -C "$reports_restore_dir"
 )
 
 docker compose -p "$project" -f "$compose_file" exec -T postgres \
   psql --username "$db_user" --dbname "$source_db" --command "CREATE DATABASE \"$target_db\""
 database_created=1
 
-docker compose -p "$project" -f "$compose_file" exec -T postgres \
+run_child_phase 'Database restore' \
+  docker compose -p "$project" -f "$compose_file" exec -T postgres \
   pg_restore --single-transaction --exit-on-error --no-owner --no-privileges \
   --username "$db_user" --dbname "$target_db" < "$archive"
 
