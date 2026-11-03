@@ -1137,6 +1137,11 @@ export default function AdminThesisPage() {
                                                     {messages.thesis.councils.finalScorePoints.replace('{score}', String(top.finalScore))}
                                                   </span>
                                                 )}
+                                                {top?.finalScore == null && top?.resultStatus === 'NOT_QUALIFIED' && (
+                                                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                                    {messages.thesis.results.notQualified}
+                                                  </span>
+                                                )}
                                               </div>
                                               {/* GVPB counter-reviewer (spec: one reviewer per defended topic) */}
                                               <div className="flex items-center gap-1.5">
@@ -1530,6 +1535,7 @@ export default function AdminThesisPage() {
               (t) =>
                 !allAssigned.has(t.id) &&
                 t.finalScore == null &&
+                t.resultStatus == null &&
                 (t.status === 'PUBLISHED' || t.status === 'APPROVED')
             );
 

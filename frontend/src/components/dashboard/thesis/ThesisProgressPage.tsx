@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Clock3, FileText, UsersRound } from 'lucide-react';
+import { Check, Clock3, FileText, Minus, UsersRound } from 'lucide-react';
 import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { useRequireAuth } from '@/context/AuthContext';
@@ -119,6 +119,7 @@ export default function ThesisProgressPage() {
 
   const progressIndex = Math.max(PROGRESS_MILESTONES.indexOf(progress.currentMilestone), 0);
   const completedMilestones = new Set(progress.completedMilestones);
+  const skippedMilestones = new Set(progress.skippedMilestones ?? []);
   const hasGroup = progress.participationState === 'PARTICIPATING';
   const attentionMessage = progress.attentionState === 'NOT_PARTICIPATING'
     ? messages.thesis.progressNotParticipating
@@ -132,7 +133,9 @@ export default function ThesisProgressPage() {
           ? messages.thesis.progressGroupRejected
           : progress.attentionState === 'GROUP_CANCELLED'
             ? messages.thesis.progressGroupCancelled
-            : '';
+            : progress.attentionState === 'NOT_QUALIFIED'
+              ? messages.thesis.results.notQualified
+              : '';
 
   return (
     <div className="space-y-8">
@@ -169,6 +172,7 @@ export default function ThesisProgressPage() {
         <CardContent className="space-y-4">
           {messages.thesis.progressSteps.map((step, index) => {
             const completed = completedMilestones.has(PROGRESS_MILESTONES[index]);
+            const skipped = skippedMilestones.has(PROGRESS_MILESTONES[index]);
             const current = progressIndex === index;
             return (
               <div key={step} className="flex items-start gap-4">
@@ -183,7 +187,7 @@ export default function ThesisProgressPage() {
                           : 'border-border bg-card text-muted-foreground',
                     )}
                   >
-                    {completed ? <Check className="h-4 w-4" /> : index + 1}
+                    {completed ? <Check className="h-4 w-4" /> : skipped ? <Minus className="h-4 w-4" /> : index + 1}
                   </div>
                   {index < messages.thesis.progressSteps.length - 1 ? (
                     <div className={cn('mt-2 h-8 w-px', completed ? 'bg-primary' : 'bg-border')} />
@@ -192,6 +196,9 @@ export default function ThesisProgressPage() {
                 <div className="min-w-0 flex-1 pb-4">
                   <p className={cn('font-semibold', current || completed ? 'text-foreground' : 'text-muted-foreground')}>
                     {step}
+                    {skipped ? (
+                      <span className="font-normal"> · {messages.thesis.milestoneNotApplicable}</span>
+                    ) : null}
                   </p>
                   {current ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{messages.thesis.roundStatus}: {workspace.statusLabel(progress.roundStatus)}</p> : null}
                 </div>

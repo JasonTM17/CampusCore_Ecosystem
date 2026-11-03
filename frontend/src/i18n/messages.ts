@@ -2487,6 +2487,7 @@ export const en = {
     progressGroupRejected: 'Your group was rejected. Review the reason with the thesis office.',
     progressGroupCancelled: 'Your group was cancelled and no longer advances this round.',
     progressReportedStatus: 'Self-reported status',
+    milestoneNotApplicable: 'Not applicable',
     progressSteps: [
       'Round selected',
       'Group created',
@@ -2562,6 +2563,7 @@ export const en = {
       noResults: 'You have no results in this round yet.',
       finalScore: 'Final score',
       council: 'Council',
+      notQualified: 'Not eligible for defense — counter-review score below 5.0',
     },
     councils: {
       title: 'Defense councils',
@@ -2706,7 +2708,7 @@ export const en = {
         openRegistration: 'Open student registration for this round? Groups will be able to register immediately.',
         closeRegistration: 'Close registration for this round? Groups can no longer change their roster or topic afterwards.',
         publishProposals: 'Publish the topic catalog to all student groups in this round?',
-        publishResults: 'Publish final results to students? This is irreversible — every approved group must already carry a finalized score.',
+        publishResults: 'Publish final results to students? This is irreversible — every approved group must already carry a finalized score; an approved group whose counter-review score is below 5.0 after the review deadline publishes as not eligible for defense.',
       },
       editRound: 'Edit schedule',
       editRoundTitle: 'Amend round schedule',
@@ -5582,6 +5584,7 @@ export const vi: I18nMessages = {
     progressGroupRejected: 'Nhóm của bạn bị từ chối. Hãy trao đổi với bộ phận luận văn để biết lý do.',
     progressGroupCancelled: 'Nhóm của bạn đã bị hủy và không tiếp tục trong đợt này.',
     progressReportedStatus: 'Trạng thái tự báo cáo',
+    milestoneNotApplicable: 'Không áp dụng',
     progressSteps: [
       'Đã chọn đợt',
       'Đã tạo nhóm',
@@ -5657,6 +5660,7 @@ export const vi: I18nMessages = {
       noResults: 'Bạn chưa có kết quả nào trong đợt này.',
       finalScore: 'Điểm bảo vệ',
       council: 'Hội đồng',
+      notQualified: 'Không đủ điều kiện bảo vệ — điểm phản biện dưới 5,0',
     },
     councils: {
       title: 'Hội đồng đánh giá',
@@ -5801,7 +5805,7 @@ export const vi: I18nMessages = {
         openRegistration: 'Mở đăng ký cho sinh viên trong đợt này? Các nhóm sẽ có thể đăng ký ngay lập tức.',
         closeRegistration: 'Đóng đăng ký của đợt này? Nhóm sẽ không thể đổi thành viên hay đề tài sau đó.',
         publishProposals: 'Công bố danh mục đề tài cho tất cả nhóm sinh viên trong đợt?',
-        publishResults: 'Công bố kết quả cuối cùng cho sinh viên? Hành động không thể hoàn tác — mọi nhóm đã duyệt phải có điểm đã chốt.',
+        publishResults: 'Công bố kết quả cuối cùng cho sinh viên? Hành động không thể hoàn tác — mọi nhóm đã duyệt phải có điểm đã chốt; nhóm có điểm phản biện dưới 5,0 sau hạn phản biện sẽ được công bố là không đủ điều kiện bảo vệ.',
       },
       editRound: 'Sửa lịch đợt',
       editRoundTitle: 'Điều chỉnh lịch đợt',

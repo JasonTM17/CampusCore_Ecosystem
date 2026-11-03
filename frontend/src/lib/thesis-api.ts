@@ -32,6 +32,10 @@ export type ThesisGroupStatus =
   'DRAFT' | 'ASSIGNED' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
 export type ThesisApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+/** Terminal topic outcome recorded at result publication; null = unresolved. */
+export type ThesisResultStatus = 'GRADED' | 'NOT_QUALIFIED';
+export type ThesisResultReason = 'GVPB_BELOW_THRESHOLD';
+
 export interface ThesisRound {
   id: string;
   name: string;
@@ -178,6 +182,7 @@ export interface ThesisProgressResponse {
     | 'GROUP_CANCELLED'
     | 'GROUP_INVALID_MEMBER_COUNT'
     | 'PROGRESS_INCONSISTENT'
+    | 'NOT_QUALIFIED'
     | 'RESULT_NOT_AVAILABLE';
   groupId?: string | null;
   groupStatus?: string | null;
@@ -190,6 +195,10 @@ export interface ThesisProgressResponse {
   councilId?: string | null;
   finalScore?: number | null;
   finalScoreFinalizedAt?: string | null;
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
+  skippedMilestones?: ThesisProgressMilestone[];
   userReportedGroupStatus?: string | null;
 }
 
@@ -217,10 +226,14 @@ export interface ThesisScoreComment {
 export interface ThesisRoundResult {
   groupId: string;
   topicTitle: string;
-  finalScore: number;
+  /** Null for a resolved non-graded outcome (e.g. below-threshold review). */
+  finalScore: number | null;
   councilName: string;
   leaderStudentId: string;
   comments?: ThesisScoreComment[];
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
 }
 
 export interface ThesisSupervisedTopic {
@@ -355,7 +368,9 @@ export interface ThesisTopic {
   status: ThesisTopicStatus;
   createdBy: string;
   finalScore?: number | null;
-  resultStatus?: string | null;
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
   gvpbLecturerId?: string | null;
 }
 
