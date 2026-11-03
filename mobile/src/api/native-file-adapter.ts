@@ -190,7 +190,8 @@ export function createNativeFileRuntime(modules: NativeFileModules) {
         copy = fresh(mime);
         source.copy(copy);
         validate(copy.size, mime, options.maxBytes ?? ATTACHMENT_MAX_BYTES, types);
-        return { status: 'picked', file: { uri: copy.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: copy.size } };
+        const picked = copy;
+        return { status: 'picked', file: { uri: picked.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: picked.size, release: () => remove(picked) } };
       } catch (error) {
         if (copy) {
           try { remove(copy); } catch { return { status: 'failed', reason: 'ERROR' }; }

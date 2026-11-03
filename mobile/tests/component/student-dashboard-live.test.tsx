@@ -250,6 +250,50 @@ describe('student dashboard live mode', () => {
     expect(screen.queryByText('1 campus announcements')).toBeNull();
   });
 
+  test('PENDING and CONFIRMED active enrollments count and keep their meetings', async () => {
+    mockQueries['academic.enrollments'] = {
+      data: [
+        {
+          id: 'enr-pending',
+          sectionId: 'sec-pending',
+          semesterId: 'sem-1',
+          status: 'PENDING',
+          section: {
+            id: 'sec-pending',
+            sectionNumber: 'N01',
+            semesterId: 'sem-1',
+            capacity: 40,
+            enrolledCount: 1,
+            status: 'OPEN',
+            course: { code: 'CS201', name: 'Pending course' },
+            schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '08:30' }],
+          },
+        },
+        {
+          id: 'enr-confirmed',
+          sectionId: 'sec-confirmed',
+          semesterId: 'sem-1',
+          status: 'CONFIRMED',
+          section: {
+            id: 'sec-confirmed',
+            sectionNumber: 'N02',
+            semesterId: 'sem-1',
+            capacity: 40,
+            enrolledCount: 1,
+            status: 'OPEN',
+            course: { code: 'CS202', name: 'Confirmed course' },
+            schedules: [{ dayOfWeek: 3, startTime: '09:00', endTime: '10:30' }],
+          },
+        },
+      ],
+    };
+    mockQueries.announcements = { data: [] };
+    await renderScreen('vi');
+    expect(screen.getByText('2 lớp đang học')).toBeOnTheScreen();
+    expect(screen.getByText('CS201')).toBeOnTheScreen();
+    expect(screen.getByText('CS202')).toBeOnTheScreen();
+  });
+
   test('the Vietnamese count copy keeps its single form', async () => {
     mockQueries['academic.enrollments'] = {
       data: [{
