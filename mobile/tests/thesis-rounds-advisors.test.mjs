@@ -119,6 +119,61 @@ test('progress follows the server milestones', () => {
   }
 });
 
+test('a not-qualified result skips the defense milestones and never exposes a score', () => {
+  const disposition = {
+    completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'RESULTS_PUBLISHED'],
+    currentMilestone: 'RESULTS_PUBLISHED',
+    skippedMilestones: ['COUNCIL_ASSIGNED', 'SCORE_FINALIZED'],
+    resultStatus: 'NOT_QUALIFIED',
+    resultReason: 'GVPB_BELOW_THRESHOLD',
+    resultResolvedAt: '2026-10-20T08:00:00Z',
+    finalScore: null,
+  };
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const own = { ...disposition, groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  assert.equal(model.isNotQualified(disposition), true);
+  assert.equal(model.isNotQualified({ ...disposition, resultStatus: 'GRADED' }), false);
+  assert.equal(model.milestoneState(disposition, 'COUNCIL_ASSIGNED'), 'skipped');
+  assert.equal(model.milestoneState(disposition, 'SCORE_FINALIZED'), 'skipped');
+  assert.equal(model.milestoneState(disposition, 'RESULTS_PUBLISHED'), 'done');
+  assert.equal(model.milestoneState(disposition, 'REPORT_SUBMITTED'), 'done');
+  assert.equal(model.milestoneTone('skipped', true), 'neutral');
+  assert.equal(model.milestoneTone('done', true), 'primary');
+  assert.equal(model.canShowFinalScore(approved, own), false);
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: 4.9 }), false);
+  assert.equal(vi.attention.NOT_QUALIFIED, 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0');
+  assert.equal(en.attention.NOT_QUALIFIED, 'Not eligible for defense - counter-review score below 5.0');
+  assert.equal(vi.milestoneSkipped, 'Không áp dụng');
+  assert.equal(en.milestoneSkipped, 'Not applicable');
+});
+
+test('a graded result keeps every milestone and its published score', () => {
+  const graded = {
+    completedMilestones: [...model.THESIS_MILESTONES],
+    currentMilestone: 'RESULTS_PUBLISHED',
+    skippedMilestones: [],
+    resultStatus: 'GRADED',
+    finalScore: 8.25,
+  };
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  for (const milestone of model.THESIS_MILESTONES) {
+    assert.equal(model.milestoneState(graded, milestone), 'done', milestone);
+  }
+  assert.equal(model.progressPercent(graded), 100);
+  assert.equal(model.milestoneTone('done', false), 'success');
+  assert.equal(model.milestoneTone('pending', false), 'neutral');
+  assert.equal(model.canShowFinalScore(approved, {
+    ...graded, groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED',
+  }), true);
+});
+
+test('a null final score is not a zero score', () => {
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const own = { groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: null }), false);
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: 0 }), true);
+});
+
 test('group size and writes follow the server rules', () => {
   assert.equal(model.groupSizeState(2), 'tooSmall');
   assert.equal(model.groupSizeState(3), 'ok');

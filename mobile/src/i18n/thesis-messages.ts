@@ -105,6 +105,7 @@ export interface ThesisCopy {
   milestoneCurrent: string;
   milestoneDone: string;
   milestonePending: string;
+  milestoneSkipped: string;
 
   report: string;
   reportNone: string;
@@ -266,6 +267,7 @@ const vi: ThesisCopy = {
     GROUP_INVALID_MEMBER_COUNT: 'Số thành viên chưa hợp lệ. Cần từ 3 đến 5.',
     PROGRESS_INCONSISTENT: 'Tiến độ chưa nhất quán. Liên hệ khoa.',
     RESULT_NOT_AVAILABLE: 'Chưa có điểm cho đợt đã công bố.',
+    NOT_QUALIFIED: 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0',
   },
   milestones: {
     ROUND_SELECTED: 'Chọn đợt',
@@ -280,6 +282,7 @@ const vi: ThesisCopy = {
   milestoneCurrent: 'Hiện tại',
   milestoneDone: 'Xong',
   milestonePending: 'Chưa',
+  milestoneSkipped: 'Không áp dụng',
 
   report: 'Báo cáo',
   reportNone: 'Chưa nộp báo cáo',
@@ -485,6 +488,7 @@ const en: ThesisCopy = {
     GROUP_INVALID_MEMBER_COUNT: 'The member count is not valid. 3 to 5 are required.',
     PROGRESS_INCONSISTENT: 'Progress is inconsistent. Contact the faculty.',
     RESULT_NOT_AVAILABLE: 'No score is available for the published round.',
+    NOT_QUALIFIED: 'Not eligible for defense - counter-review score below 5.0',
   },
   milestones: {
     ROUND_SELECTED: 'Round chosen',
@@ -499,6 +503,7 @@ const en: ThesisCopy = {
   milestoneCurrent: 'Current',
   milestoneDone: 'Done',
   milestonePending: 'Pending',
+  milestoneSkipped: 'Not applicable',
 
   report: 'Report',
   reportNone: 'No report submitted',

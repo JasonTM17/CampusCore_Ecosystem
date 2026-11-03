@@ -414,6 +414,20 @@ describe('progress and report', () => {
     completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED'],
     topicTitle: 'Trợ lý học vụ',
   });
+  const notQualifiedProgress = progress({
+    roundStatus: 'RESULTS_PUBLISHED',
+    groupStatus: 'SUBMITTED',
+    approvalStatus: 'APPROVED',
+    currentMilestone: 'RESULTS_PUBLISHED',
+    completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'RESULTS_PUBLISHED'],
+    skippedMilestones: ['COUNCIL_ASSIGNED', 'SCORE_FINALIZED'],
+    attentionState: 'NOT_QUALIFIED',
+    topicTitle: 'Trợ lý học vụ',
+    resultStatus: 'NOT_QUALIFIED',
+    resultReason: 'GVPB_BELOW_THRESHOLD',
+    resultResolvedAt: '2026-10-20T08:00:00Z',
+    finalScore: null,
+  });
 
   test('without a group the student is invited to register', async () => {
     setWidth(360);
@@ -462,6 +476,91 @@ describe('progress and report', () => {
     });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect(await screen.findByText(new RegExp(`^${copy.finalScore}:`))).toBeOnTheScreen();
+  });
+
+  test('a not-qualified result shows the outcome, skipped steps and no score', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: notQualifiedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    const outcome = 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0';
+    const outcomeText = await screen.findByText(outcome);
+    expect(outcomeText).toBeOnTheScreen();
+    expect(outcomeText.props.accessibilityRole).toBe('alert');
+    expect(screen.getAllByText('Không áp dụng')).toHaveLength(2);
+    expect(screen.getByLabelText('Có hội đồng: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Có điểm: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+    expect(screen.queryByText(/^0([.,]0+)?$/)).toBeNull();
+    expect(screen.queryByText(copy.attention.RESULT_NOT_AVAILABLE)).toBeNull();
+    expect(screen.queryByText(copy.attention.PROGRESS_INCONSISTENT)).toBeNull();
+  });
+
+  test('the not-qualified outcome and skipped label are localised', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: notQualifiedProgress });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Not eligible for defense - counter-review score below 5.0')).toBeOnTheScreen();
+    expect(screen.getAllByText('Not applicable')).toHaveLength(2);
+  });
+
+  test('a graded result keeps every step and its score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: {
+        ...approvedProgress,
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'COUNCIL_ASSIGNED', 'SCORE_FINALIZED', 'RESULTS_PUBLISHED'],
+        skippedMilestones: [],
+        resultStatus: 'GRADED',
+        finalScore: 8.25,
+      },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(new RegExp(`^${copy.finalScore}:`))).toBeOnTheScreen();
+    expect(screen.queryByText('Không áp dụng')).toBeNull();
+  });
+
+  test('a null final score is never rendered as zero', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: progress({
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED'],
+        finalScore: null,
+      }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await screen.findByRole('progressbar');
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+    expect(screen.queryByText(/^0([.,]0+)?$/)).toBeNull();
+  });
+
+  test('a graded zero is a real score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: {
+        ...approvedProgress,
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'COUNCIL_ASSIGNED', 'SCORE_FINALIZED', 'RESULTS_PUBLISHED'],
+        skippedMilestones: [],
+        resultStatus: 'GRADED',
+        finalScore: 0,
+      },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(`${copy.finalScore}: 0`)).toBeOnTheScreen();
   });
 
   test('the progress bar is announced with the Vietnamese progress label', async () => {
