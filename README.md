@@ -38,7 +38,7 @@ cd CampusCore_Ecosystem
 
 # 1) Biến môi trường local
 Copy-Item .env.example .env
-$env:ASSISTANT_RAG_OWNER_ASSERTION_SECRET = (openssl rand -base64 48)
+$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
 
 # 2) Toàn bộ cụm local (compose tự chạy assistant-db-provisioner một lần rồi thoát)
 docker compose up -d --build

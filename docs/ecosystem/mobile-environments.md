@@ -5,7 +5,7 @@ API, portal hoặc identity issuer production; host cho ecosystem sẽ được 
 
 | Biến | Hành vi |
 | --- | --- |
-| `EXPO_PUBLIC_API_MODE` | `preview` dùng dữ liệu mẫu, không gọi mạng; `live` gọi API đã cấu hình. |
+| `EXPO_PUBLIC_API_MODE` | Chế độ API: `live` (mặc định) gọi API đã cấu hình; `preview` dùng dữ liệu mẫu, không gọi mạng. |
 | `EXPO_PUBLIC_API_URL` | Android Emulator local API: `http://10.0.2.2:4010/api/v1`. Build non-development cần HTTPS trừ khi local cleartext opt-in dùng host loopback được phép. |
 | `EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL` | Chỉ `1` trong EAS profile `local`. HTTP chỉ được dùng với `localhost`, `127.0.0.1`, `10.0.2.2`, `::1`; Android cleartext chỉ bật cho profile này. |
 | `EXPO_PUBLIC_PORTAL_URL` | Tuỳ chọn. Development mặc định `https://portal.localhost:3102`; nếu unset trong build non-development, các thao tác mở web không hiện. |

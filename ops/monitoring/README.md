@@ -54,7 +54,7 @@ Enforces API availability and latency/error-rate SLOs across critical user journ
 - **Attendance Check-in Journey** (`POST /api/v1/attendance/sessions/{id}/checkin`):
   - Latency: P95 < 600ms (`AttendanceCheckinLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.1% (`AttendanceCheckinServerErrorRateHigh`)
-- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/grades/.*`, `GET /api/v1/sections/{id}/grades`):
+- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/sections/{id}/grades`):
   - Latency: P95 < 300ms (`GradesReadLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.05% (`GradesReadServerErrorRateHigh`)
 - **Rate-Limit Anomalies** (`RateLimitFilter`):
