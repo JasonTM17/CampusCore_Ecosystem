@@ -121,6 +121,21 @@
       "label": "GET /session/login.responses.200",
       "phase": "W23",
       "reason": "The endpoint answers a bodyless 302 redirect and never a 200; the document previously listed 200. Runtime behaviour is unchanged. Team Lead ruling 2026-11-03 after reading BffSessionController."
+    },
+    {
+      "label": "POST /api/v1/admin/attendance/geofences.responses.200",
+      "reason": "The create handler has always answered 201 Created; the committed contract documented a 200 that the API never returned. The response documentation is corrected to the real status. No runtime change. Team Lead ruling 2026-11-03 after the OpenAPI hunt.",
+      "phase": "contract-sync-2026-11-03"
+    },
+    {
+      "label": "schema:AssignmentUpsertRequest.title newly-required",
+      "reason": "The DTO already carried @NotBlank on title and a request without it was already rejected with 400; the committed contract omitted the constraint. Regeneration documents the existing behaviour, no runtime change. Team Lead ruling 2026-11-03 after the OpenAPI hunt.",
+      "phase": "contract-sync-2026-11-03"
+    },
+    {
+      "label": "schema:MaterialUpsertRequest.title newly-required",
+      "reason": "The DTO already carried @NotBlank on title and a request without it was already rejected with 400; the committed contract omitted the constraint. Regeneration documents the existing behaviour, no runtime change. Team Lead ruling 2026-11-03 after the OpenAPI hunt.",
+      "phase": "contract-sync-2026-11-03"
     }
   ]
 }
