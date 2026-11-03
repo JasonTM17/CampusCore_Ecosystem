@@ -37,9 +37,9 @@ function loadTsModule(relativePath, stubs) {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
-      jsx: ts.JsxEmit.React,
-      // The transpiled JSX calls `React.createElement` through the default
-      // import; without the interop helper that binding is undefined in CJS.
+      // The automatic runtime keeps JSX working for pages that (like Next)
+      // never import React themselves.
+      jsx: ts.JsxEmit.ReactJSX,
       esModuleInterop: true,
     },
   }).outputText;
@@ -665,4 +665,63 @@ test('table of contents scrolling respects prefers-reduced-motion', () => {
   assert.match(toc, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
   assert.match(toc, /behavior: reduceMotion \? 'auto' : 'smooth'/);
   assert.doesNotMatch(toc, /behavior: 'smooth'/);
+});
+
+// --- public permalink -------------------------------------------------------
+
+const PUBLIC_NEWS_COPY = {
+  backToList: 'Back to news',
+  notFoundTitle: 'Story unavailable',
+  notFoundBody: 'This story is not available.',
+  loadErrorTitle: 'News feed unavailable',
+  loadError: 'Could not load this story.',
+  title: 'News',
+  publishedOn: 'Published {date}',
+};
+
+/**
+ * The anonymous permalink is a client page, so it is rendered with its route,
+ * data, chrome and i18n dependencies stubbed; the body renderer stays the real
+ * one, because the point of this test is which pipeline the page uses.
+ */
+function loadPublicNewsDetail(item) {
+  return loadTsModule('src/app/news/[id]/news-detail-client.tsx', {
+    'next/navigation': { useParams: () => ({ id: encodeURIComponent(item.id) }) },
+    '@/lib/api': { announcementsApi: { getPublicById: async () => item } },
+    '@/components/content/PublicChrome': {
+      PublicChrome: ({ children }) => React.createElement('div', null, children),
+      ContentBackLink: dummyComponent,
+    },
+    '@/components/ui/page-header': { SectionEyebrow: dummyComponent },
+    '@/components/ui/skeleton': { HomeNewsBentoSkeleton: dummyComponent },
+    '@/components/ui/state-block': { ErrorState: dummyComponent },
+    '@/lib/campus-error': { campusErrorKind: () => 'unknown' },
+    '@/i18n': {
+      useI18n: () => ({ locale: 'vi', messages: { content: { news: PUBLIC_NEWS_COPY } } }),
+    },
+    '@/lib/query': { useApiQuery: () => ({ data: item, isLoading: false, isError: false }) },
+    '@/lib/html-sanitizer': sanitizer,
+    '@/lib/announcement-presentation': presentation,
+    '@/components/ui/rich-content-renderer': loadRenderer(),
+  });
+}
+
+test('the public permalink renders a markdown body through the shared reader pipeline', () => {
+  const item = {
+    id: 'ann-public',
+    title: 'Lịch thi học kỳ',
+    content: '# Lịch thi\n\n**Mang thẻ sinh viên**',
+    publishAt: '2026-01-05T07:00:00.000Z',
+    createdAt: '2026-01-05T07:00:00.000Z',
+    publishedBy: null,
+  };
+
+  const markup = renderElement(loadPublicNewsDetail(item).default, {});
+
+  // The body heading is anchored by the shared renderer (the page's own title
+  // is an h1 without an id), and inline markdown becomes real markup.
+  assert.match(markup, /<h1[^>]*id="lich-thi"/);
+  assert.match(markup, /<strong[^>]*>Mang thẻ sinh viên<\/strong>/);
+  assert.doesNotMatch(markup, /# Lịch thi/, 'the markdown heading marker must not reach the reader');
+  assert.doesNotMatch(markup, /\*\*/, 'the markdown bold markers must not reach the reader');
 });

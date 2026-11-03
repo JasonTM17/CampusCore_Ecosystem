@@ -627,7 +627,9 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const fetchPublishedNotices = useCallback(async () => {
     setLoadingNotices(true);
     try {
-      const res = await announcementsApi.getAll({ page: 1, limit: 15 });
+      // The card is the live feed order: drafts and review copies must not be
+      // dragged into the published page order.
+      const res = await announcementsApi.getAll({ page: 1, limit: 15, status: 'PUBLISHED' });
       const raw = res.data || [];
       const ordered = siteAppearance.postOrder?.length > 0 ? orderByIds(raw, siteAppearance.postOrder) : raw;
       setPublishedNotices(ordered);
@@ -815,7 +817,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
-      await announcementsApi.create({
+      const created = await announcementsApi.create({
         title,
         content,
         priority,
@@ -823,14 +825,25 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         ...audienceFor(targetRole),
       });
 
+      // Creating stores the caller as the author, and the review step refuses
+      // the author, so a fresh draft can only be queued for review here. The
+      // server's returned status is the only evidence a success toast may report.
+      const submitted = created.status === 'DRAFT'
+        ? await announcementsApi.submit(created.id)
+        : created;
+
       // A published document must not resurrect from the persisted draft —
       // reloading used to hydrate the pre-publish body and re-Publish wrote a
       // duplicate (or conflicted on a stale expectedVersion for edits).
       clearPersistedDraft();
-      toast.success(copy.notifications.announcementPublished);
+      if (submitted.status === 'PUBLISHED') {
+        toast.success(copy.notifications.announcementPublished);
+      } else {
+        toast.success(messages.content.lifecycle.submitted);
+      }
       void fetchPublishedNotices();
     } catch (err) {
-      toast.error(copy.notifications.announcementPublishFailed);
+      toast.error(copy.notifications.announcementSubmitFailed);
     } finally {
       publishInFlightRef.current = false;
       setIsPublishingNotice(false);
@@ -1277,7 +1290,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       ? editorCopy.publishing
                       : editingId
                       ? editorCopy.publishChanges
-                      : copy.publishAnnouncement}
+                      : messages.content.lifecycle.actions.submit}
                   </Button>
                   <Button
                     type="button"
