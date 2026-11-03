@@ -17,7 +17,12 @@ db_name="${POSTGRES_DB:-campuscore_restful}"
   echo 'Refusing an unsafe backup directory.' >&2
   exit 2
 }
-[[ "$retention_days" =~ ^[0-9]+$ ]] && (( retention_days > 0 )) || {
+[[ "$retention_days" =~ ^[0-9]+$ ]] || {
+  echo 'BACKUP_RETENTION_DAYS must be a positive integer.' >&2
+  exit 2
+}
+retention_days=$((10#$retention_days))
+(( retention_days > 0 )) || {
   echo 'BACKUP_RETENTION_DAYS must be a positive integer.' >&2
   exit 2
 }
