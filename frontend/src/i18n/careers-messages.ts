@@ -70,6 +70,7 @@ export const careerMessages = {
     published: 'Đã đăng tin cho ứng viên.',
     rejectedOpportunity: 'Đã từ chối tin — lý do hiển thị với tổ chức.',
     reviewerRequired: 'Bạn chưa được cấp quyền kiểm duyệt.',
+    selfPublishForbidden: 'Bạn không thể duyệt tin do chính mình nộp.',
 
     // staff application lane
     applications: 'Hồ sơ ứng viên',
@@ -171,6 +172,7 @@ export const careerMessages = {
     published: 'Posting published to candidates.',
     rejectedOpportunity: 'Posting rejected — reason visible to the organization.',
     reviewerRequired: 'You do not hold the reviewer grant.',
+    selfPublishForbidden: 'You cannot moderate a posting you submitted.',
 
     applications: 'Applications',
     applicationsEmpty: 'No applications yet.',

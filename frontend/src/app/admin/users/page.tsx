@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   CheckCircle2,
   ChevronDown,
@@ -67,6 +67,19 @@ interface UserRecord {
 }
 
 const defaultRole: ManagedRole = 'STUDENT';
+
+const roleFilterValues = [
+  'STUDENT',
+  'LECTURER',
+  'ADMIN',
+  'TRUONG_KHOA',
+  'TRUONG_BO_MON',
+  'SUPER_ADMIN',
+] as const;
+
+function isRoleFilterValue(value: string): value is ManagedRole {
+  return (roleFilterValues as readonly string[]).includes(value);
+}
 
 const ACCOUNT_STATUSES = ['ACTIVE', 'PENDING', 'SUSPENDED', 'LOCKED', 'DISABLED'] as const;
 
@@ -177,6 +190,7 @@ export default function AdminUsersPage() {
   const { users: copy } = messages.adminPages;
   const creditUnit = messages.studentPages.schedule.creditsAbbreviation;
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -227,18 +241,23 @@ export default function AdminUsersPage() {
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
-  // Sync role filter from URL query param if present
+  // The query parameter is the source of truth for the active role tab, so a
+  // tab change must write it and a URL without role must clear the filter.
   useEffect(() => {
-    const roleParam = searchParams.get('role');
-    if (
-      roleParam &&
-      ['STUDENT', 'LECTURER', 'ADMIN', 'TRUONG_KHOA', 'TRUONG_BO_MON', 'SUPER_ADMIN'].includes(
-        roleParam.toUpperCase(),
-      )
-    ) {
-      setRoleFilter(roleParam.toUpperCase() as ManagedRole);
-    }
+    const roleParam = searchParams.get('role')?.toUpperCase() ?? '';
+    setRoleFilter(isRoleFilterValue(roleParam) ? roleParam : 'ALL');
   }, [searchParams]);
+
+  const syncRoleFilterUrl = (nextRole: 'ALL' | ManagedRole) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextRole === 'ALL') {
+      params.delete('role');
+    } else {
+      params.set('role', nextRole);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  };
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -777,6 +796,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('ALL');
                   setPage(1);
+                  syncRoleFilterUrl('ALL');
                 }}
               >
                 {roleFilter === 'ALL'
@@ -789,6 +809,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('STUDENT');
                   setPage(1);
+                  syncRoleFilterUrl('STUDENT');
                 }}
               >
                 <GraduationCap className="h-3.5 w-3.5" />
@@ -800,6 +821,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('LECTURER');
                   setPage(1);
+                  syncRoleFilterUrl('LECTURER');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -811,6 +833,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('ADMIN');
                   setPage(1);
+                  syncRoleFilterUrl('ADMIN');
                 }}
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -822,6 +845,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('TRUONG_KHOA');
                   setPage(1);
+                  syncRoleFilterUrl('TRUONG_KHOA');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -833,6 +857,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('TRUONG_BO_MON');
                   setPage(1);
+                  syncRoleFilterUrl('TRUONG_BO_MON');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -844,6 +869,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('SUPER_ADMIN');
                   setPage(1);
+                  syncRoleFilterUrl('SUPER_ADMIN');
                 }}
               >
                 <ShieldCheck className="h-3.5 w-3.5" />

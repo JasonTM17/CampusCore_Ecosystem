@@ -166,6 +166,9 @@ export function LibraryCataloguePage() {
       toast.success(copy.requested);
       await loadCurrentSelection();
     } catch (cause) {
+      // A rejected hold can mean another patron won the copy, so the visible
+      // availability must come from the server before the error is shown.
+      await loadCurrentSelection();
       setActionError(friendlyError(copy, cause));
     } finally {
       setIsBusy(false);

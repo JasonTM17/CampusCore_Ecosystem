@@ -512,3 +512,55 @@ test('a failed hold keeps the catalogue and pager visible with an inline error',
   );
   assert.ok(actionAlert, 'the copy-unavailable failure is shown inline');
 });
+
+test('a lost hold race reloads the copy status before showing the error', async () => {
+  let available = true;
+  let catalogueCalls = 0;
+  const catalogueTitle = () => ({
+    id: 't1',
+    title: 'Clean Code',
+    author: 'Robert C. Martin',
+    category: 'Software',
+    isbn: '9780132350884',
+    availableCopies: available ? 1 : 0,
+    totalCopies: 1,
+    copies: [{ id: 'c1', barcode: 'BC-1', status: available ? 'AVAILABLE' : 'RESERVED' }],
+  });
+  const api = {
+    cataloguePage: async () => {
+      catalogueCalls += 1;
+      return { items: [catalogueTitle()], total: 1 };
+    },
+    myLoans: async () => [],
+    request: async () => {
+      available = false;
+      throw { response: { status: 409, data: { code: 'COPY_UNAVAILABLE' } } };
+    },
+    cancel: async () => undefined,
+  };
+
+  const page = mount((fakeReact) => loadLibraryPage(api, fakeReact), {});
+  await flush();
+  await flush();
+
+  const hold = buttonByText(page.render(), libraryCopy.requestHold);
+  assert.ok(hold, 'the hold action is rendered while the copy is available');
+  hold.props.onClick();
+  await flush();
+  await flush();
+
+  const failed = page.render();
+  assert.equal(catalogueCalls, 2, 'the catalogue is re-read after the lost race');
+  assert.ok(
+    !html(failed).includes('data-testid="library-request-c1"'),
+    'the stale hold action is gone once the server says the copy is held',
+  );
+  assert.ok(
+    html(failed).includes(libraryCopy.copyStatusLabels.RESERVED),
+    'the copy is shown with its refreshed status',
+  );
+  assert.ok(
+    alerts(failed).some((element) => textOf(element).includes(libraryCopy.copyUnavailable)),
+    'the copy-unavailable reason is still shown',
+  );
+});

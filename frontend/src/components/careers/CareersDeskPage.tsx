@@ -114,7 +114,7 @@ function DeskPager(props: {
  * renders what the API returns. Each queue keeps its own page window.
  */
 export function CareersDeskPage() {
-  const { isLoading: authLoading } = useRequireAuth();
+  const { user, isLoading: authLoading } = useRequireAuth();
   const { locale, formatDateTime, messages } = useI18n();
   const copy = careerMessages[locale];
   const [organizations, setOrganizations] = useState<CareerOrganization[]>([]);
@@ -353,6 +353,7 @@ export function CareersDeskPage() {
     if (code === 'MODERATION_REASON_REQUIRED') return messages.rejectionReasonRequired;
     if (code === 'CAREERS_STAFF_REQUIRED') return messages.staffRequired;
     if (code === 'CAREERS_REVIEWER_REQUIRED') return messages.reviewerRequired;
+    if (code === 'SELF_PUBLISH_FORBIDDEN') return messages.selfPublishForbidden;
     return messages.failed;
   };
 
@@ -641,31 +642,33 @@ export function CareersDeskPage() {
                   {copy.opportunityStatusLabels[opportunity.status] ?? opportunity.status}
                 </span>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="outline" disabled={isBusy}
-                  data-testid={`careers-publish-${opportunity.id}`}
-                  onClick={() => void run(
-                    () => careersApi.publish(opportunity.id, opportunity.version),
-                    copy.published, reloadReviewAndOpportunities)}>
-                  {copy.publish}
-                </Button>
-                <Input
-                  className="max-w-xs"
-                  data-testid={`careers-review-reason-${opportunity.id}`}
-                  value={reason(`review-${opportunity.id}`)}
-                  onChange={(event) => setReason(`review-${opportunity.id}`, event.target.value)}
-                  placeholder={copy.reasonPlaceholder}
-                  aria-label={`${copy.reasonPlaceholder}: ${opportunity.title}`}
-                />
-                <Button size="sm" variant="outline" disabled={isBusy}
-                  data-testid={`careers-reject-opp-${opportunity.id}`}
-                  onClick={() => void run(
-                    () => careersApi.rejectOpportunity(opportunity.id,
-                      opportunity.version, reason(`review-${opportunity.id}`)),
-                    copy.rejectedOpportunity, reloadReviewAndOpportunities)}>
-                  {copy.reject}
-                </Button>
-              </div>
+              {user && opportunity.submittedBy === user.id ? null : (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={isBusy}
+                    data-testid={`careers-publish-${opportunity.id}`}
+                    onClick={() => void run(
+                      () => careersApi.publish(opportunity.id, opportunity.version),
+                      copy.published, reloadReviewAndOpportunities)}>
+                    {copy.publish}
+                  </Button>
+                  <Input
+                    className="max-w-xs"
+                    data-testid={`careers-review-reason-${opportunity.id}`}
+                    value={reason(`review-${opportunity.id}`)}
+                    onChange={(event) => setReason(`review-${opportunity.id}`, event.target.value)}
+                    placeholder={copy.reasonPlaceholder}
+                    aria-label={`${copy.reasonPlaceholder}: ${opportunity.title}`}
+                  />
+                  <Button size="sm" variant="outline" disabled={isBusy}
+                    data-testid={`careers-reject-opp-${opportunity.id}`}
+                    onClick={() => void run(
+                      () => careersApi.rejectOpportunity(opportunity.id,
+                        opportunity.version, reason(`review-${opportunity.id}`)),
+                      copy.rejectedOpportunity, reloadReviewAndOpportunities)}>
+                    {copy.reject}
+                  </Button>
+                </div>
+              )}
             </article>
           ))}
           <DeskPager

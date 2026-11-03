@@ -462,6 +462,30 @@ export default function AdminSectionsPage() {
     }
   };
 
+  // A stale save must leave the editor on the server's latest row instead of
+  // keeping a baseline that would reject every retry.
+  const applySectionEditorSnapshot = (section: Section) => {
+    setEditingSection(section);
+    setEditingSectionBaseline(section);
+    setFormData({
+      courseId: section.courseId,
+      semesterId: section.semesterId,
+      sectionNumber: section.sectionNumber,
+      capacity: section.capacity,
+      status: section.status,
+      lecturerId: section.lecturerId || '',
+    });
+    setSchedules((section.schedules || []).map((schedule) => ({
+      rowId: schedule.id || createScheduleRowId(),
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      classroomId: schedule.classroom?.id || '',
+    })));
+    setSchedulesError('');
+    setSchedulesLoaded(true);
+  };
+
   const openEdit = (section: Section) => {
     setEditingSection(section);
     setEditingSectionBaseline(section);
@@ -531,7 +555,9 @@ export default function AdminSectionsPage() {
       if (editingSection) {
         const currentSection = await adminSectionsApi.getById(editingSection.id);
         if (hasSectionSnapshotChanged(editingSectionBaseline || editingSection, currentSection)) {
+          applySectionEditorSnapshot(currentSection);
           toast.error(copy.staleEdit);
+          await fetchSections();
           return;
         }
         const payload = buildSectionUpdatePayload(
