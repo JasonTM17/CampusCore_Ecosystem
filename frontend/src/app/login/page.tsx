@@ -104,9 +104,12 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   // The SSO lane exists only on BFF surface hosts — the host name is known
-  // only in the browser, so the button is revealed after hydration.
+  // only in the browser, so the button is revealed after hydration. The BFF
+  // proxy has no credential login route, so the same flag hides the password
+  // form that the direct-API lane keeps.
   const [bffSurface, setBffSurface] = useState(false);
   const formErrorRef = useRef<HTMLDivElement>(null);
+  const ssoActionRef = useRef<HTMLAnchorElement>(null);
   const { login, verifyTwoFactor, logout } = useAuth();
   const { href, messages, locale } = useI18n();
   const loginCopy = locale === 'vi' ? authPagesVi.login : authPagesEn.login;
@@ -129,6 +132,14 @@ export default function LoginPage() {
         && process.env.NEXT_PUBLIC_BFF_LANE !== 'false',
     );
   }, []);
+
+  // On a BFF host the SSO action is the only sign-in control, so it takes the
+  // initial focus once the effect above has resolved the surface.
+  useEffect(() => {
+    if (bffSurface && !challenge) {
+      ssoActionRef.current?.focus();
+    }
+  }, [bffSurface, challenge]);
 
   useEffect(() => {
     setFormError('');
@@ -362,7 +373,7 @@ export default function LoginPage() {
           })}
         </div>
 
-        {demoCredentials ? (
+        {demoCredentials && !bffSurface ? (
         <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-xs space-y-2.5 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
@@ -560,25 +571,18 @@ export default function LoginPage() {
         ) : null}
 
         {bffSurface && !challenge ? (
-          <div className="space-y-3 pb-5 pt-1">
+          <div className="pb-5 pt-1">
             {/* Full-page navigation: the opaque host-only session cookie is
                 written by the surface host itself. `return` stays relative —
                 the Java allowlist rejects anything else. */}
             <a
+              ref={ssoActionRef}
               href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
               className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {loginCopy.sso}
             </a>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <span className="w-full border-t border-border/70" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-background px-2 text-muted-foreground">{loginCopy.or}</span>
-              </div>
-            </div>
           </div>
         ) : null}
         {challenge ? (
@@ -647,7 +651,7 @@ export default function LoginPage() {
               </span>
             </Button>
           </form>
-        ) : (
+        ) : bffSurface ? null : (
         <form
           onSubmit={handleSubmit}
           className="space-y-5"
