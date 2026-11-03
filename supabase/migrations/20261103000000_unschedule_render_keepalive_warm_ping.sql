@@ -21,7 +21,12 @@ BEGIN
     BEGIN
         PERFORM cron.unschedule('render_keepalive_warm_ping');
     EXCEPTION WHEN OTHERS THEN
-        -- The job disappeared between the check and the call; already clean.
+        -- Only a job that vanished between the check and the call counts as
+        -- clean; any other failure (for example missing privileges) must fail
+        -- the migration instead of leaving the schedule running.
+        IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'render_keepalive_warm_ping') THEN
+            RAISE;
+        END IF;
         RAISE NOTICE 'render warm ping job already removed';
     END;
 END
