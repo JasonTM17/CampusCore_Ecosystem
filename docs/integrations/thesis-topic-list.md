@@ -18,3 +18,4 @@ A round passes a few thousand topics. The route to take then is a new bounded op
 - [Service](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis/service/ThesisTopicService.java)
 - [Repository](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis/repository/ThesisTopicReadRepository.java)
 - [Group governance](thesis-group-governance.md)
+- [Result disposition](thesis-result-disposition.md)
