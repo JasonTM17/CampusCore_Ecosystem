@@ -71,11 +71,13 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   <IconChip icon="file-chart-outline" size={40} />
                   <View style={styles.grow}>
                     <UiText variant="label">{progress?.topicTitle ?? copy.topicChoose}</UiText>
-                    <UiText variant="display" tone="primary">{fillThesisCopy(copy.progressPercent, { value: percent })}</UiText>
+                    {progress ? (
+                      <UiText variant="display" tone="primary">{fillThesisCopy(copy.progressPercent, { value: percent })}</UiText>
+                    ) : null}
                   </View>
                   <ThesisStatusBadge status={group.approvalStatus === 'APPROVED' ? 'APPROVED' : group.status} copy={copy} />
                 </View>
-                <ProgressBar value={percent} tone={percent === 100 && !notQualified ? 'success' : 'primary'} />
+                {progress ? <ProgressBar value={percent} tone={percent === 100 && !notQualified ? 'success' : 'primary'} /> : null}
                 {outcome ? (
                   <UiText accessibilityRole="alert" variant="label" tone="warning" style={styles.line}>{outcome}</UiText>
                 ) : attention ? (
@@ -88,6 +90,15 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   <UiText variant="label" style={styles.line}>{`${copy.finalScore}: ${formatNumber(progress.finalScore, { maximumFractionDigits: 2 })}`}</UiText>
                 ) : null}
               </Card>
+
+              {state.progressFailed ? (
+                <StatePanel
+                  kind="error"
+                  title={copy.progressFailed}
+                  actionLabel={copy.retry}
+                  onAction={() => void state.reload()}
+                />
+              ) : null}
 
               {progress ? (
                 <>
