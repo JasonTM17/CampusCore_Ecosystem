@@ -117,6 +117,7 @@ public final class EventDtos {
             Instant registeredAt) {
     }
 
+    @Schema(name = "EventStaffGrantResponse")
     public record StaffGrantResponse(
             String id,
             String userId,

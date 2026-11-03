@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -112,7 +113,7 @@ public class RegistrationController {
     @Operation(summary = "Xem đơn xin nâng hạn mức tín chỉ (28-30 TC)", description = "Lấy thông tin đơn xin mở rộng trần tín chỉ của sinh viên cho đợt đăng ký")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Tìm thấy đơn xin nâng hạn mức tín chỉ"),
-        @ApiResponse(responseCode = "204", description = "Chưa có đơn nào được nộp cho đợt này")
+        @ApiResponse(responseCode = "204", description = "Chưa có đơn nào được nộp cho đợt này", content = @Content)
     })
     @GetMapping("me/registration/credit-limit-application")
     @PreAuthorize("hasRole('STUDENT')")

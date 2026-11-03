@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.admissions.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 import jakarta.validation.constraints.NotBlank;
@@ -86,6 +87,7 @@ public final class AdmissionDtos {
             Instant createdAt) {
     }
 
+    @Schema(name = "ApplicationResponse")
     public record ApplicationResponse(
             String id,
             String applicantUserId,
@@ -109,6 +111,7 @@ public final class AdmissionDtos {
             List<ReviewResponse> reviews) {
     }
 
+    @Schema(name = "StaffGrantResponse")
     public record StaffGrantResponse(
             String id,
             String userId,

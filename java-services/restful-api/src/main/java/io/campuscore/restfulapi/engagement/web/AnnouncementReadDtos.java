@@ -63,15 +63,19 @@ public final class AnnouncementReadDtos {
             LecturerSummary lecturer) {
     }
 
+    @Schema(name = "SemesterSummary")
     public record SemesterSummary(String name) {
     }
 
+    @Schema(name = "SectionSummary")
     public record SectionSummary(String sectionNumber, CourseSummary course) {
     }
 
+    @Schema(name = "CourseSummary")
     public record CourseSummary(String code, String name) {
     }
 
+    @Schema(name = "LecturerSummary")
     public record LecturerSummary(String id, String displayName) {
     }
 

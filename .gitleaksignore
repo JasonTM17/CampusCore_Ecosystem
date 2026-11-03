@@ -16,3 +16,6 @@ java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/bff/Bf
 
 # Synthetic in-memory OIDC fixture of the OpenAPI accuracy test (not a credential)
 java-services/restful-api/src/test/java/io/campuscore/restfulapi/web/OpenApiAccuracyContractTest.java:generic-api-key:30
+
+# Shared fixture key of the OpenAPI security contract test (not a credential)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/security/OpenApiSecurityContractTest.java:generic-api-key:32

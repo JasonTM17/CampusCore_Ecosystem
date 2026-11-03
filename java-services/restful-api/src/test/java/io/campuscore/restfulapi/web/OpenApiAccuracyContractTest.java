@@ -4,7 +4,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos;
+import io.campuscore.restfulapi.academic.web.AcademicAttendanceReadDtos;
+import io.campuscore.restfulapi.academic.web.AcademicEnrollmentReadDtos;
+import io.campuscore.restfulapi.academic.web.AcademicSectionReadDtos;
+import io.campuscore.restfulapi.admissions.web.AdmissionDtos;
+import io.campuscore.restfulapi.attendance.AttendanceDtos;
+import io.campuscore.restfulapi.careers.web.CareerDtos;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos;
+import io.campuscore.restfulapi.events.web.EventDtos;
+import io.campuscore.restfulapi.library.web.LibraryDtos;
+import io.campuscore.restfulapi.learning.web.LearningDtos;
+import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantController;
+import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos;
+import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantInternalController;
+import io.campuscore.restfulapi.thesis.web.ThesisRoundDtos;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -143,6 +161,227 @@ class OpenApiAccuracyContractTest {
     }
 
     @Test
+    void collidingDtoTypesUseDistinctComponentNames() {
+        List<Class<?>> dtoTypes = List.of(
+                AdmissionDtos.ApplicationResponse.class,
+                CareerDtos.ApplicationResponse.class,
+                RegistrationDtos.RoundResponse.class,
+                ThesisRoundDtos.RoundResponse.class,
+                LearningDtos.FeedbackResponse.class,
+                ThesisAssistantDtos.FeedbackResponse.class,
+                ThesisAssistantController.FeedbackResponse.class,
+                ThesisAssistantInternalController.FeedbackResponse.class,
+                AttendanceDtos.ReviewRequest.class,
+                CreditLimitApplicationDtos.ReviewRequest.class,
+                AcademicAttendanceReadDtos.CourseSummary.class,
+                AcademicEnrollmentReadDtos.CourseSummary.class,
+                AcademicSectionReadDtos.CourseSummary.class,
+                AnnouncementReadDtos.CourseSummary.class,
+                AcademicAttendanceReadDtos.SectionSummary.class,
+                AcademicEnrollmentReadDtos.SectionSummary.class,
+                AnnouncementReadDtos.SectionSummary.class,
+                AcademicSectionReadDtos.LecturerSummary.class,
+                AcademicEnrollmentReadDtos.LecturerSummary.class,
+                AnnouncementReadDtos.LecturerSummary.class,
+                AcademicSectionReadDtos.SemesterSummary.class,
+                AcademicEnrollmentReadDtos.SemesterSummary.class,
+                AnnouncementReadDtos.SemesterSummary.class,
+                CareerDtos.StaffGrantResponse.class,
+                AdmissionDtos.StaffGrantResponse.class,
+                LibraryDtos.StaffGrantResponse.class,
+                EventDtos.StaffGrantResponse.class);
+
+        List<String> componentNames = dtoTypes.stream().map(OpenApiAccuracyContractTest::componentName).toList();
+
+        assertThat(new HashSet<>(componentNames))
+                .as("different DTO classes must not resolve to the same SpringDoc component name")
+                .hasSameSizeAs(dtoTypes);
+    }
+
+    @Test
+    void existingComponentsKeepTheirNames() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "ApplicationResponse", "applicantUserId", "cycle", "fullName");
+        assertSchemaHasFields(schemas, "RoundResponse", "thesisType", "defenseDate", "gvpbDeadline");
+        assertSchemaHasFields(schemas, "FeedbackResponse", "messageId", "rating", "removed");
+        assertSchemaHasFields(schemas, "ReviewRequest", "decision", "note");
+        assertSchemaHasFields(schemas, "StaffGrantResponse", "userId", "scope", "createdAt");
+        assertSchemaHasFields(schemas, "CourseSummary", "code", "name");
+        assertSchemaHasFields(schemas, "SectionSummary", "sectionNumber", "course");
+        assertSchemaHasFields(schemas, "LecturerSummary", "id", "displayName");
+        assertSchemaHasFields(schemas, "SemesterSummary", "name");
+    }
+
+    @Test
+    void careerApplicationResponseHasItsOwnComponent() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "CareerApplicationResponse", "opportunityId", "organizationId", "coverLetter");
+    }
+
+    @Test
+    void registrationAndThesisRoundsHaveSeparateComponents() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "RegistrationRoundResponse", "semesterId", "windowStart", "creditLimit");
+        assertSchemaHasFields(schemas, "RoundResponse", "thesisType", "defenseDate", "gvpbDeadline");
+    }
+
+    @Test
+    void learningFeedbackHasItsOwnComponent() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "LearningFeedbackResponse", "submissionId", "score", "comment");
+    }
+
+    @Test
+    void attendanceReviewSchemaIncludesItsExistingConstraints() throws Exception {
+        JsonNode schema = openApiDocument().path("components").path("schemas").path("AttendanceReviewRequest");
+
+        assertThat(schema.path("required").toString()).contains("decision", "note");
+        assertThat(schema.path("properties").path("decision").path("pattern").asText())
+                .contains("APPROVE", "REJECT");
+    }
+
+    @Test
+    void academicSectionCourseSummaryKeepsItsFields() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "SectionCourseSummary", "credits", "nameEn", "nameVi", "department");
+    }
+
+    @Test
+    void academicSectionLecturerSummaryKeepsItsFields() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "SectionLecturerSummary", "employeeId", "user");
+    }
+
+    @Test
+    void academicSectionSemesterSummaryKeepsItsFields() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "SectionSemesterSummary", "id", "nameEn", "nameVi", "startDate");
+    }
+
+    @Test
+    void enrollmentSectionSummaryHasItsOwnComponent() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "EnrollmentSectionSummary", "lecturer", "schedules", "capacity");
+    }
+
+    @Test
+    void careerStaffGrantSchemaIncludesOrganization() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertSchemaHasFields(schemas, "CareerStaffGrantResponse", "organizationId", "userId", "scope");
+    }
+
+    @Test
+    void geofenceCreateDocumentsCreatedStatus() throws Exception {
+        JsonNode responses = operation(openApiDocument(), "post", "/api/v1/admin/attendance/geofences")
+                .path("responses");
+
+        assertThat(responses.has("201")).as("creating a geofence returns a documented 201").isTrue();
+        assertThat(responses.has("200")).as("creating a geofence does not advertise a 200").isFalse();
+    }
+
+    @Test
+    void emptyCreditLimitApplicationDocumentsNoContentWithoutBody() throws Exception {
+        JsonNode response = operation(openApiDocument(), "get", "/api/v1/me/registration/credit-limit-application")
+                .path("responses").path("204");
+
+        assertThat(response.isMissingNode()).isFalse();
+        assertThat(response.has("content")).as("204 responses have no body schema").isFalse();
+    }
+
+    @Test
+    void learningMaterialSchemaReflectsItsDtoConstraints() throws Exception {
+        JsonNode schema = openApiDocument().path("components").path("schemas").path("MaterialUpsertRequest");
+
+        assertThat(schema.path("required").toString()).contains("title");
+        assertThat(schema.path("properties").path("title").path("maxLength").asInt()).isEqualTo(300);
+        assertThat(schema.path("properties").path("fileName").path("maxLength").asInt()).isEqualTo(300);
+        assertThat(schema.path("properties").path("contentType").path("maxLength").asInt()).isEqualTo(120);
+        assertThat(schema.path("properties").path("checksum").path("maxLength").asInt()).isEqualTo(128);
+    }
+
+    @Test
+    void learningAssignmentSchemaReflectsItsDtoConstraints() throws Exception {
+        JsonNode schema = openApiDocument().path("components").path("schemas").path("AssignmentUpsertRequest");
+
+        assertThat(schema.path("required").toString()).contains("title");
+        assertThat(schema.path("properties").path("title").path("maxLength").asInt()).isEqualTo(300);
+        assertThat(schema.path("properties").path("maxScore").path("minimum").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void learningSubmissionSchemaReflectsItsDtoConstraints() throws Exception {
+        JsonNode schema = openApiDocument().path("components").path("schemas").path("SubmissionUpsertRequest");
+
+        assertThat(schema.path("properties").path("fileName").path("maxLength").asInt()).isEqualTo(300);
+        assertThat(schema.path("properties").path("contentType").path("maxLength").asInt()).isEqualTo(120);
+        assertThat(schema.path("properties").path("checksum").path("maxLength").asInt()).isEqualTo(128);
+    }
+
+    @Test
+    void learningScoreSchemasReflectTheirDtoConstraints() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+
+        assertThat(schemas.path("ReturnRequest").path("properties").path("score").path("minimum").asDouble())
+                .isEqualTo(0.0);
+        assertThat(schemas.path("SubmissionReviewRequest").path("properties").path("score")
+                .path("minimum").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void assistantMessageListsDocumentTheirNextCursorHeader() throws Exception {
+        JsonNode paths = openApiDocument().path("paths");
+        List<String> cursorPaths = new ArrayList<>();
+
+        for (Map.Entry<String, JsonNode> path : paths.properties()) {
+            if (!path.getKey().contains("/assistant/")
+                    || !(path.getKey().endsWith("/conversations") || path.getKey().endsWith("/messages"))) {
+                continue;
+            }
+            if (path.getValue().has("get")) {
+                cursorPaths.add(path.getKey());
+                assertThat(path.getValue().path("get").path("responses").path("200")
+                        .path("headers").has("X-Next-Cursor"))
+                        .as("GET %s documents X-Next-Cursor", path.getKey())
+                        .isTrue();
+            }
+        }
+
+        assertThat(cursorPaths).contains(
+                "/api/v1/assistant/conversations",
+                "/api/v1/assistant/conversations/{id}/messages",
+                "/api/v1/thesis/assistant/conversations",
+                "/api/v1/thesis/assistant/conversations/{id}/messages");
+    }
+
+    @Test
+    void announcementOperationsDocumentTypedRequestBodies() throws Exception {
+        JsonNode spec = openApiDocument();
+
+        assertThat(operation(spec, "post", "/api/v1/announcements").path("requestBody").path("content")
+                .path("application/json").path("schema").path("$ref").asText())
+                .isEqualTo("#/components/schemas/CreateAnnouncementRequest");
+        assertThat(operation(spec, "put", "/api/v1/announcements/{id}").path("requestBody").path("content")
+                .path("application/json").path("schema").path("$ref").asText())
+                .isEqualTo("#/components/schemas/UpdateAnnouncementRequest");
+    }
+
+    @Test
+    void eventListDocumentsBadRequestForIncompletePaging() throws Exception {
+        JsonNode responses = operation(openApiDocument(), "get", "/api/v1/events").path("responses");
+
+        assertThat(responses.has("400")).as("page without limit returns documented 400").isTrue();
+    }
+
+    @Test
     void documentsQueryParameterMapsAsOptionalFreeFormStringMaps() throws Exception {
         JsonNode paths = openApiDocument().path("paths");
         int count = 0;
@@ -189,6 +428,22 @@ class OpenApiAccuracyContractTest {
             }
         }
         return operation.path("parameters").path("-1");
+    }
+
+    private static void assertSchemaHasFields(JsonNode schemas, String schemaName, String... fields) {
+        JsonNode schema = schemas.path(schemaName);
+        assertThat(schema.isMissingNode()).as("component schema %s exists", schemaName).isFalse();
+        for (String field : fields) {
+            assertThat(schema.path("properties").has(field))
+                    .as("component schema %s includes %s", schemaName, field)
+                    .isTrue();
+        }
+    }
+
+    private static String componentName(Class<?> dtoType) {
+        io.swagger.v3.oas.annotations.media.Schema schema =
+                dtoType.getAnnotation(io.swagger.v3.oas.annotations.media.Schema.class);
+        return schema == null || schema.name().isBlank() ? dtoType.getSimpleName() : schema.name();
     }
 
 }

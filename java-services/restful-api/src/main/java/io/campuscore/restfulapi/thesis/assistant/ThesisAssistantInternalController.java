@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatRequest;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatResponse;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.FeedbackRequest;
@@ -353,6 +354,7 @@ public class ThesisAssistantInternalController {
         public String type() { return "error"; }
     }
     public record CancelResponse(UUID clientRequestId, String status) { }
+    @Schema(name = "ThesisAssistantInternalFeedbackResponse")
     public record FeedbackResponse(UUID messageId, String rating, String reason, boolean removed) { }
     public record CreateConversationRequest(String locale, String scope) { }
     public record ConversationCreated(String id, String locale) { }

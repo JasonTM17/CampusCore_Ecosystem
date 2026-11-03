@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.careers.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 import jakarta.validation.constraints.Size;
@@ -66,6 +67,7 @@ public final class CareerDtos {
     // Applications
     // ------------------------------------------------------------------
 
+    @Schema(name = "CareerApplicationResponse")
     public record ApplicationResponse(
             String id,
             String opportunityId,
@@ -107,6 +109,7 @@ public final class CareerDtos {
     // Grants
     // ------------------------------------------------------------------
 
+    @Schema(name = "CareerStaffGrantResponse")
     public record StaffGrantResponse(
             String id,
             String userId,

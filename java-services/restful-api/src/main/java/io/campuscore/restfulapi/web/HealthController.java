@@ -4,6 +4,7 @@ import io.campuscore.restfulapi.thesis.assistant.AssistantRlsState;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -41,6 +42,7 @@ public class HealthController {
     }
 
     @GetMapping("/liveness")
+    @SecurityRequirements
     @Operation(summary = "Kiểm tra Liveness Probe", description = "Xác nhận container RESTful API đang chạy bình thường.")
     @ApiResponse(responseCode = "200", description = "Dịch vụ đang hoạt động bình thường")
     public Map<String, Object> liveness() {
@@ -51,6 +53,7 @@ public class HealthController {
     }
 
     @GetMapping("/readiness")
+    @SecurityRequirements
     @Operation(summary = "Kiểm tra Readiness Probe", description = "Kiểm tra kết nối tới cơ sở dữ liệu PostgreSQL trước khi tiếp nhận lưu lượng truy cập.")
     @ApiResponse(responseCode = "200", description = "Cơ sở dữ liệu sẵn sàng")
     public Map<String, Object> readiness(
