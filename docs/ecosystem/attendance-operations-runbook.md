@@ -91,7 +91,7 @@ Lecturers conduct attendance check-in directly from the web portal at `/dashboar
    - **Late Threshold (`lateAfterMinutes`)**: Enter minutes before check-ins transition from `PRESENT` to `LATE` (default 10 minutes; must not exceed total window duration).
    - **Start Time (Future dates only)**: If scheduling for a future campus date, specify campus-local start time (`HH:mm`).
    - **Require Rotating Code**: Ensure the checkbox **Require rotating code** is enabled (default `true`).
-3. **Open Session**: Click **Open Check-in** (`POST /attendance/sessions`). The backend enforces the invariant that only one session may be `OPEN` per (section, date).
+3. **Open Session**: Click **Open Check-in** (`POST /api/v1/attendance/sessions`). The backend enforces the invariant that only one session may be `OPEN` per (section, date).
 
 ### 3.2 Sharing the Code-Free Link & Security Architecture
 
@@ -116,7 +116,7 @@ Deep link: campuscore://attendance/checkin/<sessionId>
 1. In `GeofenceCheckinPanel`, click **Projector Mode** (`Presentation` icon).
 2. The full-screen overlay [`ProjectorCodeOverlay.tsx`](../../frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) launches:
    - Displays a 6-digit code in massive high-contrast font (`text-[clamp(4rem,17vw,15rem)]`).
-   - Fetches the live code via `GET /attendance/sessions/{id}/code` (`Cache-Control: no-store`).
+   - Fetches the live code via `GET /api/v1/attendance/sessions/{id}/code` (`Cache-Control: no-store`).
    - The code is derived on the server from $\text{HMAC-SHA256}(\text{secret}, \lfloor\text{now} / 30\text{s}\rfloor)$. The secret never leaves backend memory.
    - The code rotates every 30 seconds. A visual progress bar and countdown indicator ("Rotates in Xs") show remaining validity.
    - **Tolerance Window**: The backend accepts codes from both the **current step** and the **immediately preceding 30s step** to accommodate slight network transit or clock skew.
