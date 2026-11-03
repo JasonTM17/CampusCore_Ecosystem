@@ -231,19 +231,6 @@ function runRaceVerifyStub(fixture, scriptName, mode) {
   return { result, calls };
 }
 
-function migrationGateScript() {
-  const source = read('.github/workflows/ci.yml');
-  const start = source.indexOf('      - name: Flyway migrations are immutable once merged');
-  assert.notEqual(start, -1, 'immutable migration gate step exists');
-  const nextStep = source.indexOf('      - name:', start + 1);
-  const step = source.slice(start, nextStep === -1 ? undefined : nextStep);
-  const run = step.indexOf('        run: |');
-  assert.notEqual(run, -1, 'immutable migration gate has a shell body');
-  return step.slice(run + '        run: |'.length).split(/\r?\n/)
-    .map((line) => line.startsWith('          ') ? line.slice(10) : line)
-    .join('\n');
-}
-
 function git(repo, ...args) {
   const result = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 10000 });
   assert.equal(result.status, 0, `${args.join(' ')} failed: ${result.stdout}${result.stderr}`);
@@ -269,8 +256,7 @@ function migrationFixture(fixture) {
 }
 
 function runMigrationGate(repo) {
-  const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
-  return spawnSync(bash, ['--noprofile', '--norc', '-c', migrationGateScript()], {
+  return spawnSync(process.execPath, [path.join(repoRoot, 'scripts/check-migration-immutability.mjs'), 'origin/main'], {
     cwd: repo,
     encoding: 'utf8',
     timeout: 10000,

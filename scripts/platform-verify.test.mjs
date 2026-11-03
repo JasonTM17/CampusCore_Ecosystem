@@ -48,6 +48,48 @@ test('platform-verify matches Surefire include globs and ignores exclusion selec
   assert.equal(checks[0].executed, 3);
 });
 
+test('platform-verify reduces recursive path globs to the simple class name', () => {
+  const [check] = inspectRequestedItReports(['**/*PostgresIT'], [
+    report('io.campuscore.restfulapi.attendance.AttendanceGeofencePostgresIT', { tests: 4 }),
+  ]);
+
+  assert.equal(check.passed, true);
+  assert.equal(check.executed, 4);
+});
+
+test('platform-verify matches one-character Maven wildcards', () => {
+  const [check] = inspectRequestedItReports(['Attendance?PostgresIT'], [
+    report('io.campuscore.restfulapi.attendance.Attendance1PostgresIT', { tests: 2 }),
+  ]);
+
+  assert.equal(check.passed, true);
+  assert.equal(check.executed, 2);
+});
+
+test('platform-verify applies comma-separated selectors and exclusions', () => {
+  const [check] = inspectRequestedItReports(['*PostgresIT,!*CorrectionMigrationPostgresIT'], [
+    report('io.campuscore.BffSessionPostgresIT', { tests: 3 }),
+    report('io.campuscore.CorrectionMigrationPostgresIT', { tests: 2 }),
+  ]);
+
+  assert.equal(check.passed, true);
+  assert.equal(check.executed, 3);
+});
+
+test('platform-verify rejects unsupported path selectors before starting the stack', async () => {
+  let composeCalls = 0;
+  await assert.rejects(casePgit({
+    project: 'campuscore-selector-test',
+    its: 'com/**/AttendancePostgresIT',
+  }, {
+    composeTry() {
+      composeCalls += 1;
+      return { ok: true, out: '' };
+    },
+  }), /Unsupported Maven --its selector/);
+  assert.equal(composeCalls, 0);
+});
+
 test('platform-verify hard-fails a requested class that has no report', () => {
   const [check] = inspectRequestedItReports(['MissingPostgresIT'], [
     report('io.campuscore.restfulapi.attendance.AttendanceGeofencePostgresIT'),
