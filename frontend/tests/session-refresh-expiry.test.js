@@ -28,16 +28,15 @@ function loadApi(send) {
   function request(method, url, data, config) {
     return Promise.resolve().then(() => send({ method, url, data, config }));
   }
-  const client = {
-    get: (url, config) => request('get', url, undefined, config),
-    post: (url, data, config) => request('post', url, data, config),
-    put: (url, data, config) => request('put', url, data, config),
-    patch: (url, data, config) => request('patch', url, data, config),
-    delete: (url, config) => request('delete', url, undefined, config),
-    interceptors: {
-      request: { use: () => undefined },
-      response: { use: (_ok, errorHandler) => { responseError = errorHandler; } },
-    },
+  const client = (config) => request(config.method ?? 'get', config.url, config.data, config);
+  client.get = (url, config) => request('get', url, undefined, config);
+  client.post = (url, data, config) => request('post', url, data, config);
+  client.put = (url, data, config) => request('put', url, data, config);
+  client.patch = (url, data, config) => request('patch', url, data, config);
+  client.delete = (url, config) => request('delete', url, undefined, config);
+  client.interceptors = {
+    request: { use: () => undefined },
+    response: { use: (_ok, errorHandler) => { responseError = errorHandler; } },
   };
   const stubs = {
     axios: { create: () => client },
@@ -78,9 +77,10 @@ function loadApi(send) {
   };
 }
 
-function installBrowser() {
+function installBrowser({ withoutLocks = false, indexedDB } = {}) {
   const previousWindow = global.window;
   const previousDocument = global.document;
+  const previousNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
   const location = {
     pathname: '/dashboard/register',
     search: '',
@@ -88,15 +88,28 @@ function installBrowser() {
     origin: 'http://localhost:3000',
     href: '',
   };
-  global.window = { location };
+  const browserWindow = { location };
+  if (indexedDB) browserWindow.indexedDB = indexedDB;
+  global.window = browserWindow;
   global.document = { cookie: '' };
+  if (withoutLocks) {
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      value: { locks: undefined },
+    });
+  }
   return {
     location,
+    window: browserWindow,
     restore() {
       if (previousWindow === undefined) delete global.window;
       else global.window = previousWindow;
       if (previousDocument === undefined) delete global.document;
       else global.document = previousDocument;
+      if (withoutLocks) {
+        if (previousNavigator) Object.defineProperty(global, 'navigator', previousNavigator);
+        else delete global.navigator;
+      }
     },
   };
 }
@@ -112,6 +125,94 @@ function unauthorizedRequest() {
     config: { url: '/profile', method: 'get' },
     response: { status: 401, headers: {}, data: {} },
   };
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function createSharedIndexedDb() {
+  const values = new Map();
+  const stores = new Set();
+  let initialized = false;
+  let transactionQueue = Promise.resolve();
+  const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  const database = {
+    objectStoreNames: { contains: (name) => stores.has(name) },
+    createObjectStore(name) { stores.add(name); },
+    close() {},
+    transaction() {
+      const requests = [];
+      const writes = new Map();
+      const transaction = { oncomplete: null, onabort: null };
+      const objectStore = {
+        get(key) {
+          const request = { result: undefined, onsuccess: null, onerror: null };
+          requests.push({ key, request });
+          return request;
+        },
+        put(value, key) {
+          writes.set(key, clone(value));
+          return {};
+        },
+      };
+      transaction.objectStore = () => objectStore;
+      const run = transactionQueue.then(() => new Promise((resolve) => {
+        const complete = () => {
+          writes.forEach((value, key) => values.set(key, value));
+          setImmediate(() => {
+            transaction.oncomplete?.({ target: transaction });
+            resolve();
+          });
+        };
+        const runRequest = (index) => {
+          if (index >= requests.length) {
+            complete();
+            return;
+          }
+          const { key, request } = requests[index];
+          request.result = clone(writes.has(key) ? writes.get(key) : values.get(key));
+          setImmediate(() => {
+            request.onsuccess?.({ target: request });
+            runRequest(index + 1);
+          });
+        };
+        runRequest(0);
+      }));
+      transactionQueue = run.catch(() => undefined);
+      return transaction;
+    },
+  };
+  const factory = {
+    open() {
+      const request = {
+        result: database,
+        onupgradeneeded: null,
+        onsuccess: null,
+        onerror: null,
+        onblocked: null,
+      };
+      setImmediate(() => {
+        if (!initialized) {
+          initialized = true;
+          request.onupgradeneeded?.({ target: request });
+        }
+        request.onsuccess?.({ target: request });
+      });
+      return request;
+    },
+  };
+  return { factory, values };
+}
+
+async function waitFor(predicate) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail('condition was not reached before the coordination timeout');
 }
 
 async function rejectRefresh(refreshError) {
@@ -153,4 +254,142 @@ test('an offline refresh failure does not sign the user out', async () => {
 test('a server-side refresh failure does not sign the user out', async () => {
   const href = await rejectRefresh({ response: { status: 500, data: {} } });
   assert.equal(href, '', 'a 5xx is not a terminal auth rejection');
+});
+
+test('concurrent tab refreshes share one cookie rotation and both retry with the successor cookie', async () => {
+  const indexedDB = createSharedIndexedDb();
+  const browser = installBrowser({ withoutLocks: true, indexedDB: indexedDB.factory });
+  const cookieJar = { generation: 0 };
+  let activeServerGeneration = 0;
+  const refreshRequests = [];
+  const retriedCookieGenerations = [];
+  const releaseRefresh = deferred();
+  const send = async ({ url }) => {
+    if (url === '/auth/refresh') {
+      const presentedGeneration = cookieJar.generation;
+      refreshRequests.push(presentedGeneration);
+      await releaseRefresh.promise;
+      if (presentedGeneration !== activeServerGeneration) {
+        throw { response: { status: 401, data: {} } };
+      }
+      activeServerGeneration += 1;
+      cookieJar.generation = activeServerGeneration;
+      return {
+        data: {
+          user: { id: 'user-a' },
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+        },
+      };
+    }
+    if (url === '/profile') {
+      retriedCookieGenerations.push(cookieJar.generation);
+      if (cookieJar.generation !== activeServerGeneration) {
+        throw { response: { status: 401, data: {} } };
+      }
+      return { data: { ok: true } };
+    }
+    throw new Error(`unexpected request: ${url}`);
+  };
+  const firstTab = loadApi(send);
+  const secondTab = loadApi(send);
+  const pending = [
+    firstTab.handle(unauthorizedRequest()),
+    secondTab.handle(unauthorizedRequest()),
+  ];
+
+  try {
+    await waitFor(() => refreshRequests.length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(
+      refreshRequests.length,
+      1,
+      'only one tab may present a refresh cookie while its generation is current',
+    );
+  } finally {
+    releaseRefresh.resolve();
+    await Promise.allSettled(pending);
+    browser.restore();
+  }
+
+  const responses = await Promise.all(pending);
+  assert.equal(responses.length, 2, 'both original requests are retried');
+  assert.deepEqual(refreshRequests, [0], 'the old cookie generation is refreshed once');
+  assert.deepEqual(retriedCookieGenerations, [1, 1], 'both retries use the rotated cookie');
+  assert.equal(activeServerGeneration, 1, 'the mock session remains active');
+  const sharedMarkers = JSON.stringify([...indexedDB.values.values()]);
+  assert.doesNotMatch(sharedMarkers, /access-a|refresh-a|user-a/);
+  assert.deepEqual(
+    Object.keys([...indexedDB.values.values()][0]).sort(),
+    ['activeFence', 'fence', 'generation', 'leaseExpiresAt'],
+  );
+});
+
+test('an expired refresh lease can be reclaimed after its owner stops responding', async () => {
+  const indexedDB = createSharedIndexedDb();
+  indexedDB.values.set('session-refresh', {
+    generation: 0,
+    fence: 2,
+    activeFence: 2,
+    leaseExpiresAt: Date.now() - 1,
+  });
+  const browser = installBrowser({ withoutLocks: true, indexedDB: indexedDB.factory });
+  const cookieJar = { generation: 0 };
+  const refreshRequests = [];
+  const context = loadApi(({ url }) => {
+    if (url === '/auth/refresh') {
+      refreshRequests.push(cookieJar.generation);
+      cookieJar.generation += 1;
+      return {
+        data: {
+          user: { id: 'user-a' },
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+        },
+      };
+    }
+    if (url === '/profile') return { data: { ok: true } };
+    throw new Error(`unexpected request: ${url}`);
+  });
+  try {
+    const response = await context.handle(unauthorizedRequest());
+    assert.deepEqual(response.data, { ok: true });
+    assert.deepEqual(refreshRequests, [0]);
+    assert.equal(indexedDB.values.get('session-refresh').generation, 1);
+  } finally {
+    browser.restore();
+  }
+});
+
+test('refresh coordination falls back without deadlocking when shared storage throws', async () => {
+  const browser = installBrowser({
+    withoutLocks: true,
+    indexedDB: { open() { throw new Error('storage unavailable'); } },
+  });
+  const context = loadApi(({ url }) => {
+    if (url === '/auth/refresh') {
+      return {
+        data: {
+          user: { id: 'user-a' },
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+        },
+      };
+    }
+    if (url === '/profile') return { data: { ok: true } };
+    throw new Error(`unexpected request: ${url}`);
+  });
+  let timeout;
+  try {
+    const response = await Promise.race([
+      context.handle(unauthorizedRequest()),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('refresh fallback deadlocked')), 250);
+      }),
+    ]);
+    assert.deepEqual(response.data, { ok: true });
+  } finally {
+    clearTimeout(timeout);
+    browser.restore();
+  }
 });
