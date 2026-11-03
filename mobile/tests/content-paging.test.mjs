@@ -71,6 +71,22 @@ test('patchItems edits and removes rows and keeps the total honest', () => {
   assert.equal(removed.total, 1);
 });
 
+test('a removal steps the page cursor back so a shifted row is not skipped', () => {
+  const first = paging.startView({ items: [{ id: 'a' }, { id: 'b' }], total: 21, hasMore: true }, keyOf);
+  assert.equal(first.nextPage, 1);
+  const removed = paging.patchItems(first, (item) => (item.id === 'a' ? null : item));
+  assert.equal(removed.nextPage, 0, 'the next read repeats the first window after a removal');
+  const recovered = paging.appendPage(removed, { items: [{ id: 'b' }, { id: 'c' }], hasMore: false }, 0, keyOf);
+  assert.deepEqual(recovered.items.map(keyOf), ['b', 'c'], 'the row shifted into the window is still fetched');
+
+  const second = paging.appendPage(first, { items: [{ id: 'c' }], hasMore: true }, 1, keyOf);
+  assert.equal(second.nextPage, 2);
+  const shrunk = paging.patchItems(second, (item) => (item.id === 'b' ? null : item));
+  assert.equal(shrunk.nextPage, 1, 'the last loaded window is read again');
+  const edited = paging.patchItems(second, (item) => ({ ...item, read: true }));
+  assert.equal(edited.nextPage, 2, 'an edit that keeps every row leaves the cursor alone');
+});
+
 test('error mapping never leaks server text and picks copy by status', () => {
   const copy = { offline: 'off', signIn: 'in', denied: 'no', notFound: '404', rateLimited: 'slow', server: 'srv', generic: 'gen' };
   const withStatus = (status) => Object.assign(new Error('secret'), { status });

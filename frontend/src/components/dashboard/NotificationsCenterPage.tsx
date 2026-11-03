@@ -134,7 +134,7 @@ export default function NotificationsCenterPage() {
           limit: INBOX_PAGE_SIZE,
           ...(activeFilter === 'unread' ? { isRead: false } : {}),
         }),
-        notificationsApi.unreadCount(),
+        notificationsApi.unreadCount({ force: true }),
       ]);
       if (requestId !== requestRef.current) return;
       if (listResult.status === 'rejected') throw listResult.reason;
@@ -223,6 +223,12 @@ export default function NotificationsCenterPage() {
         ),
       );
       setUnreadCount((count) => Math.max(0, count - 1));
+      // The unread rows are offset-paged over a set this write just shrank:
+      // step the cursor back so the next read overlaps the window already
+      // shown instead of reading past the row that shifted into it.
+      if (filterRef.current === 'unread' && loadedPages < totalPages) {
+        setLoadedPages((pages) => Math.max(0, pages - 1));
+      }
     } catch {
       setActionError(copy.updateFailed);
       setFailedAction({ kind: 'markRead', id });
