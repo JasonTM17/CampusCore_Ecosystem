@@ -29,7 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@SpringBootTest(properties={"spring.flyway.enabled=false","attendance.checkin.sweep-delay-ms=3600000",
+@SpringBootTest(properties={"spring.flyway.enabled=false",
         "spring.datasource.url=jdbc:h2:mem:geofence;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000"})
 @ActiveProfiles({"test","persistence"})
 @AutoConfigureMockMvc
