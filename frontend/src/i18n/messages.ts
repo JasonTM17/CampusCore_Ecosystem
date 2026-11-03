@@ -638,12 +638,6 @@ export const en = {
     title: 'Sign in to the campus portal.',
     description:
       'Sign in with your campus account to continue across registration, grades, schedules, and updates.',
-    featureTitles: ['The right place to start', 'One sign-in', 'Ready for class'],
-    featureDescriptions: [
-      'Students, lecturers, and admins each arrive in the area they need.',
-      'Sign in once and keep working through registration, grades, and teaching.',
-      'The day starts from a calm campus entry, not a stack of extra steps.',
-    ],
     sectionEyebrow: 'Account access',
     heading: 'Welcome back',
     subheading: 'Sign in with your campus account to continue.',
@@ -736,12 +730,6 @@ export const en = {
         destination: 'A matching student account opens the student dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the lecturer or admin sign-in instead.',
-        featureTitles: ['Register', 'Timetable', 'Grades'],
-        featureDescriptions: [
-          'Pick sections while the registration window is open.',
-          'See class times and rooms for the current term.',
-          'Follow published scores without leaving the student desk.',
-        ],
       },
       lecturer: {
         tab: 'Lecturer',
@@ -755,12 +743,6 @@ export const en = {
         destination: 'A matching lecturer account opens the faculty dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the student or admin sign-in instead.',
-        featureTitles: ['SE204', 'GRADE', 'SLOT'],
-        featureDescriptions: [
-          'Class lists stay next to the students you teach.',
-          'Enter and review scores for the sections you teach.',
-          'Check teaching hours without switching to another desk.',
-        ],
       },
       dean: {
         tab: 'Dean',
@@ -774,12 +756,6 @@ export const en = {
         destination: 'A matching dean account opens the faculty observation dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the student, lecturer, or admin sign-in instead.',
-        featureTitles: ['Rounds', 'Groups', 'Workload'],
-        featureDescriptions: [
-          'Follow every thesis round running in the faculty.',
-          'See group rosters, leaders, and topic status.',
-          'Check supervisor workload across departments.',
-        ],
       },
       admin: {
         tab: 'Admin',
@@ -793,13 +769,6 @@ export const en = {
         destination: 'A matching administrator account opens the admin portal.',
         mismatch:
           'This account belongs to another campus portal. Open the student or lecturer sign-in instead.',
-        opsMark: 'Ops',
-        featureTitles: ['People records', 'Catalog', 'Campus look'],
-        featureDescriptions: [
-          'Review accounts and role assignments.',
-          'Keep courses, sections, and rooms aligned.',
-          'Publish notices and arrange how they appear.',
-        ],
       },
     },
   },
@@ -1069,12 +1038,6 @@ export const en = {
     title: 'Recover account access without guessing.',
     description:
       'Use your campus email to request a reset link. The response stays consistent whether the account exists or not.',
-    featureTitles: ['Verified handoff', 'Clear next steps', 'Safer messaging'],
-    featureDescriptions: [
-      'Password recovery stays aligned with the same sign-in experience used across the portal.',
-      'The screen keeps recovery guidance visible instead of dropping you into a dead end.',
-      'Responses stay intentionally vague so the flow does not confirm whether an email exists.',
-    ],
     sectionEyebrow: 'Recovery flow',
     heading: 'Forgot password',
     beforeSend: 'Enter your email and we will send password reset instructions.',
@@ -1098,12 +1061,6 @@ export const en = {
     title: 'Set a new password and get back into CampusUTE.',
     description:
       'Choose a fresh password for your campus account. Once complete, you will sign in again with the updated credentials.',
-    featureTitles: ['One secure path', 'Clear requirements', 'Consistent recovery'],
-    featureDescriptions: [
-      'The reset link returns you to the same protected sign-in flow instead of a separate experience.',
-      'Users see password guidance and validation before the form submits.',
-      'An expired or invalid link shows a clear recovery step instead of a broken page.',
-    ],
     invalidTitle: 'This reset link is no longer valid',
     invalidDescription:
       'Request a new password reset link and use the latest email to continue.',
@@ -1657,11 +1614,9 @@ export const en = {
         'Move through your role-based tools with a consistent sign-in.',
     },
     signOutPage: {
-      eyebrow: 'Sign-in handoff',
       title: 'Signing you out',
       description:
         'We are closing your current sign-in and returning you to the login page.',
-      progress: 'Finishing sign-out...',
     },
     routeDescriptions: {
       dashboard:
@@ -3745,12 +3700,6 @@ export const vi: I18nMessages = {
     title: 'Đăng nhập vào cổng học vụ CampusUTE.',
     description:
       'Đăng nhập bằng tài khoản nhà trường để tiếp tục đăng ký học phần, xem điểm và nhận thông báo.',
-    featureTitles: ['Đúng nơi bắt đầu', 'Một lần đăng nhập', 'Sẵn sàng cho buổi học'],
-    featureDescriptions: [
-      'Sinh viên, giảng viên và quản trị đều vào đúng khu vực mình cần.',
-      'Đăng nhập một lần rồi tiếp tục đăng ký, xem điểm và giảng dạy.',
-      'Ngày học vụ bắt đầu từ một cổng rõ ràng, không thêm bước thừa.',
-    ],
     sectionEyebrow: 'Truy cập tài khoản',
     heading: 'Chào mừng bạn quay lại',
     subheading: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.',
@@ -3843,12 +3792,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản sinh viên hợp lệ sẽ mở Cổng Sinh viên.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập giảng viên hoặc quản trị.',
-        featureTitles: ['Đăng ký', 'Thời khóa biểu', 'Điểm'],
-        featureDescriptions: [
-          'Chọn học phần khi cửa sổ đăng ký đang mở.',
-          'Xem giờ học và phòng cho học kỳ hiện tại.',
-          'Theo dõi điểm đã công bố ngay tại bàn sinh viên.',
-        ],
       },
       lecturer: {
         tab: 'Giảng viên',
@@ -3862,12 +3805,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản giảng viên hợp lệ sẽ mở Cổng Giảng viên.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên hoặc quản trị.',
-        featureTitles: ['Lớp giảng dạy', 'Nhập điểm', 'Lịch tuần'],
-        featureDescriptions: [
-          'Danh sách lớp học phần bạn phụ trách.',
-          'Nhập và quản lý điểm cho các lớp học phần.',
-          'Xem thời khóa biểu giảng dạy trực quan.',
-        ],
       },
       dean: {
         tab: 'Trưởng khoa',
@@ -3881,12 +3818,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản trưởng khoa hợp lệ sẽ mở Bảng quan sát khóa luận khoa.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên, giảng viên hoặc quản trị.',
-        featureTitles: ['Đợt khóa luận', 'Nhóm & thành viên', 'Phân bổ GVHD'],
-        featureDescriptions: [
-          'Theo dõi mọi đợt khóa luận đang diễn ra trong khoa.',
-          'Xem danh sách nhóm, nhóm trưởng và trạng thái đề tài.',
-          'Nắm khối lượng hướng dẫn của từng giảng viên theo bộ môn.',
-        ],
       },
       admin: {
         tab: 'Quản trị',
@@ -3900,13 +3831,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản quản trị hợp lệ sẽ mở Cổng Quản trị.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên hoặc giảng viên.',
-        opsMark: 'Quản trị',
-        featureTitles: ['Hồ sơ người dùng', 'Danh mục môn học', 'Diện mạo cổng'],
-        featureDescriptions: [
-          'Rà tài khoản và phân quyền.',
-          'Giữ môn, lớp và phòng học khớp nhau.',
-          'Phát hành thông báo và sắp thứ tự hiển thị.',
-        ],
       },
     },
   },
@@ -4176,12 +4100,6 @@ export const vi: I18nMessages = {
     title: 'Lấy lại quyền truy cập mà không cần đoán mò.',
     description:
       'Dùng email nhà trường để yêu cầu liên kết đặt lại mật khẩu. Phản hồi sẽ giữ nhất quán dù tài khoản có tồn tại hay không.',
-    featureTitles: ['Bàn giao đã xác minh', 'Bước kế tiếp rõ ràng', 'Thông điệp an toàn hơn'],
-    featureDescriptions: [
-      'Khôi phục mật khẩu vẫn đi cùng một trải nghiệm đăng nhập nhất quán trong toàn bộ cổng học vụ.',
-      'Màn hình luôn giữ hướng dẫn khôi phục hiển thị thay vì đưa bạn vào ngõ cụt.',
-      'Phản hồi được giữ mơ hồ có chủ đích để không xác nhận email có tồn tại hay không.',
-    ],
     sectionEyebrow: 'Luồng khôi phục',
     heading: 'Quên mật khẩu',
     beforeSend: 'Nhập email của bạn và chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.',
@@ -4205,12 +4123,6 @@ export const vi: I18nMessages = {
     title: 'Tạo mật khẩu mới và quay lại CampusUTE.',
     description:
       'Chọn mật khẩu mới cho tài khoản nhà trường của bạn. Sau khi xong, bạn sẽ đăng nhập lại bằng thông tin vừa cập nhật.',
-    featureTitles: ['Một đường đi an toàn', 'Yêu cầu rõ ràng', 'Khôi phục nhất quán'],
-    featureDescriptions: [
-      'Liên kết đặt lại đưa bạn về cùng luồng đăng nhập được bảo vệ thay vì tách ra thành một trải nghiệm khác.',
-      'Người dùng thấy yêu cầu mật khẩu và kiểm tra hợp lệ trước khi gửi biểu mẫu.',
-      'Liên kết hết hạn hoặc không hợp lệ vẫn hiển thị bước khôi phục rõ ràng thay vì một trang lỗi.',
-    ],
     invalidTitle: 'Liên kết đặt lại này không còn hợp lệ',
     invalidDescription:
       'Hãy yêu cầu một liên kết đặt lại mật khẩu mới và dùng email mới nhất để tiếp tục.',
@@ -4760,11 +4672,9 @@ export const vi: I18nMessages = {
         'Di chuyển trong khu vực theo vai trò hiện tại với một lần đăng nhập thống nhất.',
     },
     signOutPage: {
-      eyebrow: 'Kết thúc đăng nhập',
       title: 'Đang đăng xuất',
       description:
         'Hệ thống đang kết thúc lần đăng nhập hiện tại và đưa bạn trở lại màn hình đăng nhập.',
-      progress: 'Đang hoàn tất đăng xuất...',
     },
     routeDescriptions: {
       dashboard:

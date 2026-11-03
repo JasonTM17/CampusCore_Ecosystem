@@ -85,12 +85,21 @@ class AuthCredentialRevocationPostgresIT {
                 .isZero();
 
         CountDownLatch rotationHoldsLock = new CountDownLatch(1);
+        CountDownLatch loginAtUserLock = new CountDownLatch(1);
         CountDownLatch releaseRotation = new CountDownLatch(1);
         String rotationThread = "pgw-rotate-" + suffix;
+        String loginThread = "pgw-login-" + suffix;
         doAnswer(invocation -> {
             String sql = invocation.getArgument(0, String.class);
+            String thread = Thread.currentThread().getName();
+            if (thread.equals(loginThread) && sql.contains("FOR UPDATE")) {
+                // The login reached the User row lock while rotation still
+                // holds it; from here it can only proceed by queueing on
+                // the row.
+                loginAtUserLock.countDown();
+            }
             Object result = invocation.callRealMethod();
-            if (Thread.currentThread().getName().equals(rotationThread)
+            if (thread.equals(rotationThread)
                     && sql.contains("FOR UPDATE")) {
                 // The rotation transaction now holds the User row lock. Pause
                 // before the version bump; a login that does not re-read under
@@ -115,10 +124,12 @@ class AuthCredentialRevocationPostgresIT {
                     .isTrue();
 
             Future<AuthLoginService.LoginResult> login = pool.submit(() -> {
-                Thread.currentThread().setName("pgw-login-" + suffix);
+                Thread.currentThread().setName(loginThread);
                 return authLogin.login(email, rotatedPassword, "127.0.0.1", "cred-it");
             });
-            Thread.sleep(800);
+            assertThat(awaitLatchOrDone(loginAtUserLock, login))
+                    .as("login must reach the user row lock while rotation holds it")
+                    .isTrue();
             assertThat(login.isDone())
                     .as("login must queue behind the rotation user lock")
                     .isFalse();
@@ -199,6 +210,25 @@ class AuthCredentialRevocationPostgresIT {
                         "SELECT \"credentialVersion\" FROM campuscore_auth.\"User\" WHERE \"id\" = ?",
                         Long.class, userId))
                 .isEqualTo(1L);
+    }
+
+    /**
+     * Waits for a worker to reach a barrier, but fails fast when the worker
+     * finishes first — a worker that never reaches the barrier must not stall
+     * the test for the whole budget.
+     */
+    private static boolean awaitLatchOrDone(CountDownLatch latch, Future<?> worker)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (latch.await(25, TimeUnit.MILLISECONDS)) {
+                return true;
+            }
+            if (worker.isDone()) {
+                return false;
+            }
+        }
+        return false;
     }
 
     static boolean postgresTargetConfigured() {

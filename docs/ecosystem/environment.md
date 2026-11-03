@@ -72,7 +72,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | --- | --- | --- | --- | --- |
 | `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Main JDBC connection (local DB or Neon) | secret (URL+password) | local, render | required outside compose |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Postgres container bootstrap credentials | secret | compose, prod, e2e | `POSTGRES_PASSWORD` required by base Compose; `local-dev` generates it and keeps custom volume credentials |
-| `POSTGRES_HOST_PORT` | Host port published to postgres | config | compose, e2e | safe default `5432` |
+| `POSTGRES_HOST_PORT` | Host port published to postgres | config | compose, e2e | safe default `5432` (`docker-compose.yml`); `5433` in `docker-compose.e2e.yml` and `scripts/run-course-e2e.mjs`; `scripts/platform-verify.mjs` allocates a free port |
 | `FLYWAY_ENABLED` | Run Flyway migrations on boot | config | all | safe default `true` |
 | `DB_POOL_MAX`, `DB_POOL_MIN`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_KEEPALIVE_MS` | Hikari pool sizing/idle | config | tuning | safe default |
 | `DB_CONNECTION_TIMEOUT_MS`, `DB_VALIDATION_TIMEOUT_MS` | Hikari acquire/validate timeouts | config | tuning | safe default |

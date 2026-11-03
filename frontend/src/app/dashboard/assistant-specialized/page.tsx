@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle, RotateCcw } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { getAssistantWindowMessages } from '@/components/assistant/assistant-messages';
 import { useAssistantStream } from '@/components/assistant/useAssistantStream';
 import { AssistantMessages } from '@/components/assistant/AssistantMessages';
@@ -108,7 +109,7 @@ export default function AssistantSpecializedPage() {
   // Same gate as the floating panel: a 401 locks asks behind sign-in again.
   const authRequired = state.error === 'unauthorized';
   const goSignIn = () =>
-    router.push(`${href('/login')}?reason=session-expired`);
+    router.push(sessionExpiredLoginHref(href));
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4">

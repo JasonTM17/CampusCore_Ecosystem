@@ -62,6 +62,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import {
   reorderCopyEn,
   reorderCopyVi,
@@ -365,7 +366,7 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) router.replace(href('/dashboard'));

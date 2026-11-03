@@ -1,5 +1,6 @@
 import type { User } from '@/types/api';
 import { safeInternalPath } from '@/lib/safe-url';
+import { stripLocaleFromPathname } from '@/i18n/paths';
 
 export const LOGIN_PORTALS = ['student', 'lecturer', 'dean', 'admin'] as const;
 export type LoginPortal = (typeof LOGIN_PORTALS)[number];
@@ -127,6 +128,28 @@ export function loginHref(
   }
 
   return `${localize('/login')}?${params.toString()}`;
+}
+
+// The dead-session login link every guard shares: the portal comes from the
+// page the visitor is on unless the caller pins one, and the locale-stripped
+// page rides along as `next` so a re-login returns to it instead of the
+// portal root.
+export function sessionExpiredLoginHref(
+  localize: (pathname: string) => string,
+  portal?: LoginPortal,
+): string {
+  const pathname =
+    typeof window === 'undefined' ? '' : window.location.pathname;
+  const requested =
+    typeof window === 'undefined'
+      ? null
+      : stripLocaleFromPathname(pathname).pathname + window.location.search;
+  return loginHref(
+    localize,
+    portal ?? portalFromPathname(pathname),
+    'session-expired',
+    requested,
+  );
 }
 
 export function isDemoUser(user: { email?: string } | null | undefined): boolean {

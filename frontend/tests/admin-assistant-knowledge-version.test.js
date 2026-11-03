@@ -70,6 +70,9 @@ function loadSave(overrides = {}) {
   };
   const editing = Object.hasOwn(overrides, 'editing') ? overrides.editing : documentSnapshot;
   const form = overrides.form ?? documentSnapshot;
+  const loadedDocuments = Object.hasOwn(overrides, 'loadedDocuments')
+    ? overrides.loadedDocuments
+    : [documentSnapshot];
   const save = extractDeclaration(pagePath, 'save', {
     form,
     editing,
@@ -103,6 +106,7 @@ function loadSave(overrides = {}) {
     isStaleVersionError: extractDeclaration(pagePath, 'isStaleVersionError'),
     async load() {
       calls.loads += 1;
+      return loadedDocuments;
     },
   });
   return { save, calls, editing, form };
@@ -159,6 +163,77 @@ test('a STALE_VERSION save shows the stale message and keeps the typed form cont
   assert.equal(form.title, 'Edited in this tab');
   assert.equal(calls.formOpen, true);
   assert.equal(calls.loads, 1);
+});
+
+test('a STALE_VERSION save adopts the reloaded version so the next save succeeds', async () => {
+  const typed = { ...documentSnapshot, title: 'Edited in this tab' };
+  const conflict = { response: { status: 409, data: { code: 'STALE_VERSION' } } };
+  const { save, calls, editing, form } = loadSave({
+    form: typed,
+    updateError: conflict,
+    loadedDocuments: [{ ...documentSnapshot, version: 8 }],
+  });
+
+  await save();
+
+  assert.equal(calls.update.length, 1, 'the stale save is not retried automatically');
+  assert.equal(calls.formError, en.staleVersion);
+  assert.equal(form.title, 'Edited in this tab');
+  assert.equal(calls.formOpen, true);
+  assert.equal(calls.loads, 1);
+  assert.equal(calls.editing.length, 1);
+
+  const nextEditing = typeof calls.editing[0] === 'function'
+    ? calls.editing[0](editing)
+    : calls.editing[0];
+  assert.equal(nextEditing.version, 8);
+  assert.equal(nextEditing.title, documentSnapshot.title);
+
+  const resumed = loadSave({ editing: nextEditing, form: typed });
+  await resumed.save();
+  assert.equal(resumed.calls.update[0].request.expectedVersion, 8);
+  assert.equal(resumed.calls.update[0].request.title, 'Edited in this tab');
+});
+
+test('a non-stale save error leaves the version sent by the next save unchanged', async () => {
+  const typed = { ...documentSnapshot, title: 'Edited in this tab' };
+  const forbidden = { response: { status: 403 } };
+  const { save, calls, editing, form } = loadSave({
+    form: typed,
+    updateError: forbidden,
+    loadedDocuments: [{ ...documentSnapshot, version: 8 }],
+  });
+
+  await save();
+
+  assert.equal(calls.formError, en.errorForbidden);
+  assert.equal(calls.loads, 0);
+  assert.equal(calls.editing.length, 0);
+  assert.equal(form.title, 'Edited in this tab');
+
+  const resumed = loadSave({ editing, form: typed });
+  await resumed.save();
+  assert.equal(resumed.calls.update[0].request.expectedVersion, 7);
+});
+
+test('a STALE_VERSION save keeps the old version when the document is gone from the reloaded list', async () => {
+  const typed = { ...documentSnapshot, title: 'Edited in this tab' };
+  const conflict = { response: { status: 409, data: { code: 'STALE_VERSION' } } };
+  const { save, calls, editing, form } = loadSave({
+    form: typed,
+    updateError: conflict,
+    loadedDocuments: [{ ...documentSnapshot, documentId: 'doc-other', version: 9 }],
+  });
+
+  await save();
+
+  assert.equal(calls.formError, en.staleVersion);
+  assert.equal(calls.editing.length, 0);
+  assert.equal(form.title, 'Edited in this tab');
+
+  const resumed = loadSave({ editing, form: typed });
+  await resumed.save();
+  assert.equal(resumed.calls.update[0].request.expectedVersion, 7);
 });
 
 test('assistant knowledge create does not send an expected version', async () => {

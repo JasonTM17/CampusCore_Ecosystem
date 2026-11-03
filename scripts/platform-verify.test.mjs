@@ -156,6 +156,31 @@ test('platform-verify preflights both destructive cases and tears down only its 
   assert.ok(/if \(stackStarted\)[\s\S]*?composeCase\(args, \['down', '-v'/.test(pgit));
 });
 
+test('pgit provisions the knowledge-version database and records container removal', async (t) => {
+  const pgitSource = source.slice(source.indexOf('async function casePgit'), source.indexOf('async function main'));
+  const database = 'policy_migration_test_knowledge_version_current_supabase';
+  assert.ok(pgitSource.includes(`'${database}'`));
+  assert.ok(pgitSource.includes('CAMPUSCORE_KNOWLEDGE_VERSION_CURRENT_SUPABASE_URL'));
+  assert.ok(pgitSource.includes('`${jdbcBase}/' + database + '`'));
+
+  const evidence = mkdtempSync(join(tmpdir(), 'platform-verify-pgit-teardown-'));
+  t.after(() => rmSync(evidence, { recursive: true, force: true }));
+  const composeCalls = [];
+  await assert.rejects(casePgit({ project: 'campuscore-pgit-teardown', evidence }, {
+    tryRun: () => ({ ok: true, out: '' }),
+    composeTry: (_args, argv) => {
+      composeCalls.push(argv);
+      return argv[0] === 'up' ? { ok: false, out: 'stubbed compose startup failure' } : { ok: true, out: '' };
+    },
+  }), /compose up failed/);
+
+  const result = JSON.parse(readFileSync(join(evidence, 'pgit.json'), 'utf8'));
+  assert.deepEqual(composeCalls.map((argv) => argv[0]), ['up', 'down', 'ps']);
+  assert.equal(result.composeDown, 'PASS');
+  assert.equal(result.containerGone, true);
+  assert.equal(result.containerGoneCheck, 'Compose ps -q is empty after compose down');
+});
+
 test('a cleanup failure keeps the original case failure and still tears down', async (t) => {
   for (const [name, runCase] of [['stack', caseStack], ['pgit', casePgit]]) {
     const evidence = mkdtempSync(join(tmpdir(), `platform-verify-${name}-`));

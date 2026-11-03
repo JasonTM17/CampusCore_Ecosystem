@@ -195,6 +195,9 @@ function loadAssistantPanel({ hooks, stream, thesisApi }) {
     if (name === '@/lib/plural') {
       return { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) };
     }
+    if (name === '@/lib/login-portal') {
+      return { sessionExpiredLoginHref: () => '/login' };
+    }
     if (name === '@/i18n') {
       return {
         useI18n: () => ({

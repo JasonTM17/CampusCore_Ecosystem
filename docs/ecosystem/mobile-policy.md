@@ -255,9 +255,9 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   | `admin.attendance` | như trên | Điểm danh toàn trường: lọc lớp/sinh viên/ngày, phân trang server (đọc) | `/admin/attendance` |
   | `admin.enrollments` | như trên | Đăng ký học phần: lọc, phân trang server (đọc) | `/admin/enrollments` (xuất hàng loạt) |
   | `admin.audit` | như trên | Nhật ký kiểm toán tối thiểu (hành động, đối tượng, người thực hiện rút gọn, thời gian), lọc, phân trang, không cache | `/admin/audit` |
-  | `admin.creditLimits` | như trên | Đơn nâng hạn mức: duyệt/từ chối (từ chối cần ghi chú) | `/admin/credit-limit-applications` |
+  | `admin.creditLimits` | như trên | Đơn nâng hạn mức: duyệt/từ chối (từ chối cần ghi chú); đọc một lượt (server trả tối đa 500 đơn mới nhất, không có tổng; `page`/`limit` tùy chọn mới kèm `X-Total-Count`) | `/admin/credit-limit-applications` |
   | `admin.events` | như trên | Sự kiện: đăng, đóng đăng ký, hoàn tất, hủy; điểm danh thủ công khi đã đóng đăng ký/hoàn tất | `/admin/events` (tạo, mở đăng ký cần ngày) |
-  | `admin.notifications` | như trên | Soạn, xem trước, xác nhận và gửi thông báo cho một người nhận; lịch sử. Server không có idempotency nên không tự thử lại: lỗi mạng hiện "chưa rõ đã gửi", kiểm tra lịch sử trước khi gửi lại | `/admin/notifications` (gửi hàng loạt, đặt lịch) |
+  | `admin.notifications` | như trên | Soạn, xem trước, xác nhận và gửi thông báo cho một người nhận; lịch sử. `POST /api/v1/notifications` nhận `Idempotency-Key` tùy chọn (gửi lại cùng nội dung trả về đúng thông báo đã tạo, cùng khóa khác nội dung trả `409 IDEMPOTENCY_CONFLICT`); app gửi một khóa cho mỗi bản nháp — gửi lại bản nháp không đổi sau kết quả chưa rõ dùng lại khóa đó, sửa nội dung hoặc gửi thành công thì khóa mới — và không tự thử lại: lỗi mạng hiện "chưa rõ đã gửi", kiểm tra lịch sử trước khi gửi lại | `/admin/notifications` (gửi hàng loạt, đặt lịch) |
 
   Quyền thật luôn do server quyết định: lane bàn việc và sự kiện cần grant
   phía server (và quyền sở hữu với sự kiện), nên admin chưa có grant sẽ
