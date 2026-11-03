@@ -26,6 +26,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
   const [cycleError, setCycleError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [stale, setStale] = useState(false);
+  const [formEpoch, setFormEpoch] = useState(0);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const live = apiClient.mode === 'live';
@@ -119,7 +120,11 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           preview={!live}
           flash={flash}
           stale={stale}
-          onReload={() => { setStale(false); void apps.reload(); }}
+          formEpoch={formEpoch}
+          onReload={() => {
+            setStale(false);
+            void apps.reload().then(() => setFormEpoch((value) => value + 1));
+          }}
           onBack={() => { setView({ kind: 'list' }); clear(); setStale(false); }}
           onSave={(form) => save(selected, form)}
           onSubmit={(form) => submit(selected, form)}
