@@ -102,5 +102,9 @@ export function patchItems<T>(view: PagedView<T>, patch: (item: T) => T | null):
     ...view,
     items,
     total: view.total === undefined ? undefined : Math.max(0, view.total - removed),
+    // Offset paging runs over a set a removal just shrank: re-read the last
+    // loaded window before advancing so the row that shifted into it is not
+    // skipped.
+    nextPage: removed > 0 && view.hasMore ? Math.max(0, view.nextPage - 1) : view.nextPage,
   };
 }

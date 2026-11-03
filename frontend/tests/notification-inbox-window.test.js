@@ -345,6 +345,169 @@ test('the unread tab asks the server for unread rows', async () => {
   assert.ok(requested.limit <= 50);
 });
 
+test('marking one unread row read does not skip the next row when loading older pages', async () => {
+  const unreadRows = Array.from({ length: 21 }, (_, index) => inboxRow(index, false));
+  let serverRows = unreadRows.slice();
+  const calls = { getMy: [], unreadCount: 0 };
+  const api = {
+    getMy: async (params) => {
+      calls.getMy.push(params);
+      const offset = (params.page - 1) * params.limit;
+      return {
+        data: serverRows.slice(offset, offset + params.limit),
+        meta: {
+          total: serverRows.length,
+          page: params.page,
+          limit: params.limit,
+          totalPages: Math.max(1, Math.ceil(serverRows.length / params.limit)),
+        },
+      };
+    },
+    unreadCount: async () => {
+      calls.unreadCount += 1;
+      return serverRows.length;
+    },
+    markRead: async (id) => {
+      serverRows = serverRows.filter((row) => row.id !== id);
+    },
+    markAllRead: async () => ({ updated: 0 }),
+  };
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+
+  tabByText(page.render(), notificationsCopy.unread).props.onClick();
+  await flush();
+
+  const markRead = buttonByText(page.render(), notificationsCopy.markRead);
+  assert.ok(markRead, 'the unread row offers a mark-read action');
+  markRead.props.onClick();
+  await flush();
+
+  const older = buttonByText(page.render(), 'Load older notifications');
+  assert.ok(older, 'the older control stays available after the write');
+  older.props.onClick();
+  await flush();
+
+  assert.ok(
+    textOf(page.render()).includes('Notification 20'),
+    'the oldest unread row is still rendered after one row was marked read',
+  );
+  assert.equal(calls.getMy[calls.getMy.length - 1].page, 1, 'the next read overlaps the window already shown');
+});
+
+test('a removal keeps already loaded older pages aligned on a longer unread list', async () => {
+  const unreadRows = Array.from({ length: 41 }, (_, index) => inboxRow(index, false));
+  let serverRows = unreadRows.slice();
+  const calls = { getMy: [] };
+  const api = {
+    getMy: async (params) => {
+      calls.getMy.push(params);
+      const offset = (params.page - 1) * params.limit;
+      return {
+        data: serverRows.slice(offset, offset + params.limit),
+        meta: {
+          total: serverRows.length,
+          page: params.page,
+          limit: params.limit,
+          totalPages: Math.max(1, Math.ceil(serverRows.length / params.limit)),
+        },
+      };
+    },
+    unreadCount: async () => serverRows.length,
+    markRead: async (id) => {
+      serverRows = serverRows.filter((row) => row.id !== id);
+    },
+    markAllRead: async () => ({ updated: 0 }),
+  };
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+
+  tabByText(page.render(), notificationsCopy.unread).props.onClick();
+  await flush();
+  buttonByText(page.render(), 'Load older notifications').props.onClick();
+  await flush();
+  assert.equal(calls.getMy[calls.getMy.length - 1].page, 2, 'the second window is loaded');
+
+  buttonByText(page.render(), notificationsCopy.markRead).props.onClick();
+  await flush();
+  buttonByText(page.render(), 'Load older notifications').props.onClick();
+  await flush();
+
+  assert.equal(calls.getMy[calls.getMy.length - 1].page, 2, 'the loaded window is read again');
+  assert.ok(
+    textOf(page.render()).includes('Notification 40'),
+    'the last unread row is still reachable after the write',
+  );
+});
+
+test('refresh forces a fresh unread count', async () => {
+  const rows = Array.from({ length: 20 }, (_, index) => inboxRow(index, index > 1));
+  const calls = { getMy: [], unreadCount: [] };
+  const api = {
+    getMy: async (params) => {
+      calls.getMy.push(params);
+      return {
+        data: rows,
+        meta: { total: 300, page: params.page, limit: params.limit, totalPages: 15 },
+      };
+    },
+    unreadCount: async (options) => {
+      calls.unreadCount.push(options);
+      return 7;
+    },
+    markRead: async () => undefined,
+    markAllRead: async () => ({ updated: 1 }),
+  };
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+  assert.equal(calls.unreadCount.length, 1, 'the first paint reads the count once');
+
+  const refresh = buttonByText(page.render(), notificationsCopy.refresh);
+  assert.ok(refresh, 'the refresh action is rendered');
+  refresh.props.onClick();
+  await flush();
+
+  assert.equal(calls.unreadCount.length, 2, 'refresh reads the count again');
+  assert.deepEqual(calls.unreadCount[1], { force: true }, 'the refreshed count bypasses the shared cache');
+});
+
+test('a failed refresh after a successful mark-all keeps the write success and shows the read error', async () => {
+  const rows = Array.from({ length: 5 }, (_, index) => inboxRow(index, false));
+  let failList = false;
+  let markAllRead;
+  const api = {
+    getMy: async (params) => {
+      if (failList) throw new Error('list read failed');
+      return {
+        data: rows,
+        meta: { total: rows.length, page: params.page, limit: params.limit, totalPages: 1 },
+      };
+    },
+    unreadCount: async () => 5,
+    markRead: async () => undefined,
+    markAllRead: async () => {
+      markAllRead = true;
+      failList = true;
+      return { updated: 1 };
+    },
+  };
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+
+  buttonByText(page.render(), notificationsCopy.markAllRead).props.onClick();
+  await flush();
+
+  const tree = page.render();
+  const text = textOf(tree);
+  const errorState = elements(tree).find(
+    (element) => element.props?.description === notificationsCopy.loadFailed,
+  );
+  assert.equal(markAllRead, true);
+  assert.ok(text.includes('1 notification marked as read.'), 'the committed write is reported as a success');
+  assert.equal(errorState?.props.description, notificationsCopy.loadFailed, 'the failed read is reported as a load error');
+  assert.equal(buttonByText(tree, 'Try again'), undefined, 'no retry is offered for the committed write');
+});
+
 test('load older keeps the small page size and the active read filter', async () => {
   const rows = Array.from({ length: 20 }, (_, index) => inboxRow(index, index > 1));
   const unreadRows = Array.from({ length: 7 }, (_, index) => inboxRow(index, false));
