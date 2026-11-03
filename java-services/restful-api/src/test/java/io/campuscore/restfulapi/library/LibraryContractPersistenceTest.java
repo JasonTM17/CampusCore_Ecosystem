@@ -446,6 +446,40 @@ class LibraryContractPersistenceTest {
     }
 
     @Test
+    void issueRejectsOutOfRangeDueDays() throws Exception {
+        String requestId = requestCopy(borrowerJwt, "copy-1", "lc-period-1");
+        mvc.perform(post("/api/v1/library/staff/requests/" + requestId + "/approve")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        mvc.perform(post("/api/v1/library/staff/requests/" + requestId + "/issue")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":2,\"dueDays\":100000}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("LOAN_PERIOD_INVALID"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM library.\"LoanRequest\" WHERE \"id\" = ?",
+                String.class, requestId)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM library.\"LoanRequest\" WHERE \"id\" = ?",
+                Integer.class, requestId)).isEqualTo(2);
+        assertThat(copyStatus("copy-1")).isEqualTo("RESERVED");
+
+        MvcResult issued = mvc.perform(post("/api/v1/library/staff/requests/" + requestId + "/issue")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":2,\"dueDays\":14}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ISSUED"))
+                .andReturn();
+        Instant dueAt = Instant.parse(objectMapper.readTree(issued.getResponse().getContentAsString())
+                .get("dueAt").asText());
+        assertThat(dueAt).isBetween(Instant.now().plus(13, java.time.temporal.ChronoUnit.DAYS),
+                Instant.now().plus(15, java.time.temporal.ChronoUnit.DAYS));
+    }
+
+    @Test
     void catalogueSearchTreatsLikeWildcardsLiterally() throws Exception {
         jdbc.update("INSERT INTO library.\"Title\" (\"id\", \"title\", \"author\", \"category\")"
                 + " VALUES ('title-pct', '100% Solutions', 'Author P', 'CS')");

@@ -46,6 +46,8 @@ public class EventService {
     static final String AUDIT = "events.\"Audit\"";
     static final String AUTH_USER = "campuscore_auth.\"User\"";
     static final String EVENT_SCOPE = "events";
+    /** One manual attendance submit may not lock the event row for an unbounded roster sweep. */
+    static final int MAX_ATTENDANCE_BATCH = 500;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -479,6 +481,11 @@ public class EventService {
     @Transactional
     public List<RosterEntry> markAttendance(String actorId, String eventId, AttendanceBatchRequest request) {
         requireStaffGrant(actorId);
+        if (request != null && request.marks() != null
+                && request.marks().size() > MAX_ATTENDANCE_BATCH) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_ATTENDANCE_BATCH_TOO_LARGE",
+                    "A single attendance batch may mark at most " + MAX_ATTENDANCE_BATCH + " registrations");
+        }
         Map<String, Object> event = lockEvent(eventId);
         requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         String status = String.valueOf(event.get("status"));
