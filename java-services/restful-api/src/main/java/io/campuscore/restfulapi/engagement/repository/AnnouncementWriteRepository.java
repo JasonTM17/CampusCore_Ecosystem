@@ -92,13 +92,13 @@ public class AnnouncementWriteRepository {
         addInstant(assignments, binders, "publishAt", command.publishAt());
         addInstant(assignments, binders, "expiresAt", command.expiresAt());
         addString(assignments, binders, "semesterId", command.semesterId());
-        clearString(assignments, binders, command.semesterId(), "semesterName");
+        clearStringOnChange(assignments, binders, command.semesterId(), "semesterId", "semesterName");
         addString(assignments, binders, "sectionId", command.sectionId());
-        clearString(assignments, binders, command.sectionId(), "sectionNumber");
-        clearString(assignments, binders, command.sectionId(), "courseCode");
-        clearString(assignments, binders, command.sectionId(), "courseName");
+        clearStringOnChange(assignments, binders, command.sectionId(), "sectionId", "sectionNumber");
+        clearStringOnChange(assignments, binders, command.sectionId(), "sectionId", "courseCode");
+        clearStringOnChange(assignments, binders, command.sectionId(), "sectionId", "courseName");
         addString(assignments, binders, "lecturerId", command.lecturerId());
-        clearString(assignments, binders, command.lecturerId(), "lecturerDisplayName");
+        clearStringOnChange(assignments, binders, command.lecturerId(), "lecturerId", "lecturerDisplayName");
         assignments.add("\"version\" = \"version\" + 1");
         assignments.add("\"updatedAt\" = ?");
         binders.add((statement, index, ignored) -> timestamp(statement, index, command.updatedAt()));
@@ -372,14 +372,29 @@ public class AnnouncementWriteRepository {
         }
     }
 
-    private static void clearString(
+    /**
+     * A derived display column is refreshed only when its owner id actually
+     * changes: the editors re-send unchanged ids on every save, and clearing
+     * on presence alone would wipe names the write path never repopulates.
+     * The comparison reads the pre-update column value, so an unchanged id
+     * keeps the stored name while a changed or cleared id drops it.
+     */
+    private static void clearStringOnChange(
             List<String> assignments,
             List<SqlBinder> binders,
             PatchValue<String> ownerValue,
+            String ownerColumn,
             String column) {
         if (ownerValue.present()) {
-            assignments.add("\"" + column + "\" = ?");
-            binders.add((statement, index, ignored) -> statement.setNull(index, Types.VARCHAR));
+            assignments.add("\"" + column + "\" = CASE WHEN \"" + ownerColumn
+                    + "\" IS DISTINCT FROM ? THEN NULL ELSE \"" + column + "\" END");
+            binders.add((statement, index, ignored) -> {
+                if (ownerValue.value() == null) {
+                    statement.setNull(index, Types.VARCHAR);
+                } else {
+                    statement.setString(index, ownerValue.value());
+                }
+            });
         }
     }
 

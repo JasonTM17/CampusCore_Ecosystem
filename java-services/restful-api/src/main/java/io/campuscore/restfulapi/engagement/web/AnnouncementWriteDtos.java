@@ -94,9 +94,16 @@ public final class AnnouncementWriteDtos {
         public static UpdateAnnouncementRequest from(JsonNode body) {
             ObjectNode object = objectBody(body);
             Set<String> presentFields = presentAllowedFields(object, true);
+            String title = stringValue(object, "title", false);
+            if (title != null && title.isBlank()) {
+                throw new IllegalArgumentException("title is required");
+            }
+            if (title != null && title.codePointCount(0, title.length()) > 240) {
+                throw new IllegalArgumentException("title must contain at most 240 characters");
+            }
             return new UpdateAnnouncementRequest(
                     Collections.unmodifiableSet(presentFields),
-                    stringValue(object, "title", false),
+                    title,
                     stringValue(object, "content", false),
                     stringValue(object, "priority", false),
                     listValue(object, "targetRoles"),
