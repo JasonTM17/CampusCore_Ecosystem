@@ -111,7 +111,7 @@ export interface paths {
   "/api/v1/admin/registration/credit-limit-applications": {
     /**
      * Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)
-     * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt
+     * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất
      */
     get: operations["creditLimitApplications"];
   };
@@ -5628,18 +5628,26 @@ export interface operations {
   };
   /**
    * Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)
-   * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt
+   * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất
    */
   creditLimitApplications: {
     parameters: {
       query?: {
         /** @description Trạng thái đơn (PENDING, APPROVED, REJECTED) */
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
       /** @description Lấy danh sách đơn thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["Response"][];
         };
@@ -11691,6 +11699,12 @@ export interface operations {
    * @description Quản trị viên gửi thông báo đến một hoặc nhiều người dùng
    */
   create_1: {
+    parameters: {
+      header?: {
+        /** @description Khóa chống trùng lặp Idempotency */
+        "Idempotency-Key"?: string;
+      };
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["JsonNode"];
@@ -11701,6 +11715,12 @@ export interface operations {
       201: {
         content: {
           "*/*": components["schemas"]["NotificationResponse"];
+        };
+      };
+      /** @description Idempotency-Key được tái sử dụng với nội dung khác */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
