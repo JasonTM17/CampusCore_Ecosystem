@@ -11,9 +11,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.notification.service.NotificationWriteService;
+import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.CreateNotificationRequest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +34,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
@@ -34,7 +43,7 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
         "spring.flyway.enabled=false",
-        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
+        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=500"
 })
 class NotificationWritePersistenceTest {
 
@@ -49,6 +58,12 @@ class NotificationWritePersistenceTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private NotificationWriteService notificationWrites;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void prepareWriteFixture() {
@@ -601,6 +616,86 @@ class NotificationWritePersistenceTest {
         assertThat(textValue("target", "type")).isEqualTo("INFO");
     }
 
+    @Test
+    void adminCreateKeepsActorAndKeyBoundariesInTheDerivedId() throws Exception {
+        MvcResult first = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt("admin-a"))
+                        .header("Idempotency-Key", "b:c")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("First title", "First message", "/dashboard/grades", STUDENT)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult second = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt("admin-a:b"))
+                        .header("Idempotency-Key", "c")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Second title", "Second message", "/dashboard/grades", STUDENT)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat(idOf(second)).isNotEqualTo(idOf(first));
+        assertThat(totalRows()).isEqualTo(2);
+        assertThat(auditRows()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentIdempotentCreateAnswersAReplayInsteadOfFailingTheSecondRequest() throws Exception {
+        CreateNotificationRequest request = new CreateNotificationRequest(
+                STUDENT, "Grade published", "Your course grade is now available.", "INFO", "/dashboard/grades");
+        String key = "concurrent-replay-key";
+        RequestPostProcessor admin = adminJwt();
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch winnerInserted = new CountDownLatch(1);
+        CountDownLatch releaseWinner = new CountDownLatch(1);
+        try {
+            Future<String> winner = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                String id = notificationWrites.create(request, "admin-user", key).id();
+                winnerInserted.countDown();
+                await(releaseWinner);
+                return id;
+            }));
+            assertThat(winnerInserted.await(10, TimeUnit.SECONDS)).isTrue();
+
+            Future<MvcResult> replay = pool.submit(() -> mvc.perform(post("/api/v1/notifications")
+                            .with(admin)
+                            .header("Idempotency-Key", key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createBody("Grade published", "Your course grade is now available.",
+                                    "/dashboard/grades", STUDENT)))
+                    .andReturn());
+            // The winner holds the row past the second insert's lock timeout;
+            // the replay then waits for the commit and observes the row.
+            Thread.sleep(1_500);
+            releaseWinner.countDown();
+
+            MvcResult replayResult = replay.get(15, TimeUnit.SECONDS);
+            assertThat(replayResult.getResponse().getStatus()).isEqualTo(201);
+            assertThat(idOf(replayResult)).isEqualTo(winner.get(15, TimeUnit.SECONDS));
+            assertThat(totalRows()).isEqualTo(1);
+            assertThat(auditRows()).isEqualTo(1);
+        } finally {
+            releaseWinner.countDown();
+            pool.shutdownNow();
+            pool.awaitTermination(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(15, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("race barrier timeout");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted at race barrier", interrupted);
+        }
+    }
+
+    private String idOf(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+    }
+
     private static String createBody(String title, String message, String link, String userId) {
         return "{\"userId\":\"" + userId + "\",\"title\":\"" + title
                 + "\",\"message\":\"" + message + "\",\"type\":\"INFO\",\"link\":\"" + link + "\"}";
@@ -675,8 +770,12 @@ class NotificationWritePersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return fixtureJwt(jdbc, "admin-user", token -> token
-                        .subject("admin-user")
+        return adminJwt("admin-user");
+    }
+
+    private RequestPostProcessor adminJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
+                        .subject(subject)
                         .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }

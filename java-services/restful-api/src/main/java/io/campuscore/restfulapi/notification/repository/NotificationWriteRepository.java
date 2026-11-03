@@ -11,8 +11,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -107,22 +111,48 @@ public class NotificationWriteRepository {
     @Transactional
     public Optional<NotificationResponse> createIfAbsent(CreateNotificationCommand command) {
         // ON CONFLICT keeps a racing duplicate's transaction valid on
-        // PostgreSQL; the non-PostgreSQL mirror raises a duplicate-key error
-        // that only aborts its own statement.
-        String insert = INSERT_SQL + (isPostgres() ? " ON CONFLICT (id) DO NOTHING" : "");
-        int inserted;
+        // PostgreSQL. The non-PostgreSQL mirror reports the same race as a
+        // duplicate key, or as a lock timeout while the winner is still
+        // uncommitted; both mean the committed row is the answer.
+        boolean postgres = isPostgres();
+        String insert = INSERT_SQL + (postgres ? " ON CONFLICT (id) DO NOTHING" : "");
         try {
-            inserted = jdbc.update(insert, insertParameters(command));
-        } catch (org.springframework.dao.DuplicateKeyException duplicate) {
-            inserted = 0;
-        }
-        if (inserted == 0) {
+            if (jdbc.update(insert, insertParameters(command)) == 0) {
+                return Optional.empty();
+            }
+        } catch (DuplicateKeyException duplicate) {
+            return Optional.empty();
+        } catch (QueryTimeoutException | PessimisticLockingFailureException locked) {
+            if (postgres) {
+                throw locked;
+            }
+            awaitCommitted(command.id());
             return Optional.empty();
         }
         if (deliveryOutbox != null) {
             deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
         }
         return findById(command.id());
+    }
+
+    /**
+     * A non-PostgreSQL winner may still be uncommitted when the racing insert
+     * hits its lock timeout; wait briefly for the committed row instead of
+     * turning a legitimate replay into a failure.
+     */
+    private void awaitCommitted(String id) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (findById(id).isPresent()) {
+                return;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     private boolean isPostgres() {
