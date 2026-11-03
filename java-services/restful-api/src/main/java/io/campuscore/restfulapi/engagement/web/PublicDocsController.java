@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -38,6 +39,7 @@ public class PublicDocsController {
         this.documents = documents;
     }
 
+    @SecurityRequirements
     @Operation(summary = "Danh mục tài liệu công khai", description = "Liệt kê tài liệu đã xuất bản, hỗ trợ tìm kiếm VI/EN không dấu, lọc theo chuyên mục và thẻ")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn danh mục thành công")
@@ -56,6 +58,7 @@ public class PublicDocsController {
         return documents.findPublic(page, limit, normalize(search), normalize(category), normalize(tag));
     }
 
+    @SecurityRequirements
     @Operation(summary = "Tài liệu công khai theo slug", description = "Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn tài liệu thành công"),
@@ -69,6 +72,7 @@ public class PublicDocsController {
         return documents.findPublicBySlug(slug);
     }
 
+    @SecurityRequirements
     @Operation(summary = "Tài liệu công khai theo slug và revision", description = "Permalink phiên bản — chỉ phục vụ revision đã xuất bản hoặc cũ hơn; revision mới hơn publishedRevision trả 404")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn revision thành công"),
@@ -83,6 +87,7 @@ public class PublicDocsController {
         return documents.findPublicRevision(slug, revision);
     }
 
+    @SecurityRequirements
     @Operation(summary = "Tệp đính kèm tài liệu công khai", description = "Metadata tệp đính kèm — chỉ phục vụ khi tài liệu đang xuất bản và tệp được đánh dấu công khai")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn tệp đính kèm thành công"),

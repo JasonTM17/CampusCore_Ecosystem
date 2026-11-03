@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.identity.bff;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.campuscore.restfulapi.identity.IdentityProperties;
 import io.campuscore.restfulapi.identity.IdentityProperties.Surface;
 import io.campuscore.restfulapi.identity.bff.BffSessionService.ResolvedSession;
@@ -125,6 +127,7 @@ public class BffApiProxyController {
         }
     }
 
+    @SecurityRequirements
     @RequestMapping("/bff/api/**")
     public ResponseEntity<byte[]> proxy(HttpServletRequest request,
             HttpServletResponse response) throws IOException {

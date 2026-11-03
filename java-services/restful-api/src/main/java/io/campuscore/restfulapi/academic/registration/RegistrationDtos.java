@@ -9,6 +9,7 @@ public final class RegistrationDtos {
     private RegistrationDtos() {
     }
 
+    @Schema(name = "RegistrationRoundResponse")
     public record RoundResponse(
             String id,
             String semesterId,

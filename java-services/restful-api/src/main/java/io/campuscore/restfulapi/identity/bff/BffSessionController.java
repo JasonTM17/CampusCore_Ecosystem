@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.identity.bff;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.campuscore.restfulapi.identity.IdentityProperties;
 import io.campuscore.restfulapi.identity.IdentityProperties.Surface;
 import io.campuscore.restfulapi.identity.bff.BffSessionService.CallbackResult;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 
 /**
  * Browser-facing session endpoints (host-policy §3). Every response is
@@ -61,6 +63,7 @@ public class BffSessionController {
         this.sessions = sessions;
     }
 
+    @SecurityRequirements
     @ApiResponses({
             @ApiResponse(responseCode = "302", description = "Redirects the browser to the identity provider.")
     })
@@ -85,6 +88,7 @@ public class BffSessionController {
                 .build();
     }
 
+    @SecurityRequirements
     @ApiResponses({
             @ApiResponse(responseCode = "302", description = "Redirects the browser to the configured surface.")
     })
@@ -134,6 +138,7 @@ public class BffSessionController {
      * shadow the logged-out state. Minimal HTML by design; surfaces may
      * layer richer styling later without touching this contract.
      */
+    @SecurityRequirements
     @GetMapping("/logged-out")
     public ResponseEntity<String> loggedOut(HttpServletRequest request,
             HttpServletResponse response) {
@@ -147,6 +152,7 @@ public class BffSessionController {
                         + "</body></html>");
     }
 
+    @SecurityRequirements
     @GetMapping("/state")
     public ResponseEntity<Map<String, Object>> state(HttpServletRequest request,
             HttpServletResponse response) {
@@ -175,6 +181,7 @@ public class BffSessionController {
         return ResponseEntity.ok(body);
     }
 
+    @SecurityRequirements
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request,
             HttpServletResponse response) {

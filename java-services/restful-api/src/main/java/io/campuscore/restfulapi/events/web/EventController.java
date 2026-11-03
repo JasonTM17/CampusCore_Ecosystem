@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -46,9 +47,12 @@ public class EventController {
     }
 
     @Operation(summary = "Danh sách sự kiện đã công bố")
-    @ApiResponse(responseCode = "200", description = "Danh sách sự kiện", headers = @Header(
-            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
-            schema = @Schema(type = "integer")))
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Danh sách sự kiện", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer"))),
+        @ApiResponse(responseCode = "400", description = "Lỗi phân trang: limit là bắt buộc khi có page")
+    })
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EventResponse>> list(

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.learning.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -65,6 +66,7 @@ public final class LearningDtos {
             String checksum, String textBody, Instant submittedAt) {
     }
 
+    @Schema(name = "LearningFeedbackResponse")
     public record FeedbackResponse(
             String id, String submissionId, String revisionId,
             String authorId, String comment, Double score, Instant createdAt) {

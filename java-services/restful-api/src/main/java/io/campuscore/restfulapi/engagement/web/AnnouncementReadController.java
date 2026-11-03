@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Role-aware announcement query routes for the course portal. */
@@ -47,6 +48,7 @@ public class AnnouncementReadController {
      * PUBLISHED, globally visible, unexpired announcements — no identity is
      * required and no audience-scoping metadata is exposed.
      */
+    @SecurityRequirements
     @Operation(summary = "Bản tin công khai cho khách truy cập (không cần đăng nhập)", description = "Danh sách thông báo đã xuất bản, công khai toàn trường và còn trong thời hạn hiển thị, dùng cho trang chủ")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn bản tin công khai thành công")
@@ -92,6 +94,7 @@ public class AnnouncementReadController {
      * public feed links to. Non-public or unknown keys 404 identically so no
      * existence oracle is exposed.
      */
+    @SecurityRequirements
     @Operation(summary = "Bản tin công khai chi tiết theo id hoặc slug", description = "Nội dung công khai của một bản tin đã xuất bản, dùng cho permalink trang news công khai")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn chi tiết công khai thành công"),

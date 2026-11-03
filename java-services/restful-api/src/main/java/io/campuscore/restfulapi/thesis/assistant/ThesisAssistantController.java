@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatRequest;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatResponse;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.FeedbackRequest;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -693,7 +695,8 @@ public class ThesisAssistantController {
 
     @Operation(summary = "Danh sách phiên hội thoại của người dùng", description = "Truy vấn danh sách các cuộc trò chuyện trước đây kèm con trỏ phân trang")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lấy danh sách phiên hội thoại thành công")
+        @ApiResponse(responseCode = "200", description = "Lấy danh sách phiên hội thoại thành công", headers = @Header(
+                name = "X-Next-Cursor", description = "Cursor for the next page", schema = @Schema(type = "string")))
     })
     @GetMapping("/conversations")
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
@@ -741,7 +744,8 @@ public class ThesisAssistantController {
 
     @Operation(summary = "Lấy lịch sử tin nhắn trong phiên hội thoại", description = "Truy xuất danh sách tin nhắn hỏi và đáp theo thứ tự thời gian")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lấy lịch sử tin nhắn thành công")
+        @ApiResponse(responseCode = "200", description = "Lấy lịch sử tin nhắn thành công", headers = @Header(
+                name = "X-Next-Cursor", description = "Cursor for the next page", schema = @Schema(type = "string")))
     })
     @GetMapping("/conversations/{id}/messages")
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
@@ -931,6 +935,7 @@ public class ThesisAssistantController {
         public String type() { return "error"; }
     }
     public record CancelResponse(UUID clientRequestId, String status) { }
+    @Schema(name = "FeedbackResponse")
     public record FeedbackResponse(UUID messageId, String rating, String reason, boolean removed) { }
     public record CreateConversationRequest(String locale, String scope) { }
     public record ConversationCreated(String id, String locale) { }
