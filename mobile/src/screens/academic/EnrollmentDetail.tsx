@@ -11,6 +11,7 @@ import {
 } from './academic-model';
 import { SlipRow } from './SlipRow';
 import { academicStyles, useAcademicCopy } from './academic-ui';
+import { isPublishedGrade } from './gpa';
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -30,7 +31,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
   const { copy, locale } = useAcademicCopy();
   const { formatDate, formatNumber } = useLocale();
   const section = enrollment.section;
-  const published = enrollment.gradeStatus === 'PUBLISHED';
+  const published = isPublishedGrade(enrollment);
   const lecturer = lecturerName(section);
   const grade = published && enrollment.finalGrade != null
     ? `${formatNumber(enrollment.finalGrade, { maximumFractionDigits: 2 })}${enrollment.letterGrade ? ` · ${enrollment.letterGrade}` : ''}`
@@ -46,6 +47,9 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
             <StatusPill label={enrollmentCourseCode(enrollment)} tone="primary" />
             <UiText accessibilityRole="header" variant="headlineSmall">{enrollmentCourseName(enrollment, locale)}</UiText>
             <StatusPill label={copy.status[enrollment.status] ?? enrollment.status} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
+            {enrollment.gradeStatus === 'APPEALED' ? (
+              <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
+            ) : null}
           </View>
         </View>
         <ScreenSpacer size={8} />

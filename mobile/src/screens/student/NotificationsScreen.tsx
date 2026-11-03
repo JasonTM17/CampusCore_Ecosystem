@@ -66,7 +66,13 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
   });
   // The unread page is a PagedResult; its count must never share that cache key.
   const unread = useContentQuery<number>('content.notifications.unread-count', () => contentApi.unreadCount());
-  const unreadTotal = apiClient.mode === 'live' ? unread.data ?? countUnread(list.items) : countUnread(preview);
+  const loadedUnread = countUnread(list.items);
+  const unreadTotal = apiClient.mode === 'live'
+    ? (unread.data ?? (list.hasMore ? `${loadedUnread}+` : loadedUnread))
+    : countUnread(preview);
+  const hasUnread = apiClient.mode === 'live'
+    ? (unread.data != null ? unread.data > 0 : (loadedUnread > 0 || list.hasMore))
+    : countUnread(preview) > 0;
   const offline = apiClient.mode === 'live' && list.errorStatus === 0;
   const cacheScope = { locale, roleLane: session?.role ?? role, grants: session?.capabilities ?? [] };
   const identity = JSON.stringify([session?.accountId, locale, session?.role ?? role, cacheScope.grants, session?.epoch, tab]);
@@ -176,7 +182,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
                 label={copy.markAllRead}
                 variant="secondary"
                 loading={busy}
-                disabled={busy || offline || list.preview || unreadTotal === 0}
+                disabled={busy || offline || list.preview || !hasUnread}
                 onPress={markAll}
               />
             </View>

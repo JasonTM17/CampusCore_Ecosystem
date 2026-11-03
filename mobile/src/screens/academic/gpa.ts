@@ -81,7 +81,7 @@ export function resolveGradePoint(record: GradeRecordLike): number | null {
 }
 
 export function isPublishedGrade(record: GradeRecordLike): boolean {
-  return record.gradeStatus === 'PUBLISHED';
+  return record.gradeStatus === 'PUBLISHED' || record.gradeStatus === 'APPEALED';
 }
 
 export function publishedOnly<T extends GradeRecordLike>(records: readonly T[]): T[] {
