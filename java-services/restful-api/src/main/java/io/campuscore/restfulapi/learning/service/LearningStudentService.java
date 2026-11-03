@@ -270,6 +270,7 @@ public class LearningStudentService {
                 ? staff.storeFile(studentId, submissionId, request.fileName(),
                         request.contentType(), request.contentBase64(), request.checksum())
                 : null;
+        String replacedDraftFileKey = stored == null ? null : (String) submission.get("draftFileKey");
         jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"draftText\" = COALESCE(:text, \"draftText\"),"
                         + " \"draftFileKey\" = COALESCE(:fileKey, \"draftFileKey\"),"
@@ -286,6 +287,7 @@ public class LearningStudentService {
                         .addValue("contentType", stored == null ? null : stored.get("contentType"))
                         .addValue("sizeBytes", stored == null ? null : stored.get("sizeBytes"))
                         .addValue("checksum", stored == null ? null : stored.get("checksum")));
+        staff.deleteFileIfUnreferenced(replacedDraftFileKey);
         return LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
     }
 
@@ -441,7 +443,11 @@ public class LearningStudentService {
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
         }
-        if (!"PUBLISHED".equals(String.valueOf(assignment.get("status")))) {
+        String status = String.valueOf(assignment.get("status"));
+        if ("DRAFT".equals(status)) {
+            throw problem(HttpStatus.NOT_FOUND, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
+        }
+        if (!"PUBLISHED".equals(status)) {
             throw problem(HttpStatus.CONFLICT, "ASSIGNMENT_NOT_OPEN",
                     "This assignment is not open for submissions");
         }
