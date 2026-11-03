@@ -3,6 +3,7 @@ set -euo pipefail
 umask 077
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/child-tools.sh"
 repo_root="$(cd "$script_dir/../.." && pwd)"
 project="${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME to the running local Compose project.}"
 compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.yml}"
@@ -56,19 +57,22 @@ staged_archive="$staging/$(basename "$archive")"
 staged_reports="$staging/$(basename "$reports_archive")"
 staged_checksum="$staging/$(basename "$checksum")"
 
-docker compose -p "$project" -f "$compose_file" exec -T postgres \
+run_child_phase 'Database dump' docker compose -p "$project" -f "$compose_file" exec -T postgres \
   pg_dump --format=custom --no-owner --no-privileges --username "$db_user" --dbname "$db_name" > "$staged_archive"
 
-docker compose -p "$project" -f "$compose_file" exec -T restful-api sh -ceu \
+run_child_phase 'Thesis report archive creation' \
+  docker compose -p "$project" -f "$compose_file" exec -T restful-api sh -ceu \
   'test "${THESIS_REPORT_STORAGE_PROVIDER:-local}" = local && test -n "${THESIS_REPORT_STORAGE_LOCAL_ROOT:-}" && exec tar -C "$THESIS_REPORT_STORAGE_LOCAL_ROOT" -cf - .' > "$staged_reports"
 
-toc="$(docker compose -p "$project" -f "$compose_file" exec -T postgres pg_restore --list < "$staged_archive")"
+toc="$(run_child_phase 'Database archive inspection' \
+  docker compose -p "$project" -f "$compose_file" exec -T postgres pg_restore --list < "$staged_archive")"
 if ! grep -Eq 'TABLE DATA[[:space:]]+thesis[[:space:]]+flyway_schema_history([[:space:]]|$)' <<< "$toc"; then
   echo 'Backup archive does not contain the application Flyway history table.' >&2
   exit 1
 fi
 
-docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tf - < "$staged_reports" >/dev/null
+run_child_phase 'Thesis report archive readability check' \
+  docker compose -p "$project" -f "$compose_file" exec -T restful-api tar -tf - < "$staged_reports" >/dev/null
 
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "$staging" && sha256sum "$(basename "$staged_archive")" "$(basename "$staged_reports")") > "$staged_checksum"
