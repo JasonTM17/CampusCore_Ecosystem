@@ -1019,6 +1019,146 @@ test('editor publish ignores a re-entrant invocation while a publish is in fligh
   assert.equal(creates, 0, 'a publish already flagged in flight must not create a duplicate');
 });
 
+test('editor publish submits a new notice for review instead of claiming publication', async () => {
+  const calls = [];
+  const toasts = [];
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: {
+      notifications: {
+        announcementPublished: 'Announcement successfully published to campus feed!',
+        announcementSubmitFailed: 'Could not submit the announcement for review.',
+        titleRequired: 'Title required',
+      },
+    },
+    messages: {
+      content: {
+        lifecycle: {
+          submitted: 'Draft submitted for review.',
+          approved: 'Announcement published.',
+        },
+      },
+    },
+    announcementsApi: {
+      create: async (payload) => {
+        calls.push(['create', payload]);
+        return { id: 'notice-1', status: 'DRAFT' };
+      },
+      submit: async (id) => {
+        calls.push(['submit', id]);
+        return { id, status: 'IN_REVIEW' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT', 'LECTURER', 'ADMIN'] }),
+    clearPersistedDraft: () => calls.push(['clear']),
+    fetchPublishedNotices: () => calls.push(['refresh']),
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+
+  assert.deepEqual(calls.map(([kind]) => kind), ['create', 'submit', 'clear', 'refresh']);
+  assert.equal(calls[1][1], 'notice-1', 'the draft the server created is the one submitted');
+  assert.deepEqual(
+    toasts,
+    ['Draft submitted for review.'],
+    'a new draft is authored by the caller, so the server can only have queued it for review',
+  );
+});
+
+test('editor publish reports publication only after the server confirms PUBLISHED', async () => {
+  const toasts = [];
+  let submitted = 0;
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: {
+      notifications: {
+        announcementPublished: 'Announcement successfully published to campus feed!',
+        announcementSubmitFailed: 'Could not submit the announcement for review.',
+        titleRequired: 'Title required',
+      },
+    },
+    messages: {
+      content: {
+        lifecycle: {
+          submitted: 'Draft submitted for review.',
+          approved: 'Announcement published.',
+        },
+      },
+    },
+    announcementsApi: {
+      create: async () => ({ id: 'notice-2', status: 'DRAFT' }),
+      submit: async (id) => {
+        submitted += 1;
+        return { id, status: 'PUBLISHED' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT', 'LECTURER', 'ADMIN'] }),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+
+  assert.equal(submitted, 1, 'the draft is sent to the workflow');
+  assert.deepEqual(
+    toasts,
+    ['Announcement successfully published to campus feed!'],
+    'the published copy is allowed only after the server state says PUBLISHED',
+  );
+});
+
+test('the editor live list reads only published notices', async () => {
+  const requests = [];
+  let notices = [];
+  const fetchNotices = pageFunction('app/dashboard/editor/page.tsx', 'fetchPublishedNotices', {
+    announcementsApi: {
+      getAll: async (params) => {
+        requests.push(params);
+        return { data: [{ id: 'published-1' }] };
+      },
+    },
+    siteAppearance: { postOrder: [] },
+    orderByIds: (items) => items,
+    setLoadingNotices: () => {},
+    setPublishedNotices: (value) => {
+      notices = value;
+    },
+    setHasUnsavedNoticeOrder: () => {},
+    setNoticesLoadError: () => {},
+  });
+
+  await fetchNotices();
+
+  assert.deepEqual(requests, [{ page: 1, limit: 15, status: 'PUBLISHED' }]);
+  assert.deepEqual(notices, [{ id: 'published-1' }]);
+});
+
 test('editor update ignores a re-entrant invocation while an update is in flight', async () => {
   let updates = 0;
   const update = pageFunction('app/dashboard/editor/page.tsx', 'handleUpdateAnnouncement', {

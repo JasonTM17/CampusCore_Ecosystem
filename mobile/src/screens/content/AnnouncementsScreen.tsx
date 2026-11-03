@@ -9,7 +9,7 @@ import { tokens } from '../../design/tokens';
 import { recordsMessages } from '../../i18n/records-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from './content-api';
-import { filterByPriority, joinMeta } from './content-rules';
+import { filterByPriority, joinMeta, publisherName } from './content-rules';
 import { ContentIconChip, ListFrame, StatusChip, useContentCopy } from './content-ui';
 import { previewAnnouncements } from './preview-data';
 import { htmlToPlainText } from './rich-text';
@@ -66,7 +66,7 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
               <View style={styles.meta}>
                 <StatusChip code={item.priority} labels={copy.priorityLabels} />
                 <UiText variant="meta" tone="muted">
-                  {joinMeta([item.publishAt ? formatDateTime(item.publishAt) : null, item.lecturerDisplayName ?? item.publishedBy])}
+                  {joinMeta([item.publishAt ? formatDateTime(item.publishAt) : null, publisherName(item.lecturerDisplayName, item.publishedBy)])}
                 </UiText>
               </View>
               {expanded ? <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(item.content ?? item.summary)}</UiText> : null}
