@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptsDirectory, '..');
 const browserDiagnostics = [
   'diagnose-login.mjs',
   'benchmark-all-roles.mjs',
@@ -136,6 +137,39 @@ test('login diagnostic writes screenshots only under the ignored artifact tree',
   const source = readScript('diagnose-login.mjs');
   assert.ok(source.includes('artifacts/verification/diagnostics/'), 'screenshot output must stay under artifacts');
   assert.ok(!source.includes('scripts/dashboard-rendered.png'), 'screenshot output must not dirty scripts');
+});
+
+test('login diagnostic exits non-zero when the login journey fails', (t) => {
+  const fixture = mkdtempSync(join(repoRoot, '.test-diagnose-login-'));
+  t.after(() => rmSync(fixture, { recursive: true, force: true }));
+  const preload = join(fixture, 'preload.mjs');
+  writeFileSync(preload, `
+import Module from 'node:module';
+const page = {
+  on() {},
+  async goto() {},
+  async waitForSelector() { throw new Error('stubbed missing submit button'); },
+};
+const context = { async route() {}, async newPage() { return page; } };
+const stub = { chromium: { async launch() { return { async newContext() { return context; }, async close() {} }; } } };
+const original = Module._load;
+Module._load = function (request, ...rest) {
+  if (request === 'playwright') return stub;
+  return original.apply(this, [request, ...rest]);
+};
+`, 'utf8');
+  const env = {
+    ...process.env,
+    CAMPUS_DIAGNOSTIC_STUDENT_EMAIL: 'probe@example.invalid',
+    CAMPUS_DIAGNOSTIC_STUDENT_PASSWORD: 'diagnostic-probe-password',
+  };
+  const result = spawnSync(process.execPath, [
+    '--import', pathToFileURL(preload).href,
+    resolve(scriptsDirectory, 'diagnose-login.mjs'),
+    '--target', 'http://127.0.0.1:3000',
+  ], { encoding: 'utf8', timeout: 15000, env });
+  assert.equal(result.status, 1, `a failed login journey must exit non-zero\n${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /Browser diagnostic failed/);
 });
 
 test('Java container health reports unauthenticated liveness only', () => {
