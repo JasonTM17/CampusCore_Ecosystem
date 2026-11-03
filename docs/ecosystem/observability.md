@@ -236,7 +236,7 @@ flowchart TD
 
 - Trên một hosted platform có chế độ sleep theo thời gian nhàn rỗi (ví dụ Render free-tier), thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây. Local-first stack hiện tại không có cold start kiểu này.
 - **Client-side Absorption**: Interceptor axios của frontend tự động retry một lần (với 3s backoff) đối với các request GET idempotent khi nhận mã 502/503/504 từ gateway trong quá trình cold start.
-- **Warm Ping Mitigation**: migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` là di sản của mô hình host cũ (ping định kỳ 10 phút qua `pg_cron` + `pg_net` để giữ container không bị sleep). Không dùng cho stack local-first và không còn runbook vận hành tương ứng trong repo này.
+- **Warm Ping Mitigation**: migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` là di sản của mô hình host cũ (ping định kỳ 10 phút qua `pg_cron` + `pg_net` để giữ container không bị sleep). Host Render đã ngừng sử dụng nên migration này không còn lập lịch gì; migration kế tiếp `supabase/migrations/20261103000000_unschedule_render_keepalive_warm_ping.sql` gỡ job `render_keepalive_warm_ping` nếu job còn tồn tại. Không dùng cho stack local-first và không còn runbook vận hành tương ứng trong repo này.
 
 ---
 
