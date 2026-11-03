@@ -146,6 +146,7 @@ jobs:
             scripts/ecosystem-doc-index.test.mjs \
             scripts/ecosystem-verify-shared.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
+            scripts/image-reference-policy.test.mjs \
             scripts/local-dev.test.mjs \
             scripts/locale-keys.test.mjs \
             scripts/mobile-local-oidc-verify.test.mjs \
