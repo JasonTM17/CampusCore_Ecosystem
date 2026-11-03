@@ -17,6 +17,7 @@ public final class AcademicSectionReadDtos {
     public record SectionListResponse(List<SectionResponse> data, PageMeta meta) {
     }
 
+    @Schema(name = "SectionDepartmentSummary")
     public record DepartmentSummary(
             String id,
             String code,

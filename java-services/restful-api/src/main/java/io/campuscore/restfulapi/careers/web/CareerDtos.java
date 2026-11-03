@@ -57,6 +57,7 @@ public final class CareerDtos {
             String salaryText) {
     }
 
+    @Schema(name = "CareerTransitionRequest")
     public record TransitionRequest(Integer expectedVersion, String reason) {
     }
 
