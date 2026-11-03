@@ -76,6 +76,7 @@ export default function AdminAppearancePage() {
   // ref so reloads and load-more stay on the same term.
   const catalogSearchRef = useRef('');
   const [postsLoadFailed, setPostsLoadFailed] = useState(false);
+  const [pinsLoadFailed, setPinsLoadFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [savedLocally, setSavedLocally] = useState(false);
@@ -104,8 +105,10 @@ export default function AdminAppearancePage() {
     setIsLoading(true);
     setError('');
     setPostsLoadFailed(false);
+    setPinsLoadFailed(false);
 
     let postsFailed = false;
+    let pinsFailed = false;
     try {
       const [snapshot, firstPage] = await Promise.all([
         fetchSiteAppearanceSnapshot(),
@@ -116,7 +119,9 @@ export default function AdminAppearancePage() {
       ]);
       const appearance = sanitizeSiteAppearance(snapshot.appearance);
       const pinned = await fetchPinnedAnnouncementRows(appearance.postOrder).catch(() => {
-        postsFailed = true;
+        // The catalog page is still usable without the off-page pins; only the
+        // fatal state is reserved for a failed catalog read.
+        pinsFailed = true;
         return [] as AnnouncementRow[];
       });
       setPosts(firstPage?.data ?? []);
@@ -124,6 +129,7 @@ export default function AdminAppearancePage() {
       setPostsTotalPages(firstPage?.meta.totalPages ?? 0);
       setPinnedPosts(pinned);
       setPostsLoadFailed(postsFailed);
+      setPinsLoadFailed(pinsFailed);
       updateDraft(appearance);
       storedVersionRef.current = snapshot.expectedVersion;
       staleConflictRef.current = false;
@@ -149,6 +155,10 @@ export default function AdminAppearancePage() {
     }
     const handle = window.setTimeout(() => {
       catalogSearchRef.current = postSearch;
+      // The loaded pager belongs to the previous term; hide Load more until
+      // this term's first page arrives so it cannot request a skipped page.
+      setPostsPage(1);
+      setPostsTotalPages(0);
       void fetchPinOptionPage(1, postSearch)
         .then((result) => {
           setPosts(result.data);
@@ -166,8 +176,14 @@ export default function AdminAppearancePage() {
       return;
     }
     setIsLoadingMorePosts(true);
+    const term = catalogSearchRef.current;
     try {
-      const next = await fetchPinOptionPage(postsPage + 1, catalogSearchRef.current);
+      const next = await fetchPinOptionPage(postsPage + 1, term);
+      // A newer search has painted since this read started; its rows no longer
+      // belong to the list on screen.
+      if (catalogSearchRef.current !== term) {
+        return;
+      }
       setPosts((current) => {
         const seen = new Set(current.map((row) => row.id));
         return [...current, ...next.data.filter((row) => !seen.has(row.id))];
@@ -239,23 +255,24 @@ export default function AdminAppearancePage() {
   }, [copy.saveFailed, copy.saveNotDurable, updateDraft]);
 
   const orderedPosts = useMemo(() => {
-    const rank = new Map(draft.postOrder.map((id, index) => [id, index]));
+    // The saved order is the only source of row order: resolved pins stay
+    // visible off-page, loaded rows cover the rest, and ids that no longer
+    // resolve (archived or deleted) render nothing.
+    const byId = new Map<string, AnnouncementRow>();
+    for (const row of pinnedPosts) byId.set(row.id, row);
+    for (const row of posts) {
+      if (!byId.has(row.id)) byId.set(row.id, row);
+    }
     const seen = new Set<string>();
     const ordered: AnnouncementRow[] = [];
-    // Resolved pins keep their saved order and stay visible off-page; ids that
-    // no longer resolve (archived or deleted) render nothing.
-    for (const row of pinnedPosts) {
-      if (rank.has(row.id) && !seen.has(row.id)) {
-        seen.add(row.id);
+    for (const id of draft.postOrder) {
+      const row = byId.get(id);
+      if (row && !seen.has(id)) {
+        seen.add(id);
         ordered.push(row);
       }
     }
-    const rest = [...posts].sort((left, right) => {
-      const leftRank = rank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
-      const rightRank = rank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-      return leftRank - rightRank;
-    });
-    for (const row of rest) {
+    for (const row of posts) {
       if (!seen.has(row.id)) {
         seen.add(row.id);
         ordered.push(row);
@@ -524,6 +541,14 @@ export default function AdminAppearancePage() {
                 onChange={(event) => setPostSearch(event.target.value)}
                 aria-label={copy.postSearchLabel}
               />
+              {pinsLoadFailed && !postsLoadFailed ? (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-foreground"
+                >
+                  {copy.pinsLoadFailed}
+                </p>
+              ) : null}
               {postsLoadFailed ? (
                 <ErrorState
                   title={copy.loadFailed}

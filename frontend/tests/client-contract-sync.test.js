@@ -287,6 +287,7 @@ test('the appearance page adopts the version the API last stored', async () => {
     setIsLoading: () => {},
     setError: () => {},
     setPostsLoadFailed: () => {},
+    setPinsLoadFailed: () => {},
     fetchSiteAppearanceSnapshot: async () => ({
       appearance: appearancePayload(),
       expectedVersion: 41,

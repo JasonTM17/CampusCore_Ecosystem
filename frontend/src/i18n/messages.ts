@@ -1367,6 +1367,8 @@ export const en = {
       loadFailed: 'The campus look could not be loaded right now.',
       postsLoadFailed:
         'The announcement list could not be loaded — pinned ordering is unavailable until it loads.',
+      pinsLoadFailed:
+        'Some pinned notices could not be loaded and are hidden here; reload to try again.',
       heroEyebrow: 'Home eyebrow',
       heroTitle: 'Home title',
       heroDescription: 'Home description',
@@ -4464,6 +4466,8 @@ export const vi: I18nMessages = {
       loadFailed: 'Hiện chưa thể tải giao diện cổng.',
       postsLoadFailed:
         'Không tải được danh sách thông báo — chưa thể sắp xếp ghim cho tới khi tải lại.',
+      pinsLoadFailed:
+        'Không tải được một số thông báo đã ghim nên chúng đang bị ẩn; hãy tải lại để thử lại.',
       heroEyebrow: 'Dòng dẫn trang chủ',
       heroTitle: 'Tiêu đề trang chủ',
       heroDescription: 'Mô tả trang chủ',
