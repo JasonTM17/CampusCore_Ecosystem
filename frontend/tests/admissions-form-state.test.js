@@ -172,3 +172,28 @@ test('an attachment version bump keeps the draft while a selection change re-see
   assert.match(source, /const next = formForSelection\(formOwner\.current, selected\)/);
   assert.match(source, /if \(next\.form\) \{\s*setForm\(next\.form\);/);
 });
+
+test('returning an application drops blank checklist rows', () => {
+  const source = read('src/components/admissions/AdmissionsReviewPage.tsx');
+  const returnBlock = /const returnApplication =[\s\S]*?copy\.returnedOk\);/.exec(source)?.[0] ?? '';
+  assert.ok(returnBlock, 'returnApplication definition exists');
+  assert.match(returnBlock, /cleanChecklist\(checklist\)/, 'return path must clean the checklist');
+});
+
+test('a failed detail read retains the queue and detail Retry re-fetches the application', () => {
+  const source = read('src/components/admissions/AdmissionsReviewPage.tsx');
+  const loadDetailBlock = /const loadDetail = useCallback[\s\S]*?\}, \[copy\]\);/.exec(source)?.[0] ?? '';
+  assert.ok(loadDetailBlock, 'loadDetail exists');
+  assert.doesNotMatch(loadDetailBlock, /setError\(/, 'detail read error must not set page-global error which hides the queue');
+  assert.match(loadDetailBlock, /setDetailError\(/, 'detail read error is tracked in detail-specific state');
+  assert.match(source, /loadDetail\(selectedId\)/, 'detail error retry calls loadDetail');
+  assert.match(source, /loadDetail\(app\.id\)/, 'clicking same row when detail is null forces a reload');
+});
+
+test('an action failure reloads both the queue and the current detail', () => {
+  const source = read('src/components/admissions/AdmissionsReviewPage.tsx');
+  const actBlock = /const act = async[\s\S]*?setIsActing\(false\);[\s\S]*?\};/.exec(source)?.[0] ?? '';
+  assert.ok(actBlock, 'act helper exists');
+  const catchBlock = /catch \([a-zA-Z]+\) \{[\s\S]*?\}/.exec(actBlock)?.[0] ?? '';
+  assert.match(catchBlock, /loadDetail/, 'action catch reloads detail so stale version is not repeated');
+});

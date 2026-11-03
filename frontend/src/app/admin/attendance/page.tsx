@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, RefreshCw } from 'lucide-react';
 
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
 import { getLocalizedFlatLabel } from '@/lib/academic-content';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import type { Section } from '@/types/api';
 
 const PAGE_LIMIT = 20;
@@ -58,6 +59,7 @@ export default function AdminAttendancePage() {
   const [total, setTotal] = useState(0);
   const [sectionFilter, setSectionFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const attendanceEpoch = useRef(createRequestEpoch()).current;
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function AdminAttendancePage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchRecords = useCallback(async () => {
+    const epoch = attendanceEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -86,15 +89,22 @@ export default function AdminAttendancePage() {
         ...(sectionFilter ? { sectionId: sectionFilter } : {}),
         ...(dateFilter ? { date: dateFilter } : {}),
       });
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setRecords(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
       setTotal(response.meta?.total || 0);
     } catch {
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setError(copy.errorDescription);
     } finally {
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy.errorDescription, dateFilter, page, sectionFilter]);
+  }, [attendanceEpoch, copy.errorDescription, dateFilter, page, sectionFilter]);
+
+  useEffect(() => () => {
+    attendanceEpoch.invalidate();
+  }, [attendanceEpoch]);
 
   useEffect(() => {
     if (canAccess) {

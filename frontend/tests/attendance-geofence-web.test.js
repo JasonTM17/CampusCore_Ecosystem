@@ -633,6 +633,46 @@ test('student attendance API still lacks method/review fields — nothing fabric
   );
 });
 
+test('active session storage helpers round-trip a valid session id and reject invalid ones', async () => {
+  const {
+    saveActiveCheckinSession,
+    readActiveCheckinSession,
+    clearActiveCheckinSession,
+    activeSessionStorageKey,
+  } = await loadCheckinLib();
+
+  assert.equal(typeof saveActiveCheckinSession, 'function');
+  assert.equal(typeof readActiveCheckinSession, 'function');
+  assert.equal(typeof clearActiveCheckinSession, 'function');
+
+  const key = activeSessionStorageKey('sec-1', '2026-11-03');
+  assert.match(key, /sec-1/);
+  assert.match(key, /2026-11-03/);
+});
+
+test('check-in panel restores a remembered session on mount and clears on close', () => {
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+
+  assert.match(panel, /readActiveCheckinSession\(sectionId, date\)/,
+    'mount effect checks for a remembered active session');
+  assert.match(panel, /saveActiveCheckinSession\(sectionId, date, created\.id\)/,
+    'opening a session persists its identity for recovery');
+  assert.match(panel, /clearActiveCheckinSession\(session\.sectionId, session\.date\)/,
+    'closing a session clears the persisted identity');
+  assert.match(panel, /data-testid="checkin-resume-action"/,
+    'SESSION_ALREADY_OPEN or conflict exposes a resume action');
+});
+
+test('reviewing a check-in refreshes session counters even when closed', () => {
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+
+  const reviewBlock = /const submitReview = useCallback[\s\S]*?\}, \[[\s\S]*?\]\);/.exec(panel)?.[0] ?? '';
+  assert.ok(reviewBlock, 'submitReview exists');
+  assert.match(reviewBlock, /void refreshSession\(sessionRef\.current\?\.id\)/,
+    'submitReview must refresh session counters after updating the row');
+});
+
+
 async function loadProjectorTabTarget() {
   const source = read('src/components/lecturer/ProjectorCodeOverlay.tsx');
   const ast = ts.createSourceFile(
