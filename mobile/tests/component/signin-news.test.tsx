@@ -49,6 +49,7 @@ jest.mock('../../src/api/parity-api', () => ({
 }));
 
 import { SignInScreen } from '../../src/screens/auth/SignInScreen';
+import { NewsDetail } from '../../src/screens/content/NewsDetail';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { shellMessages } from '../../src/i18n/shell-messages';
 import { signInWithOidc } from '../../src/auth/oidc-session';
@@ -80,6 +81,15 @@ const renderScreen = (locale: 'vi' | 'en' = 'vi') =>
     <ThemeProvider forcedScheme="light">
       <LocaleProvider initialLocale={locale}>
         <SignInScreen {...props} />
+      </LocaleProvider>
+    </ThemeProvider>,
+  );
+
+const renderNewsDetail = (locale: 'vi' | 'en' = 'vi') =>
+  render(
+    <ThemeProvider forcedScheme="light">
+      <LocaleProvider initialLocale={locale}>
+        <NewsDetail idOrSlug="notice-1" onBack={() => {}} />
       </LocaleProvider>
     </ThemeProvider>,
   );
@@ -192,5 +202,36 @@ describe('sign-in guest news feed', () => {
     expect(await screen.findByText(message)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: shellMessages[locale].screens.news })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: shellMessages[locale].screens.docs })).toBeOnTheScreen();
+  });
+});
+
+describe('news detail byline', () => {
+  const UUID = '3f2a9c1e-0000-4000-8000-000000000000';
+
+  const detail = (overrides: Record<string, unknown> = {}) => ({
+    id: 'notice-1',
+    title: 'Thông báo học vụ',
+    content: '<p>Nội dung thông báo.</p>',
+    priority: 'NORMAL',
+    publishAt: '2026-10-28T01:00:00Z',
+    publishedBy: UUID,
+    lecturerDisplayName: null,
+    ...overrides,
+  });
+
+  test('never prints an internal publisher subject id', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value.data = detail();
+    await renderNewsDetail();
+    expect(screen.getByText('Thông báo học vụ')).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(UUID))).toBeNull();
+  });
+
+  test('prints the publisher display name when the server has one', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value.data = detail({ lecturerDisplayName: 'Phòng Đào tạo' });
+    await renderNewsDetail();
+    expect(screen.getByText(new RegExp('Phòng Đào tạo'))).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(UUID))).toBeNull();
   });
 });

@@ -267,6 +267,13 @@ test('K1 the two edit-mode save buttons carry distinct labels and both update', 
   );
 });
 
+test('K1 the studio compose action names the review submission it performs', () => {
+  // A new notice is always authored by the caller and the server refuses
+  // self-approval, so this button cannot publish; it must say what it does.
+  assert.match(editorPage, /: messages\.content\.lifecycle\.actions\.submit\}/);
+  assert.doesNotMatch(editorPage, /: copy\.publishAnnouncement\}/);
+});
+
 test('K2 the export slug keeps Vietnamese words and both export paths share it', () => {
   assert.equal(
     editorDraft.slugifyDocumentTitle('Đề cương đề tài khóa luận tốt nghiệp'),

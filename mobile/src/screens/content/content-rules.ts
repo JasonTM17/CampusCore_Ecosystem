@@ -194,6 +194,25 @@ export function newsTargetOf(item: { id: string; slug?: string | null }): string
   return item.slug ?? item.id;
 }
 
+/**
+ * The publisher a reader can name. Internal subject ids and technical
+ * placeholders are not names, so the mobile reader omits the byline instead of
+ * printing an account id (the web reader applies the same guard).
+ */
+const TECHNICAL_PUBLISHER =
+  /^(?:admin(?:[-_].*)?|super_admin|system|user)$|^[0-9a-f]{8}-[0-9a-f]{4}/i;
+
+export function publisherName(
+  displayName: string | null | undefined,
+  publishedBy?: string | null,
+): string | null {
+  for (const candidate of [displayName, publishedBy]) {
+    const trimmed = candidate?.trim();
+    if (trimmed && !TECHNICAL_PUBLISHER.test(trimmed)) return trimmed;
+  }
+  return null;
+}
+
 export function joinMeta(parts: ReadonlyArray<string | null | undefined | false>): string {
   return parts.filter((part): part is string => typeof part === 'string' && part.length > 0).join(' · ');
 }

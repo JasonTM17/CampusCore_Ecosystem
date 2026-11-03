@@ -9,7 +9,7 @@ import { ErrorState } from '@/components/ui/state-block';
 import { campusErrorKind } from '@/lib/campus-error';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
-import { sanitizeAnnouncementHtml } from '@/lib/html-sanitizer';
+import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import {
   formatAnnouncementPublisher,
   formatRelativeTime,
@@ -66,9 +66,9 @@ export default function NewsDetailPage() {
               {formatAnnouncementPublisher(item.lecturerDisplayName ?? item.publishedBy, locale)}
             </p>
           </header>
-          <div
+          <RichContentRenderer
+            content={item.content ?? ''}
             className="announcement-content text-base leading-7 text-foreground/90"
-            dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(item.content ?? '') }}
           />
         </article>
       )}
