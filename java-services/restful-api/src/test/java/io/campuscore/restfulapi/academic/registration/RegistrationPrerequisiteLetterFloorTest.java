@@ -39,6 +39,7 @@ class RegistrationPrerequisiteLetterFloorTest {
                     "id" VARCHAR(120) PRIMARY KEY,
                     "studentId" VARCHAR(120) NOT NULL,
                     "courseId" VARCHAR(120) NOT NULL,
+                    "status" VARCHAR(40) NOT NULL DEFAULT 'ENROLLED',
                     "gradeStatus" VARCHAR(40) NOT NULL,
                     "letterGrade" VARCHAR(16)
                 )
@@ -122,7 +123,7 @@ class RegistrationPrerequisiteLetterFloorTest {
     private void insertEnrollment(String id, String studentId, String courseId, String letter) {
         jdbc.update(
                 "INSERT INTO \"academic\".\"Enrollment\" (\"id\", \"studentId\", \"courseId\", \"gradeStatus\", \"letterGrade\")"
-                        + " VALUES (?, ?, ?, 'COMPLETED', ?)",
+                        + " VALUES (?, ?, ?, 'PUBLISHED', ?)",
                 id, studentId, courseId, letter);
     }
 }
