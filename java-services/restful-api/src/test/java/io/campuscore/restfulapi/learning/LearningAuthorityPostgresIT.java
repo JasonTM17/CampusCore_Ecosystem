@@ -183,7 +183,9 @@ class LearningAuthorityPostgresIT {
 
     @Test
     void submitBlockedPastDeadlineUnderRowLockIsRejectedOnPostgres() throws Exception {
-        String assignmentId = publishedAssignment(Instant.now().plus(2, ChronoUnit.SECONDS));
+        Instant deadlineAt = jdbc.queryForObject("SELECT now() + INTERVAL '5 seconds'", Map.of(),
+                java.sql.Timestamp.class).toInstant();
+        String assignmentId = publishedAssignment(deadlineAt);
         var draft = students.ensureDraft(studentId, assignmentId, "it-draft-deadline");
 
         try (var anchor = jdbc.getJdbcTemplate().getDataSource().getConnection()) {
@@ -220,7 +222,10 @@ class LearningAuthorityPostgresIT {
                     Thread.sleep(20);
                 }
                 assertThat(waiting).as("submitter observed at the assignment lock").isGreaterThanOrEqualTo(1);
-                Thread.sleep(2500); // server clock now past deadlineAt
+                assertThat(databaseNow()).as("submitter reaches the assignment lock before deadlineAt")
+                        .isBefore(deadlineAt);
+                assertThat(Instant.now()).as("submitter queues before deadlineAt").isBefore(deadlineAt);
+                awaitDatabaseTimeAfter(deadlineAt);
                 anchor.commit();
                 Outcome outcome = blocked.get(30, TimeUnit.SECONDS);
                 assertThat(outcome.registered()).isFalse();
@@ -235,6 +240,26 @@ class LearningAuthorityPostgresIT {
                 "SELECT COUNT(*) FROM learning.\"SubmissionRevision\" WHERE \"submissionId\" = :id",
                 Map.of("id", draft.id()), Integer.class);
         assertThat(revisions).isZero();
+    }
+
+    private void awaitDatabaseTimeAfter(Instant deadlineAt) throws InterruptedException {
+        long pollDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        Instant serverNow = databaseNow();
+        Instant applicationNow = Instant.now();
+        while ((!serverNow.isAfter(deadlineAt) || !applicationNow.isAfter(deadlineAt))
+                && System.nanoTime() < pollDeadline) {
+            Thread.sleep(20);
+            serverNow = databaseNow();
+            applicationNow = Instant.now();
+        }
+        assertThat(serverNow).as("PostgreSQL clock passes assignment deadlineAt within 10 seconds")
+                .isAfter(deadlineAt);
+        assertThat(applicationNow).as("application clock passes assignment deadlineAt within 10 seconds")
+                .isAfter(deadlineAt);
+    }
+
+    private Instant databaseNow() {
+        return jdbc.queryForObject("SELECT now()", Map.of(), java.sql.Timestamp.class).toInstant();
     }
 
     // ------------------------------------------------------------------

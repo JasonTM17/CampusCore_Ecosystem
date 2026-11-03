@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.search;
 
+import io.campuscore.restfulapi.web.DomainException;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -8,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.http.HttpStatus;
 
 /**
  * Server-side equivalent of the topic-catalogue search predicate in
@@ -23,8 +25,9 @@ import java.util.regex.Pattern;
  *
  * <p>The policy deliberately does not reuse {@code common.LikePattern}: that
  * helper truncates at 64 characters, caps at eight tokens and removes
- * honorifics, which would silently change results. This class never truncates
- * and never drops a token. It also does not generalise the asymmetric synonym
+ * honorifics, which would silently change results. This class rejects raw
+ * terms above its request budget rather than truncating or dropping tokens. It
+ * also does not generalise the asymmetric synonym
  * expansion into bidirectional matching.
  *
  * <p>Whitespace follows ECMAScript, not {@link String#trim()} and not
@@ -34,6 +37,9 @@ import java.util.regex.Pattern;
  * explicit character class below is required for equality.
  */
 public final class ThesisTopicCatalogSearch {
+
+    public static final int MAX_SEARCH_LENGTH = 200;
+    public static final int MAX_SEARCH_TOKENS = 16;
 
     /** Header carrying the authorised topic count before the search predicate. */
     public static final String CATALOG_TOTAL_COUNT_HEADER = "X-Topic-Total-Count";
@@ -82,6 +88,29 @@ public final class ThesisTopicCatalogSearch {
             }
         }
         return new ThesisTopicCatalogSearch(true, List.copyOf(terms));
+    }
+
+    /** Rejects an unbounded catalogue query before the caller reads topics. */
+    public static void requireWithinBudget(String search) {
+        if (search == null) {
+            return;
+        }
+        if (search.length() > MAX_SEARCH_LENGTH) {
+            throw invalidSearch();
+        }
+        int tokens = 0;
+        boolean inToken = false;
+        for (int index = 0; index < search.length(); index++) {
+            if (isJsWhitespace(search.charAt(index))) {
+                inToken = false;
+            } else if (!inToken) {
+                tokens++;
+                if (tokens > MAX_SEARCH_TOKENS) {
+                    throw invalidSearch();
+                }
+                inToken = true;
+            }
+        }
     }
 
     /** False for an omitted, blank or {@code all} query: every topic matches. */
@@ -215,6 +244,11 @@ public final class ThesisTopicCatalogSearch {
                  '\u205f', '\u3000', '\ufeff' -> true;
             default -> false;
         };
+    }
+
+    private static DomainException invalidSearch() {
+        return new DomainException(HttpStatus.BAD_REQUEST, "INVALID_SEARCH",
+                "search must not exceed 200 characters or 16 tokens");
     }
 
     private static String jsWhitespaceClass() {

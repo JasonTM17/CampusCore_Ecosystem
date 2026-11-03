@@ -443,7 +443,8 @@ class ThesisResultPublicationPostgresIT {
         assertThat(barrier.publisherPid().get()).isPositive();
         assertThat(barrier.competitorPid().get()).isPositive();
         boolean blocked = false;
-        for (int attempt = 0; attempt < WAIT_SECONDS * 10; attempt++) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
             Boolean waiting = jdbc.queryForObject(
                     "SELECT EXISTS(SELECT 1 FROM unnest(pg_blocking_pids(?)) blocker WHERE blocker = ?)",
                     Boolean.class, barrier.competitorPid().get(), barrier.publisherPid().get());
@@ -451,9 +452,10 @@ class ThesisResultPublicationPostgresIT {
                 blocked = true;
                 break;
             }
-            Thread.sleep(100);
+            Thread.sleep(20);
         }
-        assertThat(blocked).as(because).isTrue();
+        assertThat(blocked).as(because + " (competitor pid " + barrier.competitorPid().get()
+                + " blocked by publisher pid " + barrier.publisherPid().get() + " within 10 seconds)").isTrue();
     }
 
     private int backendPid() {

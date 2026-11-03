@@ -73,7 +73,7 @@ Student (ROLE STUDENT, must be enrolled):
 - `POST /attendance/sessions/{id}/checkin` body {code?, latitude, longitude, accuracyMeters, capturedAt, mockProvider, installationId} -> 200 {decision, status, message}; errors: 400 INVALID_LOCATION, 403 NOT_ENROLLED, 403 CONSENT_REQUIRED, 409 ALREADY_CHECKED_IN, 410 SESSION_CLOSED, 422 BAD_CODE, 422 OUTSIDE_AREA, 422 LOW_ACCURACY, 429 TOO_MANY_ATTEMPTS. Error bodies use the project's existing error contract.
 - `POST /attendance/location-consent` body {version}; `GET /attendance/location-consent`
 Admin:
-- `GET/POST/PUT /admin/attendance/geofences` (CRUD, validation of ranges, audit); deactivate instead of delete when sessions reference it. `PUT` accepts an optional `expectedVersion`; a mismatch with the stored `version` returns `409 STALE_VERSION`, and every update increments it.
+- `GET/POST /admin/attendance/geofences`, `PUT /admin/attendance/geofences/{id}` (CRUD, validation of ranges, audit); deactivate instead of delete when sessions reference it. `PUT` accepts an optional `expectedVersion`; a mismatch with the stored `version` returns `409 STALE_VERSION`, and every update increments it.
 Rules: server rejects check-in when the geofence is inactive; all inputs validated (bean validation); authorization on every method explicit (@PreAuthorize); responses never include the code secret or other students' coordinates.
 
 ## 6. Mobile (Expo)

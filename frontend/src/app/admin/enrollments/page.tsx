@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import {
   getLocalizedCourseLabel,
@@ -171,7 +172,7 @@ export default function AdminEnrollmentsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

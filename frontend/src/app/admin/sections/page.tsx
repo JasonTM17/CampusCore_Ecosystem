@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
 import {
@@ -235,7 +236,7 @@ export default function AdminSectionsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

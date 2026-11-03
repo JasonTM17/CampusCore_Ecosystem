@@ -177,6 +177,79 @@ class ThesisAssistantGovernanceWebTest {
     }
 
     @Test
+    void knowledgeExpectedVersionUsesTheLatestDocumentRevisionForOwnedAndForkedDrafts() throws Exception {
+        String slug = "test-knowledge-document-version-" + UUID.randomUUID();
+        String created = mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge")
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "\",\"locale\":\"en\",\"title\":\"Version one\",\"content\":\"Grounded version one content\",\"source\":\"test\",\"priority\":10}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        createdDocument = UUID.fromString(mapper.readTree(created).get("documentId").asText());
+
+        for (int expectedVersion = 1; expectedVersion < 5; expectedVersion++) {
+            mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                            .with(admin("admin-a"))
+                            .contentType("application/json")
+                            .content("{\"slug\":\"" + slug + "-v" + (expectedVersion + 1) + "\",\"locale\":\"en\",\"title\":\"Version " + (expectedVersion + 1) + "\",\"content\":\"Grounded version " + (expectedVersion + 1) + " content\",\"source\":\"test\",\"priority\":20,\"expectedVersion\":" + expectedVersion + "}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(expectedVersion + 1));
+        }
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v6\",\"locale\":\"en\",\"title\":\"Version six\",\"content\":\"Grounded version six content\",\"source\":\"test\",\"priority\":30,\"expectedVersion\":5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+        mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge/{id}/submit", createdDocument)
+                        .with(admin("admin-b")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge/{id}/publish", createdDocument)
+                        .with(admin("admin-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+
+        mvc.perform(get("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-stale\",\"locale\":\"en\",\"title\":\"Stale version\",\"content\":\"Stale grounded content\",\"source\":\"test\",\"priority\":40,\"expectedVersion\":5}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v7\",\"locale\":\"en\",\"title\":\"Version seven\",\"content\":\"Grounded version seven content\",\"source\":\"test\",\"priority\":50,\"expectedVersion\":6}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(7));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-stale-fork\",\"locale\":\"en\",\"title\":\"Stale fork\",\"content\":\"Stale grounded fork content\",\"source\":\"test\",\"priority\":60,\"expectedVersion\":6}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v8\",\"locale\":\"en\",\"title\":\"Version eight\",\"content\":\"Grounded version eight content\",\"source\":\"test\",\"priority\":70,\"expectedVersion\":7}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(8));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-legacy\",\"locale\":\"en\",\"title\":\"Legacy version\",\"content\":\"Legacy grounded content\",\"source\":\"test\",\"priority\":80}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(9));
+    }
+
+    @Test
     void adminPriorityIsBoundedAndStudentsCannotReadKnowledgeAdminApi() throws Exception {
         mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge")
                         .with(admin("admin-a"))

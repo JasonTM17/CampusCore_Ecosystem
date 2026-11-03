@@ -490,14 +490,17 @@ export default function AdminAssistantKnowledgePage() {
       ]);
       setDocuments(rows);
       setCoverage(catalog);
+      return rows;
     } catch (loadError) {
       // Keep curated and catalog surfaces independently truthful when the optional coverage read is unavailable.
       try {
         const rows = await assistantKnowledgeApi.list({ ...(domainFilter ? { domain: domainFilter } : {}), ...(stateFilter ? { state: stateFilter } : {}) });
         setDocuments(rows);
         setCoverageError(true);
+        return rows;
       } catch {
         setError(actionError(loadError, locale));
+        return null;
       }
     } finally {
       setIsLoading(false);
@@ -615,9 +618,18 @@ export default function AdminAssistantKnowledgePage() {
       await load();
     } catch (saveError) {
       if (isStaleVersionError(saveError)) {
-        // Refresh the list so the newer revision is visible; the open editor
+        // Refresh the list so the newer revision is visible, then adopt its
+        // version so the next save passes the optimistic lock; the open editor
         // keeps the admin's typed content instead of replacing it.
-        await load();
+        const rows = await load();
+        const latest = rows?.find((row) => row.documentId === editing?.documentId);
+        if (latest) {
+          setEditing((current) => (
+            current && current.documentId === latest.documentId
+              ? { ...current, version: latest.version }
+              : current
+          ));
+        }
       }
       setFormError(actionError(saveError, locale));
     } finally {

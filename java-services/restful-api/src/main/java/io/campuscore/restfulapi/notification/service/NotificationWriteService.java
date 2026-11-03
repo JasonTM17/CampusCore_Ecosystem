@@ -142,7 +142,11 @@ public class NotificationWriteService {
             throw new DomainException(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID",
                     "Idempotency-Key must not exceed 200 characters");
         }
-        String seed = "notification-create:" + (actorId == null ? "" : actorId) + ":" + key;
+        // Length-prefix both variable-length parts so a colon in either cannot
+        // shift the field boundary and make two different pairs share an id.
+        String actor = actorId == null ? "" : actorId;
+        String seed = "notification-create:" + actor.length() + ":" + actor
+                + ":" + key.length() + ":" + key;
         return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
     }
 

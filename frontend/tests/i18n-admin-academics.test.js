@@ -58,12 +58,10 @@ const RECORD_ACTION_KEYS = [
 ];
 
 /**
- * Values that are legitimately identical in both locales: the lab proper nouns
- * on the departments banner and the loanword `Email` column header.
+ * Values that are legitimately identical in both locales: the loanword `Email`
+ * column header.
  */
 const IDENTICAL_BY_DESIGN = new Set([
-  'departments.banner.imageAlt',
-  'departments.banner.labLabel',
   'lecturers.headers.email',
 ]);
 
@@ -74,8 +72,6 @@ const VIETNAMESE_WITHOUT_DIACRITICS = new Set([
   'courses.department',
   'courses.headers.department',
   'courses.pageSummary',
-  'departments.banner.imageAlt',
-  'departments.banner.labLabel',
   'departments.pageSummary',
   'departments.title',
   'enrollments.pageSummary',
@@ -249,7 +245,7 @@ test('the catalogue preserves the exact audited Vietnamese and English copy', ()
     ['departments.banner.eyebrow', 'CƠ CẤU TỔ CHỨC & KHOA ĐÀO TẠO HCMUTE', 'HCMUTE ACADEMIC FACULTIES & DEPARTMENTS'],
     ['departments.banner.unitsLabel', 'Khoa & Đơn vị trực thuộc', 'Academic Units'],
     ['departments.banner.curriculumLabel', 'Chuẩn hóa tín chỉ', 'Curriculum Aligned'],
-    ['departments.banner.labLabel', 'Smart Systems & Robotics Lab', 'Smart Systems & Robotics Lab'],
+    ['departments.banner.labLabel', 'Phòng thí nghiệm Hệ thống Thông minh & Robot', 'Smart Systems & Robotics Lab'],
     ['lecturers.title', 'Giảng viên', 'Lecturers'],
     ['lecturers.unlinkedAccount', 'Chưa liên kết tài khoản', 'Unlinked account'],
     ['lecturers.notProvided', 'Chưa cập nhật', 'Not provided'],

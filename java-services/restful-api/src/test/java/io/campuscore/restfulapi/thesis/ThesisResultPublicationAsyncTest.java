@@ -17,8 +17,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -43,12 +49,17 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
         "spring.mail.port=2525",
         "spring.mail.password=test-only-mail-boundary-mock"
 })
+@Import(ThesisResultPublicationAsyncTest.MailExecutorConfiguration.class)
 class ThesisResultPublicationAsyncTest extends ThesisPublicationFixture {
 
     private static final int EXTRA_GROUPS = 40;
     private static final int EXTRA_RECIPIENTS = EXTRA_GROUPS * 3;
     private static final int LARGE_COHORT = 6 + EXTRA_RECIPIENTS;
-    private static final Duration WAIT = Duration.ofSeconds(20);
+    private static final Duration WAIT = Duration.ofSeconds(10);
+
+    @Autowired
+    @Qualifier("taskExecutor")
+    private ThreadPoolTaskExecutor mailExecutor;
 
     @MockitoBean
     private EmailService email;
@@ -160,13 +171,16 @@ class ThesisResultPublicationAsyncTest extends ThesisPublicationFixture {
     void repeatedPublicationDoesNotResendMail() {
         mutations.publishResults(roundId, admin());
         awaitAttempts(6);
+        long scheduledBeforeDuplicate = mailExecutor.getThreadPoolExecutor().getTaskCount();
 
         assertThatThrownBy(() -> mutations.publishResults(roundId, admin()))
                 .isInstanceOfSatisfying(DomainException.class, failure -> {
                     assertThat(failure.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(failure.getCode()).isEqualTo("ROUND_STATE_CONFLICT");
                 });
-        awaitIdleQuietly();
+        assertThat(mailExecutor.getThreadPoolExecutor().getTaskCount())
+                .as("a rejected duplicate publication must not enqueue mail tasks")
+                .isEqualTo(scheduledBeforeDuplicate);
         assertThat(attempts).hasSize(6);
         assertThat(inboxCount()).isEqualTo(6);
     }
@@ -181,21 +195,37 @@ class ThesisResultPublicationAsyncTest extends ThesisPublicationFixture {
                 break;
             }
         }
-        assertThat(attempts).hasSize(expected);
+        assertThat(attempts).as("mail delivery attempts arrive within %s", WAIT).hasSize(expected);
+        awaitExecutorIdle();
     }
 
-    private void awaitIdleQuietly() {
-        // A duplicate publication registers no fan-out; leave a short window
-        // for a late task from the first publication to surface if the
-        // implementation wrongly queued one.
-        long deadline = System.nanoTime() + Duration.ofMillis(500).toNanos();
-        while (System.nanoTime() < deadline) {
+    private void awaitExecutorIdle() {
+        var executor = mailExecutor.getThreadPoolExecutor();
+        long deadline = System.nanoTime() + WAIT.toNanos();
+        while (executor.getActiveCount() > 0 || !executor.getQueue().isEmpty()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("mail executor did not become idle within " + WAIT
+                        + " (active=" + executor.getActiveCount() + ", queued=" + executor.getQueue().size() + ")");
+            }
             try {
-                Thread.sleep(10);
+                Thread.sleep(20);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
-                return;
+                throw new AssertionError("interrupted while waiting for mail executor idle", interrupted);
             }
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class MailExecutorConfiguration {
+        @Bean("taskExecutor")
+        ThreadPoolTaskExecutor mailTaskExecutor() {
+            ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+            executor.setCorePoolSize(4);
+            executor.setMaxPoolSize(4);
+            executor.setQueueCapacity(500);
+            executor.setThreadNamePrefix("mail-test-");
+            return executor;
         }
     }
 

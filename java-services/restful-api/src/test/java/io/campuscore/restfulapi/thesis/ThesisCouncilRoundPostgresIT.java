@@ -282,16 +282,18 @@ class ThesisCouncilRoundPostgresIT {
             throws InterruptedException {
         assertThat(waiterPid).as("waiter backend pid captured").isPositive();
         assertThat(expectedBlocker).as("blocker backend pid captured").isPositive();
-        for (int attempt = 0; attempt < 100; attempt++) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
             Boolean blocked = jdbc.queryForObject(
                     "SELECT EXISTS(SELECT 1 FROM unnest(pg_blocking_pids(?)) b WHERE b = ?)",
                     Boolean.class, waiterPid, expectedBlocker);
             if (Boolean.TRUE.equals(blocked)) {
                 return;
             }
-            Thread.sleep(100);
+            Thread.sleep(20);
         }
-        throw new AssertionError(because + " (waiter pid " + waiterPid + ", expected blocker pid " + expectedBlocker + ")");
+        throw new AssertionError(because + " (waiter pid " + waiterPid
+                + " was not blocked by pid " + expectedBlocker + " within 10 seconds)");
     }
 
     private void insertDefenseScore(Fixture fx, String lecturerId, BigDecimal score) {

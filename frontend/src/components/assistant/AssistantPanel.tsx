@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { countLabel } from '@/lib/plural';
 import { useI18n } from '@/i18n';
 import { stripLocaleFromPathname } from '@/i18n/paths';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { useAuth } from '@/context/AuthContext';
 import { thesisApi, type AssistantConversation } from '@/lib/thesis-api';
 import {
@@ -852,7 +853,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   // here could never succeed against the same expired token.
   const authRequired = state.error === 'unauthorized';
   const goSignIn = () =>
-    router.push(`${href('/login')}?reason=session-expired`);
+    router.push(sessionExpiredLoginHref(href));
 
   // Older-history browsing pauses sending/retry until the latest page is
   // restored; a latest reload is itself a navigation lock.

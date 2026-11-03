@@ -21,7 +21,13 @@ async function loadLoginPortalModule() {
       moduleRecord,
       moduleRecord.exports,
       (specifier) =>
-        specifier === '@/lib/safe-url' ? load('src/lib/safe-url.ts') : require(specifier),
+        specifier === '@/lib/safe-url'
+          ? load('src/lib/safe-url.ts')
+          : specifier === '@/i18n/paths'
+            ? load('src/i18n/paths.ts')
+            : specifier === '@/i18n/config'
+              ? load('src/i18n/config.ts')
+              : require(specifier),
     );
     return moduleRecord.exports;
   };
