@@ -167,12 +167,16 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   (idempotent, best-effort — revoke fail vẫn sign-out local). Late
   refresh in-flight: epoch-check tại persist-step = no-op.
 - **401/403 & refresh resilience**: 401 → shared-refresh một lần (`single-flight`,
-  loại trừ auth endpoints để tránh lặp vô tận). Chỉ khi issuer dứt khoát từ chối
-  refresh grant với mã HTTP 400 hoặc 401 thì session mới bị hủy (`signedOut`) và
-  chuyển về màn hình đăng nhập. Mọi sự cố tạm thời (mất mạng, timeout, hoặc server
-  5xx) trả về `unavailable`: mobile giữ nguyên session trong SecureStore và ném
-  lỗi retryable để request tiếp theo có thể thử lại mà không làm văng phiên. 403 →
-  denied state, không retry.
+  loại trừ auth endpoints để tránh lặp vô tận). `cu.refresh` bị xóa khỏi
+  SecureStore **trước** khi request token được gửi đi, vì issuer không có cửa sổ
+  tái sử dụng và việc phát lại token đã dùng sẽ thu hồi mọi phiên của tài khoản.
+  Từ chối dứt khoát (HTTP 400/401) trả `signedOut`. Mọi kết quả mơ hồ sau khi đã
+  gửi (timeout 20 giây tính cả đọc body, mất phản hồi, phản hồi sai định dạng,
+  429/5xx, hoặc ghi token mới thất bại) trả `reauthRequired`: phiên kết thúc qua
+  đường expiry có epoch-gate và người dùng đăng nhập lại bằng OIDC. Chỉ lỗi
+  trước khi gửi (cấu hình issuer, form không hợp lệ) trả `unavailable` và giữ
+  credential để thử lại. 403 → denied state, không retry. Xem lại khi issuer có
+  refresh idempotent phía server.
 - **Account identity**: account id = `id_token.sub` (=`principal_name`/
   `User.id` invariant) — key của per-account cache §5. Roles đọc từ
   access-token claims `roles` (decode JWT payload, không verify —

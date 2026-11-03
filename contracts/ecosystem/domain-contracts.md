@@ -223,6 +223,11 @@ Submission: `DRAFT → SUBMITTED → RETURNED → RESUBMITTED → REVIEWED`.
   chỉ cho `ENROLLED|CONFIRMED`. DROPPED/CANCELLED mất cả read lẫn write.
 - **Feedback notice:** return/review tạo notification trong cùng transaction
   (§11); official grade authority không bị chạm.
+- **Idempotency key kế thừa:** key dạng `resubmit:<assignmentId>` được claim
+  trước khi có content binding vẫn replay như đã lưu (không thể khôi phục ý
+  định ban đầu). Body mới bị bỏ qua và trả lại kết quả thành công cũ; key mới
+  luôn bị ràng buộc theo nội dung. Xem lại khi metrics xác nhận không còn client
+  gửi key kế thừa: khi đó từ chối bằng 409.
 
 ## 7. Admissions mô phỏng (P10, schema `admissions`)
 

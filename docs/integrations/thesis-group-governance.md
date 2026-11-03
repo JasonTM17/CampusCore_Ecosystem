@@ -22,7 +22,8 @@ Existing round, group-state and roster constraints still apply.
 This policy preserves a plain `LECTURER`'s existing assigned-supervisor roster
 and review permissions; it does not grant lecturers new progress or topic
 assignment powers. It covers these group mutations only. Round, topic and
-council lifecycle authority remains a separate contract. Report submission
+council lifecycle authority remains a separate contract (topic catalogue sizing:
+[thesis-topic-list.md](thesis-topic-list.md)). Report submission
 and upload remain group-leader-only; report read authority is documented in
 [report storage and recovery](thesis-report-storage.md#artifact-integrity-and-concurrent-changes).
 
