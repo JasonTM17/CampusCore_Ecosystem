@@ -125,12 +125,27 @@ public class LibraryPatronService {
     /** Own requests/loans newest-first — foreign ids never appear here. */
     @Transactional(readOnly = true)
     public List<LoanRequestResponse> myLoans(String borrowerId) {
-        List<Map<String, Object>> rows = jdbc.query(
-                LibraryService.requestSelect() + " WHERE r.\"borrowerUserId\" = :owner"
-                        + " ORDER BY r.\"createdAt\" DESC",
-                new MapSqlParameterSource("owner", borrowerId),
+        return myLoans(borrowerId, null).items();
+    }
+
+    /** Own requests/loans newest-first; a missing window uses the shared maximum. */
+    @Transactional(readOnly = true)
+    public ListPaging.Result<LoanRequestResponse> myLoans(
+            String borrowerId, ListPaging.Window window) {
+        if (window == null) {
+            window = new ListPaging.Window(0, ListPaging.MAX_LIMIT);
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("owner", borrowerId);
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + LOAN_REQUEST + " r WHERE r.\"borrowerUserId\" = :owner",
+                params, Long.class);
+        String sql = LibraryService.requestSelect() + " WHERE r.\"borrowerUserId\" = :owner"
+                + " ORDER BY r.\"createdAt\" DESC, r.\"id\" ASC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        List<Map<String, Object>> rows = jdbc.query(sql, params,
                 (row, index) -> rowToMap(row));
-        return rows.stream().map(staff::mapRequest).toList();
+        List<LoanRequestResponse> items = rows.stream().map(staff::mapRequest).toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Owner-only detail — a foreign id is indistinguishable 404. */

@@ -280,6 +280,46 @@ class LibraryContractPersistenceTest {
     }
 
     @Test
+    void myLoansUsesBoundedOwnerScopedStablePages() throws Exception {
+        seedQueue(105);
+        jdbc.update("INSERT INTO library.\"Copy\" (\"id\", \"titleId\", \"barcode\")"
+                + " VALUES ('foreign-copy', 'title-1', 'FOREIGN-BC')");
+        jdbc.update("INSERT INTO library.\"LoanRequest\" (\"id\", \"copyId\", \"borrowerUserId\","
+                        + " \"status\", \"requestedAt\", \"createdAt\") VALUES (?, ?, ?, ?, ?, ?)",
+                "foreign-request", "foreign-copy", "borrower-2", "REQUESTED",
+                java.sql.Timestamp.from(queueRequestedAt(1)),
+                java.sql.Timestamp.from(queueCreatedAt(1)));
+
+        List<String> expected = IntStream.rangeClosed(1, 105)
+                .mapToObj(LibraryContractPersistenceTest::queueId)
+                .sorted()
+                .toList();
+
+        MvcResult defaultPage = mvc.perform(get("/api/v1/library/requests/my").with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(100))
+                .andExpect(header().string("X-Total-Count", "105"))
+                .andReturn();
+        assertThat(queueIds(defaultPage)).containsExactlyElementsOf(expected.subList(0, 100));
+
+        MvcResult secondPage = mvc.perform(get("/api/v1/library/requests/my")
+                        .param("page", "1").param("limit", "10").with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "105"))
+                .andExpect(jsonPath("$.length()").value(10))
+                .andReturn();
+        assertThat(queueIds(secondPage)).containsExactlyElementsOf(expected.subList(10, 20));
+
+        MvcResult otherBorrower = mvc.perform(get("/api/v1/library/requests/my")
+                        .param("page", "0").param("limit", "10").with(borrower2Jwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andReturn();
+        assertThat(queueIds(otherBorrower)).containsExactly("foreign-request");
+    }
+
+    @Test
     void staffQueueOrdersTiedTimestampsDeterministically() throws Exception {
         seedTiedQueue(45);
 

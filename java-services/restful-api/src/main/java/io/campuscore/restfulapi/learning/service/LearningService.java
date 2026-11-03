@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.learning.service;
 
 import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.exception.ValidationException;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
@@ -339,32 +340,46 @@ public class LearningService {
      * joined to the assignment's submission (when one exists). */
     @Transactional(readOnly = true)
     public List<RosterRowResponse> roster(String lecturerId, String assignmentId) {
+        return roster(lecturerId, assignmentId, null).items();
+    }
+
+    /** Reads the authorised roster with a database window; a missing window uses the shared maximum. */
+    @Transactional(readOnly = true)
+    public ListPaging.Result<RosterRowResponse> roster(
+            String lecturerId, String assignmentId, ListPaging.Window window) {
+        if (window == null) {
+            window = new ListPaging.Window(0, ListPaging.MAX_LIMIT);
+        }
         String sectionId = sectionOfAssignment(assignmentId);
         requireSectionLecturer(lecturerId, sectionId);
-        return jdbc.query(
-                "SELECT operative.\"id\" AS enrollment_id, operative.\"studentId\" AS student_id,"
-                        + " student_user.\"lastName\" || ' ' || student_user.\"firstName\" AS student_name,"
-                        + " student_user.\"email\" AS student_email, operative.\"status\" AS enrollment_status,"
-                        + " s.\"id\" AS submission_id, s.\"status\" AS submission_status,"
-                        + " s.\"submittedAt\" AS submitted_at"
-                        + " FROM (SELECT e.\"id\", e.\"studentId\", e.\"status\", e.\"enrolledAt\","
-                        + "   ROW_NUMBER() OVER (PARTITION BY e.\"studentId\", e.\"sectionId\""
-                        + "   ORDER BY CASE e.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
-                        + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e.\"enrolledAt\" DESC) AS retake_rank"
-                        + "   FROM " + ENROLLMENT + " e"
-                        + "   WHERE e.\"sectionId\" = :sectionId"
-                        + "   AND e.\"status\" IN " + ROSTER_STATUSES + ") operative"
-                        + " JOIN " + STUDENT + " student ON student.\"id\" = operative.\"studentId\""
-                        + " JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
-                        + " LEFT JOIN " + SUBMISSION + " s ON s.\"assignmentId\" = :assignmentId"
-                        + " AND s.\"studentId\" = operative.\"studentId\""
-                        // One row per student: retake history leaves several
-                        // seats on the same section — the operative one
-                        // (ENROLLED first) represents them on the roster.
-                        + " WHERE operative.retake_rank = 1"
-                        + " ORDER BY student_user.\"lastName\", student_user.\"firstName\"",
-                new MapSqlParameterSource("sectionId", sectionId).addValue("assignmentId", assignmentId),
-                LearningService::mapRosterRow);
+        String from = " FROM (SELECT e.\"id\", e.\"studentId\", e.\"status\", e.\"enrolledAt\","
+                + "   ROW_NUMBER() OVER (PARTITION BY e.\"studentId\", e.\"sectionId\""
+                + "   ORDER BY CASE e.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
+                + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e.\"enrolledAt\" DESC) AS retake_rank"
+                + "   FROM " + ENROLLMENT + " e"
+                + "   WHERE e.\"sectionId\" = :sectionId"
+                + "   AND e.\"status\" IN " + ROSTER_STATUSES + ") operative"
+                + " JOIN " + STUDENT + " student ON student.\"id\" = operative.\"studentId\""
+                + " JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
+                + " LEFT JOIN " + SUBMISSION + " s ON s.\"assignmentId\" = :assignmentId"
+                + " AND s.\"studentId\" = operative.\"studentId\""
+                // One row per student: retake history leaves several
+                // seats on the same section — the operative one
+                // (ENROLLED first) represents them on the roster.
+                + " WHERE operative.retake_rank = 1";
+        MapSqlParameterSource params = new MapSqlParameterSource("sectionId", sectionId)
+                .addValue("assignmentId", assignmentId);
+        Long total = jdbc.queryForObject("SELECT COUNT(*)" + from, params, Long.class);
+        String sql = "SELECT operative.\"id\" AS enrollment_id, operative.\"studentId\" AS student_id,"
+                + " student_user.\"lastName\" || ' ' || student_user.\"firstName\" AS student_name,"
+                + " student_user.\"email\" AS student_email, operative.\"status\" AS enrollment_status,"
+                + " s.\"id\" AS submission_id, s.\"status\" AS submission_status,"
+                + " s.\"submittedAt\" AS submitted_at" + from
+                + " ORDER BY student_user.\"lastName\", student_user.\"firstName\"";
+        sql += ", operative.\"id\" ASC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        List<RosterRowResponse> items = jdbc.query(sql, params, LearningService::mapRosterRow);
+        return new ListPaging.Result<>(items, total);
     }
 
     @Transactional(readOnly = true)
