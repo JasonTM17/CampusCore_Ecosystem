@@ -37,6 +37,10 @@ node scripts/ecosystem-backup-drill.mjs --out artifacts/verification/demo
 #   exit 4 = BLOCKED_CAPABILITY khi không có stack.
 ```
 
+Bản sao lưu gồm dump DB và tar thư mục báo cáo luận văn được chụp ở hai thời điểm khác nhau;
+backup, verify và restore đối chiếu `storage_key` trong dump với tar, chụp lại một lần khi lệch
+(chi tiết ở [ops/backup/README.md](../../ops/backup/README.md)).
+
 Sau drill: verify archive bằng `ops/backup/verify-backup.sh` nếu restore
 bằng tay. Restore **luôn** vào DB isolated (`demo_restore_*`) — script từ
 chối overwrite DB nguồn.
