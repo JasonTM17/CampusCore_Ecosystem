@@ -177,12 +177,14 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             ) : null}
           </div>
 
-          <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/30 p-1 max-w-full sm:gap-1.5 scrollbar-none">
+          <div role="tablist" aria-label={copy.title} className="flex items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/30 p-1 max-w-full sm:gap-1.5 scrollbar-none">
             <Button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'departments'}
               size="sm"
               variant={activeTab === 'departments' ? 'default' : 'ghost'}
-              className="h-7 shrink-0 text-xs px-2 sm:px-2.5"
+              className="min-h-[44px] shrink-0 text-xs px-2 sm:px-2.5"
               onClick={() => setActiveTab('departments')}
             >
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
@@ -190,9 +192,11 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             </Button>
             <Button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'enrollments'}
               size="sm"
               variant={activeTab === 'enrollments' ? 'default' : 'ghost'}
-              className="h-7 shrink-0 text-xs px-2 sm:px-2.5"
+              className="min-h-[44px] shrink-0 text-xs px-2 sm:px-2.5"
               onClick={() => setActiveTab('enrollments')}
             >
               <TrendingUp className="mr-1.5 h-3.5 w-3.5" />
@@ -200,9 +204,11 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             </Button>
             <Button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'faculty'}
               size="sm"
               variant={activeTab === 'faculty' ? 'default' : 'ghost'}
-              className="h-7 shrink-0 text-xs px-2 sm:px-2.5"
+              className="min-h-[44px] shrink-0 text-xs px-2 sm:px-2.5"
               onClick={() => setActiveTab('faculty')}
             >
               <School className="mr-1.5 h-3.5 w-3.5" />
@@ -210,9 +216,11 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             </Button>
             <Button
               type="button"
+              role="tab"
+              aria-selected={activeTab === 'grades'}
               size="sm"
               variant={activeTab === 'grades' ? 'default' : 'ghost'}
-              className="h-7 shrink-0 text-xs px-2 sm:px-2.5"
+              className="min-h-[44px] shrink-0 text-xs px-2 sm:px-2.5"
               onClick={() => setActiveTab('grades')}
             >
               <GraduationCap className="mr-1.5 h-3.5 w-3.5" />

@@ -829,16 +829,16 @@ export function GeofenceCheckinPanel({
                   className="overflow-x-auto rounded-lg border border-border/70"
                   data-testid="checkin-review-table"
                 >
-                  <table className="w-full min-w-[760px] text-left text-sm">
+                  <table className="w-full min-w-[760px] text-left text-sm" aria-label={copy.reviewTitle}>
                     <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colStudent}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colStatus}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colFlags}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colDistance}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colAccuracy}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colCaptured}</th>
-                        <th className="px-3 py-2.5 font-semibold">{copy.colReview}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colStudent}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colStatus}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colFlags}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colDistance}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colAccuracy}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colCaptured}</th>
+                        <th scope="col" className="px-3 py-2.5 font-semibold">{copy.colReview}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">

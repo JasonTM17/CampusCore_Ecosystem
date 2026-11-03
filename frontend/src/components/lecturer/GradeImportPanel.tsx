@@ -106,7 +106,7 @@ export function GradeImportPanel({
           />
 
           {result ? (
-            <div className="space-y-1 text-xs">
+            <div role="status" aria-live="polite" className="space-y-1 text-xs">
               <p
                 className={cn(
                   'font-semibold',

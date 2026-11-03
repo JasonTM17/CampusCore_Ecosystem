@@ -211,6 +211,7 @@ export function LibraryDeskPage() {
           value={cancelReason}
           onChange={(event) => setCancelReason(event.target.value)}
           placeholder={copy.cancelReasonPlaceholder}
+          aria-label={copy.cancelReasonPlaceholder}
         />
       </div>
 

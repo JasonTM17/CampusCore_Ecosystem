@@ -271,16 +271,16 @@ export default function AdminCreditLimitApplicationsPage() {
             </div>
 
             <AdminTableScroll className="hidden md:block">
-              <table className="w-full min-w-[980px] text-sm">
+              <table className="w-full min-w-[980px] text-sm" aria-label={copy.title}>
                 <thead>
                   <tr className="border-b border-border/70 bg-secondary/50 text-left text-muted-foreground">
-                    <th className="px-4 py-3.5 font-medium">{copy.student}</th>
-                    <th className="px-4 py-3.5 font-medium">{copy.term}</th>
-                    <th className="px-4 py-3.5 font-medium">{copy.requestedLimit}</th>
-                    <th className="px-4 py-3.5 font-medium">{copy.reason}</th>
-                    <th className="px-4 py-3.5 font-medium">{copy.status}</th>
-                    <th className="px-4 py-3.5 font-medium">{copy.submitted}</th>
-                    <th className="px-4 py-3.5 text-right font-medium">{copy.actions}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.student}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.term}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.requestedLimit}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.reason}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.status}</th>
+                    <th scope="col" className="px-4 py-3.5 font-medium">{copy.submitted}</th>
+                    <th scope="col" className="px-4 py-3.5 text-right font-medium">{copy.actions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">

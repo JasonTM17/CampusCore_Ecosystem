@@ -507,18 +507,18 @@ export default function GradesPage() {
                     aria-label={semesterName}
                     tabIndex={0}
                   >
-                    <table className="w-full min-w-[840px] text-sm">
+                    <table className="w-full min-w-[840px] text-sm" aria-label={semesterName}>
                       <thead>
                         <tr className="border-b border-border/70 text-left text-muted-foreground">
-                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.course}</th>
-                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.section}</th>
-                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.lecturer}</th>
-                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.credits}</th>
-                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.processScore}</th>
-                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.finalExamScore}</th>
-                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.score}</th>
-                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.grade}</th>
-                          <th className="px-2 py-3 text-right font-medium">{copy.tableHeaders.status}</th>
+                          <th scope="col" className="px-2 py-3 font-medium">{copy.tableHeaders.course}</th>
+                          <th scope="col" className="px-2 py-3 font-medium">{copy.tableHeaders.section}</th>
+                          <th scope="col" className="px-2 py-3 font-medium">{copy.tableHeaders.lecturer}</th>
+                          <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.credits}</th>
+                          <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.processScore}</th>
+                          <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.finalExamScore}</th>
+                          <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.score}</th>
+                          <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.grade}</th>
+                          <th scope="col" className="px-2 py-3 text-right font-medium">{copy.tableHeaders.status}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
