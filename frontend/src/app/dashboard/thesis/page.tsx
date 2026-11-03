@@ -1411,7 +1411,11 @@ export default function ThesisPage() {
 
   const currentTopic = topics.find((t) => t.id === currentGroup?.topicId);
   const myResultItem = currentGroup ? roundResults.find((r) => r.groupId === currentGroup.id) : null;
-  const studentFinalScore = currentTopic?.finalScore ?? myResultItem?.finalScore ?? null;
+  // The server reveals a score only for an approved group; a rejected or pending
+  // group shares its topic row but must not see the topic's published score.
+  const studentFinalScore = currentGroup?.approvalStatus === 'APPROVED'
+    ? currentTopic?.finalScore ?? myResultItem?.finalScore ?? null
+    : null;
   const studentGradeInfo = studentFinalScore != null ? getGradeClassification(studentFinalScore) : null;
 
   const currentLeaderMember = groupMemberList.find((m) => m.isLeader);
