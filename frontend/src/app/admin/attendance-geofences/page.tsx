@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import type { components } from '@/types/generated-api';
 
 type GeofenceRow = components['schemas']['AttendanceGeofenceResponse'] & {
@@ -128,7 +129,7 @@ export default function AdminAttendanceGeofencesPage() {
       return;
     }
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) {
