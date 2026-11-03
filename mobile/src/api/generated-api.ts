@@ -1999,8 +1999,8 @@ export interface paths {
   };
   "/api/v1/thesis/rounds/{id}/publish-results": {
     /**
-     * Công bố điểm và kết quả bảo vệ khóa luận
-     * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức
+     * Công bố kết quả khóa luận
+     * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận
      */
     post: operations["publishResults"];
   };
@@ -2435,7 +2435,7 @@ export interface components {
       description?: string;
       /** Format: double */
       maxScore?: number;
-      title?: string;
+      title: string;
       /** Format: int32 */
       version?: number;
     };
@@ -2543,6 +2543,13 @@ export interface components {
       /** @description Currently required consent version; echo it in POST /location-consent */
       version?: string;
     };
+    AttendanceCourseSummary: {
+      code?: string;
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     AttendanceGeofenceRequest: {
       campusCode: string;
       /** Format: double */
@@ -2622,7 +2629,7 @@ export interface components {
       date?: string;
       id?: string;
       notes?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["AttendanceSectionSummary"];
       sectionId?: string;
       status?: string;
       student?: components["schemas"]["StudentSummary"];
@@ -2639,6 +2646,12 @@ export interface components {
       studentCode?: string;
       studentEmail?: string;
       studentId?: string;
+    };
+    AttendanceSectionSummary: {
+      course?: components["schemas"]["AttendanceCourseSummary"];
+      id?: string;
+      sectionNumber?: string;
+      semesterId?: string;
     };
     AttendanceSessionResponse: {
       /** Format: int64 */
@@ -2699,6 +2712,37 @@ export interface components {
       /** Format: uuid */
       clientRequestId?: string;
       status?: string;
+    };
+    CareerApplicationResponse: {
+      attachments?: components["schemas"]["AttachmentResponse"][];
+      candidateEmail?: string;
+      candidateUserId?: string;
+      coverLetter?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      moderationReason?: string;
+      opportunityId?: string;
+      opportunityTitle?: string;
+      organizationId?: string;
+      organizationName?: string;
+      status?: string;
+      /** Format: date-time */
+      statusChangedAt?: string;
+      statusChangedBy?: string;
+      /** Format: date-time */
+      submittedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
+    CareerStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      organizationId?: string;
+      scope?: string;
+      userId?: string;
     };
     CatalogSectionResponse: {
       alreadyEnrolled?: boolean;
@@ -2976,6 +3020,21 @@ export interface components {
     CourseSummary: {
       code?: string;
       name?: string;
+    };
+    CreateAnnouncementRequest: {
+      content: string;
+      /** Format: date-time */
+      expiresAt?: string;
+      isGlobal?: boolean;
+      lecturerId?: string;
+      priority?: string;
+      /** Format: date-time */
+      publishAt?: string;
+      sectionId?: string;
+      semesterId?: string;
+      targetRoles?: unknown[];
+      targetYears?: unknown[];
+      title: string;
     };
     CreateApplicationRequest: {
       cycle: string;
@@ -3255,6 +3314,15 @@ export interface components {
     EnrollRequest: {
       sectionId: string;
     };
+    EnrollmentCourseSummary: {
+      code?: string;
+      /** Format: int32 */
+      credits?: number;
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     EnrollmentGradeDetail: {
       courseCode?: string;
       courseName?: string;
@@ -3266,6 +3334,11 @@ export interface components {
       semesterNameVi?: string;
       studentId?: string;
       studentName?: string;
+    };
+    EnrollmentLecturerSummary: {
+      employeeId?: string;
+      id?: string;
+      user?: components["schemas"]["UserSummary"];
     };
     EnrollmentListResponse: {
       data?: components["schemas"]["EnrollmentResponse"][];
@@ -3282,15 +3355,36 @@ export interface components {
       gradeStatus?: string;
       id?: string;
       letterGrade?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["EnrollmentSectionSummary"];
       sectionId?: string;
-      semester?: components["schemas"]["SemesterSummary"];
+      semester?: components["schemas"]["EnrollmentSemesterSummary"];
       semesterId?: string;
       status?: string;
       student?: components["schemas"]["StudentSummary"];
       studentId?: string;
       /** Format: date-time */
       updatedAt?: string;
+    };
+    EnrollmentSectionSummary: {
+      /** Format: int32 */
+      capacity?: number;
+      course?: components["schemas"]["EnrollmentCourseSummary"];
+      /** Format: int32 */
+      enrolledCount?: number;
+      id?: string;
+      lecturer?: components["schemas"]["EnrollmentLecturerSummary"];
+      schedules?: components["schemas"]["SectionScheduleResponse"][];
+      sectionNumber?: string;
+      semester?: components["schemas"]["EnrollmentSemesterSummary"];
+      status?: string;
+    };
+    EnrollmentSemesterSummary: {
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+      /** Format: date-time */
+      startDate?: string;
     };
     ErrorResponse: {
       code?: string;
@@ -3337,6 +3431,14 @@ export interface components {
       updatedAt?: string;
       /** Format: int32 */
       version?: number;
+    };
+    EventStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      scope?: string;
+      userId?: string;
     };
     FacultyDepartmentSummary: {
       building?: string;
@@ -3474,7 +3576,7 @@ export interface components {
       id?: string;
       maxScore?: number;
       name?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["EnrollmentSectionSummary"];
       sectionId?: string;
       type?: string;
       weight?: number;
@@ -3649,6 +3751,17 @@ export interface components {
       /** Format: int32 */
       version?: number;
     };
+    LearningFeedbackResponse: {
+      authorId?: string;
+      comment?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      revisionId?: string;
+      /** Format: double */
+      score?: number;
+      submissionId?: string;
+    };
     LecturerGradingSectionResponse: {
       canPublish?: boolean;
       courseCode?: string;
@@ -3730,6 +3843,14 @@ export interface components {
       councils?: components["schemas"]["CouncilAssignment"][];
       gradingTasks?: components["schemas"]["GradingTask"][];
       topics?: components["schemas"]["SupervisedTopic"][];
+    };
+    LibraryStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      scope?: string;
+      userId?: string;
     };
     LoanRequestResponse: {
       /** Format: date-time */
@@ -3814,7 +3935,7 @@ export interface components {
       contentType?: string;
       description?: string;
       fileName?: string;
-      title?: string;
+      title: string;
       /** Format: int32 */
       version?: number;
     };
@@ -4012,9 +4133,14 @@ export interface components {
       reportId?: string;
       /** Format: date-time */
       reportSubmittedAt?: string;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
+      resultStatus?: string;
       /** Format: uuid */
       roundId?: string;
       roundStatus?: string;
+      skippedMilestones?: string[];
       /** Format: uuid */
       topicId?: string;
       topicTitle?: string;
@@ -4134,6 +4260,19 @@ export interface components {
       registeredAt?: string;
       status?: string;
       studentId?: string;
+    };
+    RegistrationRoundResponse: {
+      /** Format: int32 */
+      creditLimit?: number;
+      id?: string;
+      kind?: string;
+      name?: string;
+      semesterId?: string;
+      status?: string;
+      /** Format: date-time */
+      windowEnd?: string;
+      /** Format: date-time */
+      windowStart?: string;
     };
     ReportDeadlineUpdateRequest: {
       /** Format: date-time */
@@ -4411,6 +4550,16 @@ export interface components {
       date: string;
       records: components["schemas"]["StudentAttendanceEntry"][];
     };
+    SectionCourseSummary: {
+      code?: string;
+      /** Format: int32 */
+      credits?: number;
+      department?: components["schemas"]["DepartmentSummary"];
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     SectionGradeEnrollmentResponse: {
       email?: string;
       enrollmentStatus?: string;
@@ -4445,6 +4594,11 @@ export interface components {
       semesterNameVi?: string;
       status?: string;
     };
+    SectionLecturerSummary: {
+      employeeId?: string;
+      id?: string;
+      user?: components["schemas"]["UserSummary"];
+    };
     SectionListResponse: {
       data?: components["schemas"]["SectionResponse"][];
       meta?: components["schemas"]["PageMeta"];
@@ -4454,19 +4608,19 @@ export interface components {
       capacity?: number;
       classroom?: components["schemas"]["ClassroomSummary"];
       classroomId?: string;
-      course?: components["schemas"]["CourseSummary"];
+      course?: components["schemas"]["SectionCourseSummary"];
       courseId?: string;
       /** Format: int32 */
       enrolledCount?: number;
       id?: string;
-      lecturer?: components["schemas"]["LecturerSummary"];
+      lecturer?: components["schemas"]["SectionLecturerSummary"];
       lecturerId?: string;
       /** Format: int32 */
       maxCredits?: number;
       schedules?: components["schemas"]["SectionScheduleResponse"][];
       sectionId?: string;
       sectionNumber?: string;
-      semester?: components["schemas"]["SemesterSummary"];
+      semester?: components["schemas"]["SectionSemesterSummary"];
       semesterId?: string;
       status?: string;
     };
@@ -4505,6 +4659,14 @@ export interface components {
        * @example 07:00
        */
       startTime?: string;
+    };
+    SectionSemesterSummary: {
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+      /** Format: date-time */
+      startDate?: string;
     };
     SectionSummary: {
       course?: components["schemas"]["CourseSummary"];
@@ -4678,6 +4840,10 @@ export interface components {
       /** Format: uuid */
       groupId?: string;
       leaderStudentId?: string;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
+      resultStatus?: string;
       topicTitle?: string;
     };
     StudentSearchResponse: {
@@ -4857,6 +5023,9 @@ export interface components {
       id?: string;
       /** Format: int32 */
       maxGroups?: number;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
       resultStatus?: string;
       /** Format: uuid */
       roundId?: string;
@@ -4926,6 +5095,25 @@ export interface components {
     UnreadCountResponse: {
       /** Format: int64 */
       unreadCount?: number;
+    };
+    UpdateAnnouncementRequest: {
+      content?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      /** Format: date-time */
+      expiresAt?: string;
+      isGlobal?: boolean;
+      lecturerId?: string;
+      presentFields?: string[];
+      priority?: string;
+      /** Format: date-time */
+      publishAt?: string;
+      reason?: string;
+      sectionId?: string;
+      semesterId?: string;
+      targetRoles?: unknown[];
+      targetYears?: unknown[];
+      title?: string;
     };
     UpdateDisplayOrderRequest: {
       /** Format: int32 */
@@ -5346,8 +5534,8 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
-      200: {
+      /** @description Vùng điểm danh đã được tạo */
+      201: {
         content: {
           "*/*": components["schemas"]["AttendanceGeofenceResponse"];
         };
@@ -6068,7 +6256,7 @@ export interface operations {
   create_5: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["JsonNode"];
+        "application/json": components["schemas"]["CreateAnnouncementRequest"];
       };
     };
     responses: {
@@ -6258,7 +6446,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["JsonNode"];
+        "application/json": components["schemas"]["UpdateAnnouncementRequest"];
       };
     };
     responses: {
@@ -6840,6 +7028,10 @@ export interface operations {
     responses: {
       /** @description Lấy danh sách phiên hội thoại thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Conversation"][];
         };
@@ -6903,6 +7095,10 @@ export interface operations {
     responses: {
       /** @description Lấy lịch sử tin nhắn thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Message"][];
         };
@@ -7717,7 +7913,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7740,7 +7936,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"][];
+          "*/*": components["schemas"]["CareerApplicationResponse"][];
         };
       };
     };
@@ -7756,7 +7952,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7787,7 +7983,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7828,7 +8024,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7916,7 +8112,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"][];
+          "*/*": components["schemas"]["CareerApplicationResponse"][];
         };
       };
     };
@@ -7932,7 +8128,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7970,7 +8166,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7991,7 +8187,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -8014,7 +8210,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["CareerStaffGrantResponse"][];
         };
       };
     };
@@ -8030,7 +8226,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["CareerStaffGrantResponse"];
         };
       };
     };
@@ -9295,6 +9491,12 @@ export interface operations {
           "*/*": components["schemas"]["EventResponse"][];
         };
       };
+      /** @description Lỗi phân trang: limit là bắt buộc khi có page */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /** Lịch sử đăng ký của tôi */
@@ -9396,7 +9598,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["EventStaffGrantResponse"][];
         };
       };
     };
@@ -9414,7 +9616,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["EventStaffGrantResponse"];
         };
       };
     };
@@ -10294,7 +10496,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["FeedbackResponse"][];
+          "*/*": components["schemas"]["LearningFeedbackResponse"][];
         };
       };
     };
@@ -10413,7 +10615,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["FeedbackResponse"][];
+          "*/*": components["schemas"]["LearningFeedbackResponse"][];
         };
       };
     };
@@ -10711,7 +10913,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["LibraryStaffGrantResponse"][];
         };
       };
     };
@@ -10729,7 +10931,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["LibraryStaffGrantResponse"];
         };
       };
     };
@@ -11131,9 +11333,7 @@ export interface operations {
       };
       /** @description Chưa có đơn nào được nộp cho đợt này */
       204: {
-        content: {
-          "*/*": components["schemas"]["Response"];
-        };
+        content: never;
       };
     };
   };
@@ -11764,7 +11964,7 @@ export interface operations {
       /** @description Truy vấn thành công danh sách đợt đăng ký */
       200: {
         content: {
-          "*/*": components["schemas"]["RoundResponse"][];
+          "*/*": components["schemas"]["RegistrationRoundResponse"][];
         };
       };
     };
@@ -12359,6 +12559,10 @@ export interface operations {
     responses: {
       /** @description Lấy danh sách phiên hội thoại thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Conversation"][];
         };
@@ -12422,6 +12626,10 @@ export interface operations {
     responses: {
       /** @description Lấy lịch sử tin nhắn thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Message"][];
         };
@@ -13469,8 +13677,8 @@ export interface operations {
     };
   };
   /**
-   * Công bố điểm và kết quả bảo vệ khóa luận
-   * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức
+   * Công bố kết quả khóa luận
+   * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận
    */
   publishResults: {
     parameters: {
