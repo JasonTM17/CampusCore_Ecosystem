@@ -1715,6 +1715,53 @@
         },
         "type": "object"
       },
+      "CareerTransitionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CatalogDepartmentSummary": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "descriptionVi": {
+            "type": "string"
+          },
+          "facultyId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CatalogSectionResponse": {
         "properties": {
           "alreadyEnrolled": {
@@ -2450,7 +2497,7 @@
             "type": "integer"
           },
           "department": {
-            "$ref": "#/components/schemas/DepartmentSummary"
+            "$ref": "#/components/schemas/CatalogDepartmentSummary"
           },
           "departmentId": {
             "type": "string"
@@ -6831,7 +6878,27 @@
             "type": "integer"
           },
           "department": {
-            "$ref": "#/components/schemas/DepartmentSummary"
+            "$ref": "#/components/schemas/SectionDepartmentSummary"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameVi": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SectionDepartmentSummary": {
+        "properties": {
+          "code": {
+            "type": "string"
           },
           "id": {
             "type": "string"
@@ -13896,7 +13963,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           }
@@ -14227,7 +14294,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           },
@@ -14540,7 +14607,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           },
@@ -14581,7 +14648,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           },
@@ -14622,7 +14689,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           }
@@ -14662,7 +14729,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           },
@@ -14703,7 +14770,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           }
@@ -14743,7 +14810,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/CareerTransitionRequest"
               }
             }
           }
