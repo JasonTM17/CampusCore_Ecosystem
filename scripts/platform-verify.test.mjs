@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { inspectRequestedItReports, preflightComposeProject } from './platform-verify.mjs';
+import {
+  casePgit,
+  caseStack,
+  inspectRequestedItReports,
+  preflightComposeProject,
+} from './platform-verify.mjs';
 
 const source = readFileSync(resolve(fileURLToPath(new URL('.', import.meta.url)), 'platform-verify.mjs'), 'utf8');
 
@@ -88,8 +94,42 @@ test('platform-verify refuses pre-existing project containers or volumes before 
 test('platform-verify preflights both destructive cases and tears down only its started stack', () => {
   const stack = source.slice(source.indexOf('async function caseStack'), source.indexOf('async function casePgit'));
   const pgit = source.slice(source.indexOf('async function casePgit'), source.indexOf('async function main'));
-  assert.ok(stack.indexOf('preflightComposeProject(args)') < stack.indexOf("composeTry(args, ['up'"));
-  assert.ok(pgit.indexOf('preflightComposeProject(args)') < pgit.indexOf("composeTry(args, ['up'"));
-  assert.ok(/if \(stackStarted\)[\s\S]*?composeTry\(args, \['down', '-v'/.test(stack));
-  assert.ok(/if \(stackStarted\)[\s\S]*?composeTry\(args, \['down', '-v'/.test(pgit));
+  assert.ok(stack.indexOf('preflightComposeProject(args,') < stack.indexOf("composeCase(args, ['up'"));
+  assert.ok(pgit.indexOf('preflightComposeProject(args,') < pgit.indexOf("composeCase(args, ['up'"));
+  assert.ok(/if \(stackStarted\)[\s\S]*?composeCase\(args, \['down', '-v'/.test(stack));
+  assert.ok(/if \(stackStarted\)[\s\S]*?composeCase\(args, \['down', '-v'/.test(pgit));
+});
+
+test('a cleanup failure keeps the original case failure and still tears down', async (t) => {
+  for (const [name, runCase] of [['stack', caseStack], ['pgit', casePgit]]) {
+    const evidence = mkdtempSync(join(tmpdir(), `platform-verify-${name}-`));
+    t.after(() => rmSync(evidence, { recursive: true, force: true }));
+    const calls = [];
+    const runner = {
+      tryRun: (_command, argv) => {
+        calls.push(argv);
+        return { ok: true, out: '' };
+      },
+      composeTry: (_args, argv) => {
+        calls.push(argv);
+        return argv.includes('up')
+          ? { ok: false, out: 'fake compose up failed', code: 1 }
+          : { ok: false, out: 'fake compose down failed', code: 1 };
+      },
+    };
+
+    await assert.rejects(
+      () => runCase({ project: 'campuscore-test-fixture', evidence }, runner),
+      (error) => {
+        assert.match(error.message, /compose up failed/, `${name} keeps the original failure`);
+        assert.match(
+          String(error.cause?.message),
+          /Owned Compose stack cleanup failed/,
+          `${name} reports the cleanup failure as the cause`,
+        );
+        return true;
+      },
+    );
+    assert.ok(calls.some((argv) => argv.includes('down')), `${name} still tears down its stack`);
+  }
 });
