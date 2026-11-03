@@ -41,6 +41,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const recordsWarning = preview ? null : recordsQuery.warning;
   const recordsLoading = !preview && recordsQuery.isLoading;
   const options = termOptions([], preview ? [] : semestersQuery.data ?? [], locale);
+  const semestersFailed = !preview && semestersQuery.error !== null && options.length === 0;
   const rows = summary.filter((row) => !sectionId || row.sectionId === sectionId);
   const visibleRecords = records
     .filter((record) => !sectionId || record.sectionId === sectionId)
@@ -52,8 +53,8 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
       title={copy.attendanceTitle}
       loading={!preview && summaryQuery.isLoading}
       error={preview ? null : summaryQuery.error}
-      warning={preview ? null : summaryQuery.warning}
-      onRetry={() => { void summaryQuery.reload(); void recordsQuery.reload(); }}
+      warning={preview ? null : [summaryQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null}
+      onRetry={() => { void Promise.all([semestersQuery.reload(), summaryQuery.reload(), recordsQuery.reload()]); }}
       onRefresh={preview ? undefined : pull.onRefresh}
       refreshing={!preview && pull.refreshing}
 
@@ -97,6 +98,9 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
     </> }}
     >
       <CheckinEntryCard navigation={navigation} />
+      {semestersFailed ? (
+        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+      ) : null}
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyAttendance} />
