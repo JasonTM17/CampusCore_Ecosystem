@@ -775,6 +775,26 @@ class LearningContractPersistenceTest {
     }
 
     @Test
+    void jsonDraftRejectsActiveHtmlBeforeStoringTheAttachment() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-html-attachment");
+        String html = "<html><body><form>CampusUTE sign in</form><script>void 0</script></body></html>";
+
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"review.html\",\"contentType\":\"text/html\","
+                                + "\"contentBase64\":\"" + b64(html) + "\"}"))
+                .andExpect(status().isUnsupportedMediaType());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"draftFileKey\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId)).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\" WHERE \"sha256\" = ?",
+                Integer.class, sha256(html))).isZero();
+    }
+
+    @Test
     void submittedWorkReportsTheCurrentDraftState() throws Exception {
         String assignmentId = publishedAssignmentId();
         String submissionId = openDraft(assignmentId, studentJwt, "draft-submit-readback");
@@ -970,13 +990,13 @@ class LearningContractPersistenceTest {
     }
 
     @Test
-    void invalidDraftContentTypeStaysDownloadable() throws Exception {
+    void legacyInvalidContentTypeStaysDownloadable() throws Exception {
         String assignmentId = publishedAssignmentId();
         String submissionId = openDraft(assignmentId, studentJwt, "draft-bad-type");
         mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"textBody\":\"answer\",\"fileName\":\"report.pdf\","
-                                + "\"contentType\":\"report\",\"contentBase64\":\"" + b64("pdf bytes") + "\"}"))
+                        .content("{\"textBody\":\"answer\",\"fileName\":\"report.txt\","
+                                + "\"contentType\":\"text/plain\",\"contentBase64\":\"" + b64("plain report") + "\"}"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
                         .with(studentJwt).header("Idempotency-Key", "submit-bad-type"))
@@ -986,15 +1006,15 @@ class LearningContractPersistenceTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
                 .get(0).get("id").asText();
 
-        // The write boundary normalises the invalid declared type.
+        // A legacy invalid type degrades to octet-stream at download time.
         assertThat(jdbc.queryForObject(
                 "SELECT \"contentType\" FROM learning.\"SubmissionRevision\" WHERE \"id\" = ?",
-                String.class, revisionId)).isEqualTo(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+                String.class, revisionId)).isEqualTo(MediaType.TEXT_PLAIN_VALUE);
 
         mvc.perform(get("/api/v1/learning/staff/revisions/" + revisionId + "/file").with(lecturerJwt))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .header().string("Content-Type", MediaType.APPLICATION_OCTET_STREAM_VALUE));
+                        .header().string("Content-Type", MediaType.TEXT_PLAIN_VALUE));
 
         // A row written before the write boundary existed must still download.
         jdbc.update("UPDATE learning.\"FileObject\" SET \"contentType\" = 'report' WHERE \"key\" ="
