@@ -5,9 +5,12 @@ import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.RowMapper;
@@ -120,6 +123,39 @@ public class NotificationWriteRepository {
         return commands.size();
     }
 
+    public Set<String> findExistingIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT id FROM " + TABLE + " WHERE id IN (:ids)",
+                new MapSqlParameterSource("ids", ids), String.class));
+    }
+
+    public Set<String> findMatchingUsers(
+            List<String> userIds,
+            String title,
+            String message,
+            String type,
+            String link,
+            Instant createdAfter) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT user_id FROM " + TABLE
+                        + " WHERE user_id IN (:userIds) AND title = :title AND message = :message"
+                        + " AND type = :type AND link = :link AND created_at >= :createdAfter",
+                new MapSqlParameterSource()
+                        .addValue("userIds", userIds)
+                        .addValue("title", title)
+                        .addValue("message", message)
+                        .addValue("type", type)
+                        .addValue("link", link)
+                        .addValue("createdAfter", Timestamp.from(createdAfter)),
+                String.class));
+    }
+
     private static MapSqlParameterSource insertParameters(CreateNotificationCommand command) {
         return new MapSqlParameterSource()
                 .addValue("id", command.id())
@@ -179,6 +215,10 @@ public class NotificationWriteRepository {
         add(assignments, parameters, "message", "message", command.message());
         add(assignments, parameters, "type", "type", command.type());
         add(assignments, parameters, "link", "link", command.link());
+        if (command.userId().present()) {
+            assignments.add("is_read = CASE WHEN user_id <> :userId THEN FALSE ELSE is_read END");
+            assignments.add("read_at = CASE WHEN user_id <> :userId THEN NULL ELSE read_at END");
+        }
         if (assignments.isEmpty()) {
             return;
         }
