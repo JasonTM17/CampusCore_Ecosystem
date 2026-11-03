@@ -19,6 +19,7 @@ import {
   THESIS_ROUND_PAGE_SIZE,
   THESIS_TOPIC_PAGE_SIZE,
   buildAdvisorDirectory,
+  filterTopics,
   isAbortLike,
   isGroupLeader,
   mapWithConcurrency,
@@ -115,6 +116,12 @@ function appendUnique(base: readonly ThesisTopic[], more: readonly ThesisTopic[]
   return [...base, ...more.filter((topic) => !seen.has(topic.id))];
 }
 
+function topicPageOptions(page: number, search: string) {
+  return search
+    ? { page, limit: THESIS_TOPIC_PAGE_SIZE, search }
+    : { page, limit: THESIS_TOPIC_PAGE_SIZE };
+}
+
 export interface ThesisTopicList extends ThesisQueryState {
   items: ThesisTopic[];
   total?: number;
@@ -124,20 +131,24 @@ export interface ThesisTopicList extends ThesisQueryState {
   loadMore: () => void;
 }
 
-export function useThesisTopics(roundId: string | null): ThesisTopicList {
+export function useThesisTopics(roundId: string | null, search = ''): ThesisTopicList {
   const { copy, locale } = useThesisCopy();
   const preview = isPreview();
   const sample = usePreviewData(locale);
   const key = roundId ?? 'none';
+  const term = search.trim();
+  // The search term is part of the page identity: a page fetched for another
+  // term must never be read as this term's first page.
+  const pageKey = term ? `${key}:${term}` : key;
   const query = useScreenQuery<TopicPage>(
-    `thesis:topics:${key}`,
+    `thesis:topics:${pageKey}`,
     async () => {
-      const result = await thesisApi.topics(key, { page: 0, limit: THESIS_TOPIC_PAGE_SIZE });
-      return { key, items: result.items, total: result.total, hasMore: result.hasMore };
+      const result = await thesisApi.topics(key, topicPageOptions(0, term));
+      return { key: pageKey, items: result.items, total: result.total, hasMore: result.hasMore };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
-  const first = query.data && query.data.key === key ? query.data : undefined;
+  const first = query.data && query.data.key === pageKey ? query.data : undefined;
 
   const [extra, setExtra] = useState<ExtraPages | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -180,7 +191,7 @@ export function useThesisTopics(roundId: string | null): ThesisTopicList {
     // A retry clears the previous failure, like the content paged-list lifecycle.
     setExtra((previous) => (previous?.owner === owner ? { ...previous, error: null } : previous));
     const page = (owned?.page ?? 0) + 1;
-    thesisApi.topics(roundId, { page, limit: THESIS_TOPIC_PAGE_SIZE })
+    thesisApi.topics(roundId, topicPageOptions(page, term))
       .then((result) => {
         if (!mounted.current || !current()) return;
         setExtra({ owner, items: appendUnique(owned?.items ?? [], result.items), page, hasMore: result.hasMore, error: null });
@@ -195,12 +206,14 @@ export function useThesisTopics(roundId: string | null): ThesisTopicList {
         request.current = null;
         if (mounted.current) setLoadingMore(false);
       });
-  }, [preview, first, hasMore, roundId, owned, copy]);
+  }, [preview, first, hasMore, roundId, term, owned, copy]);
 
   const items = useMemo(() => {
-    if (preview) return sample.topics.filter((topic) => topic.roundId === (roundId ?? topic.roundId));
+    if (preview) {
+      return filterTopics(sample.topics.filter((topic) => topic.roundId === (roundId ?? topic.roundId)), term);
+    }
     return appendUnique(first?.items ?? [], owned?.items ?? []);
-  }, [preview, sample.topics, roundId, first, owned]);
+  }, [preview, sample.topics, roundId, term, first, owned]);
 
   return {
     items,
@@ -270,6 +283,8 @@ interface GroupSnapshot {
   studentId: string | null;
   group: ThesisGroup | null;
   progress: ThesisProgress | null;
+  /** The derived progress read failed; the group itself is still known. */
+  progressFailed: boolean;
 }
 
 const MY_GROUP_PAGE = 100;
@@ -289,6 +304,8 @@ export interface ThesisGroupState extends ThesisQueryState {
   studentId: string | null;
   group: ThesisGroup | null;
   progress: ThesisProgress | null;
+  /** Unknown progress is never reported as 0%. */
+  progressFailed: boolean;
   isLeader: boolean;
   /** Applies a mutation response locally, then revalidates the progress read. */
   applyGroup: (group: ThesisGroup) => void;
@@ -302,18 +319,20 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
   const query = useScreenQuery<GroupSnapshot>(
     `thesis:group:${key}`,
     async () => {
+      let progressFailed = false;
       const [me, groups, progress] = await Promise.all([
         campusApi.profile(),
         loadMyGroups(),
         // Progress is a derived read; a group still shows when it is unavailable.
         thesisApi.progress(key).catch((error: unknown) => {
           if (isResourceUnauthorizedError(error)) throw error;
+          progressFailed = true;
           return null;
         }),
       ]);
       const inRound = groups.filter((group) => group.roundId === key);
       const group = inRound.find((item) => item.status !== 'CANCELLED') ?? inRound[0] ?? null;
-      return { key, studentId: me.studentId ?? null, group, progress };
+      return { key, studentId: me.studentId ?? null, group, progress, progressFailed };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
@@ -322,17 +341,21 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
 
   const applyGroup = useCallback((next: ThesisGroup) => {
     if (preview) return;
-    setData({ key, studentId: live?.studentId ?? null, group: next, progress: live?.progress ?? null });
+    setData({
+      key, studentId: live?.studentId ?? null, group: next,
+      progress: live?.progress ?? null, progressFailed: live?.progressFailed ?? false,
+    });
     void reload();
   }, [preview, setData, reload, key, live]);
 
   const snapshot: GroupSnapshot | undefined = preview
-    ? { key, studentId: 'preview-student-1', group: sample.group, progress: sample.progress }
+    ? { key, studentId: 'preview-student-1', group: sample.group, progress: sample.progress, progressFailed: false }
     : live;
   return {
     studentId: snapshot?.studentId ?? null,
     group: snapshot?.group ?? null,
     progress: snapshot?.progress ?? null,
+    progressFailed: snapshot?.progressFailed ?? false,
     isLeader: isGroupLeader(snapshot?.group, snapshot?.studentId),
     applyGroup,
     loading: !preview && roundId !== null && query.isLoading && !live,

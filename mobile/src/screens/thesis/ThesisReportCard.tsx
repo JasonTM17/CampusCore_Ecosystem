@@ -37,6 +37,12 @@ function formatSize(bytes: number | null | undefined, format: (value: number) =>
   return typeof bytes === 'number' && bytes > 0 ? format(bytes) : '';
 }
 
+/** The stored values the form fields mirror. */
+function seedsSameFields(left: ThesisReport | null | undefined, right: ThesisReport | null | undefined): boolean {
+  if (!left || !right) return left === right;
+  return left.title === right.title && left.note === right.note && left.url === right.url;
+}
+
 /**
  * Report of an approved group: link and file attachments through the file
  * adapter (graceful when the device cannot pick or save), cancellable upload,
@@ -59,11 +65,15 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   const [confirmRemove, setConfirmRemove] = useState(false);
   const abort = useRef<AbortController | null>(null);
 
-  // Form fields mirror the stored report whenever it changes.
+  // Form fields mirror the stored report whenever its values change. A reload
+  // that returns the same values (a failed save, a revalidation) must not
+  // replace what the leader has typed.
   const stored = useRef<ThesisReport | null | undefined>(undefined);
   useEffect(() => {
     if (stored.current === report) return;
+    const previous = stored.current;
     stored.current = report;
+    if (seedsSameFields(previous, report)) return;
     setTitle(report?.title ?? '');
     setNote(report?.note ?? '');
     setUrl(report?.url ?? '');
