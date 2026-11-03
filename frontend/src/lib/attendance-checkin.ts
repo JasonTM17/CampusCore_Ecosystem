@@ -117,6 +117,47 @@ export function campusLocalTimeToUtcIso(date: string, hhmm: string): string | nu
   return Number.isNaN(instant.getTime()) ? null : instant.toISOString();
 }
 
+const CAMPUS_LOCAL_DATETIME =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/;
+
+/**
+ * Convert a datetime-local value (campus wall clock) into an instant. The
+ * value has no zone, so it must be read on the fixed campus offset instead of
+ * the browser's — a UTC laptop would otherwise store 09:00 as 16:00 campus.
+ * Seconds and milliseconds are preserved; an impossible calendar value or a
+ * bare date returns null so the caller can refuse the submit.
+ */
+export function campusLocalDateTimeToUtcIso(value: string): string | null {
+  const match = CAMPUS_LOCAL_DATETIME.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = '00', fractionText = '0'] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59) {
+    return null;
+  }
+  const millis = Number(fractionText.padEnd(3, '0'));
+  const localMs = Date.UTC(year, month - 1, day, hour, minute, second, millis);
+  const check = new Date(localMs);
+  if (
+    check.getUTCFullYear() !== year
+    || check.getUTCMonth() !== month - 1
+    || check.getUTCDate() !== day
+    || check.getUTCHours() !== hour
+    || check.getUTCMinutes() !== minute
+    || check.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return new Date(localMs - CAMPUS_OFFSET_MINUTES * 60_000).toISOString();
+}
+
 export function addMinutesToIso(iso: string, minutes: number): string | null {
   const base = new Date(iso).getTime();
   if (!Number.isFinite(minutes) || Number.isNaN(base)) {

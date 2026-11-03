@@ -33,7 +33,15 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { statusToneClass } from '@/components/ui/status';
 import { useI18n } from '@/i18n';
 import { eventsMessages } from '@/i18n/events-messages';
+import { campusLocalDateTimeToUtcIso } from '@/lib/attendance-checkin';
+import {
+  correctEmptyPage,
+  hasNextPage as hasNextPageFor,
+  pageCount,
+} from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
+
+const PAGE_SIZE = 20;
 
 /**
  * /dashboard/events — single surface for both audiences (contract D4):
@@ -69,7 +77,7 @@ export function EventsConsolePage() {
     'TRUONG_BO_MON',
     'TRUONG_KHOA',
   ]);
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
 
   const [mode, setMode] = useState<'loading' | 'error' | 'staff' | 'student'>('loading');
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
@@ -78,14 +86,21 @@ export function EventsConsolePage() {
   const accountRef = useRef(accountId);
   accountRef.current = accountId;
   const loadSequence = useRef(0);
+  const staffSequence = useRef(0);
   const rosterSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
   const deepLinkConsumed = useRef(false);
+  const staffPageRef = useRef(0);
+  const rosterPageRef = useRef(0);
   const [staffEvents, setStaffEvents] = useState<CampusEvent[]>([]);
+  const [staffPage, setStaffPage] = useState(0);
+  const [staffTotal, setStaffTotal] = useState<number | null>(null);
   const [studentEvents, setStudentEvents] = useState<CampusEvent[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<MyEventRegistration[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [roster, setRoster] = useState<EventRosterEntry[]>([]);
+  const [rosterPage, setRosterPage] = useState(0);
+  const [rosterTotal, setRosterTotal] = useState<number | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState(false);
   const [error, setError] = useState('');
@@ -112,10 +127,31 @@ export function EventsConsolePage() {
 
   const copy = eventsMessages[locale];
 
-  const loadStaff = useCallback(async () => {
-    const events = await eventsApi.staffList();
-    if (accountRef.current === accountId) setStaffEvents(events);
+  const loadStaff = useCallback(async (requestedPage: number = staffPageRef.current) => {
+    const request = ++staffSequence.current;
+    const current = () => request === staffSequence.current && accountRef.current === accountId;
+    let result = await eventsApi.staffListPage(requestedPage, PAGE_SIZE);
+    if (!current()) return;
+    let page = requestedPage;
+    const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+    if (correction) {
+      page = correction.page;
+      if (correction.refetch) {
+        result = await eventsApi.staffListPage(page, PAGE_SIZE);
+        if (!current()) return;
+      }
+    }
+    staffPageRef.current = page;
+    setStaffPage(page);
+    setStaffEvents(result.items);
+    setStaffTotal(result.total ?? null);
   }, [accountId]);
+
+  const goToStaffPage = useCallback((page: number) => {
+    void loadStaff(page).catch(() => {
+      if (accountRef.current === accountId) setError(copy.failed);
+    });
+  }, [accountId, copy.failed, loadStaff]);
 
   const loadStudent = useCallback(async () => {
     const [events, mine] = await Promise.all([
@@ -132,9 +168,8 @@ export function EventsConsolePage() {
     const current = () => request === loadSequence.current && accountRef.current === accountId;
     setError('');
     try {
-      const events = await eventsApi.staffList();
+      await loadStaff();
       if (!current()) return;
-      setStaffEvents(events);
       setStaffGranted(true);
       setMode((previous) => previous === 'student' ? previous : 'staff');
       if (isStudent) {
@@ -156,7 +191,7 @@ export function EventsConsolePage() {
       setError(copy.failed);
       setMode('error');
     }
-  }, [accountId, copy.failed, isStudent, loadStudent]);
+  }, [accountId, copy.failed, isStudent, loadStaff, loadStudent]);
 
   const invalidateReads = useCallback(() => {
     ++loadSequence.current;
@@ -171,10 +206,17 @@ export function EventsConsolePage() {
 
   useEffect(() => {
     invalidateReads();
+    ++staffSequence.current;
     selectedRef.current = null;
     deepLinkConsumed.current = false;
+    staffPageRef.current = 0;
+    rosterPageRef.current = 0;
     setSelectedEventId(null);
+    setStaffPage(0);
+    setStaffTotal(null);
     setRoster([]);
+    setRosterPage(0);
+    setRosterTotal(null);
     setRosterError(false);
     setStaffEvents([]);
     setStudentEvents([]);
@@ -188,7 +230,10 @@ export function EventsConsolePage() {
     return invalidateReads;
   }, [accountId, authLoading, hasAccess, invalidateReads, load]);
 
-  const loadRoster = useCallback(async (eventId: string) => {
+  const loadRoster = useCallback(async (
+    eventId: string,
+    requestedPage: number = rosterPageRef.current,
+  ) => {
     const request = ++rosterSequence.current;
     const current = () => request === rosterSequence.current &&
       accountRef.current === accountId && selectedRef.current === eventId;
@@ -196,8 +241,21 @@ export function EventsConsolePage() {
     setRosterError(false);
     setRosterLoading(true);
     try {
-      const entries = await eventsApi.staffRoster(eventId);
-      if (current()) setRoster(entries);
+      let result = await eventsApi.staffRosterPage(eventId, requestedPage, PAGE_SIZE);
+      if (!current()) return;
+      let page = requestedPage;
+      const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+      if (correction) {
+        page = correction.page;
+        if (correction.refetch) {
+          result = await eventsApi.staffRosterPage(eventId, page, PAGE_SIZE);
+          if (!current()) return;
+        }
+      }
+      rosterPageRef.current = page;
+      setRosterPage(page);
+      setRoster(result.items);
+      setRosterTotal(result.total ?? null);
     } catch {
       if (current()) {
         setRoster([]);
@@ -212,17 +270,23 @@ export function EventsConsolePage() {
     const next = selectedRef.current === eventId ? null : eventId;
     selectedRef.current = next;
     ++rosterSequence.current;
+    rosterPageRef.current = 0;
     setSelectedEventId(next);
     setRoster([]);
+    setRosterPage(0);
+    setRosterTotal(null);
     setRosterError(false);
-    if (next) void loadRoster(next);
+    if (next) void loadRoster(next, 0);
   }, [loadRoster]);
 
   const switchView = async (view: 'staff' | 'student') => {
     ++rosterSequence.current;
     selectedRef.current = null;
+    rosterPageRef.current = 0;
     setSelectedEventId(null);
     setRoster([]);
+    setRosterPage(0);
+    setRosterTotal(null);
     setRosterError(false);
     setError('');
     setMode(view);
@@ -241,8 +305,11 @@ export function EventsConsolePage() {
     if (!id) return;
     deepLinkConsumed.current = true;
     selectedRef.current = id;
+    rosterPageRef.current = 0;
     setSelectedEventId(id);
-    if (mode === 'staff') void loadRoster(id);
+    setRosterPage(0);
+    setRosterTotal(null);
+    if (mode === 'staff') void loadRoster(id, 0);
   }, [mode, loadRoster]);
 
   useEffect(() => {
@@ -288,6 +355,23 @@ export function EventsConsolePage() {
       toast.error(copy.failed);
       return;
     }
+    const startsAt = campusLocalDateTimeToUtcIso(form.startsAt);
+    const endsAt = campusLocalDateTimeToUtcIso(form.endsAt);
+    const registrationOpensAt = form.registrationOpensAt
+      ? campusLocalDateTimeToUtcIso(form.registrationOpensAt)
+      : null;
+    const registrationClosesAt = form.registrationClosesAt
+      ? campusLocalDateTimeToUtcIso(form.registrationClosesAt)
+      : null;
+    if (
+      !startsAt
+      || !endsAt
+      || (form.registrationOpensAt && !registrationOpensAt)
+      || (form.registrationClosesAt && !registrationClosesAt)
+    ) {
+      toast.error(copy.failed);
+      return;
+    }
     await runStaffAction('create', async () => {
       await eventsApi.staffCreate({
         title: form.title.trim(),
@@ -295,14 +379,10 @@ export function EventsConsolePage() {
         location: form.location.trim() || undefined,
         description: form.description.trim() || undefined,
         capacity: Number.parseInt(form.capacity, 10) || 1,
-        startsAt: new Date(form.startsAt).toISOString(),
-        endsAt: new Date(form.endsAt).toISOString(),
-        registrationOpensAt: form.registrationOpensAt
-          ? new Date(form.registrationOpensAt).toISOString()
-          : null,
-        registrationClosesAt: form.registrationClosesAt
-          ? new Date(form.registrationClosesAt).toISOString()
-          : null,
+        startsAt,
+        endsAt,
+        registrationOpensAt,
+        registrationClosesAt,
       });
       if (accountRef.current !== accountId) return;
       setCreateOpen(false);
@@ -468,6 +548,59 @@ export function EventsConsolePage() {
     return buttons;
   };
 
+  const renderPager = (
+    testId: string,
+    page: number,
+    total: number | null,
+    itemCount: number,
+    onPage: (next: number) => void,
+  ) => {
+    const totalPages = pageCount(total ?? undefined, PAGE_SIZE);
+    const previous = page > 0;
+    const next = hasNextPageFor(page, totalPages, itemCount, PAGE_SIZE);
+    const firstVisible = itemCount === 0 ? 0 : page * PAGE_SIZE + 1;
+    const lastVisible = page * PAGE_SIZE + itemCount;
+    const summary = total === null
+      ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+      : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
+    return (
+      <div
+        className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between"
+        data-testid={testId}
+      >
+        <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+          {summary}
+          <span className="ml-2">
+            {messages.common.states.page} {page + 1}
+            {totalPages === undefined ? '' : ` / ${totalPages}`}
+          </span>
+        </p>
+        {previous || next ? (
+          <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!previous}
+              data-testid={`${testId}-previous`}
+              onClick={() => onPage(page - 1)}
+            >
+              {messages.common.states.goToPreviousPage}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!next}
+              data-testid={`${testId}-next`}
+              onClick={() => onPage(page + 1)}
+            >
+              {messages.common.states.goToNextPage}
+            </Button>
+          </nav>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
       <PageHeader
@@ -501,7 +634,8 @@ export function EventsConsolePage() {
           {staffEvents.length === 0 ? (
             <EmptyState title={copy.emptyStaff} description="" />
           ) : (
-            staffEvents.map((event) => (
+            <>
+              {staffEvents.map((event) => (
               <div
                 key={event.id}
                 className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
@@ -578,6 +712,7 @@ export function EventsConsolePage() {
                             {roster.map((entry, index) => (
                               <tr
                                 key={entry.registrationId}
+                                data-testid="events-roster-row"
                                 className="border-b border-border/30 last:border-0"
                               >
                                 <td className="py-2 pr-3 text-muted-foreground">{index + 1}</td>
@@ -628,12 +763,21 @@ export function EventsConsolePage() {
                             ))}
                           </tbody>
                         </table>
+                        {renderPager(
+                          'events-roster',
+                          rosterPage,
+                          rosterTotal,
+                          roster.length,
+                          (page) => void loadRoster(event.id, page),
+                        )}
                       </div>
                     )}
                   </div>
                 ) : null}
               </div>
-            ))
+            ))}
+              {renderPager('events-staff', staffPage, staffTotal, staffEvents.length, goToStaffPage)}
+            </>
           )}
         </div>
       ) : mode === 'student' ? (
@@ -693,7 +837,8 @@ export function EventsConsolePage() {
                     ) : null}
                     {isStudent && event.myRegistrationStatus === 'REGISTERED' &&
                     event.status !== 'CANCELLED' &&
-                    event.status !== 'COMPLETED' ? (
+                    event.status !== 'COMPLETED' &&
+                    Date.parse(event.startsAt) > Date.now() ? (
                       <Button
                         size="sm"
                         variant="outline"
