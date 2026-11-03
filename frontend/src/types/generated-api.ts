@@ -3745,6 +3745,8 @@ export interface components {
     KnowledgeRequest: {
       content?: string;
       domain?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
       locale?: string;
       /** Format: int32 */
       priority?: number;
@@ -5461,6 +5463,12 @@ export interface operations {
           "*/*": components["schemas"]["KnowledgeRevision"];
         };
       };
+      /** @description Bản nháp đã thay đổi kể từ lần đọc gần nhất */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /**
@@ -5779,6 +5787,12 @@ export interface operations {
       200: {
         content: {
           "*/*": components["schemas"]["KnowledgeRevision"];
+        };
+      };
+      /** @description Bản nháp đã thay đổi kể từ lần đọc gần nhất */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -10319,13 +10333,23 @@ export interface operations {
   /** Danh sách roster với trạng thái nộp bài */
   roster: {
     parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0 */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; mặc định 100 */
+        limit?: number;
+      };
       path: {
         assignmentId: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Roster lớp học phần */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RosterRowResponse"][];
         };
@@ -10845,9 +10869,21 @@ export interface operations {
   };
   /** Đơn mượn của tôi */
   myLoans: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0 */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; mặc định 100 */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Đơn mượn của tôi */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["LoanRequestResponse"][];
         };
