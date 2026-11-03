@@ -11,11 +11,14 @@ errors are summarized without raw diagnostics by default; `VERBOSE=1` prints and
 retains non-report diagnostics in mode-600 temporary files. Report-key and
 report-tar diagnostics stay suppressed. A non-local
 thesis storage provider makes the manual backup fail so external objects cannot
-be silently omitted.
+be silently omitted. `BACKUP_RETENTION_DAYS` accepts positive base-10 digits,
+including zero-padded values such as `08`.
 
 After each dump and report tar are staged, backup and verification compare `thesis.thesis_group_report.storage_key` values from the dump with tar members.
 A missing key triggers one full backup recapture; a second mismatch fails with only the missing-key count.
-Verification and restore run the same reconciliation before either restore target is created.
+An archive that contains the report table definition without its table data is
+rejected. Verification and restore run the same reconciliation before either
+restore target is created.
 This closes the report replacement gap without fencing report writes.
 
 The recovery path actually executed here is the disposable drill in

@@ -35,6 +35,11 @@ const validToc = [
   '3; 0 0 TABLE thesis thesis_group_report campuscore',
   '4; 0 0 TABLE DATA thesis thesis_group_report campuscore',
 ].join('\n');
+const reportTableWithoutDataToc = [
+  '1; 0 0 TABLE DATA thesis flyway_schema_history campuscore',
+  '2; 0 0 TABLE DATA academic academic_term campuscore',
+  '3; 0 0 TABLE thesis thesis_group_report campuscore',
+].join('\n');
 
 function reportCopy(rows = []) {
   return [
@@ -189,6 +194,18 @@ test('verify-backup.sh accepts a dump and report archive with matching storage k
   assert.equal(result.status, 0, result.stderr);
 });
 
+test('verify-backup.sh rejects a report table without archived table data', () => {
+  const archive = makeArchive('campuscore-report-data-omitted', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), {
+    ...reportPairEnv(shim),
+    FAKE_TOC: reportTableWithoutDataToc,
+  });
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'a report table without its data is not a complete backup');
+  assert.match(result.stderr, /report.*(table )?data|table data.*report/i);
+});
+
 test('verify-backup.sh rejects a missing report key without printing the key', () => {
   const key = 'thesis-reports/private-student-folder/report.pdf';
   const archive = makeArchive('campuscore-report-missing', 'synthetic database archive');
@@ -256,6 +273,22 @@ test('restore-postgres.sh reconciles report keys before probing or creating a da
   assert.notEqual(result.status, null, result.error?.message);
   assert.notEqual(result.status, 0, 'restore must refuse an unrecoverable database/report pair');
   assert.equal(fs.existsSync(probe), false, 'reconciliation must finish before database probing');
+});
+
+test('restore-postgres.sh leaves restore targets untouched when report table data is absent', () => {
+  const archive = makeArchive('campuscore-restore-report-data-omitted', 'synthetic database archive');
+  const probe = path.join(path.dirname(archive), 'database-probed');
+  const reportRestoreDir = `${archive.slice(0, -'.dump'.length)}.reports.restore`;
+  const shim = reportPairDockerShim();
+  const result = restore(archive, 'campuscore_restore_report_data_check', {
+    ...reportPairEnv(shim),
+    FAKE_TOC: reportTableWithoutDataToc,
+    FAKE_DATABASE_PROBE: posix(probe),
+  });
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'restore must reject a database/report bundle without report rows');
+  assert.equal(fs.existsSync(probe), false, 'verification must stop before probing the target database');
+  assert.equal(fs.existsSync(reportRestoreDir), false, 'verification must stop before creating target files');
 });
 
 test('verify-backup.sh still fails on a corrupted archive', () => {
@@ -482,6 +515,39 @@ esac
   assert.match(checksums, /campuscore-.*\.dump\n/);
   assert.match(checksums, /campuscore-.*\.reports\.tar\n/);
   assert.doesNotMatch(entries.join('\n'), /partial|\.tmp/);
+});
+
+test('backup-postgres.sh treats zero-padded retention days as decimal', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'zero-padded-retention-'));
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*) printf 'synthetic database archive';;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
+  *pg_restore*) printf '%s\\n' "$FAKE_TOC";;
+  *'exec -T restful-api sh -ceu'*) printf 'synthetic report volume archive';;
+  *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '08',
+      FAKE_TOC: validToc,
+      FAKE_REPORT_COPY: reportCopy(),
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const entries = fs.readdirSync(outputDir);
+  assert.equal(entries.filter((name) => name.endsWith('.dump')).length, 1);
+  assert.equal(entries.filter((name) => name.endsWith('.reports.tar')).length, 1);
+  assert.equal(entries.filter((name) => name.endsWith('.dump.sha256')).length, 1);
 });
 
 test('backup-postgres.sh retries once when the dump and report archive do not reconcile', () => {
