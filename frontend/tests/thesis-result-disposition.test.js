@@ -30,7 +30,11 @@ function loadModule(relative, aliases = {}) {
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
-const Icon = (name) => () => React.createElement('svg', { 'data-icon': name });
+const Icon = (name) => {
+  const component = () => React.createElement('svg', { 'data-icon': name });
+  component.displayName = `Icon(${name})`;
+  return component;
+};
 
 const uiStubs = {
   'lucide-react': {
