@@ -21,30 +21,50 @@ const metrics = readFileSync(resolve(
 const registrationPattern = '/api/v1/(academic/)?(me/)?enrollments.*';
 const gradesPattern = '/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/sections/.*/grades';
 
+// The selector is lifted out of the named rule block in the alerts file, never
+// retyped here: a corrupted or drifted rule fails instead of passing on a local
+// copy of the regex (a substring scan cannot tell a live selector from a comment).
+// Evaluation uses JS RegExp; deployed patterns stay within its RE2-compatible subset.
+function uriSelectorOf(source, alertName) {
+  const start = source.indexOf(`- alert: ${alertName}`);
+  assert.notEqual(start, -1, `alerts-api-slo.yml must define ${alertName}`);
+  const end = source.indexOf('- alert:', start + 1);
+  const rule = source.slice(start, end === -1 ? source.length : end);
+  const match = rule.match(/uri=~"([^"]+)"/);
+  assert.ok(match, `${alertName} must select on the uri label`);
+  return match[1];
+}
+
 test('registration alerts select the live enrollment route templates', () => {
-  assert.ok(alerts.includes(`uri=~"${registrationPattern}"`),
-    'the registration uri regex must cover /api/v1/me/enrollments*');
-  const re = new RegExp(`^${registrationPattern}$`);
-  for (const uri of [
-    '/api/v1/me/enrollments',
-    '/api/v1/me/enrollments/{id}/drop',
-    '/api/v1/academic/me/enrollments',
-    '/api/v1/academic/me/enrollments/{id}/drop',
-  ]) {
-    assert.ok(re.test(uri), `registration regex must match emitted template ${uri}`);
+  for (const alertName of ['RegistrationLatencyP95Breached', 'RegistrationServerErrorRateHigh']) {
+    const selector = uriSelectorOf(alerts, alertName);
+    assert.equal(selector, registrationPattern,
+      `${alertName} uri regex must cover /api/v1/me/enrollments*`);
+    const re = new RegExp(`^${selector}$`);
+    for (const uri of [
+      '/api/v1/me/enrollments',
+      '/api/v1/me/enrollments/{id}/drop',
+      '/api/v1/academic/me/enrollments',
+      '/api/v1/academic/me/enrollments/{id}/drop',
+    ]) {
+      assert.ok(re.test(uri), `${alertName} regex must match emitted template ${uri}`);
+    }
   }
 });
 
 test('grades read alerts select the live grade route templates', () => {
-  assert.ok(alerts.includes(`uri=~"${gradesPattern}"`),
-    'the grades uri regex must cover /api/v1/sections/{id}/grades');
-  const re = new RegExp(`^(${gradesPattern})$`);
-  for (const uri of [
-    '/api/v1/enrollments/my/grades',
-    '/api/v1/enrollments/my/transcript',
-    '/api/v1/sections/{id}/grades',
-  ]) {
-    assert.ok(re.test(uri), `grades regex must match emitted template ${uri}`);
+  for (const alertName of ['GradesReadLatencyP95Breached', 'GradesReadServerErrorRateHigh']) {
+    const selector = uriSelectorOf(alerts, alertName);
+    assert.equal(selector, gradesPattern,
+      `${alertName} uri regex must cover /api/v1/sections/{id}/grades`);
+    const re = new RegExp(`^(${selector})$`);
+    for (const uri of [
+      '/api/v1/enrollments/my/grades',
+      '/api/v1/enrollments/my/transcript',
+      '/api/v1/sections/{id}/grades',
+    ]) {
+      assert.ok(re.test(uri), `${alertName} regex must match emitted template ${uri}`);
+    }
   }
   assert.ok(!alerts.includes('/api/v1/grades/'), 'no controller serves /api/v1/grades/*');
 });
