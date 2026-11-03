@@ -6,6 +6,7 @@ import {
   type MobileCareerOpportunity,
   type MobileEvent,
   type MobileEventRegistration,
+  type MobileLibraryLoan,
   type MobileLibraryTitle,
   type MobileThesisGroup,
   type MobileThesisRound,
@@ -116,6 +117,8 @@ export function createParityApi(client: ApiClient) {
       readPage<MobileEventRegistration>('/events/my/registrations', {}, options),
     libraryCatalogue: (options: ListOptions & { query?: string } = {}) =>
       readPage<MobileLibraryTitle>('/library/catalogue', { query: options.query }, options),
+    libraryLoans: (options: ListOptions = {}) =>
+      readPage<MobileLibraryLoan>('/library/requests/my', {}, options),
     careersOpportunities: (options: ListOptions & { query?: string } = {}) =>
       readPage<MobileCareerOpportunity>('/careers/opportunities', { query: options.query }, options),
     thesisRounds: (options: ListOptions & { status?: string } = {}) =>
