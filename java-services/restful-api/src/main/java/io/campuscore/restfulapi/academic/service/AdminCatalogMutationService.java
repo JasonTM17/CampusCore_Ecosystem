@@ -513,7 +513,8 @@ public class AdminCatalogMutationService {
                 + " AND ss2.\"startTime\" < ss.\"endTime\" AND ss2.\"endTime\" > ss.\"startTime\""
                 + " JOIN " + SECTION + " s2 ON s2.\"id\" = ss2.\"sectionId\""
                 + " WHERE ss.\"sectionId\" = :sectionId AND ss2.\"sectionId\" <> ss.\"sectionId\""
-                + " AND s2.\"semesterId\" = me.\"semesterId\"";
+                + " AND s2.\"semesterId\" = me.\"semesterId\""
+                + " AND me.\"status\" <> 'CANCELLED' AND s2.\"status\" <> 'CANCELLED'";
         Long roomClash = jdbc.queryForObject(
                 "SELECT COUNT(*)" + overlappingSlots
                         + " AND ss2.\"classroomId\" = ss.\"classroomId\"",

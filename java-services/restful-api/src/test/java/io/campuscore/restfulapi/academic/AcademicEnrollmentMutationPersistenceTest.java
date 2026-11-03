@@ -150,6 +150,31 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void confirmedEnrollmentCanBeDroppedDuringAddDrop() throws Exception {
+        LocalDateTime now = localDateTime(BASE_TIME);
+        jdbc.update(
+                "INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"enrolledAt\","
+                        + " \"gradeStatus\", \"courseId\", \"creditsSnapshot\", \"version\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "enrollment-confirmed", "student-1", "section-open", "semester-1", "CONFIRMED", now,
+                "NOT_GRADED", "course-open", 3, 0);
+        jdbc.update("UPDATE \"academic\".\"Section\" SET \"enrolledCount\" = 1 WHERE \"id\" = 'section-open'");
+
+        mvc.perform(post("/api/v1/enrollments/enrollment-confirmed/drop")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", "drop-confirmed-1"))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enrollment-confirmed'",
+                String.class)).isEqualTo("DROPPED");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"enrolledCount\" FROM \"academic\".\"Section\" WHERE \"id\" = 'section-open'",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void enrollPersistsRegistrationSlipWithSha256Header() throws Exception {
         mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
@@ -490,6 +515,25 @@ class AcademicEnrollmentMutationPersistenceTest {
                         .with(studentJwt("student-user-1", "student-1"))
                         .header("Idempotency-Key", "drop-coreq-parent-history-ok"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void corequisiteCanBeSatisfiedByAPriorTermCompletion() throws Exception {
+        // A corequisite passed in an earlier term satisfies the gate: the
+        // regulation allows concurrent registration OR prior completion.
+        jdbc.update(
+                "INSERT INTO \"academic\".\"CourseRequirement\""
+                        + " (\"id\", \"courseId\", \"requiredCourseId\", \"kind\", \"minLetterGrade\")"
+                        + " VALUES ('req-test-coreq-prior', 'course-open', 'course-two', 'COREQ', null)");
+        seedCompletedEnrollment("enrollment-coreq-prior-pass", "section-two", "course-two", "B");
+
+        mvc.perform(post("/api/v1/enrollments/enroll")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", "enroll-coreq-prior-pass")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sectionId\":\"section-open\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ENROLLED"));
     }
 
     @Test

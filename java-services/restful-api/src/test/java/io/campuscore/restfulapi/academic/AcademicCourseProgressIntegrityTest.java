@@ -93,6 +93,20 @@ class AcademicCourseProgressIntegrityTest {
     }
 
     @Test
+    void appealedGradeKeepsCompletedProgressWhileUnderReview() {
+        // APPEALED is still the official student-visible record: progress must
+        // not drop back to untouched while the appeal is being processed.
+        insertEnrollment("enrollment-appealed", "COMPLETED", "APPEALED", "8.00", "B");
+
+        AcademicReadRepository.CourseProgressRow appealed = reads.findCourseProgressByStudentId("student-1")
+                .stream().filter(row -> row.courseId().equals("course-appealed")).findFirst().orElseThrow();
+
+        assertThat(appealed.progressLevel()).isEqualTo(2);
+        assertThat(appealed.finalGrade()).isEqualByComparingTo("8.00");
+        assertThat(appealed.letterGrade()).isEqualTo("B");
+    }
+
+    @Test
     void repeatedCourseKeepsNumericAndLetterGradeFromTheSameBestPublishedAttempt() {
         insertEnrollment("enrollment-repeat-best", "COMPLETED", "PUBLISHED", "7.00", "B");
         insertEnrollment("enrollment-repeat-lower", "COMPLETED", "PUBLISHED", "6.70", "C+");

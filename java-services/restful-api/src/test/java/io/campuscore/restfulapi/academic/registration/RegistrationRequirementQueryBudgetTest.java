@@ -151,6 +151,17 @@ class RegistrationRequirementQueryBudgetTest {
         assertThat(evaluate()).isNull();
     }
 
+    @Test
+    void appealedPassingGradeStillSatisfiesPrerequisite() {
+        // An appealed grade is still the official, student-visible record, so
+        // it must keep satisfying prerequisites while the appeal is pending.
+        seedRequirements(1, "PREREQ", null);
+        jdbc.getJdbcOperations().update(
+                "UPDATE academic.\"Enrollment\" SET \"gradeStatus\" = 'APPEALED' WHERE \"studentId\" = 'student-1'");
+
+        assertThat(evaluate()).isNull();
+    }
+
     private int statementsFor(int requirementCount, String kind, String floor) {
         seedRequirements(requirementCount, kind, floor);
         jdbc.statements = 0;

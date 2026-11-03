@@ -740,7 +740,7 @@ public class RegistrationService {
         if (!admin && !java.util.Objects.equals(studentId, String.valueOf(enrollment.get("student_id")))) {
             throw problem(HttpStatus.FORBIDDEN, "ENROLLMENT_FORBIDDEN", "Enrollment does not belong to the current student");
         }
-        if (!List.of("ENROLLED", "PENDING").contains(String.valueOf(enrollment.get("status")))) {
+        if (!List.of("ENROLLED", "PENDING", "CONFIRMED").contains(String.valueOf(enrollment.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment is no longer active");
         }
         String droppedCourseId = String.valueOf(section.get("course_id"));
@@ -1103,9 +1103,17 @@ public class RegistrationService {
                 .map(requirement -> String.valueOf(requirement.get("required_course_id")))
                 .distinct()
                 .toList();
-        Map<String, List<String>> completedLetters = prerequisiteCourseIds.isEmpty()
+        // Corequisites are also satisfied by a prior-term completion, not only
+        // by a concurrent enrollment or the current request cart.
+        List<String> completedCourseIds = new ArrayList<>(prerequisiteCourseIds);
+        for (String course : corequisiteCourseIds) {
+            if (!completedCourseIds.contains(course)) {
+                completedCourseIds.add(course);
+            }
+        }
+        Map<String, List<String>> completedLetters = completedCourseIds.isEmpty()
                 ? Map.of()
-                : completedLetters(studentId, prerequisiteCourseIds);
+                : completedLetters(studentId, completedCourseIds);
         Set<String> activeCorequisites = corequisiteCourseIds.isEmpty()
                 ? Set.of()
                 : activeCourseIds(studentId, semesterId, corequisiteCourseIds);
@@ -1122,6 +1130,7 @@ public class RegistrationService {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "PREREQUISITE_UNMET", "A required prerequisite is missing");
             }
             if ("COREQ".equals(kind)
+                    && !completedLetters.containsKey(required)
                     && !activeCorequisites.contains(required)
                     && !requestedCourses.contains(required)) {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "COREQUISITE_UNMET", "A required corequisite is missing");
@@ -1185,7 +1194,7 @@ public class RegistrationService {
         for (Map<String, Object> row : jdbc.queryForList(
                 "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade FROM " + ENROLLMENT
                         + " WHERE \"studentId\" = :studentId AND \"courseId\" IN (:courseIds)"
-                        + " AND \"gradeStatus\" IN ('COMPLETED', 'PUBLISHED')"
+                        + " AND (\"gradeStatus\" IN ('PUBLISHED', 'APPEALED') OR \"status\" = 'COMPLETED')"
                         // A passing letter is required: a graded row without a
                         // letter (a producer bug) must never silently unlock a
                         // prerequisite, matching the knowledge-base copy.

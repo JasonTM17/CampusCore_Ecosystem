@@ -523,6 +523,7 @@ public class AcademicMutationService {
                         + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND \"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL"
                         + " ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("sectionId", sectionId)
@@ -537,9 +538,10 @@ public class AcademicMutationService {
                         + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         // A repeat publish must not re-touch or re-notify rows
-                        // already published; IS DISTINCT FROM keeps NULL-gradeStatus
-                        // pre-publish rows eligible.
+                        // already published or under appeal; IS DISTINCT FROM keeps
+                        // NULL-gradeStatus pre-publish rows eligible.
                         + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND \"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL",
                 new MapSqlParameterSource("sectionId", sectionId)
                         .addValue("gradeableStatuses", GRADEABLE_STATUSES));
@@ -636,6 +638,7 @@ public class AcademicMutationService {
                         + " WHERE \"id\" = :sectionId)"
                         + " AND e.\"status\" IN (:gradeableStatuses)"
                         + " AND e.\"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND e.\"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND e.\"finalGrade\" IS NOT NULL AND e.\"letterGrade\" IS NOT NULL"
                         + " AND student.\"userId\" IS NOT NULL",
                 new MapSqlParameterSource("sectionId", sectionId)

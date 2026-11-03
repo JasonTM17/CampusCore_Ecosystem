@@ -576,6 +576,35 @@ class AdminCatalogMutationPersistenceTest {
     }
 
     @Test
+    void sectionSchedulesIgnoreCancelledSectionsInTheSameRoomAndSlot() throws Exception {
+        insertLecturer("lecturer-1");
+        insertSection("section-cancelled-room", "semester-old", null, "room-2");
+        insertSchedule("schedule-cancelled-room", "section-cancelled-room", "room-2", 1, "08:00", "10:00");
+        insertSection("section-cancelled-lecturer", "semester-old", "lecturer-1", "room-2");
+        insertSchedule("schedule-cancelled-lecturer", "section-cancelled-lecturer", "room-2", 1, "11:00", "13:00");
+        jdbc.update("UPDATE \"academic\".\"Section\" SET \"status\" = 'CANCELLED' WHERE \"id\" LIKE 'section-cancelled-%'");
+
+        mvc.perform(post("/api/v1/sections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"id":"section-new-room", "courseId":"course-old", "semesterId":"semester-old", "capacity":30,
+                                 "schedules":[{"dayOfWeek":1, "startTime":"08:00", "endTime":"10:00", "classroomId":"room-2"}]}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/sections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"id":"section-new-lecturer", "courseId":"course-old", "semesterId":"semester-old",
+                                 "lecturerId":"lecturer-1", "capacity":30,
+                                 "schedules":[{"dayOfWeek":1, "startTime":"11:00", "endTime":"13:00", "classroomId":"room-1"}]}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void sectionSchedulesAllowAdjacentRoomSlots() throws Exception {
         mvc.perform(post("/api/v1/sections")
                         .with(adminJwt())
