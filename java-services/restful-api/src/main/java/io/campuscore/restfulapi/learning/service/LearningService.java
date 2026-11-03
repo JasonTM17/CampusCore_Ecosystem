@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.learning.service;
 
 import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.exception.ValidationException;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
 import io.campuscore.restfulapi.learning.web.LearningDtos.FeedbackResponse;
@@ -66,6 +67,7 @@ public class LearningService {
     static final String ROSTER_STATUSES = "('ENROLLED','PENDING','CONFIRMED','COMPLETED')";
 
     private static final int NOTIFICATION_TITLE_MAX_LENGTH = 240;
+    private static final Instant MIN_ASSIGNMENT_DEADLINE = Instant.parse("2000-01-01T00:00:00Z");
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -121,6 +123,7 @@ public class LearningService {
         if (request == null || request.title() == null || request.title().isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
+        validateMaterialTitle(request.title());
         String id = "mat-" + UUID.randomUUID();
         Map<String, Object> stored = storeFile(lecturerId, sectionId, request.fileName(),
                 request.contentType(), request.contentBase64(), request.checksum());
@@ -143,6 +146,7 @@ public class LearningService {
         if (request.title() == null || request.title().isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
+        validateMaterialTitle(request.title());
         // Partial PUT: an omitted description keeps the stored text.
         String description = request.description() == null
                 ? (String) material.get("description") : request.description();
@@ -175,6 +179,9 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
                     "The material changed; reload before editing");
         }
+        if (newFile) {
+            deleteFileIfUnreferenced((String) material.get("fileKey"));
+        }
         return findMaterial(materialId);
     }
 
@@ -182,8 +189,10 @@ public class LearningService {
     public void deleteMaterial(String lecturerId, String materialId) {
         Map<String, Object> material = lockMaterial(materialId);
         requireSectionLecturer(lecturerId, String.valueOf(material.get("sectionId")));
+        String fileKey = (String) material.get("fileKey");
         jdbc.update("DELETE FROM " + MATERIAL + " WHERE \"id\" = :id",
                 new MapSqlParameterSource("id", materialId));
+        deleteFileIfUnreferenced(fileKey);
         audit(null, null, lecturerId, "MATERIAL_DELETED", "material=" + materialId);
     }
 
@@ -215,6 +224,7 @@ public class LearningService {
             throw problem(HttpStatus.BAD_REQUEST, "ASSIGNMENT_TITLE_REQUIRED",
                     "Assignment title is required");
         }
+        validateAssignmentDeadline(request.deadlineAt());
         String id = "asg-" + UUID.randomUUID();
         jdbc.update("INSERT INTO " + ASSIGNMENT
                         + " (\"id\", \"sectionId\", \"title\", \"description\", \"deadlineAt\","
@@ -252,6 +262,7 @@ public class LearningService {
                 ? (String) assignment.get("description") : request.description();
         Instant deadlineAt = request.deadlineAt() == null
                 ? toInstant(assignment.get("deadlineAt")) : request.deadlineAt();
+        validateAssignmentDeadline(deadlineAt);
         Double maxScore = request.maxScore() == null
                 ? toDouble(assignment.get("maxScore")) : request.maxScore();
         int updated = jdbc.update("UPDATE " + ASSIGNMENT
@@ -424,8 +435,13 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Only resubmitted or returned work can be marked reviewed");
         }
-        if (request != null && request.expectedVersion() != null
-                && request.expectedVersion() != ((Number) submission.get("version")).intValue()) {
+        int currentVersion = ((Number) submission.get("version")).intValue();
+        Integer expectedVersion = request == null ? null : request.expectedVersion();
+        // A resubmitted revision must be reviewed against a version the lecturer loaded.
+        if (expectedVersion == null && "RESUBMITTED".equals(status)) {
+            requireVersion(null, submission);
+        }
+        if (expectedVersion != null && expectedVersion != currentVersion) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
                     "The submission changed; reload before reviewing");
         }
@@ -434,8 +450,10 @@ public class LearningService {
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'REVIEWED', \"reviewedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
-                        + " WHERE \"id\" = :id AND \"status\" IN ('RESUBMITTED','RETURNED')",
-                new MapSqlParameterSource("id", submissionId));
+                        + " WHERE \"id\" = :id AND \"status\" IN ('RESUBMITTED','RETURNED')"
+                        + " AND \"version\" = :expected",
+                new MapSqlParameterSource("id", submissionId)
+                        .addValue("expected", expectedVersion == null ? currentVersion : expectedVersion));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Submission is no longer in returned state");
@@ -583,6 +601,31 @@ public class LearningService {
                 "sizeBytes", (long) bytes.length, "checksum", sha256);
     }
 
+    void deleteFileIfUnreferenced(String fileKey) {
+        if (fileKey == null || fileKey.isBlank()) {
+            return;
+        }
+        jdbc.update("DELETE FROM " + FILE_OBJECT + " WHERE \"key\" = :key"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + MATERIAL + " WHERE \"fileKey\" = :key)"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + SUBMISSION + " WHERE \"draftFileKey\" = :key)"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + REVISION + " WHERE \"fileKey\" = :key)",
+                new MapSqlParameterSource("key", fileKey));
+    }
+
+    private static void validateMaterialTitle(String title) {
+        if (title.length() > 300) {
+            throw new ValidationException("Request validation failed",
+                    Map.of("title", "title must be at most 300 characters"));
+        }
+    }
+
+    private static void validateAssignmentDeadline(Instant deadlineAt) {
+        if (deadlineAt != null && !deadlineAt.isAfter(MIN_ASSIGNMENT_DEADLINE)) {
+            throw new ValidationException("Request validation failed",
+                    Map.of("deadlineAt", "deadlineAt must be after 2000-01-01"));
+        }
+    }
+
     /** Client-declared media types are untrusted; store only a parseable type. */
     static String normaliseContentType(String contentType) {
         if (contentType == null || contentType.isBlank()) {
@@ -679,7 +722,12 @@ public class LearningService {
 
     Map<String, Object> getSubmission(String submissionId) {
         try {
-            return jdbc.queryForMap("SELECT * FROM " + SUBMISSION + " WHERE \"id\" = :id",
+            return jdbc.queryForMap("SELECT s.*, student_user.\"lastName\" || ' ' || student_user.\"firstName\""
+                            + " AS student_name, student_user.\"email\" AS student_email"
+                            + " FROM " + SUBMISSION + " s"
+                            + " LEFT JOIN " + STUDENT + " student ON student.\"id\" = s.\"studentId\""
+                            + " LEFT JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
+                            + " WHERE s.\"id\" = :id",
                     new MapSqlParameterSource("id", submissionId));
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission not found");

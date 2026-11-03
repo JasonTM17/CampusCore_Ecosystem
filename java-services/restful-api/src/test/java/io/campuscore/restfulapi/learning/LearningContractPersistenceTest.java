@@ -1,8 +1,10 @@
 package io.campuscore.restfulapi.learning;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -275,6 +277,39 @@ class LearningContractPersistenceTest {
     }
 
     @Test
+    void hiddenDraftAssignmentsAreNotFoundToSubmissionActions() throws Exception {
+        String draftId = createDraftAssignment(Instant.now().plus(2, ChronoUnit.DAYS));
+        var before = learningSnapshot();
+
+        mvc.perform(get("/api/v1/learning/assignments/" + draftId).with(studentJwt))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ASSIGNMENT_NOT_FOUND"));
+        MvcResult submit = mvc.perform(post("/api/v1/learning/assignments/" + draftId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "draft-submit-hidden"))
+                .andReturn();
+        MvcResult resubmit = mvc.perform(post("/api/v1/learning/assignments/" + draftId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "draft-resubmit-hidden")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andReturn();
+        assertAll(
+                () -> assertThat(List.of(submit.getResponse().getStatus(), resubmit.getResponse().getStatus()))
+                        .containsExactly(404, 404),
+                () -> assertThat(learningSnapshot()).isEqualTo(before));
+        assertThat(objectMapper.readTree(submit.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("ASSIGNMENT_NOT_FOUND");
+        assertThat(objectMapper.readTree(resubmit.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("ASSIGNMENT_NOT_FOUND");
+
+        String closedId = publishedAssignmentId();
+        mvc.perform(post("/api/v1/learning/staff/assignments/" + closedId + "/close").with(lecturerJwt))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/learning/assignments/" + closedId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "closed-submit"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ASSIGNMENT_NOT_OPEN"));
+    }
+
+    @Test
     void assignmentTitleEditKeepsDeadlineAndMaxScore() throws Exception {
         Instant deadline = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
         MvcResult created = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/assignments")
@@ -294,6 +329,48 @@ class LearningContractPersistenceTest {
                 .andExpect(jsonPath("$.description").value("submit a report"))
                 .andExpect(jsonPath("$.deadlineAt").value(createdDeadline))
                 .andExpect(jsonPath("$.maxScore").value(10.0));
+    }
+
+    @Test
+    void assignmentDeadlineLowerBoundIsValidatedBeforePersistence() throws Exception {
+        Instant tooEarly = Instant.parse("1999-12-31T00:00:00Z");
+        MvcResult invalidCreate = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/assignments")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(createAssignmentJson(tooEarly)))
+                .andReturn();
+        int assignmentsAfterInvalidCreate = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"Assignment\"", Integer.class);
+
+        Instant validDeadline = Instant.parse("2026-11-10T00:00:00Z");
+        MvcResult created = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/assignments")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(createAssignmentJson(validDeadline)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String assignmentId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+
+        MvcResult invalidUpdate = mvc.perform(put("/api/v1/learning/staff/assignments/" + assignmentId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Updated\",\"deadlineAt\":\"1999-12-31T00:00:00Z\",\"version\":1}"))
+                .andReturn();
+        assertThat(List.of(invalidCreate.getResponse().getStatus(), invalidUpdate.getResponse().getStatus()))
+                .containsExactly(400, 400);
+        assertThat(objectMapper.readTree(invalidCreate.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("VALIDATION_ERROR");
+        assertThat(objectMapper.readTree(invalidCreate.getResponse().getContentAsString())
+                .path("fields").path("deadlineAt").asText()).isEqualTo("deadlineAt must be after 2000-01-01");
+        assertThat(objectMapper.readTree(invalidUpdate.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("VALIDATION_ERROR");
+        assertThat(objectMapper.readTree(invalidUpdate.getResponse().getContentAsString())
+                .path("fields").path("deadlineAt").asText()).isEqualTo("deadlineAt must be after 2000-01-01");
+        assertThat(assignmentsAfterInvalidCreate).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Assignment\" WHERE \"id\" = ?",
+                Integer.class, assignmentId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"deadlineAt\" FROM learning.\"Assignment\" WHERE \"id\" = ?",
+                Timestamp.class, assignmentId).toInstant()).isEqualTo(validDeadline);
     }
 
     @Test
@@ -479,6 +556,91 @@ class LearningContractPersistenceTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM learning.\"FeedbackRecord\" WHERE \"submissionId\" = ?",
                 Integer.class, submissionId)).isEqualTo(1);
+    }
+
+    @Test
+    void reviewRequiresCurrentVersionAfterResubmission() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "original answer", false);
+        returnWork(submissionId);
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "review-version-resubmit")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"textBody\":\"revised answer\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESUBMITTED"));
+
+        Integer version = jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId);
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/review")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Stale grade\",\"score\":8.0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VERSION_REQUIRED"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId)).isEqualTo("RESUBMITTED");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId)).isEqualTo(version);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FeedbackRecord\" WHERE \"submissionId\" = ?",
+                Integer.class, submissionId)).isEqualTo(1);
+
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/review")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + (version - 1) + "}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/review")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Current grade\",\"score\":8.0,\"expectedVersion\":"
+                                + version + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REVIEWED"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"revisionId\" FROM learning.\"FeedbackRecord\" WHERE \"submissionId\" = ?"
+                        + " ORDER BY \"createdAt\" DESC LIMIT 1",
+                String.class, submissionId)).isEqualTo(jdbc.queryForObject(
+                        "SELECT \"currentRevisionId\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                        String.class, submissionId));
+    }
+
+    @Test
+    void staffSubmissionResponsesIncludeStudentIdentity() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "answer", false);
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"firstName\" = ?, \"lastName\" = ?, \"email\" = ?"
+                        + " WHERE \"id\" = ?",
+                "An", "Nguyen", "student.identity@example.test", "student-1");
+
+        Integer version = jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId);
+        MvcResult detail = mvc.perform(get("/api/v1/learning/staff/submissions/" + submissionId).with(lecturerJwt))
+                .andReturn();
+        MvcResult returned = mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/return")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Revise\",\"expectedVersion\":" + version + "}"))
+                .andReturn();
+        MvcResult reviewed = mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/review")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andReturn();
+        assertThat(List.of(detail, returned, reviewed).stream()
+                        .map(result -> result.getResponse().getStatus()).toList())
+                .containsExactly(200, 200, 200);
+        assertThat(List.of(detail, returned, reviewed).stream().flatMap(result -> {
+            try {
+                var body = objectMapper.readTree(result.getResponse().getContentAsString());
+                return java.util.stream.Stream.of(body.path("studentName").asText(),
+                        body.path("studentEmail").asText());
+            } catch (Exception exception) {
+                throw new IllegalStateException(exception);
+            }
+        }).toList()).containsExactly("Nguyen An", "student.identity@example.test",
+                "Nguyen An", "student.identity@example.test",
+                "Nguyen An", "student.identity@example.test");
     }
 
     // ---------------------------------------------------------------
@@ -987,6 +1149,127 @@ class LearningContractPersistenceTest {
                 String.class, materialId)).isEqualTo("Week 1 notes (updated)");
         assertThat(jdbc.queryForObject("SELECT \"fileKey\" FROM learning.\"Material\" WHERE \"id\" = ?",
                 String.class, materialId)).isNull();
+    }
+
+    @Test
+    void multipartMaterialTitlesAreValidated() throws Exception {
+        String longTitle = "T".repeat(301);
+        MvcResult invalidCreate = mvc.perform(multipart("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).param("title", longTitle))
+                .andReturn();
+        int materialsAfterInvalidCreate = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"Material\"", Integer.class);
+
+        MvcResult created = mvc.perform(multipart("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).param("title", "T".repeat(300)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String materialId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+        MvcResult invalidUpdate = mvc.perform(multipart("/api/v1/learning/staff/materials/" + materialId)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        })
+                        .with(lecturerJwt).param("title", longTitle).param("version", "1"))
+                .andReturn();
+        assertThat(List.of(invalidCreate.getResponse().getStatus(), invalidUpdate.getResponse().getStatus()))
+                .containsExactly(400, 400);
+        assertThat(objectMapper.readTree(invalidCreate.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("VALIDATION_ERROR");
+        assertThat(objectMapper.readTree(invalidCreate.getResponse().getContentAsString())
+                .path("fields").path("title").asText()).isEqualTo("title must be at most 300 characters");
+        assertThat(objectMapper.readTree(invalidUpdate.getResponse().getContentAsString()).path("code").asText())
+                .isEqualTo("VALIDATION_ERROR");
+        assertThat(objectMapper.readTree(invalidUpdate.getResponse().getContentAsString())
+                .path("fields").path("title").asText()).isEqualTo("title must be at most 300 characters");
+        assertThat(materialsAfterInvalidCreate).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT \"title\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                String.class, materialId)).isEqualTo("T".repeat(300));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                Integer.class, materialId)).isEqualTo(1);
+    }
+
+    @Test
+    void obsoleteLearningFilesAreReclaimedWithoutDeletingRevisionFiles() throws Exception {
+        MvcResult material = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Notes\",\"fileName\":\"first.txt\","
+                                + "\"contentType\":\"text/plain\",\"contentBase64\":\""
+                                + b64("first material") + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String materialId = objectMapper.readTree(material.getResponse().getContentAsString()).get("id").asText();
+        String firstMaterialKey = jdbc.queryForObject(
+                "SELECT \"fileKey\" FROM learning.\"Material\" WHERE \"id\" = ?", String.class, materialId);
+        mvc.perform(put("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Notes\",\"version\":1,\"fileName\":\"second.txt\","
+                                + "\"contentType\":\"text/plain\",\"contentBase64\":\""
+                                + b64("second material") + "\",\"checksum\":\""
+                                + sha256("second material") + "\"}"))
+                .andExpect(status().isOk());
+        String secondMaterialKey = jdbc.queryForObject(
+                "SELECT \"fileKey\" FROM learning.\"Material\" WHERE \"id\" = ?", String.class, materialId);
+        int replacedMaterialFileCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\" WHERE \"key\" = ?",
+                Integer.class, firstMaterialKey);
+        int fileCountAfterMaterialReplacement = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\"", Integer.class);
+
+        mvc.perform(delete("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt))
+                .andExpect(status().isNoContent());
+        int fileCountAfterMaterialDelete = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\"", Integer.class);
+
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "file-cleanup-draft");
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"answer\",\"fileName\":\"draft.txt\","
+                                + "\"contentType\":\"text/plain\",\"contentBase64\":\""
+                                + b64("draft bytes one") + "\"}"))
+                .andExpect(status().isOk());
+        String firstDraftKey = jdbc.queryForObject(
+                "SELECT \"draftFileKey\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId);
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"answer revised\",\"fileName\":\"draft.txt\","
+                                + "\"contentType\":\"text/plain\",\"contentBase64\":\""
+                                + b64("draft bytes two") + "\"}"))
+                .andExpect(status().isOk());
+        String currentDraftKey = jdbc.queryForObject(
+                "SELECT \"draftFileKey\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId);
+        assertThat(currentDraftKey).isNotEqualTo(firstDraftKey);
+        int replacedDraftFileCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\" WHERE \"key\" = ?",
+                Integer.class, firstDraftKey);
+        int fileCountAfterDraftReplacement = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\"", Integer.class);
+
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "file-cleanup-submit"))
+                .andExpect(status().isOk());
+        String revisionFileKey = jdbc.queryForObject(
+                "SELECT \"fileKey\" FROM learning.\"SubmissionRevision\" WHERE \"submissionId\" = ?",
+                String.class, submissionId);
+        int revisionFileCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM learning.\"FileObject\" WHERE \"key\" = ?",
+                Integer.class, currentDraftKey);
+        assertAll(
+                () -> assertThat(firstMaterialKey).isNotEqualTo(secondMaterialKey),
+                () -> assertThat(replacedMaterialFileCount).isZero(),
+                () -> assertThat(fileCountAfterMaterialReplacement).isEqualTo(1),
+                () -> assertThat(fileCountAfterMaterialDelete).isZero(),
+                () -> assertThat(currentDraftKey).isNotEqualTo(firstDraftKey),
+                () -> assertThat(replacedDraftFileCount).isZero(),
+                () -> assertThat(fileCountAfterDraftReplacement).isEqualTo(1),
+                () -> assertThat(revisionFileKey).isEqualTo(currentDraftKey),
+                () -> assertThat(revisionFileCount).isEqualTo(1));
     }
 
     @Test
