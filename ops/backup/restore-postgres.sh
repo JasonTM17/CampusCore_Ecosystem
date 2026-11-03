@@ -26,6 +26,7 @@ archive="$archive_dir/$(basename "$archive")"
 
 reports_archive="${archive%.dump}.reports.tar"
 reports_restore_dir="${archive%.dump}.reports.restore"
+# Verification reconciles database report references with the tar before either target is created.
 "$script_dir/verify-backup.sh" "$archive"
 [[ ! -e "$reports_restore_dir" ]] || {
   echo 'The isolated report restore directory already exists; refusing to overwrite it.' >&2
@@ -60,7 +61,7 @@ mkdir -m 700 "$reports_restore_dir"
 reports_created=1
 (
   cd "$archive_dir"
-  run_child_phase 'Thesis report archive extraction' tar -xf "./$(basename "$reports_archive")" -C "$reports_restore_dir"
+  run_sensitive_child_phase 'Thesis report archive extraction' tar -xf "./$(basename "$reports_archive")" -C "$reports_restore_dir"
 )
 
 docker compose -p "$project" -f "$compose_file" exec -T postgres \

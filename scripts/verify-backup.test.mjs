@@ -32,7 +32,17 @@ function makeShellEnv(source) {
 const validToc = [
   '1; 0 0 TABLE DATA thesis flyway_schema_history campuscore',
   '2; 0 0 TABLE DATA academic academic_term campuscore',
+  '3; 0 0 TABLE thesis thesis_group_report campuscore',
+  '4; 0 0 TABLE DATA thesis thesis_group_report campuscore',
 ].join('\n');
+
+function reportCopy(rows = []) {
+  return [
+    'COPY thesis.thesis_group_report (storage_provider, storage_bucket, storage_key, file_sha256) FROM stdin;',
+    ...rows.map(({ provider = 'local', bucket = 'reports', key }) => `${provider}\t${bucket}\t${key}\t\\N`),
+    '\\.',
+  ].join('\n');
+}
 
 function archiveChecksum(archive, reports) {
   const lines = [archive, reports].map((file) => {
@@ -50,7 +60,8 @@ function makeArchive(name, content) {
   fs.mkdirSync(reportDir);
   fs.writeFileSync(path.join(reportDir, 'report.pdf'), 'synthetic report bytes');
   const reports = path.join(dir, `${name}.reports.tar`);
-  const tar = spawnSync('tar', ['-cf', reports, '-C', reportDir, '.'], { encoding: 'utf8' });
+  // A drive-letter path reads as a remote host to GNU tar; a relative name works with every tar.
+  const tar = spawnSync('tar', ['-cf', path.basename(reports), '-C', reportDir, '.'], { encoding: 'utf8', cwd: dir });
   assert.equal(tar.status, 0, tar.stderr);
   archiveChecksum(archive, reports);
   return archive;
@@ -63,14 +74,14 @@ const posix = (file) => file.replaceAll('\\', '/');
 
 function verify(archive, cwd, env = {}) {
   return spawnSync(bashCommand, [posix(verifyScript), posix(archive)], {
-    cwd, encoding: 'utf8', timeout: 10000,
+    cwd, encoding: 'utf8', timeout: 60000,
     env: { ...process.env, COMPOSE_PROJECT_NAME: 'campusute', ...env },
   });
 }
 
 function restore(archive, targetDb, env = {}) {
   return spawnSync(bashCommand, [posix(restoreScript), posix(archive), targetDb], {
-    cwd: repo, encoding: 'utf8', timeout: 10000,
+    cwd: repo, encoding: 'utf8', timeout: 60000,
     env: { ...process.env, COMPOSE_PROJECT_NAME: 'campusute', ...env },
   });
 }
@@ -79,7 +90,8 @@ function dockerReadBundleEnv(toc = validToc) {
   return makeShellEnv(`
 docker() {
   case "$*" in
-    *pg_restore*) printf '%s\\n' ${JSON.stringify(toc)};;
+    *'pg_restore --data-only'*) printf '%s\\n' 'COPY thesis.thesis_group_report (storage_provider, storage_bucket, storage_key) FROM stdin;' '\\.';;
+    *pg_restore*) printf '%b\\n' ${JSON.stringify(toc)};;
     *'tar -tf'*) printf '%s\\n' './report.pdf';;
     *'tar -tvf'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
     *) printf 'unexpected docker command' >&2; return 90;;
@@ -94,6 +106,53 @@ function makePathShim(name, body) {
   fs.writeFileSync(file, `#!/usr/bin/env bash\nset -eu\n${body}\n`, 'utf8');
   fs.chmodSync(file, 0o700);
   return { env: { PATH: `${posix(directory)}${path.delimiter}${process.env.PATH}` } };
+}
+
+function reportPairDockerShim() {
+  return makePathShim('docker', `
+case "$*" in
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
+  *'tar -tf -'*) printf '%s\\n' "$FAKE_TAR_ENTRIES";;
+  *'tar -tvf -'*) printf '%s\\n' "$FAKE_TAR_TYPES";;
+  *'SELECT 1 FROM pg_database'*) : > "$FAKE_DATABASE_PROBE";;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+}
+
+function reportPairEnv(shim, { data = reportCopy(), entries = './report.pdf', types = '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf' } = {}) {
+  return {
+    ...shim.env,
+    FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: data,
+    FAKE_TAR_ENTRIES: entries,
+    FAKE_TAR_TYPES: types,
+  };
+}
+
+function retryCaptureDockerShim() {
+  return makePathShim('docker', `
+case "$*" in
+  *pg_dump*)
+    if [[ -f "$FAKE_COUNT_FILE" ]]; then count="$(cat "$FAKE_COUNT_FILE")"; else count=0; fi
+    count=$((count + 1))
+    printf '%s' "$count" > "$FAKE_COUNT_FILE"
+    printf 'dump-%s' "$count"
+    ;;
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*)
+    dump="$(cat)"
+    if [[ "$dump" == dump-1 ]]; then printf '%s\\n' "$FAKE_FIRST_COPY"; else printf '%s\\n' "$FAKE_SECOND_COPY"; fi
+    ;;
+  *'exec -T restful-api sh -ceu'*)
+    count="$(cat "$FAKE_COUNT_FILE")"
+    printf 'reports-%s' "$count"
+    ;;
+  *'tar -tf -'*) cat >/dev/null; printf '%s\\n' "./$FAKE_TAR_KEY";;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
 }
 
 function checksumLine(file, name = path.basename(file)) {
@@ -117,6 +176,86 @@ test('verify-backup.sh checks the archive from any working directory', () => {
   assert.match(fromForeign.stdout, /OK|Checksum verified/);
   const fromArchiveDir = verify(archive, path.dirname(archive), env);
   assert.equal(fromArchiveDir.status, 0, fromArchiveDir.stderr);
+});
+
+test('verify-backup.sh accepts a dump and report archive with matching storage keys', () => {
+  const key = 'thesis-reports/group-a/current.pdf';
+  const archive = makeArchive('campuscore-report-pair', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), reportPairEnv(shim, {
+    data: reportCopy([{ key }]),
+    entries: `./${key}`,
+  }));
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('verify-backup.sh rejects a missing report key without printing the key', () => {
+  const key = 'thesis-reports/private-student-folder/report.pdf';
+  const archive = makeArchive('campuscore-report-missing', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), reportPairEnv(shim, {
+    data: reportCopy([{ key }]),
+    entries: './thesis-reports/group-a/current.pdf',
+  }));
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'a database reference absent from the report archive is unrecoverable');
+  assert.match(result.stderr, /missing.*1|1.*missing/i, 'the generic failure should report the missing count');
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    'storage keys can contain personal data and must not be printed');
+});
+
+test('verify-backup.sh treats an empty non-null storage key as missing', () => {
+  const archive = makeArchive('campuscore-report-empty-key', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), reportPairEnv(shim, {
+    data: reportCopy([{ key: '' }]),
+    entries: './report.pdf',
+  }));
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'an empty key is not a recoverable local object reference');
+  assert.match(result.stderr, /missing.*1|1.*missing/i);
+});
+
+test('verify-backup.sh fails closed when report table data has no COPY block', () => {
+  const archive = makeArchive('campuscore-report-no-copy', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), reportPairEnv(shim, {
+    data: 'INSERT INTO thesis.thesis_group_report VALUES (...);',
+    entries: './report.pdf',
+  }));
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'a table-data entry without parseable COPY data must not be treated as empty');
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /storage_key|report.pdf/);
+});
+
+test('verify-backup.sh rejects report objects from a non-local provider', () => {
+  const key = 'thesis-reports/group-a/provider-object.pdf';
+  const archive = makeArchive('campuscore-report-provider', 'synthetic database archive');
+  const shim = reportPairDockerShim();
+  const result = verify(archive, path.dirname(archive), reportPairEnv(shim, {
+    data: reportCopy([{ provider: 'object-store', key }]),
+    entries: `./${key}`,
+  }));
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'a local tar cannot prove recovery for a non-local provider');
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('restore-postgres.sh reconciles report keys before probing or creating a database', () => {
+  const key = 'thesis-reports/private-student-folder/report.pdf';
+  const archive = makeArchive('campuscore-restore-report-missing', 'synthetic database archive');
+  const probe = path.join(path.dirname(archive), 'database-probed');
+  const shim = reportPairDockerShim();
+  const result = restore(archive, 'campuscore_restore_report_check', {
+    ...reportPairEnv(shim, {
+      data: reportCopy([{ key }]),
+      entries: './thesis-reports/group-a/current.pdf',
+    }),
+    FAKE_DATABASE_PROBE: posix(probe),
+  });
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'restore must refuse an unrecoverable database/report pair');
+  assert.equal(fs.existsSync(probe), false, 'reconciliation must finish before database probing');
 });
 
 test('verify-backup.sh still fails on a corrupted archive', () => {
@@ -164,6 +303,7 @@ for (const unsafeMember of [
     const shim = makePathShim('docker', `
 case "$*" in
   *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
   *'tar -tf -'*) printf '%s\\n' './report.pdf';;
   *'tar -tvf -'*) printf '%s\\n' "$FAKE_TAR_VERBOSE";;
   *) printf 'unexpected docker command\\n' >&2; exit 90;;
@@ -172,6 +312,7 @@ esac
     const result = verify(archive, path.dirname(archive), {
       ...shim.env,
       FAKE_TOC: validToc,
+      FAKE_REPORT_COPY: reportCopy(),
       FAKE_TAR_VERBOSE: unsafeMember.listing,
     });
     assert.notEqual(result.status, 0, 'only regular files and directories may be present');
@@ -249,6 +390,7 @@ test('verify-backup.sh reports tar inspection failure without exposing child std
   const shim = makePathShim('docker', `
 case "$*" in
   *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
   *'tar -tf -'*) printf '%s\\n' './report.pdf';;
   *'tar -tvf -'*) printf '%s\\n' "$FAKE_SECRET_DIAGNOSTIC" >&2; exit 37;;
   *) printf 'unexpected docker command\\n' >&2; exit 90;;
@@ -257,6 +399,7 @@ esac
   const result = verify(archive, path.dirname(archive), {
     ...shim.env,
     FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: reportCopy(),
     FAKE_SECRET_DIAGNOSTIC: secretDiagnostic,
     TMPDIR: posix(stderrDir),
   });
@@ -264,6 +407,35 @@ esac
     'raw tar diagnostics must not reach the default output');
   assert.match(result.stderr, /Thesis report archive type inspection failed \(exit code 37\)/);
   assert.equal(fs.readdirSync(stderrDir).length, 0, 'captured diagnostics must be deleted after exit');
+});
+
+test('verify-backup.sh keeps verbose report tar diagnostics free of storage keys', () => {
+  const key = 'thesis-reports/private-path-redacted.pdf';
+  const archive = makeArchive('campuscore-private-tar-stderr', 'synthetic database archive');
+  const stderrDir = fs.mkdtempSync(path.join(temp, 'private-tar-stderr-'));
+  const shim = makePathShim('docker', `
+case "$*" in
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
+  *'tar -tf -'*) printf 'tar: %s: Cannot open\\n' "$FAKE_SECRET_PATH" >&2; exit 37;;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = verify(archive, path.dirname(archive), {
+    ...shim.env,
+    FAKE_TOC: validToc,
+    FAKE_REPORT_COPY: reportCopy([{ key }]),
+    FAKE_SECRET_PATH: `./${key}`,
+    TMPDIR: posix(stderrDir),
+    VERBOSE: '1',
+  });
+  assert.notEqual(result.status, null, result.error?.message);
+  assert.notEqual(result.status, 0, 'a tar inspection failure must fail verification');
+  assert.match(result.stderr, /Thesis report archive listing failed \(exit code 37\)/);
+  assert.equal(`${result.stdout}\n${result.stderr}`.includes(key), false,
+    'verbose report diagnostics must not disclose storage keys');
+  assert.equal(fs.readdirSync(stderrDir).length, 0,
+    'sensitive captured diagnostics must be deleted even in verbose mode');
 });
 
 test('verify-backup.sh rejects a checksum-valid archive without application history', () => {
@@ -276,27 +448,28 @@ test('verify-backup.sh rejects a checksum-valid archive without application hist
 
 test('backup-postgres.sh publishes the dump and report volume as one checksummed bundle', () => {
   const outputDir = fs.mkdtempSync(path.join(temp, 'bundle-'));
-  const env = makeShellEnv(`
-docker() {
-  case "$*" in
-    *pg_dump*) printf 'synthetic database archive';;
-    *pg_restore*) printf '%s\\n' ${JSON.stringify(validToc)};;
-    *'tar -tf'*) printf '%s\\n' './report.pdf';;
-    *tar*) printf 'synthetic report volume archive';;
-    *) printf 'unexpected docker command' >&2; return 90;;
-  esac
-}
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*) printf 'synthetic database archive';;
+  *'pg_restore --data-only'*) printf '%s\\n' "$FAKE_REPORT_COPY";;
+  *pg_restore*) printf '%s\\n' "$FAKE_TOC";;
+  *'exec -T restful-api sh -ceu'*) printf 'synthetic report volume archive';;
+  *'tar -tf -'*) printf '%s\\n' './report.pdf';;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
 `);
   const result = spawnSync(bashCommand, [posix(backupScript)], {
     cwd: repo,
     encoding: 'utf8',
-    timeout: 10000,
+    timeout: 60000,
     env: {
       ...process.env,
-      ...env,
+      ...shim.env,
       COMPOSE_PROJECT_NAME: 'campusute',
       BACKUP_DIR: posix(outputDir),
       BACKUP_RETENTION_DAYS: '14',
+      FAKE_TOC: validToc,
+      FAKE_REPORT_COPY: reportCopy(),
     },
   });
   assert.equal(result.status, 0, result.stderr);
@@ -309,6 +482,151 @@ docker() {
   assert.match(checksums, /campuscore-.*\.dump\n/);
   assert.match(checksums, /campuscore-.*\.reports\.tar\n/);
   assert.doesNotMatch(entries.join('\n'), /partial|\.tmp/);
+});
+
+test('backup-postgres.sh retries once when the dump and report archive do not reconcile', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'reconcile-retry-'));
+  const countFile = path.join(outputDir, 'capture-count');
+  const firstKey = 'thesis-reports/group-a/replaced.pdf';
+  const secondKey = 'thesis-reports/group-a/current.pdf';
+  const shim = retryCaptureDockerShim();
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      FAKE_COUNT_FILE: posix(countFile),
+      FAKE_TOC: validToc,
+      FAKE_FIRST_COPY: reportCopy([{ key: firstKey }]),
+      FAKE_SECOND_COPY: reportCopy([{ key: secondKey }]),
+      FAKE_TAR_KEY: secondKey,
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(countFile, 'utf8'), '2', 'the whole capture should be repeated once');
+  const dumpName = fs.readdirSync(outputDir).find((name) => name.endsWith('.dump'));
+  const reportsName = fs.readdirSync(outputDir).find((name) => name.endsWith('.reports.tar'));
+  assert.equal(fs.readFileSync(path.join(outputDir, dumpName), 'utf8'), 'dump-2');
+  assert.equal(fs.readFileSync(path.join(outputDir, reportsName), 'utf8'), 'reports-2');
+  assert.equal(fs.readdirSync(outputDir).filter((name) => /\.dump$|\.reports\.tar$|\.dump\.sha256$/.test(name)).length, 3);
+});
+
+test('backup-postgres.sh removes both failed captures and reports only the missing count', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'reconcile-exhausted-'));
+  const countFile = path.join(outputDir, 'capture-count');
+  const firstKey = 'thesis-reports/private-group/previous.pdf';
+  const secondKey = 'thesis-reports/private-group/current.pdf';
+  const shim = retryCaptureDockerShim();
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      FAKE_COUNT_FILE: posix(countFile),
+      FAKE_TOC: validToc,
+      FAKE_FIRST_COPY: reportCopy([{ key: firstKey }]),
+      FAKE_SECOND_COPY: reportCopy([{ key: secondKey }]),
+      FAKE_TAR_KEY: 'thesis-reports/group-a/other.pdf',
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(fs.readFileSync(countFile, 'utf8'), '2', 'only one retry is permitted');
+  assert.match(result.stderr, /1 referenced report storage key.*missing/i);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(`${firstKey}|${secondKey}`));
+  assert.deepEqual(fs.readdirSync(outputDir), ['capture-count'], 'failed staged artifacts must be removed');
+});
+
+test('backup-postgres.sh does not retry a report-reference extraction error as a missing-key mismatch', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'reconcile-child-failure-'));
+  const countFile = path.join(outputDir, 'capture-count');
+  const key = 'thesis-reports/group-a/current.pdf';
+  const secretDiagnostic = 'synthetic-private-report-diagnostic';
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*)
+    if [[ -f "$FAKE_COUNT_FILE" ]]; then count="$(cat "$FAKE_COUNT_FILE")"; else count=0; fi
+    count=$((count + 1))
+    printf '%s' "$count" > "$FAKE_COUNT_FILE"
+    printf 'dump-%s' "$count"
+    ;;
+  *'pg_restore --list'*) printf '%s\\n' "$FAKE_TOC";;
+  *'pg_restore --data-only'*)
+    printf '%s\\n' "$FAKE_REPORT_COPY"
+    printf '%s\\n' "$FAKE_SECRET_DIAGNOSTIC" >&2
+    exit 1
+    ;;
+  *'exec -T restful-api sh -ceu'*) printf 'reports';;
+  *'tar -tf -'*) cat >/dev/null; printf '%s\\n' "./$FAKE_TAR_KEY";;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      FAKE_COUNT_FILE: posix(countFile),
+      FAKE_TOC: validToc,
+      FAKE_REPORT_COPY: reportCopy([{ key }]),
+      FAKE_SECRET_DIAGNOSTIC: secretDiagnostic,
+      FAKE_TAR_KEY: key,
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(fs.readFileSync(countFile, 'utf8'), '1', 'a child-tool failure must not start a second capture');
+  assert.match(result.stderr, /Database report-reference extraction failed \(exit code 1\)/);
+  assert.doesNotMatch(result.stderr, /referenced report storage key.*missing/i);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(secretDiagnostic));
+  assert.deepEqual(fs.readdirSync(outputDir), ['capture-count'], 'failed staged artifacts must be removed');
+});
+
+test('backup-postgres.sh rejects a report storage provider other than local', () => {
+  const outputDir = fs.mkdtempSync(path.join(temp, 'non-local-provider-'));
+  const shim = makePathShim('docker', `
+case "$*" in
+  *pg_dump*) printf 'synthetic database archive';;
+  *'exec -T restful-api sh -ceu'*)
+    case "$*" in
+      *'test "\${THESIS_REPORT_STORAGE_PROVIDER:-local}" = local'*) ;;
+      *) printf 'provider guard was not passed to the child\\n' >&2; exit 91;;
+    esac
+    if [[ "$FAKE_STORAGE_PROVIDER" != local ]]; then printf 'provider details must stay private\\n' >&2; exit 1; fi
+    printf 'synthetic report archive'
+    ;;
+  *) printf 'unexpected docker command\\n' >&2; exit 90;;
+esac
+`);
+  const result = spawnSync(bashCommand, [posix(backupScript)], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 30000,
+    env: {
+      ...process.env,
+      ...shim.env,
+      COMPOSE_PROJECT_NAME: 'campusute',
+      BACKUP_DIR: posix(outputDir),
+      BACKUP_RETENTION_DAYS: '14',
+      FAKE_STORAGE_PROVIDER: 'object-store',
+    },
+  });
+  assert.notEqual(result.status, 0, 'backup must reject storage that the local report tar cannot capture');
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /provider details must stay private/);
+  assert.doesNotMatch(fs.readdirSync(outputDir).join('\n'), /\.dump|\.reports\.tar|\.sha256/);
 });
 
 test('backup-postgres.sh publishes the dump only after its bundle companions', () => {
@@ -363,7 +681,8 @@ test('restore-postgres.sh removes only the database it created after pg_restore 
   const env = makeShellEnv(`
 docker() {
   case "$*" in
-    *pg_restore*--list*) printf '%s\\n' ${JSON.stringify(validToc)};;
+    *pg_restore*--list*) printf '%b\\n' ${JSON.stringify(validToc)};;
+    *'pg_restore --data-only'*) printf '%s\\n' 'COPY thesis.thesis_group_report (storage_provider, storage_bucket, storage_key) FROM stdin;' '\\.';;
     *'tar -tf'*) printf '%s\\n' './report.pdf';;
     *'tar -tvf'*) printf '%s\\n' '-rw-r--r-- 0/0 10 2026-11-03 00:00 ./report.pdf';;
     *'SELECT 1 FROM pg_database'*) return 0;;
