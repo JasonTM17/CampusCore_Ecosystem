@@ -2154,6 +2154,7 @@ export const en = {
     profileUpdated: 'Profile updated',
     profileSaveFailed: 'We could not save your profile changes.',
     phoneInvalid: 'Phone number may only contain digits, spaces, and + ( ) - characters.',
+    addressTooLong: 'Address must be 500 characters or fewer.',
     passwordTitle: 'Password and sign-in safety',
     passwordDescription:
       'Use a strong password and expect to sign in again after a successful change.',
@@ -3021,6 +3022,7 @@ export const en = {
     savedSuccess: 'Attendance recorded successfully for {count} students',
     savedSuccessSingular: 'Attendance recorded successfully for {count} student',
     saveFailed: 'Failed to record attendance. Please try again.',
+    noteTooLong: 'Notes must be {limit} characters or fewer.',
     existingReadWarning: 'Could not load previously saved attendance. Records shown may be incomplete — saving is locked until you reload this section.',
     summaryRefreshFailed: 'Saved, but the semester attendance rate could not be refreshed — the shown rate may be out of date.',
     noSectionsTitle: 'No classes assigned',
@@ -5255,6 +5257,7 @@ export const vi: I18nMessages = {
     profileUpdated: 'Đã cập nhật hồ sơ',
     profileSaveFailed: 'Hiện chưa thể lưu thay đổi hồ sơ.',
     phoneInvalid: 'Số điện thoại chỉ gồm chữ số, khoảng trắng và các ký tự + ( ) -.',
+    addressTooLong: 'Địa chỉ tối đa 500 ký tự.',
     passwordTitle: 'Mật khẩu và an toàn đăng nhập',
     passwordDescription:
       'Dùng mật khẩu mạnh và chờ đăng nhập lại sau khi đổi thành công.',
@@ -6121,6 +6124,7 @@ export const vi: I18nMessages = {
     savedSuccess: 'Đã lưu điểm danh cho {count} sinh viên thành công',
     savedSuccessSingular: 'Đã lưu điểm danh cho {count} sinh viên thành công',
     saveFailed: 'Không thể lưu điểm danh. Vui lòng thử lại.',
+    noteTooLong: 'Ghi chú tối đa {limit} ký tự.',
     existingReadWarning: 'Không tải được điểm danh đã lưu trước đó. Danh sách hiển thị có thể chưa đầy đủ — chức năng lưu đang bị khóa, hãy tải lại lớp.',
     summaryRefreshFailed: 'Đã lưu, nhưng không làm mới được tỷ lệ chuyên cần học kỳ — tỷ lệ hiển thị có thể đã cũ.',
     noSectionsTitle: 'Chưa có lớp giảng dạy',
