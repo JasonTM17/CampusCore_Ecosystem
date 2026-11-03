@@ -419,6 +419,10 @@ public class AnnouncementWriteService {
         if (!"IN_REVIEW".equals(before.status())) {
             throw invalidState();
         }
+        if (actor.equals(before.authorId())) {
+            throw conflict("REVIEWER_EQUALS_AUTHOR",
+                    "The author cannot return their own announcement");
+        }
         requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
         if (announcements.returnForRework(id, before.version(), actor, reason, now) != 1) {
