@@ -136,32 +136,55 @@ test('cleartext password auth is refused on an unencrypted non-loopback connecti
 
 test('cleartext password auth is still honoured on loopback', async () => {
   const socket = fakeSocket();
+  const password = 'a-16-plus-character-password';
   const client = new WireClient({ host: '127.0.0.1', port: 5432, database: 'postgres', user: 'admin', sslmode: 'disable' });
   await withStubbedConnect(socket, async () => {
-    const pending = client.connect('a-16-plus-character-password');
+    const pending = client.connect(password);
     socket.emit('connect');
     await tick();
     socket.emit('data', Buffer.concat([authRequest(3), AUTH_OK, READY]));
     await pending;
   });
+  const passwordFrames = socket.writes.filter((frame) => frame[0] === 0x70);
+  assert.equal(passwordFrames.length, 1, 'the client answers the cleartext challenge exactly once');
+  const frame = passwordFrames[0];
+  assert.deepEqual(
+    frame.subarray(5, 1 + frame.readUInt32BE(1)),
+    Buffer.concat([Buffer.from(password), Buffer.from([0])]),
+    'the PasswordMessage body is the NUL-terminated password');
+  assert.equal(socket.destroyed, false, 'a loopback cleartext handshake keeps the socket open');
 });
 
 async function scramExchange(socket, password, signature) {
   const client = new WireClient({ ...REMOTE_TARGET, sslmode: 'disable' });
-  return withStubbedConnect(socket, async () => {
+  await withStubbedConnect(socket, async () => {
     const pending = client.connect(password);
     socket.emit('connect');
     await tick();
     socket.emit('data', authRequest(10, Buffer.from('SCRAM-SHA-256\0\0')));
     await tick();
-    const clientFirst = socket.writes.at(-1).subarray(24).toString('utf8');
+    const initialFrame = socket.writes.at(-1);
+    assert.equal(socket.writes.length, 2, 'the startup message and the SASLInitialResponse precede the continuation');
+    assert.equal(initialFrame[0], 0x70, 'SASLInitialResponse uses the PasswordMessage type byte');
+    assert.equal(initialFrame.subarray(5, 19).toString('utf8'), 'SCRAM-SHA-256\0',
+      'SASLInitialResponse names the SCRAM-SHA-256 mechanism');
+    const responseLength = initialFrame.readUInt32BE(19);
+    assert.equal(responseLength, initialFrame.length - 23, 'the SASL response length matches its payload');
+    const clientFirst = initialFrame.subarray(23, 23 + responseLength).toString('utf8');
+    assert.match(clientFirst, /^n,,n=,r=[A-Za-z0-9+/=]+$/,
+      'SASLInitialResponse carries a client-first message with a client nonce');
     const clientNonce = /r=([A-Za-z0-9+/=]+)/.exec(clientFirst)[1];
     const salt = crypto.randomBytes(16);
     const iterations = 4096;
     const serverFirst = `r=${clientNonce}ZmFrZS1zZXJ2ZXItbm9uY2U=,s=${salt.toString('base64')},i=${iterations}`;
     socket.emit('data', authRequest(11, Buffer.from(serverFirst)));
     await tick();
-    const clientFinal = socket.writes.at(-1).subarray(5).toString('utf8');
+    const finalFrame = socket.writes.at(-1);
+    assert.equal(socket.writes.length, 3, 'the SASLResponse follows the SASLInitialResponse with no extra frames');
+    assert.equal(finalFrame[0], 0x70, 'SASLResponse uses the PasswordMessage type byte');
+    const clientFinal = finalFrame.subarray(5).toString('utf8');
+    assert.match(clientFinal, /^c=biws,r=[^,]+,p=[A-Za-z0-9+/=]+$/,
+      'the client-final message carries a non-empty SCRAM proof');
     const clientFinalWithoutProof = clientFinal.slice(0, clientFinal.indexOf(',p='));
     const authMessage = `n=,r=${clientNonce},${serverFirst},${clientFinalWithoutProof}`;
     const saltedPassword = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
@@ -171,6 +194,7 @@ async function scramExchange(socket, password, signature) {
     socket.emit('data', Buffer.concat([authRequest(12, Buffer.from(`v=${sent.toString('base64')}`)), AUTH_OK, READY]));
     return pending;
   });
+  return client;
 }
 
 test('a tampered SCRAM server signature aborts the handshake', async () => {
@@ -181,7 +205,11 @@ test('a tampered SCRAM server signature aborts the handshake', async () => {
 
 test('a valid SCRAM server signature completes authentication', async () => {
   const socket = fakeSocket();
-  await scramExchange(socket, 'a-16-plus-character-password', 'valid');
+  const client = await scramExchange(socket, 'a-16-plus-character-password', 'valid');
+  assert.equal(socket.destroyed, false, 'a verified signature leaves the socket open for the query phase');
+  assert.equal(client.failure, null);
+  assert.equal(client.closed, false);
+  assert.equal(client.buffer.length, 0, 'the ReadyForQuery frame was consumed');
 });
 
 // --- Idle-timeout coverage: a half-open peer must fail, never hang ----------
@@ -221,6 +249,11 @@ test('an idle socket mid-query fails instead of hanging', { timeout: 5000 }, asy
     await tick();
     socket.emit('data', Buffer.concat([authRequest(3), AUTH_OK, READY]));
     await pending;
+    assert.equal(
+      socket.writes.filter((frame) => frame[0] === 0x70).length,
+      1,
+      'the handshake wrote the cleartext password frame');
+    assert.equal(socket.destroyed, false, 'the handshake left the socket open for the query');
     const query = client.query('SELECT 1');
     await tick();
     socket.emit('timeout');
