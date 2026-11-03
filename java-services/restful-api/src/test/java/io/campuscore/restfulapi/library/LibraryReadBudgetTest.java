@@ -289,9 +289,12 @@ class LibraryReadBudgetTest {
             String sql = invocation.getArgument(0);
             if (sql.contains("FROM library.\"Copy\"") && sql.endsWith("FOR UPDATE")) {
                 assertThat(java.time.Instant.now()).isBefore(deadline);
-                while (!java.time.Instant.now().isAfter(deadline)) {
-                    Thread.sleep(5);
+                long pollDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+                while (!java.time.Instant.now().isAfter(deadline) && System.nanoTime() < pollDeadline) {
+                    Thread.sleep(20);
                 }
+                assertThat(java.time.Instant.now()).as("the test clock passes the hold deadline within 10 seconds")
+                        .isAfter(deadline);
             }
             return result;
         }).when(named).queryForMap(anyString(), any(SqlParameterSource.class));
