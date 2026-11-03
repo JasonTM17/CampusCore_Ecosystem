@@ -59,10 +59,13 @@ the base host and model in server configuration; clients cannot override either.
 ## RAG-first dispatch policy
 
 Every request retrieves the active published runtime release before any provider
-decision. Direct fact lookups stay entirely on lexical RAG and return model
-`curated-lexical-rag` with reason code `RAG_GROUNDED`; they do not reserve quota
-or open a DeepSeek dispatch. `AssistantDifficultyRouter` only allows synthesis
-for a non-empty retrieval result when the question is long or multi-intent,
+decision. With `ASSISTANT_LEXICAL_FAST_PATH=true` (the default), a confident
+local match answers immediately with model `curated-lexical-fast` and reason
+code `ANSWERED`; after a fast-path miss, direct fact lookups stay entirely on
+lexical RAG and return model `curated-lexical-rag` with reason code
+`RAG_GROUNDED`. Neither path reserves quota or opens a DeepSeek dispatch.
+`AssistantDifficultyRouter` only allows synthesis for a non-empty retrieval
+result when the question is long or multi-intent,
 contains comparison/explanation/exception markers, or spans multiple knowledge
 domains. A question with no matching document never calls DeepSeek. This keeps
 the provider as a bounded fallback synthesizer rather than a second knowledge
@@ -84,9 +87,9 @@ unsupported claims. Citations are attached by Java from retrieved rows.
   `citation`, `done`, or `error` SSE events.
 - `POST/GET/DELETE /api/v1/thesis/assistant/conversations...` manage owner-only
   history. A missing conversation ID creates one server-side.
-- Only students and lecturers can chat or read/delete their own history.
-  Admins manage knowledge revisions but do not see user conversations by
-  default.
+- Students, lecturers, admins, super admins and faculty heads can chat or
+  read/delete their own history; history is owner-scoped, so admins do not see
+  another user's conversations by default. Admins manage knowledge revisions.
 - Every intentional send carries a caller-owned `clientRequestId`; completed
   keys replay the committed answer, while cancelled/purged keys return a
   stable terminal error. Web streaming uses `meta → delta/replace → citation

@@ -8,11 +8,11 @@ Authority: Derived from [attendance-geofence-spec.md](attendance-geofence-spec.m
 
 ## 1. Roles and Responsibilities
 
-The geofenced attendance subsystem separates administrative boundary definition, classroom session authority, and student self-checkin into three strictly decoupled roles.
+The geofenced attendance subsystem assigns geofence administration, classroom session operation, and student self-checkin to three role scopes.
 
 | Role | Primary Interface & Route | Key Operations | Authorizations & Constraints | Verified Code References |
 | --- | --- | --- | --- | --- |
-| **System Admin** (`ADMIN`, `SUPER_ADMIN`) | Web Admin Console: `/admin/attendance-geofences` | Create, configure, audit, and activate campus geofence perimeters; inspect map markers; deactivate legacy perimeters. | Cannot open class sessions or alter student roll call marks. Must verify physical campus coordinates before activating any perimeter. Deactivates instead of deleting when referenced by sessions. | [`frontend/src/app/admin/attendance-geofences/page.tsx`](../../frontend/src/app/admin/attendance-geofences/page.tsx), [`contracts/ecosystem/domain-contracts.md`](../../contracts/ecosystem/domain-contracts.md#L5-L15) |
+| **System Admin** (`ADMIN`, `SUPER_ADMIN`) | Web Admin Console: `/admin/attendance-geofences` | Create, configure, audit, and activate campus geofence perimeters; inspect map markers; deactivate legacy perimeters. | May open, view, close, and review attendance sessions for any section, and may record or override roll-call marks; session lifecycle and review actions are audited. Geofence CRUD is the admin-only surface. Must verify physical campus coordinates before activating any perimeter. Deactivates instead of deleting when referenced by sessions. | [`frontend/src/app/admin/attendance-geofences/page.tsx`](../../frontend/src/app/admin/attendance-geofences/page.tsx), [`contracts/ecosystem/domain-contracts.md`](../../contracts/ecosystem/domain-contracts.md#L5-L15) |
 | **Lecturer** (`LECTURER`) | Web Lecturer Portal: `/dashboard/lecturer/attendance` (`GeofenceCheckinPanel`, `ProjectorCodeOverlay`) | Open check-in session for assigned section/date; choose active geofence and window duration; display full-screen rotating code; monitor live counters; review flagged check-ins; manually override attendance. | Must be assigned to the class section (`LECT:<section>`). Retains ultimate academic authority: manual roll call entry always overrides student check-in. Rotating code secret never leaves the server. | [`frontend/src/app/dashboard/lecturer/attendance/page.tsx`](../../frontend/src/app/dashboard/lecturer/attendance/page.tsx), [`frontend/src/components/lecturer/GeofenceCheckinPanel.tsx`](../../frontend/src/components/lecturer/GeofenceCheckinPanel.tsx), [`frontend/src/components/lecturer/ProjectorCodeOverlay.tsx`](../../frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) |
 | **Student** (`STUDENT`) | Mobile Native App (iOS/Android): Route `attendance.checkin` (`CheckinScreen`) | Accept location privacy consent notice; grant OS foreground location permission; open class session via dashboard or code-free link; submit GPS fix and 6-digit classroom code. | Must be actively enrolled in the section (`ENROLLED` or `CONFIRMED`). Single check-in per installation per session. Web browser check-in is disallowed. | [`mobile/src/screens/attendance-checkin/CheckinScreen.tsx`](../../mobile/src/screens/attendance-checkin/CheckinScreen.tsx), [`mobile/src/attendance-checkin/checkin-machine.ts`](../../mobile/src/attendance-checkin/checkin-machine.ts), [`docs/ecosystem/attendance-geofence-spec.md`](attendance-geofence-spec.md#L71-L78) |
 
@@ -127,7 +127,7 @@ Deep link: campuscore://attendance/checkin/<sessionId>
 The panel polls session statistics every 10 seconds while the browser tab is visible:
 - **Accepted** (`accepted`): Total check-ins meeting all criteria (valid location, accurate fix, correct rotating code, no fraud flags). Automatically registered as `PRESENT` (or `LATE` if after `lateAfterMinutes`).
 - **Pending Review** (`pending`): Check-ins accepted conditionally but flagged by server-side risk heuristics. Requires manual lecturer review before attendance is recorded.
-- **Rejected** (`rejected`): Submissions blocked by server security checks (outside geofence, invalid code, expired session, low GPS accuracy).
+- **Rejected** (`rejected`): Check-ins a lecturer explicitly rejected from the `PENDING_REVIEW` queue. Submissions blocked before a check-in row is created (`OUTSIDE_AREA`, `BAD_CODE`, `SESSION_CLOSED`, `LOW_ACCURACY`) are recorded in the attempt log and are not counted here.
 - **Enrolled** (`enrolled`): Total students on the active class roster.
 
 ### 3.5 Flagged Check-In Review Queue & Reason Codes
@@ -149,7 +149,7 @@ Check-ins flagged as `PENDING_REVIEW` appear in the **Flagged Reviews** table. T
 Under [`docs/ecosystem/attendance-geofence-spec.md`](attendance-geofence-spec.md#L53) and [`contracts/ecosystem/domain-contracts.md`](../../contracts/ecosystem/domain-contracts.md#L31-L34):
 - **Manual Always Wins**: A lecturer's manual entry on the attendance sheet takes absolute precedence over any student check-in.
 - If a lecturer marks a student `ABSENT` or `PRESENT` manually, an automated check-in cannot overwrite it. The check-in returns status `MANUAL_RECORD_PRESERVED`.
-- When approving a flagged check-in from `PENDING_REVIEW`, the server evaluates `PRESENT` vs `LATE` using the **original client capture timestamp**, not the review time.
+- When approving a flagged check-in from `PENDING_REVIEW`, the server evaluates `PRESENT` vs `LATE` using the **server-side insert timestamp** (`createdAt`), not the client `capturedAt` or the review time.
 - If a lecturer rejects a flagged check-in, the existing manual roll call record (or default `ABSENT`) remains unchanged.
 
 ### 3.7 Closing the Session
