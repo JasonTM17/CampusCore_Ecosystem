@@ -12,7 +12,10 @@ retains non-report diagnostics in mode-600 temporary files. Report-key and
 report-tar diagnostics stay suppressed. A non-local
 thesis storage provider makes the manual backup fail so external objects cannot
 be silently omitted. `BACKUP_RETENTION_DAYS` accepts positive base-10 digits,
-including zero-padded values such as `08`.
+including zero-padded values such as `08`. Bundle names embed the Compose
+project as `campuscore-<project>-<timestamp>`; a retention pass deletes only
+that project's expired bundles and never prunes earlier archives that lack
+the project segment.
 
 After each dump and report tar are staged, backup and verification compare `thesis.thesis_group_report.storage_key` values from the dump with tar members.
 A missing key triggers one full backup recapture; a second mismatch fails with only the missing-key count.
@@ -31,15 +34,15 @@ archive/verify/restore flow is for a local or otherwise reachable stack:
 #   <checkout-directory> -> plain docker compose up
 export COMPOSE_PROJECT_NAME=campusute
 BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
-./ops/backup/verify-backup.sh ops/backups/campuscore-<timestamp>.dump
-./ops/backup/restore-postgres.sh ops/backups/campuscore-<timestamp>.dump campuscore_restore_<timestamp>
+./ops/backup/verify-backup.sh ops/backups/campuscore-<project>-<timestamp>.dump
+./ops/backup/restore-postgres.sh ops/backups/campuscore-<project>-<timestamp>.dump campuscore_restore_<timestamp>
 ```
 
 The restore target must use the `campuscore_restore_` prefix and must not
 already exist. Restore runs `pg_restore --single-transaction`; a failed restore
 drops only the database created by that invocation. Report files are extracted
 to a new sibling directory named
-`campuscore-<timestamp>.reports.restore`. The original
+`campuscore-<project>-<timestamp>.reports.restore`. The original
 `campuscore_thesis_report_storage` volume is never modified. Point an isolated
 restore application at that directory when checking report downloads; do not
 mount it over the live volume.
