@@ -154,7 +154,7 @@ function effectiveSslMode(target) {
 // Minimal PostgreSQL wire client (extended-free, simple query protocol)
 // ---------------------------------------------------------------------------
 
-class PostgresError extends Error {
+export class PostgresError extends Error {
   constructor(fields) {
     super(`PostgreSQL ${fields.C ?? 'ERROR'}: ${fields.M ?? 'unknown error'}`);
     this.fields = fields;
@@ -173,6 +173,7 @@ export class WireClient {
     this.failure = null;
     this.closed = false;
     this.tlsActive = false;
+    this.idleTimeouts = new Map();
   }
 
   // Resolves each time new bytes arrive; the caller re-parses the buffer.
@@ -188,19 +189,38 @@ export class WireClient {
     if (waiter) waiter.resolve();
   }
 
+  // A dead socket must fail every pending and future read; a silently dropped
+  // peer otherwise leaves #awaitData pending forever and hangs compose --wait.
+  #fail(error) {
+    if (!this.failure) this.failure = error;
+    const waiter = this.wake;
+    this.wake = null;
+    if (this.socket) this.socket.destroy();
+    if (waiter) waiter.reject(this.failure);
+  }
+
+  // The idle timeout stays armed for the whole wire phase — SSL negotiation,
+  // startup, authentication and query reads — so a peer that accepts the TCP
+  // connection and then goes silent still fails fast.
+  #armIdleTimeout(socket) {
+    const onTimeout = () => this.#fail(
+      new Error(`connection to ${this.target.host}:${this.target.port} timed out`));
+    socket.on('timeout', onTimeout);
+    this.idleTimeouts.set(socket, onTimeout);
+  }
+
   async connect(authPassword) {
     const socket = net.createConnection({ host: this.target.host, port: this.target.port });
     socket.setTimeout(CONNECT_TIMEOUT_MS);
     this.socket = socket;
+    this.#armIdleTimeout(socket);
     await new Promise((resolve, reject) => {
-      const onTimeout = () => {
-        socket.destroy();
-        reject(new Error(`connection to ${this.target.host}:${this.target.port} timed out`));
-      };
-      socket.once('timeout', onTimeout);
-      socket.once('error', (error) => reject(new Error(`connection failed: ${error.message}`)));
+      const onError = (error) => this.#fail(new Error(`connection failed: ${error.message}`));
+      this.wake = { resolve, reject };
+      socket.once('error', onError);
       socket.once('connect', () => {
-        socket.off('timeout', onTimeout);
+        socket.off('error', onError);
+        this.wake = null;
         resolve();
       });
     });
@@ -209,6 +229,8 @@ export class WireClient {
       const response = await negotiateSsl(socket);
       if (response === 'S') {
         this.socket = await upgradeTls(socket, this.target.host, sslmode);
+        this.socket.setTimeout(CONNECT_TIMEOUT_MS);
+        this.#armIdleTimeout(this.socket);
         this.tlsActive = true;
       } else if (TLS_REQUIRED_MODES.has(sslmode)) {
         socket.destroy();
@@ -229,8 +251,7 @@ export class WireClient {
       this.#notify();
     });
     socket.on('error', (error) => {
-      this.failure = new Error(`connection error: ${error.message}`);
-      this.#notify();
+      this.#fail(new Error(`connection error: ${error.message}`));
     });
     socket.on('close', () => {
       this.closed = true;
@@ -360,6 +381,8 @@ export class WireClient {
   }
 
   close() {
+    for (const [socket, onTimeout] of this.idleTimeouts) socket.off('timeout', onTimeout);
+    this.idleTimeouts.clear();
     if (this.socket && !this.closed) {
       try { this.socket.end(Buffer.from([0x58, 0, 0, 0, 4])); } catch { /* already gone */ }
       this.socket.destroy();
@@ -382,6 +405,7 @@ function negotiateSsl(socket) {
       socket.off('data', onData);
       socket.off('error', onError);
       socket.off('close', onClose);
+      socket.off('timeout', onTimeout);
     };
     const onData = (chunk) => {
       received = Buffer.concat([received, chunk]);
@@ -407,12 +431,17 @@ function negotiateSsl(socket) {
       cleanup();
       reject(new Error('connection closed during SSL negotiation'));
     };
+    const onTimeout = () => {
+      cleanup();
+      reject(new Error('SSL negotiation timed out'));
+    };
     const request = Buffer.alloc(8);
     request.writeUInt32BE(8, 0);
     request.writeUInt32BE(80877103, 4);
     socket.on('data', onData);
     socket.once('error', onError);
     socket.once('close', onClose);
+    socket.once('timeout', onTimeout);
     socket.write(request);
   });
 }
@@ -424,13 +453,25 @@ function upgradeTls(socket, host, sslmode) {
   const options = { socket, servername: host, rejectUnauthorized: verify };
   if (sslmode === 'verify-ca') options.checkServerIdentity = () => undefined;
   const secure = tls.connect(options);
+  secure.setTimeout(CONNECT_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
-    const onError = (error) => reject(new Error(`TLS handshake failed: ${error.message}`));
-    secure.once('secureConnect', () => {
+    const settle = (callback) => {
       secure.off('error', onError);
-      resolve(secure);
+      secure.off('timeout', onTimeout);
+      secure.off('close', onClose);
+      callback();
+    };
+    const onError = (error) => settle(() =>
+      reject(new Error(`TLS handshake failed: ${error.message}`)));
+    const onTimeout = () => settle(() => {
+      secure.destroy();
+      reject(new Error('TLS handshake timed out'));
     });
+    const onClose = () => settle(() => reject(new Error('connection closed during TLS handshake')));
+    secure.once('secureConnect', () => settle(() => resolve(secure)));
     secure.once('error', onError);
+    secure.once('timeout', onTimeout);
+    secure.once('close', onClose);
   });
 }
 
@@ -508,12 +549,17 @@ function parseDataRow(body) {
 
 async function connectAs(target, password) {
   const client = new WireClient(target);
-  await client.connect(password);
-  await client.query('SELECT 1');
-  return client;
+  try {
+    await client.connect(password);
+    await client.query('SELECT 1');
+    return client;
+  } catch (error) {
+    client.close();
+    throw error;
+  }
 }
 
-export async function provision(env = process.env, log = defaultLog) {
+export async function provision(env = process.env, log = defaultLog, connect = connectAs) {
   const assistantPassword = env.ASSISTANT_DB_PASSWORD;
   if (assistantPassword == null || assistantPassword.trim() === '') {
     throw new ProvisioningError('ASSISTANT_DB_PASSWORD is required');
@@ -525,7 +571,7 @@ export async function provision(env = process.env, log = defaultLog) {
   log('ASSISTANT_DB_PASSWORD present: yes');
 
   const target = resolveTarget(env);
-  const admin = await connectAs(target, target.password);
+  const admin = await connect(target, target.password);
   try {
     const roles = await admin.query(
       `SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname IN ('postgres', '${RUNTIME_ROLE}')`);
@@ -563,17 +609,25 @@ export async function provision(env = process.env, log = defaultLog) {
     // Login already enabled — probe with the supplied password so an operator
     // rotation elsewhere is never silently clobbered by a re-run.
     try {
-      const probe = await connectAs({ ...target, user: RUNTIME_ROLE }, assistantPassword);
+      const probe = await connect({ ...target, user: RUNTIME_ROLE }, assistantPassword);
       probe.close();
       log('runtime_role: existing');
       log('runtime_role_login: enabled-already');
       log('runtime_role_password: verified (unchanged)');
-    } catch {
+    } catch (error) {
+      // Only a rejected credential justifies a reset: SQLSTATE 28P01
+      // (invalid_password) or 28000 (invalid_authorization). A connection
+      // limit, TLS or transient error must fail the run, not restore the old
+      // password over an out-of-band rotation.
+      if (!(error instanceof PostgresError
+          && (error.fields.C === '28P01' || error.fields.C === '28000'))) {
+        throw error;
+      }
       await admin.query(
         `ALTER ROLE ${RUNTIME_ROLE} LOGIN PASSWORD ${sqlLiteral(assistantPassword)}`);
       log('runtime_role: existing');
       log('runtime_role_login: enabled-already');
-      log('runtime_role_password: reset (probe connection failed)');
+      log('runtime_role_password: reset (probe authentication failed)');
     }
   } finally {
     admin.close();

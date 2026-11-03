@@ -84,6 +84,42 @@ test('every root scripts test suite is referenced exactly once by CI', () => {
   }
 });
 
+test('every nested scripts/tests suite is referenced exactly once by ecosystem-gates', () => {
+  const nestedDir = path.join(repoRoot, 'scripts', 'tests');
+  const nestedTests = readdirSync(nestedDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.test.mjs'))
+    .map((entry) => `scripts/tests/${entry.name}`)
+    .sort();
+  assert.ok(nestedTests.length > 0, 'the nested suite directory must not be empty');
+  // Nested suites kept out of ecosystem-gates need an explicit Docker/network
+  // reason here, like the root-level list above.
+  const excludedSuites = new Map();
+  for (const [file, reason] of excludedSuites) {
+    assert.match(reason, /docker|network/i, `${file} exclusion needs a Docker or network reason`);
+  }
+
+  const doc = loadWorkflow(workflowPath, repoRoot);
+  const allRuns = Object.values(doc.jobs ?? {}).flatMap((job) =>
+    (job.steps ?? []).map((step) => step.run).filter((run) => typeof run === 'string'));
+  const sourceRuns = (doc.jobs?.['ecosystem-gates']?.steps ?? [])
+    .map((step) => step.run)
+    .filter((run) => typeof run === 'string');
+  const references = (runs, file) => runs.reduce((count, run) =>
+    count + [...run.matchAll(new RegExp(`\\b${file.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'g'))].length, 0);
+
+  for (const file of nestedTests) {
+    if (excludedSuites.has(file)) {
+      assert.equal(references(sourceRuns, file), 0, `${file} is explicitly excluded from ecosystem-gates`);
+      continue;
+    }
+    assert.equal(references(sourceRuns, file), 1, `${file} must be run once in ecosystem-gates`);
+    assert.equal(references(allRuns, file), 1, `${file} must not be duplicated in another CI job`);
+  }
+  for (const file of excludedSuites.keys()) {
+    assert.ok(nestedTests.includes(file), `excluded suite must exist: ${file}`);
+  }
+});
+
 test('source-only checks run once and compose keeps its runtime probes', () => {
   const doc = loadWorkflow(workflowPath, repoRoot);
   const jobs = Object.values(doc.jobs ?? {});
