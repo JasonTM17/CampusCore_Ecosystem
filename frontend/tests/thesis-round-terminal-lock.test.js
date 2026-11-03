@@ -101,6 +101,29 @@ function loadReviewPanel() {
   }).default;
 }
 
+function loadSupervisedGroupList() {
+  const Icon = () => React.createElement('span');
+  return loadModule('src/features/thesis/components/SupervisedGroupList.tsx', {
+    ...uiStubs,
+    'lucide-react': {
+      Check: Icon,
+      ExternalLink: Icon,
+      FileDown: Icon,
+      FileText: Icon,
+      UsersRound: Icon,
+      X: Icon,
+    },
+    '@/components/thesis/MemberAvatars': { MemberAvatars: () => null },
+    '@/components/thesis/StatusBadge': {
+      StatusBadge: ({ status }) => React.createElement('span', null, status),
+    },
+    '@/components/dashboard/thesis/SupervisedGroupMembers': { SupervisedGroupMembers: () => null },
+    '@/i18n/messages': {},
+    '@/lib/safe-url': { isHttpUrl: () => false },
+    '@/lib/thesis-api': {},
+  }).default;
+}
+
 // renderToStaticMarkup escapes '&' as '&amp;' — message copies must be
 // asserted in their rendered form so negative checks are not tautological.
 const rendered = (copy) => copy.replace(/&/g, '&amp;');
@@ -251,4 +274,75 @@ test('a live round still renders the counter-review form', () => {
     'a live round renders the submit control');
   assert.equal(html.includes(messages.thesis.review.roundClosed), false,
     'the round-closed copy must not render for a live round');
+});
+
+function supervisedGroupProps(overrides) {
+  return {
+    messages: loadMessages(),
+    title: 'Supervised groups',
+    description: 'Groups under supervision',
+    groups: [
+      {
+        id: 'group-1',
+        roundId: 'round-1',
+        topicId: null,
+        status: 'DRAFT',
+        approvalStatus: 'PENDING',
+        rejectionReason: null,
+        memberStudentIds: ['student-1'],
+        members: [],
+      },
+      {
+        id: 'group-2',
+        roundId: 'round-1',
+        topicId: 'topic-1',
+        status: 'SUBMITTED',
+        approvalStatus: 'PENDING',
+        rejectionReason: null,
+        memberStudentIds: [],
+        members: [],
+      },
+    ],
+    reportsByGroup: {},
+    isActionPending: false,
+    getTopicTitle: (topicId) => topicId ? 'Submitted group' : 'Topicless draft group',
+    isRoundOpen: () => false,
+    canReviewGroup: () => true,
+    onGroupUpdated: () => {},
+    onApprove: () => {},
+    onReject: () => {},
+    onDownloadReport: () => {},
+    ...overrides,
+  };
+}
+
+for (const status of ['CANCELLED', 'RESULTS_PUBLISHED', 'CLOSED']) {
+  test(`supervised group review actions are hidden when the round is ${status}`, () => {
+    const messages = loadMessages();
+    const GroupList = loadSupervisedGroupList();
+    const html = renderToStaticMarkup(React.createElement(GroupList, supervisedGroupProps({
+      roundStatus: status,
+    })));
+
+    assert.ok(html.includes('Topicless draft group'), `${status}: the row remains readable`);
+    assert.ok(html.includes('Submitted group'), `${status}: submitted rows remain readable`);
+    assert.ok(html.includes('PENDING'), `${status}: the approval state remains readable`);
+    assert.equal(html.includes(messages.thesis.approve), false,
+      `${status}: the approve action must not render`);
+    assert.equal(html.includes(messages.thesis.reject), false,
+      `${status}: the reject action must not render`);
+  });
+}
+
+test('supervised group review actions remain available in a registration-closed round', () => {
+  const messages = loadMessages();
+  const GroupList = loadSupervisedGroupList();
+  const html = renderToStaticMarkup(React.createElement(GroupList, supervisedGroupProps({
+    roundStatus: 'REGISTRATION_CLOSED',
+  })));
+
+  assert.ok(html.includes(messages.thesis.reject),
+    'the topicless pending group can still be rejected before results are published');
+  assert.ok(html.includes(messages.thesis.approve),
+    'a submitted group can still be approved before results are published');
 });
