@@ -63,6 +63,9 @@ class AdminSemesterRacePostgresIT {
     @Test
     void concurrentSemesterWritesCannotOverlapInOneAcademicYear() throws Exception {
         AcademicEnrollmentPostgresFixture fixture = AcademicEnrollmentPostgresFixture.seed(jdbc, 30);
+        // A dedicated year keeps the fixture's own semester out of the range
+        // under test, so only writer A's uncommitted row can overlap writer B.
+        String raceYear = insertRaceAcademicYear("year-race-" + fixture.sectionId);
         String semesterA = "semester-a-" + fixture.sectionId;
         String semesterB = "semester-b-" + fixture.sectionId;
 
@@ -75,7 +78,7 @@ class AdminSemesterRacePostgresIT {
         try {
             holder = pool.submit(() -> new TransactionTemplate(transactionManager)
                     .executeWithoutResult(status -> {
-                        insertSemester(semesterA, fixture, "2026-08-01", "2026-12-31");
+                        insertSemester(semesterA, raceYear, "2026-08-01", "2026-12-31");
                         writerAInFlight.countDown();
                         awaitLatch(commitWriterA);
                     }));
@@ -87,7 +90,7 @@ class AdminSemesterRacePostgresIT {
                             "id", semesterB,
                             "name", "Overlapping Term " + semesterB,
                             "type", "SECOND",
-                            "academicYearId", fixture.academicYearId,
+                            "academicYearId", raceYear,
                             "startDate", "2026-11-01",
                             "endDate", "2027-03-31"));
                     return null;
@@ -106,8 +109,6 @@ class AdminSemesterRacePostgresIT {
 
         holder.get(1, TimeUnit.SECONDS);
         Throwable failure = writer.get(1, TimeUnit.SECONDS);
-        assertThat(waitObserved)
-                .as("the second writer must queue on the AcademicYear row").isTrue();
         assertThat(failure).isInstanceOf(DomainException.class);
         DomainException conflict = (DomainException) failure;
         assertThat(conflict.getStatus().value()).isEqualTo(409);
@@ -125,9 +126,23 @@ class AdminSemesterRacePostgresIT {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM academic.\"Semester\" WHERE \"id\" = :id",
                 Map.of("id", semesterB), Integer.class)).isZero();
+        assertThat(waitObserved)
+                .as("the second writer must queue on the AcademicYear row").isTrue();
     }
 
-    private void insertSemester(String id, AcademicEnrollmentPostgresFixture fixture,
+    private String insertRaceAcademicYear(String id) {
+        jdbc.update("INSERT INTO academic.\"AcademicYear\""
+                        + " (\"id\", \"year\", \"startDate\", \"endDate\", \"isCurrent\")"
+                        + " VALUES (:id, 2026, CAST(:startDate AS TIMESTAMP WITH TIME ZONE),"
+                        + " CAST(:endDate AS TIMESTAMP WITH TIME ZONE), FALSE)",
+                new MapSqlParameterSource()
+                        .addValue("id", id)
+                        .addValue("startDate", "2026-01-01")
+                        .addValue("endDate", "2027-12-31"));
+        return id;
+    }
+
+    private void insertSemester(String id, String academicYearId,
             String startDate, String endDate) {
         jdbc.update("INSERT INTO academic.\"Semester\""
                         + " (\"id\", \"name\", \"type\", \"academicYearId\", \"startDate\", \"endDate\", \"status\")"
@@ -137,7 +152,7 @@ class AdminSemesterRacePostgresIT {
                 new MapSqlParameterSource()
                         .addValue("id", id)
                         .addValue("name", "Term " + id)
-                        .addValue("academicYearId", fixture.academicYearId)
+                        .addValue("academicYearId", academicYearId)
                         .addValue("startDate", startDate)
                         .addValue("endDate", endDate));
     }
