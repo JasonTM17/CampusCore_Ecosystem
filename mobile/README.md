@@ -90,16 +90,12 @@ and the host firewall must allow that development port.
 
 ## Local sign-in against the Docker stack (verified)
 
-The default `docker-compose.yml` leaves the OIDC lane off — `/oauth2/authorize`
-does not exist and sign-in cannot complete. The opt-in overlay
-`docker-compose.mobile-local.yml` turns it on with the issuer the emulator
-uses (`MOBILE_LOCAL_ISSUER`, default `http://10.0.2.2:4010`):
+The base `docker-compose.yml` keeps demo accounts disabled. `local-dev up
+--mobile` selects the local demo and mobile OIDC overlays; the emulator issuer
+defaults to `http://10.0.2.2:4010`:
 
 ```powershell
-# Once per clone: the base compose file requires the owner-assertion key.
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
-docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
+node scripts/local-dev.mjs up --mobile  # generates required secrets, including ASSISTANT_RAG_OWNER_ASSERTION_SECRET
 node scripts/mobile-local-oidc-verify.mjs   # end-to-end smoke, no browser
 ```
 

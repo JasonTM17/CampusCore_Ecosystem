@@ -15,6 +15,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_FILE = 'docker-compose.e2e.yml';
@@ -588,6 +589,7 @@ async function main() {
       process.exit(4);
     }
   }
+  if (['image', 'stack', 'pgit'].includes(cmd)) ensureComposeSecrets({ root: REPO });
   if (cmd === 'image') caseImage(args);
   else if (cmd === 'stack') await caseStack(args);
   else if (cmd === 'pgit') await casePgit(args);

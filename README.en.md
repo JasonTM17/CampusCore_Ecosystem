@@ -36,15 +36,11 @@ Next.js frontend, and **Node 22.13+** for the Expo CLI/mobile app.
 git clone https://github.com/JasonTM17/CampusCore_Ecosystem.git
 cd CampusCore_Ecosystem
 
-# 1) Local environment file
-Copy-Item .env.example .env
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
+# Start the local demo stack; the runner creates .env and checkout-specific secrets
+node scripts/local-dev.mjs up
+node scripts/local-dev.mjs status
 
-# 2) The whole local stack (Compose runs assistant-db-provisioner once, then exits)
-docker compose up -d --build
-docker compose ps
-
-# 3) Health probes (matches HEALTH_READINESS_KEY in .env.example)
+# 3) Health probes (readiness key is generated in .env)
 curl.exe http://127.0.0.1:4010/api/v1/health/liveness
 $env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
 curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://127.0.0.1:4010/api/v1/health/readiness
@@ -68,10 +64,9 @@ If `5432` or `3000` is taken, set `POSTGRES_HOST_PORT` / `FRONTEND_HOST_PORT` in
 (for example `5434` / `3001`) and start Compose again; an API outside Docker must point
 `SPRING_DATASOURCE_URL` at the new Postgres port. E2E and SSO preview are separate test stacks and
 are not needed for the quick start.
-Compose requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`. The command above
-generates a dedicated key; do not reuse `ASSISTANT_RAG_SERVICE_TOKEN`,
-`JWT_SECRET`, or `JWT_REFRESH_SECRET`. Compose gives this key to `restful-api`
-and `rag-service`; the repository has no key default.
+`local-dev up` selects `docker-compose.local.yml` and generates missing Compose
+secrets in the git-ignored `.env`. Running `docker-compose.yml` alone requires
+explicit secret values and keeps demos disabled.
 
 ### Running the API outside Docker
 
@@ -81,7 +76,8 @@ required: the datasource, Flyway and `DemoAccountGate` only work under it.
 
 ```powershell
 # PostgreSQL: the Compose container (POSTGRES_HOST_PORT) or a host installation
-docker compose up -d postgres
+node scripts/compose-secrets.mjs --ensure
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres
 
 # Minimum variables (set them in the shell that runs Maven)
 $env:SPRING_PROFILES_ACTIVE = "persistence"
@@ -92,11 +88,11 @@ $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/campuscore_restfu
 $env:SPRING_DATASOURCE_USERNAME = "campuscore"
 $env:SPRING_DATASOURCE_PASSWORD = "<POSTGRES_PASSWORD from .env>"
 $env:DEMO_ACCOUNTS_ENABLED = "true"               # YAML default false locks every demo account
-$env:HEALTH_READINESS_KEY = "local-course-health-key"
+$env:HEALTH_READINESS_KEY = "<HEALTH_READINESS_KEY from .env>"
 
 # Assistant RLS: Flyway V84 creates campuscore_assistant_runtime as NOLOGIN;
 # run the one-shot provisioning before the API migrates/starts.
-$env:ASSISTANT_DB_PASSWORD = "dev-only-not-a-secret-16+"   # >= 16 characters
+$env:ASSISTANT_DB_PASSWORD = "<ASSISTANT_DB_PASSWORD from .env>"   # >= 16 characters
 node scripts/provision-assistant-runtime.mjs
 
 # Run the API; Flyway is on by default (FLYWAY_ENABLED=true) outside Compose
@@ -110,11 +106,11 @@ Skipping provisioning still boots the API, but the assistant returns 503 (RLS po
 
 ### Demo accounts
 
-Compose enables `DEMO_ACCOUNTS_ENABLED=true` and `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true` for the
-local stack. Primary accounts: `student@campuscore.edu`, `lecturer@campuscore.edu`,
+`local-dev up` selects the overlay that enables demo accounts and quick-fill; base Compose keeps
+demos disabled. Primary accounts: `student@campuscore.edu`, `lecturer@campuscore.edu`,
 `admin@campuscore.edu` (seeded password `password123`, local only). Full list, account-lock policy,
-and the demo script: [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md). Set `DEMO_ACCOUNTS_ENABLED=false`
-to lock every demo account.
+and the demo script: [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md). Run the base Compose file directly
+with explicit secrets to keep demo accounts disabled.
 
 ### Mobile app (Android emulator)
 

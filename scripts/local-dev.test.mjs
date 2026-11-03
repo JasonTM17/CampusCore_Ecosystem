@@ -28,6 +28,7 @@ import {
   selectComposeFiles,
   suggestHostPort,
 } from './local-dev.mjs';
+import { COMPOSE_SECRET_NAMES } from './compose-secrets.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
@@ -36,6 +37,7 @@ function databaseOutageOverrides(output, commands) {
   const root = path.join(repoRoot, '.virtual-local-dev-health');
   const files = new Map([
     [path.resolve(root, 'docker-compose.yml'), 'services: {}\n'],
+    [path.resolve(root, 'docker-compose.local.yml'), 'services: {}\n'],
     [path.resolve(root, '.env.example'), 'HEALTH_READINESS_KEY=stub-key\n'],
   ]);
   const fsStub = {
@@ -125,19 +127,10 @@ test('parseArgs short-circuits --help without validating the rest', () => {
 
 test('status exits nonzero when a health probe prints FAIL', async () => {
   const output = [];
+  const overrides = databaseOutageOverrides(output, []);
   const exitCode = await main(['status', '--project', 'campusute'], {
-    root: repoRoot,
-    env: {},
-    run: (_command, args) => ({
-      code: 0,
-      stdout: args.includes('ps')
-        ? JSON.stringify([{ Service: 'restful-api', State: 'running' }, { Service: 'web', State: 'running' }])
-        : '127.0.0.1:4010\n',
-      stderr: '',
-    }),
+    ...overrides,
     fetch: async () => ({ status: 503 }),
-    log: (message) => output.push(message),
-    errorLog: (message) => output.push(message),
   });
   assert.equal(output.some((line) => line.includes('FAIL  API liveness')), true);
   assert.equal(exitCode, 1, 'status must not report success while a health check fails');
@@ -183,20 +176,20 @@ test('status rejects a web root response outside the success range', async () =>
 
 test('compose argv keeps flags shell-free and mirrors --mobile/--no-build', () => {
   assert.deepEqual(
-    buildUpArgs({ project: 'demo', files: ['docker-compose.yml'], build: true }),
-    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', 'up', '-d', '--build'],
+    buildUpArgs({ project: 'demo', files: ['docker-compose.yml', 'docker-compose.local.yml'], build: true }),
+    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', '-f', 'docker-compose.local.yml', 'up', '-d', '--build'],
   );
   assert.deepEqual(
-    buildUpArgs({ project: 'demo', files: ['docker-compose.yml'], build: false }),
-    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', 'up', '-d'],
+    buildUpArgs({ project: 'demo', files: ['docker-compose.yml', 'docker-compose.local.yml'], build: false }),
+    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', '-f', 'docker-compose.local.yml', 'up', '-d'],
   );
   assert.deepEqual(
-    buildDownArgs({ project: 'demo', files: ['docker-compose.yml'], volumes: true }),
-    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', 'down', '-v'],
+    buildDownArgs({ project: 'demo', files: ['docker-compose.yml', 'docker-compose.local.yml'], volumes: true }),
+    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', '-f', 'docker-compose.local.yml', 'down', '-v'],
   );
   assert.deepEqual(
-    buildLogsArgs({ project: 'demo', files: ['docker-compose.yml'], service: 'web' }),
-    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', 'logs', '--tail', '200', '-f', 'web'],
+    buildLogsArgs({ project: 'demo', files: ['docker-compose.yml', 'docker-compose.local.yml'], service: 'web' }),
+    ['compose', '-p', 'demo', '-f', 'docker-compose.yml', '-f', 'docker-compose.local.yml', 'logs', '--tail', '200', '-f', 'web'],
   );
 });
 
@@ -204,10 +197,10 @@ test('compose argv keeps flags shell-free and mirrors --mobile/--no-build', () =
 /* compose files and project name                                     */
 /* ------------------------------------------------------------------ */
 
-test('selectComposeFiles returns the base file, plus the mobile overlay only with --mobile', () => {
-  assert.deepEqual(selectComposeFiles(), ['docker-compose.yml']);
-  assert.deepEqual(selectComposeFiles({ mobile: false }), ['docker-compose.yml']);
-  assert.deepEqual(selectComposeFiles({ mobile: true }), ['docker-compose.yml', COMPOSE_MOBILE]);
+test('selectComposeFiles always includes the local overlay and adds mobile only with --mobile', () => {
+  assert.deepEqual(selectComposeFiles(), ['docker-compose.yml', 'docker-compose.local.yml']);
+  assert.deepEqual(selectComposeFiles({ mobile: false }), ['docker-compose.yml', 'docker-compose.local.yml']);
+  assert.deepEqual(selectComposeFiles({ mobile: true }), ['docker-compose.yml', 'docker-compose.local.yml', COMPOSE_MOBILE]);
   for (const file of selectComposeFiles({ mobile: true })) {
     assert.ok(fs.existsSync(path.join(repoRoot, file)), `${file} must exist on disk`);
   }
@@ -338,12 +331,20 @@ test('mobile recipe comes from mobile/eas.json and never prints a credential', (
 /* doctor                                                             */
 /* ------------------------------------------------------------------ */
 
-test('doctor retries a cold Docker engine before failing a hard requirement', async () => {
+test('doctor retries a cold Docker engine before failing a hard requirement', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-doctor-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'docker-compose.local.yml'), 'services: {}\n', 'utf8');
   let infoCalls = 0;
+  let configArgs = null;
   const run = (command, args) => {
     if (command === 'java') return { code: 0, stdout: '', stderr: 'openjdk version "21.0.5" 2024-10-15 LTS' };
     if (args[0] === '--version') return { code: 0, stdout: 'Docker version 29.9.1, build dfc520d', stderr: '' };
-    if (args[0] === 'compose') return { code: 0, stdout: 'Docker Compose version v5.6.0', stderr: '' };
+    if (args[0] === 'compose') {
+      if (args.includes('config')) configArgs = args;
+      return { code: 0, stdout: 'Docker Compose version v5.6.0', stderr: '' };
+    }
     if (args[0] === 'info') {
       infoCalls += 1;
       return infoCalls < 3
@@ -356,7 +357,7 @@ test('doctor retries a cold Docker engine before failing a hard requirement', as
   const lines = [];
 
   const code = await doctor({
-    root: repoRoot,
+    root,
     env: {},
     fs,
     run,
@@ -368,6 +369,7 @@ test('doctor retries a cold Docker engine before failing a hard requirement', as
 
   assert.equal(code, 0);
   assert.equal(infoCalls, 3, 'two transient failures must be retried');
+  assert.deepEqual(configArgs, ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.local.yml', 'config', '--quiet']);
   assert.match(lines.join('\n'), /\[PASS\] Docker engine\s+engine 29\.9\.1/);
   assert.match(lines.join('\n'), /local-dev doctor: PASS/);
 });
@@ -449,6 +451,8 @@ test('status falls back to the .env host-port override when compose port has no 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-status-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'docker-compose.local.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, '.env.example'), 'RESTFUL_API_HOST_PORT=4010\n', 'utf8');
   fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
   const output = [];
 
@@ -481,6 +485,7 @@ test('up falls back to the .env host-port override when compose port has no answ
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-up-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'docker-compose.local.yml'), 'services: {}\n', 'utf8');
   fs.writeFileSync(path.join(root, '.env.example'), 'POSTGRES_HOST_PORT=5432\n', 'utf8');
   fs.writeFileSync(path.join(root, '.env'), 'RESTFUL_API_HOST_PORT=14010\n', 'utf8');
   const output = [];
@@ -548,6 +553,7 @@ function upFixture(t, envContent) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-up-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'docker-compose.local.yml'), 'services: {}\n', 'utf8');
   fs.writeFileSync(path.join(root, '.env.example'), 'POSTGRES_HOST_PORT=5432\n', 'utf8');
   if (envContent !== undefined) fs.writeFileSync(path.join(root, '.env'), envContent, 'utf8');
   return root;
@@ -577,6 +583,9 @@ test('up generates the compose owner-assertion secret into the git-ignored .env'
   const values = [...env.matchAll(/^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=(.*)$/gm)].map((match) => match[1]);
   assert.equal(values.length, 1, '.env must carry exactly one generated owner-assertion secret');
   assert.ok(values[0].trim().length >= 32, 'the generated key must satisfy the HS256 minimum');
+  for (const name of COMPOSE_SECRET_NAMES) {
+    assert.equal(env.match(new RegExp(`^${name}=`, 'gm')).length, 1, `${name} is generated automatically`);
+  }
   assert.equal(messages.join('\n').includes(values[0]), false, 'the generated key must never be logged');
 });
 

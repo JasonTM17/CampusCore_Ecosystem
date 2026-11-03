@@ -146,9 +146,26 @@ test('source-only checks run once and compose keeps its runtime probes', () => {
   const compose = doc.jobs?.compose;
   assert.equal(compose?.needs, 'ecosystem-gates', 'compose must consume the source-only gate result');
   const composeRuns = (compose?.steps ?? []).map((step) => step.run).filter((run) => typeof run === 'string').join('\n');
-  assert.match(composeRuns, /docker compose config/, 'compose configuration validation must remain');
-  assert.match(composeRuns, /docker compose up -d --build --wait/, 'fresh stack runtime validation must remain');
+  assert.match(composeRuns, /docker compose .*config -q/, 'base compose configuration validation must stay quiet');
+  assert.match(composeRuns, /docker compose .*docker-compose\.local\.yml.*up -d --build --wait/,
+    'runtime validation must explicitly select the local demo overlay');
   assert.match(composeRuns, /flyway_schema_history/, 'the runtime Flyway boundary must remain');
+});
+
+test('CI creates disposable Compose secrets before quiet validation without echoing them', () => {
+  const doc = loadWorkflow(workflowPath, repoRoot);
+  const steps = doc.jobs?.compose?.steps ?? [];
+  const generatorIndex = steps.findIndex((step) => step.run?.includes('scripts/compose-secrets.mjs'));
+  const configIndex = steps.findIndex((step) => step.run?.includes('docker compose') && step.run.includes('config -q'));
+  assert.ok(generatorIndex >= 0, 'compose job invokes the shared generator');
+  assert.ok(configIndex > generatorIndex, 'secrets are generated before base validation');
+  assert.match(steps[generatorIndex].run, /--ensure/);
+  assert.doesNotMatch(steps[generatorIndex].run, /echo|printf|cat \.env/i);
+  const composeRuns = steps.map((step) => step.run ?? '').join('\n');
+  assert.doesNotMatch(composeRuns, /local-course-health-key/);
+  assert.match(composeRuns, /printf %s "\$HEALTH_READINESS_KEY"/);
+  assert.match(composeRuns, /X-Health-Key:[^\n]*\$readiness_key/);
+  assert.doesNotMatch(workflowSource, /dev-ci-password-16chars-min/);
 });
 
 test('migration checks enforce a baseline from the main or previous push revision', () => {

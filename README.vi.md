@@ -36,15 +36,11 @@ frontend Next.js, và **Node 22.13+** cho Expo CLI/app mobile.
 git clone https://github.com/JasonTM17/CampusCore_Ecosystem.git
 cd CampusCore_Ecosystem
 
-# 1) Biến môi trường local
-Copy-Item .env.example .env
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
+# Khởi động cụm demo local; runner tạo .env và secret riêng cho checkout
+node scripts/local-dev.mjs up
+node scripts/local-dev.mjs status
 
-# 2) Toàn bộ cụm local (compose tự chạy assistant-db-provisioner một lần rồi thoát)
-docker compose up -d --build
-docker compose ps
-
-# 3) Health probes (khớp HEALTH_READINESS_KEY trong .env.example)
+# 3) Health probes (khóa readiness được tạo trong .env)
 curl.exe http://127.0.0.1:4010/api/v1/health/liveness
 $env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
 curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://127.0.0.1:4010/api/v1/health/readiness
@@ -67,10 +63,9 @@ curl.exe http://127.0.0.1:4010/v3/api-docs
 Nếu `5432` hoặc `3000` đã bị chiếm, đặt `POSTGRES_HOST_PORT` / `FRONTEND_HOST_PORT` trong `.env`
 (ví dụ `5434` / `3001`) rồi chạy lại compose; API ngoài Docker phải trỏ `SPRING_DATASOURCE_URL`
 vào cổng Postgres mới. E2E và SSO preview là stack kiểm thử riêng, không cần cho quick start.
-Compose yêu cầu `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`. Lệnh trên tạo key riêng;
-không dùng lại `ASSISTANT_RAG_SERVICE_TOKEN`, `JWT_SECRET` hoặc
-`JWT_REFRESH_SECRET`. Compose cấp key này cho `restful-api` và `rag-service`;
-repository không có key mặc định.
+`local-dev up` chọn `docker-compose.local.yml` và tạo các secret Compose còn thiếu
+trong `.env` bị Git bỏ qua. Chạy riêng `docker-compose.yml` yêu cầu tự cung cấp
+các secret và giữ demo tắt.
 
 ### Chạy API ngoài Docker
 
@@ -80,7 +75,8 @@ datasource, Flyway và `DemoAccountGate` chỉ hoạt động trong profile này
 
 ```powershell
 # PostgreSQL: dùng container compose (cổng POSTGRES_HOST_PORT) hoặc PostgreSQL cài sẵn
-docker compose up -d postgres
+node scripts/compose-secrets.mjs --ensure
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres
 
 # Biến tối thiểu (đặt trong shell đang chạy Maven)
 $env:SPRING_PROFILES_ACTIVE = "persistence"
@@ -91,11 +87,11 @@ $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/campuscore_restfu
 $env:SPRING_DATASOURCE_USERNAME = "campuscore"
 $env:SPRING_DATASOURCE_PASSWORD = "<POSTGRES_PASSWORD trong .env>"
 $env:DEMO_ACCOUNTS_ENABLED = "true"               # YAML mặc định false = khoá mọi tài khoản demo
-$env:HEALTH_READINESS_KEY = "local-course-health-key"
+$env:HEALTH_READINESS_KEY = "<giá trị HEALTH_READINESS_KEY trong .env>"
 
 # Assistant RLS: Flyway V84 tạo role campuscore_assistant_runtime ở trạng thái NOLOGIN;
 # chạy provisioning một lần trước khi API migrate/khởi động.
-$env:ASSISTANT_DB_PASSWORD = "dev-only-not-a-secret-16+"   # >= 16 ký tự
+$env:ASSISTANT_DB_PASSWORD = "<giá trị ASSISTANT_DB_PASSWORD trong .env>"   # >= 16 ký tự
 node scripts/provision-assistant-runtime.mjs
 
 # Chạy API; Flyway bật mặc định (FLYWAY_ENABLED=true) khi ngoài compose
@@ -109,11 +105,10 @@ Bỏ qua bước provisioning thì API vẫn boot nhưng trợ lý trả 503 (RL
 
 ### Tài khoản demo
 
-Compose bật sẵn `DEMO_ACCOUNTS_ENABLED=true` và `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true` cho cụm
-local. Ba tài khoản chính: `student@campuscore.edu`, `lecturer@campuscore.edu`, `admin@campuscore.edu`
+`local-dev up` chọn overlay bật `DEMO_ACCOUNTS_ENABLED` và quick-fill cho cụm local;
+base Compose giữ demo tắt. Ba tài khoản chính: `student@campuscore.edu`, `lecturer@campuscore.edu`, `admin@campuscore.edu`
 (mật khẩu seed `password123`, chỉ dùng cho local). Danh sách đầy đủ, chính sách khoá tài khoản và
-kịch bản demo: [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md). Đặt `DEMO_ACCOUNTS_ENABLED=false` để
-khoá toàn bộ tài khoản demo.
+kịch bản demo: [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md). Dùng base Compose trực tiếp với secret values để giữ demo tắt.
 
 ### App mobile (Android emulator)
 
