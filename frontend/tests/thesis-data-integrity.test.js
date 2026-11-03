@@ -14,21 +14,30 @@ function loadTs(file, imports = {}) {
   return mod.exports;
 }
 
-test('admin datetime-local open/save preserves the instant and milliseconds', () => {
-  const helper = path.join(root, 'src/lib/thesis-datetime.ts');
-  const toLocalInput = fs.existsSync(helper)
-    ? loadTs('src/lib/thesis-datetime.ts').toThesisLocalInput
-    : new Function('iso', `return ${fs.readFileSync(path.join(root, 'src/app/admin/thesis/page.tsx'), 'utf8').match(/const toLocalInput = .*?=> (.*);/)[1]}`);
+test('admin datetime-local open/save keeps campus wall time and milliseconds', () => {
+  const attendance = loadTs('src/lib/attendance-checkin.ts');
+  const { toThesisLocalInput } = loadTs('src/lib/thesis-datetime.ts', {
+    '@/lib/attendance-checkin': attendance,
+  });
   const previous = process.env.TZ;
   try {
-    for (const timezone of ['Asia/Bangkok', 'UTC']) {
+    for (const timezone of ['Asia/Bangkok', 'UTC', 'America/Los_Angeles']) {
       process.env.TZ = timezone;
-      for (const iso of ['2026-10-16T10:23:45.123Z', '2026-10-17T00:03:12.456+07:00']) {
-        assert.equal(new Date(toLocalInput(iso)).getTime(), new Date(iso).getTime(), timezone);
+      for (const [iso, expected] of [
+        ['2026-10-16T10:23:45.123Z', '2026-10-16T17:23:45.123'],
+        ['2026-10-17T00:03:12.456+07:00', '2026-10-17T00:03:12.456'],
+      ]) {
+        const input = toThesisLocalInput(iso);
+        assert.equal(input, expected, timezone);
+        assert.equal(
+          new Date(attendance.campusLocalDateTimeToUtcIso(input)).getTime(),
+          new Date(iso).getTime(),
+          `${timezone} round-trip`,
+        );
       }
     }
-    assert.equal(toLocalInput(null), '');
-    assert.equal(toLocalInput(undefined), '');
+    assert.equal(toThesisLocalInput(null), '');
+    assert.equal(toThesisLocalInput(undefined), '');
   } finally {
     if (previous === undefined) delete process.env.TZ;
     else process.env.TZ = previous;

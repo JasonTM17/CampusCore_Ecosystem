@@ -158,6 +158,28 @@ export function campusLocalDateTimeToUtcIso(value: string): string | null {
   return new Date(localMs - CAMPUS_OFFSET_MINUTES * 60_000).toISOString();
 }
 
+/**
+ * Inverse of campusLocalDateTimeToUtcIso: render an instant as the
+ * datetime-local value a campus author sees. `seconds: false` matches a
+ * minute-precision input; the default keeps seconds and milliseconds so a
+ * prefilled value round-trips to the same instant.
+ */
+export function toCampusLocalDateTimeInput(
+  iso?: string | null,
+  options: { seconds?: boolean } = {},
+): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const campus = new Date(date.getTime() + CAMPUS_OFFSET_MINUTES * 60_000);
+  const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+  const value =
+    `${pad(campus.getUTCFullYear(), 4)}-${pad(campus.getUTCMonth() + 1)}-${pad(campus.getUTCDate())}`
+    + `T${pad(campus.getUTCHours())}:${pad(campus.getUTCMinutes())}`;
+  if (options.seconds === false) return value;
+  return `${value}:${pad(campus.getUTCSeconds())}.${pad(campus.getUTCMilliseconds(), 3)}`;
+}
+
 export function addMinutesToIso(iso: string, minutes: number): string | null {
   const base = new Date(iso).getTime();
   if (!Number.isFinite(minutes) || Number.isNaN(base)) {

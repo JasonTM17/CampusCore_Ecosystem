@@ -44,6 +44,7 @@ export function StudentUteProfileGradeView({
   const { messages, locale, formatDate } = useI18n();
   const portalProfileCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).profile;
   const card = messages.studentCard;
+  const creditUnit = messages.studentPages.schedule.creditsAbbreviation;
   // Round-5: the line/bar/combo toggle is gone — 'line' rendered an empty
   // plot and 'combo' was pixel-identical to 'bar' after the class-average
   // series was removed. The widget now always draws the per-course bars.
@@ -558,8 +559,8 @@ export function StudentUteProfileGradeView({
 
               {creditsKnown ? (
                 <div className="w-full pt-2 border-t border-border/70 flex justify-between text-xs text-muted-foreground">
-                  <span>{card.accumulated}: <strong>{earnedCredits} TC</strong></span>
-                  <span>{card.needMore}: <strong>{remainingCredits} TC</strong></span>
+                  <span>{card.accumulated}: <strong>{earnedCredits} {creditUnit}</strong></span>
+                  <span>{card.needMore}: <strong>{remainingCredits} {creditUnit}</strong></span>
                 </div>
               ) : null}
             </div>

@@ -142,6 +142,48 @@ test('each admissions checklist row names its fields and result', () => {
   }
 });
 
+test('every admissions apply and review control has an accessible name', () => {
+  const cases = [
+    {
+      file: 'src/components/admissions/AdmissionsApplyPage.tsx',
+      testIds: [
+        'admissions-cycle-input',
+        'admissions-fullname',
+        'admissions-dob',
+        'admissions-school',
+        'admissions-major',
+        'admissions-essay',
+      ],
+    },
+    {
+      file: 'src/components/admissions/AdmissionsReviewPage.tsx',
+      testIds: ['admissions-return-note', 'admissions-decision-note'],
+    },
+  ];
+
+  for (const { file, testIds } of cases) {
+    const sourceFile = readTsx(file);
+    const labels = labelsByTarget(sourceFile);
+    const controls = ['Input', 'Textarea', 'input', 'textarea']
+      .flatMap((tag) => elements(sourceFile, tag));
+
+    for (const testId of testIds) {
+      const control = controls.find(
+        (node) => staticString(attributes(node, sourceFile).get('data-testid')) === testId,
+      );
+      assert.ok(control, `${file} must render ${testId}`);
+
+      const attrs = attributes(control, sourceFile);
+      const ariaLabel = expressionText(attrs.get('aria-label'), sourceFile);
+      const id = staticString(attrs.get('id'));
+      assert.ok(
+        ariaLabel || (id && labels.has(id)),
+        `${file} ${testId} needs an aria-label or an id referenced by a label[for]`,
+      );
+    }
+  }
+});
+
 test('the create-assignment fields are associated with labels', () => {
   const sourceFile = readTsx('src/components/learning/LearningConsolePage.tsx');
   const modal = sourceFile.statements.find(
