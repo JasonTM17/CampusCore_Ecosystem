@@ -19,7 +19,11 @@ import {
   campusTodayIso,
   CHECKIN_DEFAULT_LATE_AFTER_MINUTES,
   CHECKIN_WINDOW_PRESETS_MINUTES,
+  clearActiveCheckinSession,
+  isValidAttendanceSessionId,
   planSessionWindow,
+  readActiveCheckinSession,
+  saveActiveCheckinSession,
   sessionSecondsLeft,
   shouldPollSession,
   splitCheckinReasons,
@@ -265,6 +269,9 @@ export function GeofenceCheckinPanel({
       )) return;
       sessionRef.current = nextSession;
       setSession(nextSession);
+      if (nextSession.status === 'CLOSED' && nextSession.sectionId && nextSession.date) {
+        clearActiveCheckinSession(nextSession.sectionId, nextSession.date);
+      }
       if (nextCheckins) {
         setCheckins(nextCheckins);
         setCheckinsFailed(false);
@@ -276,6 +283,14 @@ export function GeofenceCheckinPanel({
       if (requestGeneration === sessionGenerationRef.current) setPollStale(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!sectionId || !date || sessionRef.current) return;
+    const storedId = readActiveCheckinSession(sectionId, date);
+    if (!storedId) return;
+    setSessionContext(captureSessionContext(sectionId, sectionLabel, date, roster));
+    void refreshSession(storedId);
+  }, [date, refreshSession, roster, sectionId, sectionLabel]);
 
   // Poll every 10s while the tab is visible; hidden tabs skip the fetch but
   // a visibilitychange back to the foreground refreshes immediately.
@@ -340,6 +355,16 @@ export function GeofenceCheckinPanel({
 
   const needsStartTime = date > campusTodayIso();
 
+  const [resumeId, setResumeId] = useState('');
+  const handleResume = useCallback(async (idToResume: string) => {
+    const targetId = idToResume.trim();
+    if (!targetId || !isValidAttendanceSessionId(targetId)) return;
+    setOpenError('');
+    setSessionContext(captureSessionContext(sectionId, sectionLabel, date, roster));
+    saveActiveCheckinSession(sectionId, date, targetId);
+    await refreshSession(targetId);
+  }, [date, refreshSession, roster, sectionId, sectionLabel]);
+
   const handleOpen = useCallback(async () => {
     setOpenError('');
     setGeofenceError(false);
@@ -375,6 +400,7 @@ export function GeofenceCheckinPanel({
       sessionRef.current = created;
       setSessionContext(contextAtOpen);
       setSession(created);
+      if (created.id) saveActiveCheckinSession(sectionId, date, created.id);
       setCheckins([]);
       setCheckinsFailed(false);
       setPollStale(false);
@@ -414,6 +440,7 @@ export function GeofenceCheckinPanel({
       sessionGenerationRef.current += 1;
       sessionRef.current = closed;
       setSession(closed);
+      if (session.sectionId && session.date) clearActiveCheckinSession(session.sectionId, session.date);
       setProjectorOpen(false);
       void refreshSession(session.id);
     } catch (error) {
@@ -426,7 +453,9 @@ export function GeofenceCheckinPanel({
     copy,
     messages.common.actions.cancel,
     refreshSession,
+    session?.date,
     session?.id,
+    session?.sectionId,
     sessionContextLabel,
   ]);
 
@@ -474,12 +503,13 @@ export function GeofenceCheckinPanel({
       sessionGenerationRef.current += 1;
       setCheckins((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
       setReviewTarget(null);
+      void refreshSession(sessionRef.current?.id);
     } catch (error) {
       setReviewError(campusCodeMessage(error, copy.errors));
     } finally {
       setReviewBusy(false);
     }
-  }, [copy, reviewNote, reviewTarget]);
+  }, [copy, refreshSession, reviewNote, reviewTarget]);
 
   const studentLabel = useCallback(
     (studentId: string | undefined) =>
@@ -648,9 +678,45 @@ export function GeofenceCheckinPanel({
               <p className="text-sm text-muted-foreground">{copy.geofenceEmpty}</p>
             ) : null}
             {openError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {openError}
-              </p>
+              <div className="space-y-2">
+                <p role="alert" className="text-sm font-medium text-destructive">
+                  {openError}
+                </p>
+                {readActiveCheckinSession(sectionId, date) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    data-testid="checkin-resume-action"
+                    onClick={() => {
+                      const stored = readActiveCheckinSession(sectionId, date);
+                      if (stored) void handleResume(stored);
+                    }}
+                  >
+                    {copy.resumeSession}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder={copy.resumeSessionPlaceholder}
+                      value={resumeId}
+                      onChange={(e) => setResumeId(e.target.value)}
+                      className="max-w-xs"
+                      aria-label={copy.resumeSessionPlaceholder}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      data-testid="checkin-resume-action"
+                      disabled={!resumeId.trim()}
+                      onClick={() => void handleResume(resumeId)}
+                    >
+                      {copy.resumeSession}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">

@@ -1447,6 +1447,12 @@ test('admin catalog and credit-limit lists ignore late responses from older filt
       setter: 'setLecturers', oldParams: { page: 2, search: 'first' },
       newParams: { page: 1, search: 'second' },
     },
+    {
+      label: 'attendance', file: 'app/admin/attendance/page.tsx', callback: 'fetchRecords',
+      epochName: 'attendanceEpoch', apiName: 'attendanceApi', method: 'adminList',
+      setter: 'setRecords', oldParams: { page: 2, sectionFilter: 'sec-a', dateFilter: '2026-11-01' },
+      newParams: { page: 1, sectionFilter: 'sec-b', dateFilter: '2026-11-02' },
+    },
   ];
 
   for (const entry of cases) {
@@ -1472,14 +1478,18 @@ test('admin catalog and credit-limit lists ignore late responses from older filt
         setTotalItems: calls.record('totalItems'),
         setError: calls.record('error'),
         setTotalPages: calls.record('totalPages'),
+        setTotal: calls.record('total'),
         setIsLoading: calls.record('loading'),
         setLoading: calls.record('loading'),
         page: 1,
         search: '',
         departmentFilter: '',
         semesterFilter: '',
+        sectionFilter: '',
+        dateFilter: '',
+        PAGE_LIMIT: 20,
         filter: 'PENDING',
-        copy: { loadFailed: 'FAILED' },
+        copy: { loadFailed: 'FAILED', errorDescription: 'FAILED' },
         messages: { common: { campusErrors: {} } },
         campusErrorMessage: () => 'ERROR',
       };

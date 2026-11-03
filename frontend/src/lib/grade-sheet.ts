@@ -38,7 +38,7 @@ function toScore(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-const CODE_HINT = /(code|msv|ma\s*sv|ma\s*sinh\s*vien|mã)/i;
+const CODE_HINT = /(code|mssv|msv|ma\s*sv|ma\s*sinh\s*vien|mã)/i;
 const PROCESS_HINT = /(đqt|dqt|process|quá\s*trình|qua\s*trinh|midterm)/i;
 const FINAL_HINT = /(đck|dck|final|cuối|cuoi)/i;
 const EMAIL_HINT = /@/;
@@ -83,6 +83,7 @@ export function parseGradeSheet(text: string, students: GradeImportStudent[]): P
   }
 
   const seen = new Set<string>();
+  const seenEnrollments = new Set<string>();
   lines.forEach((line, offset) => {
     const lineNumber = offset + 1;
     if (offset < firstDataRow) return;
@@ -103,6 +104,11 @@ export function parseGradeSheet(text: string, students: GradeImportStudent[]): P
       skipped.push({ line: lineNumber, reason: 'unknown-student' });
       return;
     }
+    if (seenEnrollments.has(student.enrollmentId)) {
+      skipped.push({ line: lineNumber, reason: 'duplicate' });
+      return;
+    }
+    seenEnrollments.add(student.enrollmentId);
 
     const processScore = toScore(cells[processIndex] ?? '');
     const finalExamScore = toScore(cells[finalIndex] ?? '');

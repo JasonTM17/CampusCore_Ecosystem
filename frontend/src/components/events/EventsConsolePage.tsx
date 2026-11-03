@@ -325,26 +325,44 @@ export function EventsConsolePage() {
       pendingStaffActionRef.current = actionKey;
       setPendingStaffActionKey(actionKey);
       setBusy(true);
+      let mutationSucceeded = false;
       try {
-        await action();
+        const result = await action();
+        mutationSucceeded = true;
         if (accountRef.current !== accountId) return;
         toast.success(message);
-        await loadStaff();
-        if (accountRef.current !== accountId) return;
-        if (selectedEventId && selectedRef.current === selectedEventId) {
-          void loadRoster(selectedEventId);
+        if (result && typeof result === 'object' && 'id' in result && 'status' in result) {
+          const updatedEvent = result as CampusEvent;
+          setStaffEvents((prev) =>
+            prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
+          );
         }
       } catch (actionError) {
         if (accountRef.current !== accountId) return;
         const code = (actionError as { response?: { data?: { code?: string } } })
           ?.response?.data?.code;
         toast.error(code === 'EVENT_NOT_OWNER' ? copy.ownerOnly : copy.failed);
-      } finally {
-        if (pendingStaffActionRef.current === actionKey) pendingStaffActionRef.current = null;
-        if (accountRef.current === accountId) {
-          setPendingStaffActionKey(null);
-          setBusy(false);
+      }
+
+      if (mutationSucceeded) {
+        try {
+          await loadStaff();
+        } catch {
+          // Keep successful action feedback; refresh failure does not invalidate mutation
         }
+        if (accountRef.current === accountId && selectedEventId && selectedRef.current === selectedEventId) {
+          try {
+            await loadRoster(selectedEventId);
+          } catch {
+            // Non-blocking roster refresh
+          }
+        }
+      }
+
+      if (pendingStaffActionRef.current === actionKey) pendingStaffActionRef.current = null;
+      if (accountRef.current === accountId) {
+        setPendingStaffActionKey(null);
+        setBusy(false);
       }
     },
     [accountId, copy.failed, copy.ownerOnly, loadRoster, loadStaff, selectedEventId],
@@ -715,7 +733,7 @@ export function EventsConsolePage() {
                                 data-testid="events-roster-row"
                                 className="border-b border-border/30 last:border-0"
                               >
-                                <td className="py-2 pr-3 text-muted-foreground">{index + 1}</td>
+                                <td className="py-2 pr-3 text-muted-foreground">{rosterPage * PAGE_SIZE + index + 1}</td>
                                 <td className="py-2 pr-3 font-medium">{entry.studentName}</td>
                                 <td className="py-2 pr-3 text-muted-foreground">{entry.email}</td>
                                 <td className="py-2 pr-3">{statusLabel(entry.status)}</td>
