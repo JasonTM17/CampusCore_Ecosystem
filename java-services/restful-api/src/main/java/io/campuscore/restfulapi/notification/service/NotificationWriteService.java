@@ -10,12 +10,16 @@ import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.CreateNot
 import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.DeleteNotificationResponse;
 import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.MarkAllReadResponse;
 import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.UpdateNotificationRequest;
+import io.campuscore.restfulapi.web.DomainException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -67,25 +71,79 @@ public class NotificationWriteService {
 
     @Transactional
     public NotificationResponse create(CreateNotificationRequest request, String actorId) {
+        return create(request, actorId, null);
+    }
+
+    /**
+     * Admin create with an optional client idempotency key. The same (actor,
+     * key) always derives the same notification id, so a retried POST collides
+     * on the primary key and replays the first row — one inbox row, one audit
+     * row and one push fan-out — instead of duplicating every effect.
+     */
+    @Transactional
+    public NotificationResponse create(CreateNotificationRequest request, String actorId, String idempotencyKey) {
         String type = requireText(request.type(), "type");
         if (!TYPES.contains(type)) {
             throw new IllegalArgumentException("type must be INFO, WARNING, ERROR, or SUCCESS");
         }
-        Instant now = Instant.now(clock);
-        NotificationResponse created = notifications.create(new CreateNotificationCommand(
-                UUID.randomUUID().toString(),
+        String derivedId = derivedNotificationId(actorId, idempotencyKey);
+        CreateNotificationCommand command = new CreateNotificationCommand(
+                derivedId != null ? derivedId : UUID.randomUUID().toString(),
                 requireText(request.userId(), "userId"),
                 requireText(request.title(), "title"),
                 requireText(request.message(), "message"),
                 type,
                 NotificationLinkValidator.requireSafe(request.link()),
-                now));
+                Instant.now(clock));
+        NotificationResponse created;
+        if (derivedId == null) {
+            created = notifications.create(command);
+        } else {
+            Optional<NotificationResponse> inserted = notifications.createIfAbsent(command);
+            if (inserted.isEmpty()) {
+                return replayedNotification(derivedId, command);
+            }
+            created = inserted.get();
+        }
         audit.record(actorId, null, "NOTIFICATION_CREATED", "NOTIFICATION", created.id(),
                 "Notification " + created.id() + " created for user " + created.userId()
                         + " (type " + created.type() + ")",
                 null,
                 notificationState(created));
         return created;
+    }
+
+    /**
+     * The honest replay for {@link #create(CreateNotificationRequest, String, String)}:
+     * the row the first request committed. Request fields are compared so a key
+     * reused with a different payload is a 409, never a silent cross-send.
+     */
+    private NotificationResponse replayedNotification(String id, CreateNotificationCommand command) {
+        NotificationResponse existing = notifications.findById(id)
+                .orElseThrow(() -> new IllegalStateException("idempotent notification was not found"));
+        if (!Objects.equals(existing.userId(), command.userId())
+                || !Objects.equals(existing.title(), command.title())
+                || !Objects.equals(existing.message(), command.message())
+                || !Objects.equals(existing.type(), command.type())
+                || !Objects.equals(existing.link(), command.link())) {
+            throw new DomainException(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT",
+                    "Idempotency key was reused with a different payload");
+        }
+        return existing;
+    }
+
+    /** Deterministic notification id for the key contract; null means the legacy random-id path. */
+    private static String derivedNotificationId(String actorId, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        String key = idempotencyKey.trim();
+        if (key.length() > 200) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID",
+                    "Idempotency-Key must not exceed 200 characters");
+        }
+        String seed = "notification-create:" + (actorId == null ? "" : actorId) + ":" + key;
+        return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     @Transactional

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -64,15 +65,17 @@ public class NotificationWriteController {
 
     @Operation(summary = "Phát thông báo hệ thống mới (Admin)", description = "Quản trị viên gửi thông báo đến một hoặc nhiều người dùng")
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Tạo thông báo thành công")
+        @ApiResponse(responseCode = "201", description = "Tạo thông báo thành công"),
+        @ApiResponse(responseCode = "409", description = "Idempotency-Key được tái sử dụng với nội dung khác")
     })
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public NotificationResponse create(
             @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "Khóa chống trùng lặp Idempotency") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody JsonNode body) {
-        return notifications.create(CreateNotificationRequest.from(body), subject(jwt));
+        return notifications.create(CreateNotificationRequest.from(body), subject(jwt), idempotencyKey);
     }
 
     @Operation(summary = "Xóa thông báo khỏi hộp thư cá nhân", description = "Người dùng xóa một thông báo khỏi hộp thư cá nhân của mình")
