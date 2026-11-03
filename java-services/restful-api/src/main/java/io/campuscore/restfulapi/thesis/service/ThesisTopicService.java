@@ -130,6 +130,10 @@ public class ThesisTopicService {
             gradingTopicIds.addAll(councilTopicIds(lecturerId,
                     result.stream().map(ThesisTopic::getId).toList()));
         }
+        String studentId = normalize(actor == null ? null : actor.getClaimAsString("studentId"));
+        Set<UUID> approvedMemberTopicIds = published && !studentId.isEmpty() && !result.isEmpty()
+                ? approvedMemberTopicIds(studentId, result.stream().map(ThesisTopic::getId).toList())
+                : Set.of();
         boolean adminCaller = isAdmin(actor);
         Set<String> inFacultyDepts = deanFacultyDepts;
         Set<UUID> supervisedByDean = deanSupervisedIds;
@@ -140,7 +144,7 @@ public class ThesisTopicService {
                         adminCaller || inFacultyDepts.contains(topic.departmentId())
                                 || supervisedByDean.contains(topic.id())
                                 || gradingTopicIds.contains(topic.id()),
-                        callerLecturerId))
+                        callerLecturerId, approvedMemberTopicIds.contains(topic.id())))
                 .toList();
     }
 
@@ -278,17 +282,39 @@ public class ThesisTopicService {
         if (!published && !admin && !lecturerId.isEmpty()) {
             gradingTopicIds.addAll(councilTopicIds(lecturerId, pageIds));
         }
+        String studentId = normalize(actor == null ? null : actor.getClaimAsString("studentId"));
+        Set<UUID> approvedMemberTopicIds = published && !studentId.isEmpty()
+                ? approvedMemberTopicIds(studentId, pageIds)
+                : Set.of();
         Set<String> inFacultyDepts = deanFacultyDepts;
         Set<UUID> supervisedByDean = deanSupervisedIds;
         Set<UUID> grading = gradingTopicIds;
+        Set<UUID> approvedMembership = approvedMemberTopicIds;
         String callerLecturerId = lecturerId;
         return page.stream()
                 .map(topic -> maskScoreIfNeeded(topic, published,
                         admin || inFacultyDepts.contains(topic.departmentId())
                                 || supervisedByDean.contains(topic.id())
                                 || grading.contains(topic.id()),
-                        callerLecturerId))
+                        callerLecturerId, approvedMembership.contains(topic.id())))
                 .toList();
+    }
+
+    private Set<UUID> approvedMemberTopicIds(String studentId, List<UUID> topicIds) {
+        if (studentId == null || studentId.isBlank() || topicIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT g.topic_id FROM thesis.thesis_group g "
+                        + "JOIN thesis.thesis_group_member m ON m.group_id = g.id "
+                        + "JOIN thesis.thesis_topic t ON t.id = g.topic_id AND t.round_id = g.round_id "
+                        + "WHERE g.topic_id IN (:topicIds) AND m.student_id = :studentId "
+                        + "AND m.active_participation = TRUE AND g.status <> 'CANCELLED' "
+                        + "AND g.approval_status = 'APPROVED'",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                        .addValue("studentId", studentId)
+                        .addValue("topicIds", topicIds),
+                UUID.class));
     }
 
     private Set<String> facultyDepartmentIds(String facultyId) {
@@ -348,27 +374,30 @@ public class ThesisTopicService {
                 && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Thesis topic not found");
         }
-        return maskScoreIfNeeded(TopicResponse.from(topic), isRoundResultsPublished(topic.getRoundId()),
+        boolean published = isRoundResultsPublished(topic.getRoundId());
+        String studentId = normalize(actor == null ? null : actor.getClaimAsString("studentId"));
+        boolean approvedMember = published && !studentId.isEmpty()
+                && approvedMemberTopicIds(studentId, List.of(topic.getId())).contains(topic.getId());
+        return maskScoreIfNeeded(TopicResponse.from(topic), published,
                 deanInScope || isCouncilGraderOf(topic.getId(), actor),
-                normalize(actor == null ? null : actor.getClaimAsString("lecturerId")));
+                normalize(actor == null ? null : actor.getClaimAsString("lecturerId")), approvedMember);
     }
 
     /**
-     * Scores stay internal until the round publishes results: students (and
-     * lecturers who are not grading the topic) must not read a finalized
-     * council score off the topic resource early. Governance staff and the
-     * council members assigned to the topic keep full visibility; the
-     * supervisor sees the result with everyone else at publication.
+     * Results stay internal until publication, when active approved members
+     * of a non-cancelled group on the topic gain visibility. Grading authority
+     * retains access at every phase, and reviewer identity remains internal.
      */
     private TopicResponse maskScoreIfNeeded(TopicResponse topic, boolean roundPublished, boolean councilGrader,
-            String callerLecturerId) {
+            String callerLecturerId, boolean approvedMember) {
         // The assigned GVPB reviewer is a grading stakeholder too: they need
         // the finalization state to know the counter-review window is closed,
         // while a plain student or unrelated lecturer never does.
         boolean assignedReviewer = topic.gvpbLecturerId() != null
                 && topic.gvpbLecturerId().equals(callerLecturerId);
         boolean internalGrader = councilGrader || assignedReviewer;
-        boolean scoreMasked = !roundPublished && !internalGrader
+        boolean resultsVisible = internalGrader || (roundPublished && approvedMember);
+        boolean scoreMasked = !resultsVisible
                 && (topic.finalScore() != null || topic.resultStatus() != null
                     || topic.resultReason() != null || topic.resultResolvedAt() != null);
         // The GVPB reviewer identity is internal governance data: students and

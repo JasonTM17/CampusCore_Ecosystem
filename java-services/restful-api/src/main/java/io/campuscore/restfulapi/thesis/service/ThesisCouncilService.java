@@ -996,15 +996,12 @@ public class ThesisCouncilService {
         boolean requiresGvpb = (roundType != null && roundType.requiresGvpbDeadline() && gvpbDeadline != null)
                 || (gvpbLecturerId != null);
         if (requiresGvpb) {
-            List<BigDecimal> gvpbScores = jdbc.queryForList(
-                    "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = :topicId AND component = :component",
-                    params().addValue("topicId", topicId).addValue("component", GVPB_COMPONENT),
-                    BigDecimal.class);
-            if (gvpbScores.isEmpty() || gvpbScores.get(0) == null) {
+            var evidence = ThesisGvpbEvidenceValidator.findCanonicalScore(jdbc, topicId, gvpbLecturerId);
+            if (evidence.isEmpty()) {
                 throw conflict("REVIEW_SCORE_REQUIRED",
                         "A counter-review (GVPB) score is required before the defense score can be finalized");
             }
-            if (gvpbScores.get(0).compareTo(BigDecimal.valueOf(5.0)) < 0) {
+            if (evidence.get().score().compareTo(BigDecimal.valueOf(5.0)) < 0) {
                 throw conflict("REVIEW_SCORE_BELOW_THRESHOLD",
                         "Topic counter-review score must be at least 5.0 to qualify for defense");
             }

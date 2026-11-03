@@ -2471,6 +2471,51 @@ class ThesisGovernanceIntegrationTest {
     }
 
     @Test
+    void finalizationAndPublicationRequireCanonicalCounterReviewEvidence() throws Exception {
+        for (String evidence : List.of("stale-reviewer", "council-attached", "duplicate")) {
+            String tag = "gov-canonical-" + evidence;
+            Instant deadline = Instant.now().minusSeconds(3_600);
+            UUID roundId = insertRound("Gov Canonical Evidence " + evidence, "REGISTRATION_CLOSED",
+                    deadline.minusSeconds(7_200), deadline.minusSeconds(3_600));
+            jdbc.update("UPDATE thesis.thesis_registration_round SET gvpb_deadline = ? WHERE id = ?",
+                    Timestamp.from(deadline), roundId);
+            CouncilFixture fixture = councilFixture(roundId, tag);
+            String reviewer = tag + "-reviewer";
+            ensureLecturer(reviewer);
+            jdbc.update("UPDATE thesis.thesis_topic SET gvpb_lecturer_id = ? WHERE id = ?",
+                    reviewer, fixture.topicId());
+
+            if ("stale-reviewer".equals(evidence)) {
+                insertGvpbScore(fixture.topicId(), tag + "-former-reviewer", "8.00");
+            } else if ("council-attached".equals(evidence)) {
+                jdbc.update("INSERT INTO thesis.thesis_topic_score "
+                                + "(id, topic_id, council_id, lecturer_id, component, score) "
+                                + "VALUES (?, ?, ?, ?, 'GVPB', 8.00)",
+                        UUID.randomUUID(), fixture.topicId(), fixture.councilId(), reviewer);
+            } else {
+                insertGvpbScore(fixture.topicId(), reviewer, "8.00");
+                insertGvpbScore(fixture.topicId(), tag + "-other-reviewer", "8.50");
+            }
+            submitDefenseScores(fixture, tag);
+
+            when(attendanceClock.instant()).thenReturn(deadline.plusSeconds(1));
+            mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/finalize",
+                            fixture.councilId(), fixture.topicId())
+                            .with(lecturerJwt(tag + "-chair")))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("REVIEW_SCORE_REQUIRED"));
+            assertUnresolvedTopic(fixture.topicId());
+
+            mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results", roundId)
+                            .with(truongKhoaJwt()))
+                    .andExpect(status().isConflict());
+            assertThat(jdbc.queryForObject("SELECT status FROM thesis.thesis_registration_round WHERE id = ?",
+                    String.class, roundId)).isEqualTo("REGISTRATION_CLOSED");
+            assertUnresolvedTopic(fixture.topicId());
+        }
+    }
+
+    @Test
     void resultShapeConstraintRejectsInvalidAndNullBypassCombinations() {
         UUID roundId = insertRound("Gov Result Shape", "REGISTRATION_CLOSED",
                 Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
@@ -2702,6 +2747,19 @@ class ThesisGovernanceIntegrationTest {
         assertThatThrownBy(action::run)
                 .isInstanceOf(DomainException.class)
                 .satisfies(error -> assertThat(((DomainException) error).code()).isEqualTo("RESULT_ALREADY_RESOLVED"));
+    }
+
+    private void assertUnresolvedTopic(UUID topicId) {
+        assertThat(jdbc.queryForMap("SELECT final_score, final_score_finalized_by, final_score_finalized_at, "
+                        + "result_status, result_reason, result_resolved_by, result_resolved_at "
+                        + "FROM thesis.thesis_topic WHERE id = ?", topicId))
+                .containsEntry("final_score", null)
+                .containsEntry("final_score_finalized_by", null)
+                .containsEntry("final_score_finalized_at", null)
+                .containsEntry("result_status", null)
+                .containsEntry("result_reason", null)
+                .containsEntry("result_resolved_by", null)
+                .containsEntry("result_resolved_at", null);
     }
 
     private Jwt lecturerToken(String lecturerId) {
