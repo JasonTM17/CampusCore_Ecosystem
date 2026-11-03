@@ -81,25 +81,31 @@
 - Card mobile cho 9 bảng admin, mascot state, citation click-through: polish thuần túy — backlog hợp lệ
   nhưng không phải việc của vòng release.
 
-## 7. Runbook tái lập toàn bộ bằng chứng từ clone sạch
+## 7. Runbook tái lập toàn bộ bằng chứng từ clone sạch (Lịch sử — 2026-09-23 Round 7)
+
+> [!NOTE]
+> **Tài liệu lịch sử (2026-09-23 Round 7)**: Quy trình dưới đây ghi lại các bước tái lập bằng chứng tại thời điểm kết thúc Round 7 (Flyway V1–V77). Các thành phần sau không còn tái lập trực tiếp trong cây nguồn hiện tại:
+> - Bước 2: Docker Compose hiện yêu cầu biến `ASSISTANT_RAG_OWNER_ASSERTION_SECRET` trong file `.env` trước khi boot (xem hướng dẫn tại [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md)).
+> - Bước 4: Thư mục `plans/2026-09-23-round7-feature-e2e/` không còn trong repository; schema hiện tại đã tiến đến Flyway V152 (kiểm tra lineage qua `node scripts/flyway-lineage-check.mjs`).
+> - Bước 5: Binary `scratch/tools/gitleaks.exe` không còn lưu trong repository; kiểm tra bí mật hiện tại được thực thi qua `node --test scripts/secret-hygiene.test.mjs`.
 
 ```bash
 # 1. Gates đơn vị
 cd frontend && npm test && npm run build
 cd java-services/restful-api && mvn test
 
-# 2. Stack local + data demo
+# 2. Stack local + data demo (yêu cầu ASSISTANT_RAG_OWNER_ASSERTION_SECRET trong .env)
 docker compose up -d --build   # DEMO_ACCOUNTS_ENABLED mặc định true (cả api lẫn rag)
 
 # 3. E2E chính thức (stack cô lập 4100/3101, 34 spec Playwright)
 node scripts/run-course-e2e.mjs
 
-# 4. Bằng chứng runtime deep-tech (Postgres local đã migrate V1–V77)
-node plans/2026-09-23-round7-feature-e2e/reports/race-safe-enrollment-stress.mjs
-node plans/2026-09-23-round7-feature-e2e/reports/layer3-partial-unique-index.mjs
+# 4. Bằng chứng runtime deep-tech (lịch sử Round 7 V1–V77; hiện tại Flyway V152 qua scripts/flyway-lineage-check.mjs)
+# node plans/2026-09-23-round7-feature-e2e/reports/race-safe-enrollment-stress.mjs
+# node plans/2026-09-23-round7-feature-e2e/reports/layer3-partial-unique-index.mjs
 
-# 5. Secrets gate
-scratch/tools/gitleaks.exe git --log-opts='origin/main..HEAD' --no-banner
+# 5. Secrets gate (kiểm tra hiện tại: node --test scripts/secret-hygiene.test.mjs)
+# scratch/tools/gitleaks.exe git --log-opts='origin/main..HEAD' --no-banner
 ```
 
 ## 8. Vòng 8 — UI/UX deep sweep toàn frontend

@@ -182,7 +182,7 @@ npm run lint --prefix frontend
 ## 5. Demo Mở Rộng: Vòng Đời Đề Tài (NCKH/TLCN/KLTN) — Án Yêu Cầu Đồ Án Cuối Kỳ
 
 Module `thesis` đáp ứng trọn vẹn yêu cầu "Quản lý đề tài":
-đợt 2 giai đoạn, nhóm ≤3 SV, đề tài 1–2 GVHD, báo cáo do nhóm trưởng nộp, hội đồng
+đợt 2 giai đoạn, nhóm 3–5 SV, đề tài 1–2 GVHD, báo cáo do nhóm trưởng nộp, hội đồng
 3–5 GV (chủ tịch + thư ký), điểm cuối = trung bình điểm DEFENSE của các thành viên hội đồng hợp lệ, cấm GVHD chấm đề tài
 mình hướng dẫn, công bố kết quả cho sinh viên.
 
@@ -206,7 +206,7 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
 2. **Giảng viên → Khu luận văn**: đề xuất đề tài (chọn GVHD chính/thứ hai),
    lưu bản nháp chờ duyệt. Trưởng bộ môn có hồ sơ đang hoạt động duyệt đề tài trong bộ môn hiện tại;
    Trưởng khoa/Admin duyệt theo quyền quản lý. Sau đó Admin publish-proposals → open-registration.
-3. **Sinh viên → Khu luận văn**: lập nhóm (≤3, có nhóm trưởng), chọn 1 đề tài đã
+3. **Sinh viên → Khu luận văn**: lập nhóm (3–5 SV, có nhóm trưởng), chọn 1 đề tài đã
    công bố. GVHD duyệt nhóm.
 4. **Admin đóng đăng ký, nhóm trưởng nộp báo cáo**: chuyển đợt sang
    `REGISTRATION_CLOSED` bằng `close-registration` sau khi nhóm đã được GVHD duyệt.

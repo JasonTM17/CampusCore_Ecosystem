@@ -33,7 +33,7 @@ mvn -q -f java-services/pom.xml verify
 # Once per clone: docker-compose.yml has no default for the owner-assertion key.
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 $s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
-docker compose up --build postgres restful-api
+docker compose up -d --build postgres assistant-db-provisioner rag-service restful-api
 ```
 
 The API listens on `http://localhost:4010` by default. Useful checks:
@@ -49,9 +49,10 @@ for the reproducible student demo. Configure non-empty values for
 `JWT_SECRET`, `JWT_REFRESH_SECRET`, `SPRING_DATASOURCE_PASSWORD` and
 `HEALTH_READINESS_KEY`; never commit real secrets.
 
-Flyway is the only schema owner. The `persistence` profile is enabled by the
-Compose service and starts from an empty PostgreSQL database with deterministic
-course seed data.
+Flyway is the only schema owner. In Docker Compose, Flyway migrations are executed by
+`rag-service` (`FLYWAY_ENABLED: "false"` on `restful-api` to prevent startup migration race
+conditions). The `persistence` profile is enabled by the Compose service and starts from an empty
+PostgreSQL database with deterministic course seed data.
 
 ## Explicit authorization policy
 
