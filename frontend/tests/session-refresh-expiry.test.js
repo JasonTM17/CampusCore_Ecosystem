@@ -22,6 +22,18 @@ function compileApi() {
   return compiledApi;
 }
 
+/** Loads the real URL guard — it is dependency-free, so no stub is needed. */
+function loadSafeUrl() {
+  const rel = 'src/lib/safe-url.ts';
+  const { outputText } = ts.transpileModule(fs.readFileSync(path.join(root, rel), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: rel,
+  });
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', 'require', outputText)(moduleRecord, moduleRecord.exports, require);
+  return moduleRecord.exports;
+}
+
 /** Loads the real API client; `send` answers every call, `responseError` is the interceptor. */
 function loadApi(send) {
   let responseError = null;
@@ -52,6 +64,7 @@ function loadApi(send) {
       isLogoutInProgress: () => false,
     },
     '@/lib/session-sync': { publishSessionChange: () => undefined },
+    '@/lib/safe-url': loadSafeUrl(),
     '@/lib/surfaces': { surfaceFromHost: () => null },
     '@/i18n/paths': {
       addLocalePrefix: (pathname) => pathname,
