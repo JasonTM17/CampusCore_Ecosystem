@@ -30,10 +30,8 @@ From the repository root:
 
 ```powershell
 mvn -q -f java-services/pom.xml verify
-# Once per clone: docker-compose.yml has no default for the owner-assertion key.
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
-docker compose up -d --build postgres assistant-db-provisioner rag-service restful-api
+node scripts/compose-secrets.mjs --ensure  # includes ASSISTANT_RAG_OWNER_ASSERTION_SECRET
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build postgres assistant-db-provisioner rag-service restful-api
 ```
 
 The API listens on `http://localhost:4010` by default. Useful checks:
@@ -45,10 +43,8 @@ curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://localhost:4010/api/
 curl.exe http://localhost:4010/v3/api-docs
 ```
 
-The local seed includes `student@campuscore.edu` with password `password123`
-for the reproducible student demo. Configure non-empty values for
-`JWT_SECRET`, `JWT_REFRESH_SECRET`, `SPRING_DATASOURCE_PASSWORD` and
-`HEALTH_READINESS_KEY`; never commit real secrets.
+The local overlay enables the seeded student demo. `compose-secrets.mjs` fills
+the required values into the ignored `.env`; never commit that file.
 
 Flyway is the only schema owner. In Docker Compose, Flyway migrations are executed by
 `rag-service` (`FLYWAY_ENABLED: "false"` on `restful-api` to prevent startup migration race

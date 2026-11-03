@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedCourseE2e, seedReportE2e } from './course-e2e-fixture.mjs';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,7 @@ const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3101';
 const frontendPort = new URL(frontendBaseURL).port || '3101';
 
 async function main() {
+  ensureComposeSecrets({ root: repoRoot });
   assertDisposableProject(projectName);
   await assertPortAvailable(new URL(apiBaseURL).port || '4100', 'API');
   await assertPortAvailable(process.env.POSTGRES_HOST_PORT ?? '5433', 'PostgreSQL');
