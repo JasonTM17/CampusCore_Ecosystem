@@ -536,7 +536,7 @@ test('the notification inbox exposes older pages instead of silently capping', (
   assert.match(source, /setLoadedPages\(nextPage\)/);
   // The first paint reads one bounded page plus the server-side unread count.
   assert.match(source, /notificationsApi\.getMy\(\{\s*page: 1,\s*limit: INBOX_PAGE_SIZE/);
-  assert.match(source, /notificationsApi\.unreadCount\(\)/);
+  assert.match(source, /notificationsApi\.unreadCount\(\{ force: true \}\)/);
   assert.match(source, /activeFilter === 'unread' \? \{ isRead: false \}/,
     'the unread tab filters on the server');
 });
