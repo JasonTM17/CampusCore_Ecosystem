@@ -70,6 +70,32 @@ function isTerminal(application: AdmissionApplication): boolean {
     || application.status === 'WITHDRAWN';
 }
 
+/**
+ * A row's identity seeds the draft; a version bump from an attachment or a
+ * background reload must not overwrite text the applicant has not saved yet.
+ */
+export function formForSelection(
+  ownerId: string,
+  selected: AdmissionApplication | null,
+): { ownerId: string; form: ApplicationForm | null } {
+  if (!selected) {
+    return { ownerId: '', form: EMPTY_FORM };
+  }
+  if (ownerId === selected.id) {
+    return { ownerId, form: null };
+  }
+  return {
+    ownerId: selected.id,
+    form: {
+      fullName: selected.fullName ?? '',
+      dateOfBirth: selected.dateOfBirth ?? '',
+      schoolName: selected.schoolName ?? '',
+      intendedMajor: selected.intendedMajor ?? '',
+      essay: selected.essay ?? '',
+    },
+  };
+}
+
 async function pickFileBase64(input: HTMLInputElement | null): Promise<{ fileName: string; contentType: string; dataBase64: string } | null> {
   const file = input?.files?.[0];
   if (!file) {
@@ -112,6 +138,7 @@ export function AdmissionsApplyPage() {
   const [denied, setDenied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const savingRef = useRef(createSingleFlight());
+  const formOwner = useRef('');
 
   const selected = applications.find((application) => application.id === selectedId) ?? null;
 
@@ -140,17 +167,11 @@ export function AdmissionsApplyPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!selected) {
-      setForm(EMPTY_FORM);
-      return;
+    const next = formForSelection(formOwner.current, selected);
+    formOwner.current = next.ownerId;
+    if (next.form) {
+      setForm(next.form);
     }
-    setForm({
-      fullName: selected.fullName ?? '',
-      dateOfBirth: selected.dateOfBirth ?? '',
-      schoolName: selected.schoolName ?? '',
-      intendedMajor: selected.intendedMajor ?? '',
-      essay: selected.essay ?? '',
-    });
   }, [selectedId, selected?.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createDraft = async () => {
@@ -195,7 +216,9 @@ export function AdmissionsApplyPage() {
     setIsSaving(true);
     try {
       if (kind === 'submit') {
-        await admissionsApi.submit(selected.id, selected.version, newAdmissionsIdempotencyKey());
+        const saved = await admissionsApi.save(selected.id, form, selected.version);
+        setApplications((current) => current.map((row) => (row.id === saved.id ? saved : row)));
+        await admissionsApi.submit(selected.id, saved.version, newAdmissionsIdempotencyKey());
         toast.success(copy.submitted);
       } else {
         await admissionsApi.withdraw(selected.id, selected.version, newAdmissionsIdempotencyKey());
