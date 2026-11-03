@@ -68,6 +68,7 @@ The files under `supabase/migrations/` serve a distinct role:
 - They are **content and authoring authority**, but NOT the relational schema authority for the Java RESTful API.
 - Live public chatbot queries never query Supabase directly; instead, published knowledge releases are synchronized to the local PostgreSQL `assistant` schema via `SupabaseKnowledgeSyncService`.
 - A dedicated parity migration (`supabase/migrations/20260924120000_schema_parity_v80_v81_v83.sql`) mirrors relational schema constraints up to V83 so local Supabase test environments match Flyway DDL. All schema modifications must originate in Flyway first.
+- The two families must not be applied to the same database; the known divergences are listed in [supabase-assistant.md](supabase-assistant.md#migration-authorities).
 
 ### 1.3 Manual and Scratch SQL Boundary
 The `.sql` files located directly in the root `database/` directory (e.g., `seed_big_data_campus_ecosystem_v43.sql`, `role_targeted_announcements.sql`, `update_all_old_university_names.sql`):
