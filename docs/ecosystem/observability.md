@@ -247,7 +247,7 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 | Critical Journey | Endpoints Sở hữu | SLI Độ trễ (P95) | SLO Độ trễ | SLI Tỷ lệ Lỗi (5xx) | SLO Tỷ lệ Lỗi | Availability SLO (30 ngày) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Sign-in (Đăng nhập)** | `POST /api/v1/auth/login`<br>`POST /oauth2/token` | P95 latency của HTTP request | **< 800 ms** (bao gồm chi phí Argon2/BCrypt hashing) | Số request 5xx / Tổng số request đăng nhập | **< 0.1%** (Loại trừ lỗi nhập sai pass 401) | **99.9%** |
-| **Course Registration (Đăng ký học phần)** | `POST /api/v1/me/enrollments`<br>`POST /api/v1/me/enrollments/{id}/drop` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 400 CREDIT_CAP) | **99.8%** |
+| **Course Registration (Đăng ký học phần)** | `POST /api/v1/me/enrollments`<br>`POST /api/v1/me/enrollments/{id}/drop` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 422 CREDIT_CAP_EXCEEDED) | **99.8%** |
 | **Attendance Check-in (Điểm danh)** | `POST /api/v1/attendance/sessions/{id}/checkin` | P95 latency của check-in | **< 600 ms** (bao gồm geofence check & idempotency lock) | Số request 5xx / Tổng lượt điểm danh | **< 0.1%** (Loại trừ 422 OUTSIDE_AREA, 409 ALREADY_CHECKED_IN) | **99.9%** |
 | **Grades Read (Xem điểm/Bảng điểm)** | `GET /api/v1/enrollments/my/grades`<br>`GET /api/v1/enrollments/my/transcript`<br>`GET /api/v1/sections/{id}/grades` | P95 latency của read query | **< 300 ms** | Số query 5xx / Tổng số lượt đọc điểm | **< 0.05%** | **99.95%** |
 
@@ -277,7 +277,7 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 - Hạn mức (`AssistantProperties.java`):
   - `user-daily-quota`: 20 turns/ngày.
   - `global-daily-quota`: 200 turns/ngày.
-- **Outage & Degraded Contract**: Khi DeepSeek gặp timeout (>15s), provider error hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` tương ứng (`PROVIDER_TIMEOUT`, `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN`).
+- **Outage & Degraded Contract**: Khi DeepSeek gặp timeout, provider error, output không an toàn hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` là một trong `QUOTA_EXCEEDED`, `QUOTA_ACCOUNTING_UNAVAILABLE`, `PROVIDER_UNAVAILABLE`, `PROVIDER_UNSAFE_OUTPUT`, `PROVIDER_TRUNCATED`, `PROVIDER_DISABLED`, `KNOWLEDGE_UNAVAILABLE`; `resetAt` chỉ đi kèm `QUOTA_EXCEEDED`. Các mã không suy giảm là `ANSWERED`, `RAG_GROUNDED`, `NO_MATCH`. Dịch vụ không phát `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN` hay `PROVIDER_TIMEOUT`; timeout của provider rơi vào `PROVIDER_UNAVAILABLE`.
 - **Ngưỡng Cảnh báo**:
   - Tỷ lệ câu trả lời degraded `> 20%` trong 10 phút.
   - Tỷ lệ quota toàn hệ thống trên hạn mức đã cấu hình vượt `90%` (giữ 5 phút).

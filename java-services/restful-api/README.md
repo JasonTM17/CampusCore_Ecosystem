@@ -40,7 +40,8 @@ The API listens on `http://localhost:4010` by default. Useful checks:
 
 ```powershell
 curl.exe http://localhost:4010/api/v1/health/liveness
-curl.exe -H "X-Health-Key: local-course-health-key" http://localhost:4010/api/v1/health/readiness
+$env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
+curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://localhost:4010/api/v1/health/readiness
 curl.exe http://localhost:4010/v3/api-docs
 ```
 

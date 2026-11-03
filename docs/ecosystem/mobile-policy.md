@@ -36,7 +36,7 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
 
 ## 2. Navigation — expo-router adapter + route compat
 
-- `src/app/` là route layer (file-based). `src/navigation/routes.ts`
+- `app/` tại thư mục gốc mobile là route layer (file-based). `src/navigation/routes.ts`
   giữ nguyên là **compat-map authority**: mọi `ScreenName` hiện hữu map
   tới một app-route tương đương; screen-atlas test đọc registry này để
   chứng minh không route nào rơi mất trong migration.

@@ -19,8 +19,8 @@ repository contains placeholders, never credentials:
 | `DEEPSEEK_API_KEY` | empty | Rotated server-only credential |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Fixed allowlisted provider host |
 | `DEEPSEEK_MODEL` | `deepseek-v4-flash` | Non-thinking model selection |
-| `DEEPSEEK_TIMEOUT_MS` | `8000` | Bounded connect/read budget |
-| `DEEPSEEK_MAX_OUTPUT_TOKENS` | `800` | Output cap |
+| `DEEPSEEK_TIMEOUT_MS` | `15000` (application); `8000` (`.env.example`/Compose) | Bounded connect/read budget |
+| `DEEPSEEK_MAX_OUTPUT_TOKENS` | `1200` (application); `800` (`.env.example`/Compose) | Output cap |
 | `ASSISTANT_MAX_MESSAGE_CHARS` | `2000` | Input bound |
 | `ASSISTANT_MAX_CONTEXT_CHARS` | `6000` | Retrieval context bound |
 | `ASSISTANT_USER_DAILY_QUOTA` | `20` | Provider attempts per user/day |

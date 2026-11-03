@@ -50,7 +50,8 @@ flowchart TD
 1. **Một Cổng API Duy Nhất**: Ứng dụng Java (`restful-api`) là dịch vụ duy nhất sở hữu và công khai các route `/api/v1/**` ra bên ngoài.
 2. **Cách ly Dịch vụ RAG**: Dịch vụ `rag-service` chạy trên cổng nội bộ `4011`, tuyệt đối không mở port ra internet trong Docker Compose. Mọi truy vấn từ Frontend đều phải đi qua cổng kiểm soát của REST API (`/api/v1/assistant/chat`), nơi thực hiện xác thực người dùng và kiểm tra hạn ngạch.
 3. **Phân quyền xác thực Client**:
-   - Web Client: Sử dụng HTTP-only SameSite=Strict cookies và CSRF double-submit tokens.
+   - Web Client — direct lane (mặc định khi BFF tắt): cookie HTTP-only `cc_access_token`/`cc_refresh_token` với `SameSite=Lax`, cộng token double-submit `cc_csrf` (không HttpOnly).
+   - Web Client — BFF lane: `__Host-cu_session` với `SameSite=Strict`; `cc_csrf` cũng `Strict`. Cả hai lane web đều dựa trên CSRF token cho request ghi.
    - Mobile Client: Sử dụng OAuth2-compatible Bearer Access & Refresh Tokens.
    - Cả hai client đều tuân thủ cùng một bản hợp đồng OpenAPI (`/v3/api-docs`).
 

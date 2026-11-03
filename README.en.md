@@ -29,8 +29,8 @@ Expo Mobile App (mobile/) ─────┘         │ /internal/rag (internal
 ## Local quick start
 
 Requirements: **Docker Desktop 24+** running, at least 4 GB RAM, and the local ports below free.
-Add **Java 21 + Maven 3.9** only to run backend tests/the JAR outside Docker, and **Node 20+** for
-frontend tests or the Expo CLI.
+Add **Java 21 + Maven 3.9** only to run backend tests/the JAR outside Docker, **Node 20+** for the
+Next.js frontend, and **Node 22.13+** for the Expo CLI/mobile app.
 
 ```powershell
 git clone https://github.com/JasonTM17/CampusCore_Ecosystem.git
