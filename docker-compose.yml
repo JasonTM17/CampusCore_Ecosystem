@@ -6,7 +6,7 @@ services:
     image: student-management-ute-database:local
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-campuscore}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-campuscore_restful}
     ports:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
@@ -34,18 +34,18 @@ services:
   # runs BEFORE any service that applies migrations (rag-service runs Flyway
   # for the course stack) and is safe to re-run: it only resets the runtime
   # password when the role is NOLOGIN or a probe connection with
-  # ASSISTANT_DB_PASSWORD fails. The default below is a dev-only non-secret;
-  # a public host must set ASSISTANT_DB_PASSWORD explicitly.
+  # ASSISTANT_DB_PASSWORD fails. Local-dev generates the required password
+  # into the ignored .env before Compose starts.
   assistant-db-provisioner:
     image: node:20-alpine
     working_dir: /provision
     volumes:
       - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
     environment:
-      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:-dev-only-not-a-secret-16+}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?Set ASSISTANT_DB_PASSWORD}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       # Private compose network; TLS is not available on the database image.
       PGSSLMODE: disable
     command: ["node", "/provision/provision-assistant-runtime.mjs"]
@@ -65,22 +65,20 @@ services:
       SERVER_PORT: 4011
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       # Dedicated assistant RLS runtime login; provisioned one-shot above.
-      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:-dev-only-not-a-secret-16+}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?Set ASSISTANT_DB_PASSWORD}
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-2000}
       DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-1000}
-      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-course-health-key}
-      JWT_SECRET: ${JWT_SECRET:-local-course-jwt-secret-change-me}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-course-refresh-secret-change-me}
-      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: ${SECURITY_JWT_REJECT_KNOWN_DEFAULTS:-false}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?Set HEALTH_READINESS_KEY}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
       FLYWAY_ENABLED: ${FLYWAY_ENABLED:-true}
-      # The rag service runs the same jar, so it also carries DemoAccountGate.
-      # Without this switch its gate (default false) re-locked the seeded
-      # accounts on every boot and silently overrode the API's opt-in above.
-      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      # Base Compose keeps seeded accounts locked. The local overlay opts in.
+      DEMO_ACCOUNTS_ENABLED: "false"
       ASSISTANT_RAG_SERVICE_MODE: "true"
-      ASSISTANT_RAG_SERVICE_TOKEN: ${ASSISTANT_RAG_SERVICE_TOKEN:-dev-rag-service-token-rotate-before-exposing}
+      ASSISTANT_RAG_SERVICE_TOKEN: ${ASSISTANT_RAG_SERVICE_TOKEN:?Set ASSISTANT_RAG_SERVICE_TOKEN}
       ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
       ASSISTANT_KNOWLEDGE_AUTHORITY_MODE: "disabled"
       DEEPSEEK_ENABLED: ${DEEPSEEK_ENABLED:-false}
@@ -123,25 +121,23 @@ services:
       SERVER_PORT: 4010
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       # Dedicated assistant RLS runtime login; provisioned one-shot above. A
       # missing value would degrade the assistant (503) instead of killing boot.
-      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:-dev-only-not-a-secret-16+}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?Set ASSISTANT_DB_PASSWORD}
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-2000}
       DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-1000}
-      JWT_SECRET: ${JWT_SECRET:-local-course-jwt-secret-change-me}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-course-refresh-secret-change-me}
-      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: ${SECURITY_JWT_REJECT_KNOWN_DEFAULTS:-false}
-      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-course-health-key}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?Set HEALTH_READINESS_KEY}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       FLYWAY_ENABLED: "false"
-      # The seeded showcase accounts carry passwords published in this repository's
-      # history, so they stay DISABLED unless a deployment opts in. This local stack
-      # opts in so the demo works; a public host must leave it false.
-      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      # Base Compose keeps seeded accounts locked. The local overlay opts in.
+      DEMO_ACCOUNTS_ENABLED: "false"
       ASSISTANT_KNOWLEDGE_AUTHORITY_MODE: "sql"
       ASSISTANT_RAG_BASE_URL: http://rag-service:4011/internal/rag/assistant
-      ASSISTANT_RAG_SERVICE_TOKEN: ${ASSISTANT_RAG_SERVICE_TOKEN:-dev-rag-service-token-rotate-before-exposing}
+      ASSISTANT_RAG_SERVICE_TOKEN: ${ASSISTANT_RAG_SERVICE_TOKEN:?Set ASSISTANT_RAG_SERVICE_TOKEN}
       ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
       ASSISTANT_RETENTION_ENABLED: "false"
       # Mail is opt-in. Enable it only with a real SMTP password file; the
@@ -207,18 +203,10 @@ services:
         JAVA_API_ORIGIN: ${JAVA_API_ORIGIN:-http://restful-api:4010}
         # Same-origin browser path. Do not interpolate host/Expo NEXT_PUBLIC_API_URL.
         NEXT_PUBLIC_API_URL: /api/v1
-        # Demo quick-fill is opt-in and the passwords have no in-source fallback,
-        # so the flag and the values must both reach the build. Next.js inlines
-        # them into the client bundle, which is why a public host must leave the
-        # flag false and the passwords empty.
-        NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS: ${NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS:-true}
-        # Seeded demo passwords for the local evaluation stack — the quick-fill
-        # panel needs real values or it stays hidden (empty = no panel). The
-        # production image is built with the Dockerfile defaults (flag off,
-        # passwords empty), so this never leaks into a deployed bundle.
-        NEXT_PUBLIC_DEMO_STUDENT_PASSWORD: ${NEXT_PUBLIC_DEMO_STUDENT_PASSWORD:-password123}
-        NEXT_PUBLIC_DEMO_LECTURER_PASSWORD: ${NEXT_PUBLIC_DEMO_LECTURER_PASSWORD:-password123}
-        NEXT_PUBLIC_DEMO_DEAN_PASSWORD: ${NEXT_PUBLIC_DEMO_DEAN_PASSWORD:-password123}
+        NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS: ${NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS:-}
+        NEXT_PUBLIC_DEMO_STUDENT_PASSWORD: ${NEXT_PUBLIC_DEMO_STUDENT_PASSWORD:-}
+        NEXT_PUBLIC_DEMO_LECTURER_PASSWORD: ${NEXT_PUBLIC_DEMO_LECTURER_PASSWORD:-}
+        NEXT_PUBLIC_DEMO_DEAN_PASSWORD: ${NEXT_PUBLIC_DEMO_DEAN_PASSWORD:-}
     image: student-management-ute-frontend:local
     environment:
       NODE_ENV: production
