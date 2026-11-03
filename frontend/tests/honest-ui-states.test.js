@@ -585,12 +585,16 @@ test('learning lifecycle mutations are guarded against double submission', () =>
   assert.match(source, /disabled=\{pendingActionId === actionKey\}/);
 });
 
-test('a failed learning section load clears the previous section rows', () => {
+test('a failed learning section load renders a retryable error state', () => {
   const source = read('src/components/learning/LearningConsolePage.tsx');
-  const clears = source.match(
-    /catch \(cause\) \{\s*if \(!sectionEpoch\.isCurrent\(epoch\)\) return;\s*setMaterials\(\[\]\);\s*setAssignments\(\[\]\);/g,
+  const errors = source.match(
+    /catch \{\s*if \(!sectionEpoch\.isCurrent\(epoch\)\) return;\s*setSectionLoadError\(true\);/g,
   ) || [];
-  assert.equal(clears.length, 2, 'both surfaces clear material and assignment rows on failure');
+  const retries = source.match(
+    /<ErrorState title=\{copy\.failed\} description="" onRetry=\{\(\) => void loadSection\(sectionId\)\} \/>/g,
+  ) || [];
+  assert.equal(errors.length, 2, 'both surfaces preserve the loaded rows and record the read error');
+  assert.equal(retries.length, 2, 'both surfaces retry the current section load');
 });
 
 test('the event create dialog names every input for screen readers', () => {

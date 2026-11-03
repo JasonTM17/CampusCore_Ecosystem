@@ -106,6 +106,7 @@ export function StudentLearningPage() {
   const [sectionId, setSectionId] = useState('');
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [assignments, setAssignments] = useState<LearningAssignment[]>([]);
+  const [sectionLoadError, setSectionLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [workAssignment, setWorkAssignment] = useState<LearningAssignment | null>(null);
@@ -131,6 +132,7 @@ export function StudentLearningPage() {
 
   const loadSection = useCallback(async (id: string) => {
     const epoch = sectionEpoch.begin();
+    setSectionLoadError(false);
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -144,13 +146,11 @@ export function StudentLearningPage() {
       if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
-    } catch (cause) {
+    } catch {
       if (!sectionEpoch.isCurrent(epoch)) return;
-      setMaterials([]);
-      setAssignments([]);
-      toast.error(friendlyError(copy, cause));
+      setSectionLoadError(true);
     }
-  }, [copy, sectionEpoch]);
+  }, [sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
@@ -197,7 +197,10 @@ export function StudentLearningPage() {
             ))}
           </div>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          {sectionLoadError ? (
+            <ErrorState title={copy.failed} description="" onRetry={() => void loadSection(sectionId)} />
+          ) : (
+            <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-border p-5" data-testid="learning-materials">
               <h2 className="mb-4 flex items-center gap-2 font-semibold">
                 <FileText className="h-4 w-4" />{copy.materials}
@@ -274,7 +277,8 @@ export function StudentLearningPage() {
                 </ul>
               )}
             </div>
-          </section>
+            </section>
+          )}
         </>
       )}
 
@@ -545,6 +549,7 @@ export function LecturerLearningPage() {
   const [sectionId, setSectionId] = useState('');
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [assignments, setAssignments] = useState<LearningAssignment[]>([]);
+  const [sectionLoadError, setSectionLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [materialOpen, setMaterialOpen] = useState(false);
@@ -571,6 +576,7 @@ export function LecturerLearningPage() {
 
   const loadSection = useCallback(async (id: string) => {
     const epoch = sectionEpoch.begin();
+    setSectionLoadError(false);
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -584,13 +590,11 @@ export function LecturerLearningPage() {
       if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
-    } catch (cause) {
+    } catch {
       if (!sectionEpoch.isCurrent(epoch)) return;
-      setMaterials([]);
-      setAssignments([]);
-      toast.error(friendlyError(copy, cause));
+      setSectionLoadError(true);
     }
-  }, [copy, sectionEpoch]);
+  }, [sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
@@ -672,7 +676,10 @@ export function LecturerLearningPage() {
             </select>
           </div>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          {sectionLoadError ? (
+            <ErrorState title={copy.failed} description="" onRetry={() => void loadSection(sectionId)} />
+          ) : (
+            <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-border p-5" data-testid="learning-staff-materials">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 font-semibold">
@@ -757,7 +764,8 @@ export function LecturerLearningPage() {
                 </ul>
               )}
             </div>
-          </section>
+            </section>
+          )}
         </>
       )}
 
@@ -948,10 +956,10 @@ function RosterModal({
   const [work, setWork] = useState<LearningSubmission | null>(null);
   const [revisions, setRevisions] = useState<LearningRevision[]>([]);
   const [feedback, setFeedback] = useState<LearningFeedback[]>([]);
-  const [comment, setComment] = useState('');
-  const [score, setScore] = useState('');
+  const [gradeDrafts, setGradeDrafts] = useState<Record<string, { comment: string; score: string }>>({});
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const workRequestToken = useRef(0);
 
   const load = useCallback(async () => {
     if (!assignment) return;
@@ -967,42 +975,53 @@ function RosterModal({
     setWork(null);
     setRevisions([]);
     setFeedback([]);
-    setComment('');
-    setScore('');
+    setGradeDrafts({});
     void load();
   }, [load]);
 
   const openWork = async (submissionId: string) => {
+    const requestToken = workRequestToken.current + 1;
+    workRequestToken.current = requestToken;
+    setWork(null);
+    setRevisions([]);
+    setFeedback([]);
     try {
       const [detail, revisionRows, feedbackRows] = await Promise.all([
         learningApi.staffSubmission(submissionId),
         learningApi.staffRevisions(submissionId),
         learningApi.staffFeedback(submissionId),
       ]);
+      if (workRequestToken.current !== requestToken) return;
       setWork(detail);
       setRevisions(revisionRows);
       setFeedback(feedbackRows);
     } catch (cause) {
+      if (workRequestToken.current !== requestToken) return;
       toast.error(friendlyError(copy, cause));
     }
   };
 
   const grade = async (action: 'return' | 'review') => {
     if (!work || busyRef.current) return;
+    const submissionId = work.id;
+    const requestToken = workRequestToken.current;
+    const draft = gradeDrafts[submissionId] ?? { comment: '', score: '' };
     busyRef.current = true;
     setBusy(true);
     try {
       const payload = {
-        comment: comment || null,
-        score: score ? Number(score) : null,
+        comment: draft.comment || null,
+        score: draft.score ? Number(draft.score) : null,
         expectedVersion: work.version,
       };
       const result = action === 'return'
-        ? await learningApi.staffReturn(work.id, { comment: comment || '', score: payload.score, expectedVersion: work.version })
-        : await learningApi.staffReview(work.id, payload);
-      setWork(result);
+        ? await learningApi.staffReturn(submissionId, { comment: draft.comment || '', score: payload.score, expectedVersion: work.version })
+        : await learningApi.staffReview(submissionId, payload);
+      if (workRequestToken.current === requestToken && result.id === submissionId) {
+        setWork(result);
+        await openWork(submissionId);
+      }
       toast.success(action === 'return' ? copy.returnedOk : copy.reviewedOk);
-      await openWork(result.id);
       await load();
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
@@ -1088,11 +1107,26 @@ function RosterModal({
             ) : null}
 
             {reviewable ? (
-              <div className="space-y-2" data-testid="learning-grade-form">
-                <Input value={comment} onChange={(event) => setComment(event.target.value)} placeholder={copy.comment} />
-                <Input value={score} onChange={(event) => setScore(event.target.value)} placeholder={copy.score} type="number" />
+              <div key={work.id} className="space-y-2" data-testid="learning-grade-form">
+                <Input
+                  value={gradeDrafts[work.id]?.comment ?? ''}
+                  onChange={(event) => setGradeDrafts((current) => {
+                    const draft = current[work.id] ?? { comment: '', score: '' };
+                    return { ...current, [work.id]: { ...draft, comment: event.target.value } };
+                  })}
+                  placeholder={copy.comment}
+                />
+                <Input
+                  value={gradeDrafts[work.id]?.score ?? ''}
+                  onChange={(event) => setGradeDrafts((current) => {
+                    const draft = current[work.id] ?? { comment: '', score: '' };
+                    return { ...current, [work.id]: { ...draft, score: event.target.value } };
+                  })}
+                  placeholder={copy.score}
+                  type="number"
+                />
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void grade('return')} disabled={busy || !comment.trim()}>
+                  <Button size="sm" variant="outline" onClick={() => void grade('return')} disabled={busy || !(gradeDrafts[work.id]?.comment ?? '').trim()}>
                     {copy.returnWork}
                   </Button>
                   <Button size="sm" onClick={() => void grade('review')} disabled={busy}>
