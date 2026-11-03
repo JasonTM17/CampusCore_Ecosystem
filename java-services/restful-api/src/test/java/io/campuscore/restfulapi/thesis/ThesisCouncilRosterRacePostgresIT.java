@@ -58,10 +58,31 @@ class ThesisCouncilRosterRacePostgresIT {
         jdbc.update("INSERT INTO thesis.thesis_registration_round SELECT (jsonb_populate_record("
                 + "NULL::thesis.thesis_registration_round,to_jsonb(r)||jsonb_build_object('id',CAST(:id AS text),'name','Roster race'))).*"
                 + " FROM (SELECT * FROM thesis.thesis_registration_round LIMIT 1) r", Map.of("id", round));
+        UUID sourceTopic = UUID.randomUUID();
         jdbc.update("INSERT INTO thesis.thesis_topic SELECT (jsonb_populate_record(NULL::thesis.thesis_topic,"
                 + "to_jsonb(t)||jsonb_build_object('id',CAST(:id AS text),'round_id',CAST(:round AS text),"
-                + "'title','Roster race topic','final_score',NULL,'final_score_finalized_at',NULL,'final_score_finalized_by',NULL))).*"
-                + " FROM (SELECT * FROM thesis.thesis_topic LIMIT 1) t", Map.of("id", topic, "round", round));
+                + "'title','Roster source graded topic','final_score',8.00,"
+                + "'final_score_finalized_at',CURRENT_TIMESTAMP,'final_score_finalized_by','rr-source-chair',"
+                + "'result_status','GRADED','result_reason',NULL,'result_resolved_by',NULL,'result_resolved_at',NULL))).*"
+                + " FROM (SELECT * FROM thesis.thesis_topic ORDER BY id LIMIT 1) t",
+                Map.of("id", sourceTopic, "round", round));
+        jdbc.update("INSERT INTO thesis.thesis_topic SELECT (jsonb_populate_record(NULL::thesis.thesis_topic,"
+                + "to_jsonb(t)||jsonb_build_object('id',CAST(:id AS text),'round_id',CAST(:round AS text),"
+                + "'title','Roster race topic','final_score',NULL,'final_score_finalized_at',NULL,"
+                + "'final_score_finalized_by',NULL,'result_status',NULL,'result_reason',NULL,"
+                + "'result_resolved_by',NULL,'result_resolved_at',NULL))).*"
+                + " FROM (SELECT * FROM thesis.thesis_topic WHERE id = :source) t",
+                Map.of("id", topic, "round", round, "source", sourceTopic));
+        assertThat(jdbc.queryForMap("SELECT final_score, final_score_finalized_at, final_score_finalized_by, "
+                        + "result_status, result_reason, result_resolved_by, result_resolved_at "
+                        + "FROM thesis.thesis_topic WHERE id = :id", Map.of("id", topic)))
+                .containsEntry("final_score", null)
+                .containsEntry("final_score_finalized_at", null)
+                .containsEntry("final_score_finalized_by", null)
+                .containsEntry("result_status", null)
+                .containsEntry("result_reason", null)
+                .containsEntry("result_resolved_by", null)
+                .containsEntry("result_resolved_at", null);
         jdbc.update("INSERT INTO thesis.thesis_council (id,round_id,name,status,created_by) VALUES (:id,:round,'Roster race','ACTIVE','audit-admin')",
                 Map.of("id", council, "round", round));
         for (int index = 0; index < 4; index++) {
