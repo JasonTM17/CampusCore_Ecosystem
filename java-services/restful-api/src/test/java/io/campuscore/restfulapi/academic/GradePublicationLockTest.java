@@ -290,6 +290,39 @@ class GradePublicationLockTest {
         assertEnrollmentStatus("enrollment-2-dropped", "DROPPED", "DRAFT");
     }
 
+    @Test
+    void republishingLeavesAppealedRowsInTheirAppealState() throws Exception {
+        mvc.perform(put("/api/v1/sections/section-1/grades")
+                        .with(lecturerJwt("lecturer-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grades":[{"enrollmentId":"enrollment-1","processScore":8.0,"finalExamScore":9.0}]}
+                                """))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/sections/section-1/grades/publish")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk());
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"gradeStatus\" = 'APPEALED'"
+                + " WHERE \"id\" = 'enrollment-1'");
+        // A second enrollment completes grading later; re-publishing the
+        // section must not roll the appealed row back to PUBLISHED.
+        insertEnrollment("enrollment-2", "ENROLLED");
+        mvc.perform(put("/api/v1/sections/section-1/grades")
+                        .with(lecturerJwt("lecturer-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grades":[{"enrollmentId":"enrollment-2","processScore":7.0,"finalExamScore":8.0}]}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/sections/section-1/grades/publish")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk());
+
+        assertEnrollmentStatus("enrollment-1", "COMPLETED", "APPEALED");
+        assertEnrollmentStatus("enrollment-2", "COMPLETED", "PUBLISHED");
+    }
+
     private void dropEnrollment1() {
         jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"status\" = 'DROPPED',"
                         + " \"droppedAt\" = ? WHERE \"id\" = 'enrollment-1'",
