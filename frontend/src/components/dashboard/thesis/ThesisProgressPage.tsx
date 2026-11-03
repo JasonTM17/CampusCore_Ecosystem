@@ -36,6 +36,7 @@ export default function ThesisProgressPage() {
   const [progress, setProgress] = useState<ThesisProgressResponse | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
   const [progressError, setProgressError] = useState('');
+  const [progressReloadToken, setProgressReloadToken] = useState(0);
 
   useEffect(() => {
     if (!isStudent || !selectedRound?.id) {
@@ -62,7 +63,7 @@ export default function ThesisProgressPage() {
     return () => {
       cancelled = true;
     };
-  }, [isStudent, messages.thesis.loadFailed, selectedRound?.id]);
+  }, [isStudent, messages.thesis.loadFailed, progressReloadToken, selectedRound?.id]);
 
   if (authLoading) {
     return <LoadingState label={messages.thesis.loading} />;
@@ -108,10 +109,23 @@ export default function ThesisProgressPage() {
           eyebrow={<SectionEyebrow>{messages.thesis.navigation.progress}</SectionEyebrow>}
           title={messages.thesis.progressTitle}
           description={messages.thesis.progressDescription}
+          actions={
+            <LinkButton href="/dashboard/thesis" variant="outline">
+              {messages.thesis.backToWorkspace}
+            </LinkButton>
+          }
+        />
+        <Select
+          label={messages.thesis.selectRound}
+          value={workspace.selectedRoundId}
+          onChange={(event) => workspace.setSelectedRoundId(event.target.value)}
+          aria-label={messages.thesis.selectRound}
+          options={workspace.rounds.map((round) => ({ value: round.id, label: round.name }))}
         />
         <ErrorState
           title={messages.thesis.loadFailed}
           description={progressError || messages.thesis.loadFailed}
+          onRetry={() => setProgressReloadToken((token) => token + 1)}
         />
       </div>
     );

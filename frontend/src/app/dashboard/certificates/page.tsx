@@ -7,6 +7,7 @@ import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { conductApi, curriculumApi } from '@/lib/api';
+import { campusTodayIso } from '@/lib/attendance-checkin';
 import { MyCurriculumResponse } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import {
@@ -169,11 +170,14 @@ export default function CertificatesPage() {
 
   // The vi template carries {day}/{month}/{year}; the en template carries {date}
   // through the locale formatter. Replacing every placeholder on the active
-  // template is a no-op for the ones it does not use.
+  // template is a no-op for the ones it does not use. The printed calendar day
+  // is the campus day, so a viewer west of Vietnam never dates the sheet a day
+  // early.
+  const [campusYear, campusMonth, campusDay] = campusTodayIso(today).split('-');
   const cityDateLine = certCopy.cityDateLine
-    .replace('{day}', String(today.getDate()))
-    .replace('{month}', String(today.getMonth() + 1))
-    .replace('{year}', String(today.getFullYear()))
+    .replace('{day}', String(Number(campusDay)))
+    .replace('{month}', String(Number(campusMonth)))
+    .replace('{year}', campusYear)
     .replace('{date}', formatDate(today, { month: 'long', day: 'numeric', year: 'numeric' }));
 
   // Without any identity claim there is nothing to prefill, so the page says so

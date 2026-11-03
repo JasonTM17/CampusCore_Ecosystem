@@ -304,10 +304,16 @@ export default function RegisterPage() {
   );
 
   const eligibilityErrorCode = eligibilityQuery.error ? campusErrorCode(eligibilityQuery.error) : undefined;
+  // A cohort rejection is about this student, not about the round's window:
+  // keep it out of the "no round is open" answer and say why registration is
+  // blocked.
+  const eligibilityBlocked =
+    eligibilityErrorCode === 'COHORT_INELIGIBLE'
+    || eligibilityQuery.data?.eligible === false;
   const roundOpen =
     Boolean(roundId)
     && !(eligibilityQuery.isError && ROUND_UNAVAILABLE_CODES.has(eligibilityErrorCode ?? ''))
-    && eligibilityQuery.data?.eligible !== false;
+    && !eligibilityBlocked;
 
   const sections = useMemo(() => sectionsQuery.data ?? [], [sectionsQuery.data]);
   const enrollments = useMemo(() => enrollmentsQuery.data ?? [], [enrollmentsQuery.data]);
@@ -1055,6 +1061,12 @@ export default function RegisterPage() {
           title={copy.loadFailed}
           description={actionMessage(roundsQuery.error)}
           onRetry={() => void roundsQuery.refetch()}
+        />
+      ) : eligibilityBlocked ? (
+        <EmptyState
+          icon={CalendarClock}
+          title={copy.errorCodes.cohortIneligible}
+          description={copy.cohortIneligibleDescription}
         />
       ) : !roundOpen ? (
         <EmptyState icon={CalendarClock} title={copy.roundUnavailable} description={copy.roundUnavailableDescription} />

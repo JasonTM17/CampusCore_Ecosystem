@@ -189,16 +189,23 @@ export default function SchedulePage() {
     };
   }, [hasAccess, messages, selectedSemester, semestersLoaded, retryTick]);
 
-  /** Projects active enrollments into sorted weekday meeting cards for the selected term. */
-  const agenda = useMemo(() => {
-    const items: DayAgendaItem[] = [];
-
-    enrollments
-      .filter(
+  // A course without published meeting times is still a registration: the
+  // empty state and the official totals read this set, never the slot agenda.
+  const registeredEnrollments = useMemo(
+    () =>
+      enrollments.filter(
         (enrollment) =>
           isActiveEnrollment(enrollment.status) ||
           enrollment.status === 'COMPLETED',
-      )
+      ),
+    [enrollments],
+  );
+
+  /** Projects registered enrollments into sorted weekday meeting cards for the selected term. */
+  const agenda = useMemo(() => {
+    const items: DayAgendaItem[] = [];
+
+    registeredEnrollments
       .forEach((enrollment) => {
         const section = enrollment.section;
         const lecturerName =
@@ -236,7 +243,7 @@ export default function SchedulePage() {
       }
       return (left.startTime || '').localeCompare(right.startTime || '');
     });
-  }, [enrollments, locale, scheduleMessages.courseCodeFallback, scheduleMessages.courseNameFallback]);
+  }, [locale, registeredEnrollments, scheduleMessages.courseCodeFallback, scheduleMessages.courseNameFallback]);
 
   const agendaByDay = useMemo(() => {
     return agenda.reduce<Record<number, DayAgendaItem[]>>((groups, item) => {
@@ -249,23 +256,27 @@ export default function SchedulePage() {
     }, {});
   }, [agenda]);
 
-  // Unique courses count
+  // Official totals count every registered course once, including courses
+  // that have no published meeting slot in the agenda.
   const uniqueCoursesCount = useMemo(() => {
-    return new Set(agenda.map((item) => item.courseCode)).size;
-  }, [agenda]);
+    return new Set(
+      registeredEnrollments
+        .map((enrollment) => enrollment.section?.course?.code)
+        .filter((code): code is string => Boolean(code)),
+    ).size;
+  }, [registeredEnrollments]);
 
-  // Total credits count
   const totalCreditsCount = useMemo(() => {
     const seen = new Set<string>();
     let sum = 0;
-    for (const item of agenda) {
-      if (!seen.has(item.courseCode)) {
-        seen.add(item.courseCode);
-        sum += item.credits ?? 0;
-      }
+    for (const enrollment of registeredEnrollments) {
+      const code = enrollment.section?.course?.code;
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      sum += enrollment.section?.course?.credits ?? 0;
     }
     return sum;
-  }, [agenda]);
+  }, [registeredEnrollments]);
 
   const selectedSemesterName = useMemo(() => {
     return (
@@ -388,7 +399,7 @@ export default function SchedulePage() {
         />
       ) : isLoading ? (
         <LoadingState label={scheduleMessages.loading} />
-      ) : agenda.length === 0 ? (
+      ) : registeredEnrollments.length === 0 ? (
         <EmptyState
           icon={Clock}
           title={scheduleMessages.emptyTitle}

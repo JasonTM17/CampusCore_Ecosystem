@@ -295,7 +295,7 @@ export default function LecturerSchedulePage() {
         />
       ) : isLoading ? (
         <LoadingState label={copy.loading} />
-      ) : agenda.length === 0 ? (
+      ) : sections.length === 0 ? (
         <EmptyState
           icon={Calendar}
           title={copy.emptyTitle}
