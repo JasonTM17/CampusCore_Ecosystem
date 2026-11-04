@@ -18,8 +18,11 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const caddyfilePath = path.join(repoRoot, 'ops', 'caddy', 'Caddyfile');
 
+const PINNED_CADDY_IMAGE = 'caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d';
+
 test('Caddy configuration defaults pin the image and placeholder environment', () => {
-  assert.equal(DEFAULT_CADDY_IMAGE, 'caddy:2.10.2-alpine');
+  assert.equal(DEFAULT_CADDY_IMAGE, PINNED_CADDY_IMAGE);
+  assert.match(DEFAULT_CADDY_IMAGE, /^caddy:[^\s@]+@sha256:[0-9a-f]{64}$/);
   assert.equal(DEFAULT_CONTAINER_NAME, 'campuscore-caddy-validate');
   assert.deepEqual(DEFAULT_PLACEHOLDERS, {
     ACME_EMAIL: 'validate@campuscore.local',
@@ -31,7 +34,7 @@ test('Caddy configuration defaults pin the image and placeholder environment', (
 test('buildDockerArgs constructs argv array without shell composition', () => {
   const args = buildDockerArgs({
     caddyfilePath: '/workspace/ops/caddy/Caddyfile',
-    image: 'caddy:2.10.2-alpine',
+    image: PINNED_CADDY_IMAGE,
     containerName: 'campuscore-caddy-validate',
     env: {
       ACME_EMAIL: 'ops@campuscore.test',
@@ -60,10 +63,10 @@ test('buildDockerArgs constructs argv array without shell composition', () => {
   assert.ok(args.includes('CAMPUSCORE_DOMAIN=campuscore.test'));
 
   // Target image and command
-  const imageIndex = args.indexOf('caddy:2.10.2-alpine');
+  const imageIndex = args.indexOf(PINNED_CADDY_IMAGE);
   assert.ok(imageIndex !== -1, 'image must be passed');
   assert.deepEqual(args.slice(imageIndex), [
-    'caddy:2.10.2-alpine',
+    PINNED_CADDY_IMAGE,
     'caddy',
     'validate',
     '--config',
