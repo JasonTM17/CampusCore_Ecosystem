@@ -8,7 +8,7 @@
 #      suite exactly once (the script-suite list is guarded by ci-workflow-replay.test.mjs).
 #    - Documentation hygiene: check-doc-hygiene.mjs.
 #    - Design token drift: sync-tokens.mjs --check.
-#    - Lineage & migrations: check-migrations.mjs and flyway-lineage-check.mjs.
+#    - Lineage & migrations: check-migrations.mjs, check-supabase-migrations.mjs and flyway-lineage-check.mjs.
 #    - Assistant offline eval: assistant-eval.test.mjs (fail on 0 tests).
 #    - Event collision guard: events-preview-collision.test.mjs (fail on 0 tests).
 #    - Source identity guard: tests/ecosystem-source-identity.test.mjs (fail on 0 tests).
@@ -129,6 +129,7 @@ jobs:
             scripts/caddy-validate.test.mjs \
             scripts/check-migration-immutability.test.mjs \
             scripts/check-mobile-parity.test.mjs \
+            scripts/check-supabase-migrations.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
@@ -212,6 +213,7 @@ jobs:
             fi
           done <<< "$added"
           node scripts/check-migrations.mjs
+          node scripts/check-supabase-migrations.mjs
           node scripts/flyway-lineage-check.mjs
       - name: Offline assistant evaluation gate (AUD-16)
         shell: bash
