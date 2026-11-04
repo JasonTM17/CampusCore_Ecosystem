@@ -356,7 +356,6 @@ export default function SchedulePage() {
       <PageHeader
         eyebrow={<SectionEyebrow>{scheduleMessages.eyebrow}</SectionEyebrow>}
         title={scheduleMessages.title}
-        description={scheduleMessages.description.replace('{semesterName}', () => selectedSemesterName)}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center print:hidden">
             <div className="min-w-0 sm:min-w-[280px]">
@@ -865,7 +864,7 @@ export default function SchedulePage() {
                                 <span className="text-muted-foreground italic">{scheduleMessages.roomPending}</span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-muted-foreground max-w-[150px] truncate">
+                            <td className="py-3 px-4 text-muted-foreground max-w-[150px] truncate" title={item.lecturerName || undefined}>
                               {item.lecturerName || '—'}
                             </td>
                             <td className="py-3 px-4 text-center">

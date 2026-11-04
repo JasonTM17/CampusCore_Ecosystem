@@ -552,7 +552,6 @@ export function GeofenceCheckinPanel({
   return (
     <WorkspacePanel
       title={copy.panelTitle}
-      description={copy.openHint}
       className="print:hidden"
       contentClassName="p-4 sm:p-5"
     >

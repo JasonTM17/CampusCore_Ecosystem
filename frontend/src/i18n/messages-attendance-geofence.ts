@@ -19,7 +19,6 @@ export const attendanceGeofenceEn = {
   lecturer: {
     panelTitle: 'Geofenced check-in',
     openTitle: 'Open check-in',
-    openHint: 'Students check in with the CampusUTE app inside the chosen area.',
     forSelection: '{section} · {date}',
     geofenceLabel: 'Check-in area',
     geofencePlaceholder: 'Choose a geofence',
@@ -230,7 +229,6 @@ export const attendanceGeofenceVi: AttendanceGeofenceMessages = {
   lecturer: {
     panelTitle: 'Điểm danh định vị',
     openTitle: 'Mở điểm danh',
-    openHint: 'Sinh viên điểm danh bằng ứng dụng CampusUTE trong khu vực đã chọn.',
     forSelection: '{section} · {date}',
     geofenceLabel: 'Khu vực điểm danh',
     geofencePlaceholder: 'Chọn khu vực',
@@ -426,7 +424,7 @@ export const attendanceGeofenceVi: AttendanceGeofenceMessages = {
   },
   landing: {
     title: 'Mở trong ứng dụng CampusUTE',
-    body: 'Điểm danh cần ứng dụng CampusUTE — ứng dụng xác minh vị trí của bạn tại campus.',
+    body: 'Điểm danh cần ứng dụng CampusUTE để xác minh vị trí trong khuôn viên trường.',
     openButton: 'Mở CampusUTE',
     howTo: 'Chưa có ứng dụng? Cài đặt CampusUTE rồi mở lại liên kết này.',
     invalidTitle: 'Liên kết điểm danh không hợp lệ',
