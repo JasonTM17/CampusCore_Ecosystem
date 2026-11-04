@@ -153,7 +153,7 @@ describe('notifications centre opens only allowlisted routes', () => {
       ['Tiêu đề bình thường', 'Tiêu đề bình thường'],
       ['[Announcement]', '[Announcement]'],
       ['[aNnOuNcEmEnT] Thông báo hỗn hợp', 'Thông báo hỗn hợp'],
-      ['[THONG BAO] Lịch học mới', 'Lịch học mới'],
+      ['[THÔNG BÁO] Lịch học mới', 'Lịch học mới'],
       ['See announcement in this sentence', 'See announcement in this sentence'],
     ] as const;
     const items = cases.map(([title], index) => ({
