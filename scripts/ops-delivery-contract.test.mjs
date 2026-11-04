@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
@@ -43,6 +43,12 @@ const fixture = path.resolve(process.env.VERIFY_TEST_FIXTURE);
 const recordPath = process.env.VERIFY_TEST_RECORD;
 const originalAppend = fs.appendFileSync.bind(fs);
 function record(value) { originalAppend(recordPath, JSON.stringify(value) + '\\n'); }
+function isExternalRootEnv(target) {
+  const resolved = path.resolve(String(target));
+  const relative = path.relative(fixture, resolved);
+  return resolved === path.join(process.cwd(), '.env')
+    && (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative));
+}
 function assertFixturePath(target) {
   const resolved = path.resolve(String(target));
   const relative = path.relative(fixture, resolved);
@@ -52,8 +58,18 @@ function assertFixturePath(target) {
 }
 for (const method of ['mkdirSync', 'writeFileSync']) {
   const original = fs[method].bind(fs);
-  fs[method] = (target, ...args) => { assertFixturePath(target); return original(target, ...args); };
+  fs[method] = (target, ...args) => {
+    if (method === 'writeFileSync' && isExternalRootEnv(target)) return;
+    assertFixturePath(target);
+    return original(target, ...args);
+  };
 }
+const originalChmodSync = fs.chmodSync.bind(fs);
+fs.chmodSync = (target, ...args) => {
+  if (isExternalRootEnv(target)) return;
+  assertFixturePath(target);
+  return originalChmodSync(target, ...args);
+};
 const originalOpen = fs.openSync.bind(fs);
 fs.openSync = (target, flags, ...args) => {
   if (typeof flags === 'string' && /[wax]/.test(flags)) assertFixturePath(target);
@@ -97,9 +113,19 @@ process.once = (event, handler) => {
 };
 let signalSent = false;
 
-childProcess.spawnSync = (command, args = []) => {
-  record({ kind: 'spawnSync', command, args });
+childProcess.spawnSync = (command, args = [], options = {}) => {
+  const env = options.env || {};
+  record({
+    kind: 'spawnSync',
+    command,
+    args,
+    postgresPasswordIsExpected: env.POSTGRES_PASSWORD === 'campuscore_password',
+    councilPasswordIsExpected: env.CAMPUSCORE_COUNCIL_POSTGRES_PASSWORD === 'campuscore_password',
+  });
   if (command === 'docker' && args.includes('ps')) {
+    if (process.env.VERIFY_TEST_MODE === 'race-credentials' && args.includes('--format')) {
+      return { status: 0, stdout: '{"Service":"postgres","State":"running","Health":"healthy"}\\n', stderr: '' };
+    }
     if (process.env.VERIFY_TEST_MODE === 'verify-owned' && args.includes('--format')) {
       return { status: 0, stdout: '{"Service":"postgres","State":"exited"}\\n', stderr: '' };
     }
@@ -114,6 +140,9 @@ childProcess.spawnSync = (command, args = []) => {
   }
   if (command === 'docker' && args.includes('up') && process.env.VERIFY_TEST_MODE === 'verify-existing') {
     return { status: 1, stdout: '', stderr: 'stubbed compose startup failure' };
+  }
+  if (command === 'mvn' && process.env.VERIFY_TEST_MODE === 'race-credentials') {
+    return { status: 0, stdout: 'Tests run: 1, Failures: 0, Errors: 0, Skipped: 0\\n', stderr: '' };
   }
   return { status: 0, stdout: '', stderr: '' };
 };
@@ -222,6 +251,40 @@ function runRaceVerifyStub(fixture, scriptName, mode) {
       VERIFY_TEST_EXISTING: mode === 'existing' ? '1' : '0',
       VERIFY_TEST_MODE: mode === 'existing' ? 'verify-existing' : mode,
       VERIFY_TEST_ALLOC: mode === 'alloc-error' ? 'error' : 'free',
+      VERIFY_TEST_CHILD_COUNT: '0',
+    },
+  });
+  const calls = existsSync(record)
+    ? readFileSync(record, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(JSON.parse)
+    : [];
+  return { result, calls };
+}
+
+function runRaceCredentialVerifyStub(fixture, scriptName) {
+  const preload = writeProcessStub(fixture);
+  const repo = path.join(fixture, 'repo');
+  const scripts = path.join(repo, 'scripts');
+  mkdirSync(scripts, { recursive: true });
+  copyFileSync(path.join(repoRoot, 'scripts', `${scriptName}.mjs`), path.join(scripts, `${scriptName}.mjs`));
+  copyFileSync(path.join(repoRoot, 'scripts', 'compose-secrets.mjs'), path.join(scripts, 'compose-secrets.mjs'));
+  copyFileSync(path.join(repoRoot, '.env.example'), path.join(repo, '.env.example'));
+  const record = path.join(fixture, `${scriptName}-credentials.jsonl`);
+  const evidence = path.join(fixture, `${scriptName}-credentials-evidence`);
+  const result = spawnSync(process.execPath, [
+    '--import', pathToFileURL(preload).href,
+    path.join(scripts, `${scriptName}.mjs`),
+    'pg-race', '--project', 'campuscore-custom-project', '--evidence', evidence,
+  ], {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 15000,
+    env: {
+      ...process.env,
+      VERIFY_TEST_FIXTURE: fixture,
+      VERIFY_TEST_RECORD: record,
+      VERIFY_TEST_EXISTING: '0',
+      VERIFY_TEST_MODE: 'race-credentials',
+      VERIFY_TEST_ALLOC: 'free',
       VERIFY_TEST_CHILD_COUNT: '0',
     },
   });
@@ -424,6 +487,20 @@ test('identity and BFF teardown targets the custom project started by this run',
     const down = calls.find((call) => call.command === 'docker' && call.args.includes('down'));
     assert.ok(down, 'a stack successfully started by this run must be cleaned up');
     assert.ok(down.args.includes('campuscore-custom-project'));
+  }
+});
+
+test('identity and BFF pg-race give Compose the password used by their IT', (t) => {
+  const fixture = worktreeFixture(t, 'verify-race-credentials');
+  for (const script of ['identity-verify', 'bff-verify']) {
+    const { result, calls } = runRaceCredentialVerifyStub(fixture, script);
+    assert.equal(result.status, 0, `${script}: ${result.stdout}${result.stderr}`);
+    const composeUp = calls.find((call) => call.command === 'docker' && call.args.includes('up') && call.args.includes('postgres'));
+    const maven = calls.find((call) => call.command === 'mvn');
+    assert.ok(composeUp, `${script} must start the disposable PostgreSQL service`);
+    assert.ok(maven, `${script} must run its PostgreSQL IT`);
+    assert.equal(composeUp.postgresPasswordIsExpected, true, `${script} Compose password must match the IT credential`);
+    assert.equal(maven.councilPasswordIsExpected, true, `${script} IT must keep using the expected council credential`);
   }
 });
 

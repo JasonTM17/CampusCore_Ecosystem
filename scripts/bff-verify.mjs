@@ -15,6 +15,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_FILE = 'docker-compose.e2e.yml';
@@ -143,8 +144,12 @@ async function casePgRace(args) {
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
     E2E_API_HOST_PORT: String(await allocPort()),
+    POSTGRES_PASSWORD: 'campuscore_password',
   };
-  const result = { case: 'pg-race', target: 'local', project: args.project, ports: { ...args_env } };
+  const result = {
+    case: 'pg-race', target: 'local', project: args.project,
+    ports: { POSTGRES_HOST_PORT: args_env.POSTGRES_HOST_PORT, E2E_API_HOST_PORT: args_env.E2E_API_HOST_PORT },
+  };
   let ownsStack = false;
   try {
     preflightComposeProject(args);
@@ -219,6 +224,7 @@ async function main() {
     usage('--project must match /^campuscore-[a-z0-9-]+$/ (stack isolation)');
   }
   if (cmd === 'pg-race') {
+    ensureComposeSecrets({ root: REPO });
     await casePgRace(args);
     return;
   }

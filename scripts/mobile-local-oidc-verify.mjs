@@ -4,7 +4,7 @@
  * docker-compose.mobile-local.yml overlay — the exact OIDC
  * authorization-code+PKCE sequence the app performs, without a browser.
  *
- *   docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
+ *   node scripts/local-dev.mjs up --mobile
  *   node scripts/mobile-local-oidc-verify.mjs
  *
  * Env:
@@ -81,7 +81,7 @@ async function main() {
   // 1. Discovery — the endpoint that 404s without the overlay.
   const disc = await fetchJson(`${BASE}/.well-known/openid-configuration`);
   if (!disc.res.ok) {
-    fail('discovery', `GET /.well-known/openid-configuration -> ${disc.res.status}. OIDC lane is off — start the stack with -f docker-compose.mobile-local.yml`);
+    fail('discovery', `GET /.well-known/openid-configuration -> ${disc.res.status}. OIDC lane is off — start with node scripts/local-dev.mjs up --mobile`);
   }
   pass('discovery', `document fetched`);
   if (disc.body.issuer !== ISSUER) {

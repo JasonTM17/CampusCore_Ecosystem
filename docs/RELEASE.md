@@ -18,12 +18,10 @@ authorize production deployment.
 ## API and database
 
 ```powershell
-# Once per clone: docker-compose.yml has no default for the owner-assertion key.
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
+node scripts/compose-secrets.mjs --ensure  # includes ASSISTANT_RAG_OWNER_ASSERTION_SECRET
 mvn -q -f java-services/pom.xml verify
-docker compose config
-docker compose up -d --build postgres mailpit rag-service restful-api web
+docker compose -f docker-compose.yml -f docker-compose.local.yml config -q
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build postgres mailpit rag-service restful-api web
 curl.exe http://127.0.0.1:4010/api/v1/health/liveness
 $env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
 curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://127.0.0.1:4010/api/v1/health/readiness
@@ -54,7 +52,7 @@ Flyway/health checks above:
 
 ```powershell
 $env:CAMPUSCORE_IMAGE_TAG = "<full-commit-sha>"
-docker compose -f docker-compose.yml -f docker-compose.rag.override.yml up -d --no-build postgres mailpit rag-service restful-api web
+docker compose -f docker-compose.yml -f docker-compose.rag.override.yml -f docker-compose.local.yml up -d --no-build postgres mailpit rag-service restful-api web
 ```
 
 The overlay is optional; the default local path builds every image from source.
