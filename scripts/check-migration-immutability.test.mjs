@@ -10,6 +10,13 @@ function migration(version, description, blob, family = 'migration') {
   };
 }
 
+function supabaseMigration(timestamp, description, blob) {
+  return {
+    path: `supabase/migrations/${timestamp}_${description}.sql`,
+    blob,
+  };
+}
+
 function check(baseline, head) {
   const trees = new Map([
     ['origin/main', baseline],
@@ -81,6 +88,53 @@ test('adding a new migration does not fail immutability checks', async () => {
   const result = await check([original], [
     original,
     migration('11', 'add_items', 'blob-b'),
+  ]);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.failures, []);
+});
+
+test('unchanged supabase migration content at the same path passes', async () => {
+  const original = supabaseMigration('20260101000000', 'create_items', 'blob-a');
+  const result = await check([original], [original]);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.failures, []);
+});
+
+test('editing a baseline supabase migration fails', async () => {
+  const original = supabaseMigration('20260101000000', 'create_items', 'blob-a');
+  const result = await check([original], [
+    supabaseMigration('20260101000000', 'create_items', 'blob-b'),
+  ]);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failures[0].path, original.path);
+});
+
+test('deleting a baseline supabase migration fails', async () => {
+  const original = supabaseMigration('20260101000000', 'create_items', 'blob-a');
+  const result = await check([original], []);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failures[0].path, original.path);
+});
+
+test('renaming a baseline supabase migration fails', async () => {
+  const original = supabaseMigration('20260101000000', 'create_items', 'blob-a');
+  const result = await check([original], [
+    supabaseMigration('20260101000000', 'rename_items', original.blob),
+  ]);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failures[0].path, original.path);
+});
+
+test('adding a later supabase migration does not fail immutability checks', async () => {
+  const original = supabaseMigration('20260101000000', 'create_items', 'blob-a');
+  const result = await check([original], [
+    original,
+    supabaseMigration('20260102000000', 'add_items', 'blob-b'),
   ]);
 
   assert.equal(result.ok, true);
