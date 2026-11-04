@@ -7,7 +7,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadWorkflow } from './ci-workflow-replay.mjs';
-import { ECOSYSTEM_LANES } from './ecosystem-e2e-verify.mjs';
+import { ECOSYSTEM_LANES, laneEnvironment } from './ecosystem-e2e-verify.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflow = loadWorkflow(path.join(repoRoot, '.github', 'workflows', 'ci.yml'), repoRoot);
@@ -127,4 +127,9 @@ test('the gate jobs stay merge blocking', () => {
     assert.notEqual(job['continue-on-error'], true, `${jobId} must not be report-only`);
     assert.ok(runsFor(jobId).length > 0, `${jobId} must run commands`);
   }
+});
+
+test('every ecosystem lane overrides the database host port pinned by the generated env file', () => {
+  const env = laneEnvironment(54321);
+  assert.equal(env.POSTGRES_HOST_PORT, '54321');
 });

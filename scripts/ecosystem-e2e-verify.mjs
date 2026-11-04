@@ -9,6 +9,7 @@
 // never a skip.
 
 import { spawnSync } from 'node:child_process';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,9 +35,27 @@ function parseArgs(argv) {
   return args;
 }
 
-function runLane(lane, args) {
+// The generated .env pins the database host port to 5432, which a previous
+// lane's teardown can still hold; every lane gets its own free port instead.
+export function laneEnvironment(postgresHostPort) {
+  return { ...process.env, POSTGRES_HOST_PORT: String(postgresHostPort) };
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function runLane(lane, args) {
   const runner = path.join(REPO, 'scripts', `ecosystem-${lane}-verify.mjs`);
   const evidence = path.join(args.evidenceRoot, `ecosystem-${lane}-ci`);
+  const env = laneEnvironment(await freePort());
   const result = spawnSync(process.execPath, [
     runner,
     'preview',
@@ -44,7 +63,7 @@ function runLane(lane, args) {
     `${args.projectPrefix}-${lane}`,
     '--evidence',
     evidence,
-  ], { cwd: REPO, stdio: 'inherit' });
+  ], { cwd: REPO, stdio: 'inherit', env });
 
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -52,7 +71,7 @@ function runLane(lane, args) {
   }
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.projectPrefix || !PROJECT_PREFIX_RE.test(args.projectPrefix)) {
     usage('--project-prefix must match /^campuscore-[a-z0-9-]+$/');
@@ -60,14 +79,14 @@ function main() {
 
   for (const lane of ECOSYSTEM_LANES) {
     console.log(`RUN ecosystem lane ${lane}`);
-    runLane(lane, args);
+    await runLane(lane, args);
   }
   console.log(`PASS ecosystem lanes: ${ECOSYSTEM_LANES.join(', ')}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   try {
-    main();
+    await main();
   } catch (error) {
     console.error(`FAIL ecosystem lanes: ${error.message || error}`);
     process.exit(1);
