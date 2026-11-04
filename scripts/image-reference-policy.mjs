@@ -1,7 +1,8 @@
 /*
  * This policy inventories executable container image references without Docker.
- * External references require a valid sha256 digest; exact source-build outputs
- * and the reviewed GHCR interpolation keep their existing contracts.
+ * External references require a valid sha256 digest alongside the tag; exact
+ * source-build outputs, scratch and the reviewed GHCR full-SHA interpolation
+ * keep their contracts as the only documented exceptions.
  * KNOWN_MUTABLE is a temporary owner-pending baseline and must only shrink.
  * Every exception names its repository-relative file and exact reference.
  * Baseline entries are checked against the live inventory to catch stale grants.
@@ -29,38 +30,8 @@ const GHCR_COMPONENTS = Object.freeze([
 ]);
 const GHCR_TAG_CONTRACT = '${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}';
 
-export const KNOWN_MUTABLE = Object.freeze([
-  {
-    file: 'docker-compose.yml',
-    service: 'mailpit',
-    reference: 'axllent/mailpit:v1.21',
-    reason: 'owner digest pending',
-  },
-  {
-    file: 'docker-compose.yml',
-    service: 'assistant-db-provisioner',
-    reference: 'node:20-alpine',
-    reason: 'owner digest pending',
-  },
-  {
-    file: 'docker-compose.e2e.yml',
-    service: 'postgres',
-    reference: 'postgres:15-alpine',
-    reason: 'owner digest pending',
-  },
-  {
-    file: 'docker-compose.e2e.yml',
-    service: 'assistant-db-provisioner',
-    reference: 'node:20-alpine',
-    reason: 'owner digest pending',
-  },
-  {
-    file: 'scripts/caddy-validate.mjs',
-    service: 'DEFAULT_CADDY_IMAGE',
-    reference: 'caddy:2.10.2-alpine',
-    reason: 'owner digest pending',
-  },
-].map((entry) => Object.freeze(entry)));
+// No open grants: every external executable reference carries a resolved digest.
+export const KNOWN_MUTABLE = Object.freeze([]);
 
 function normalizeFile(file) {
   return String(file).replaceAll('\\', '/').replace(/^\.\//, '');
