@@ -117,6 +117,11 @@ public class PrerequisiteMapSyncJob {
         if (body.equals(doc.get("content"))) return 0;
 
         UUID documentId = (UUID) doc.get("id");
+        List<UUID> lockedDocuments = jdbc.query(
+                "SELECT id FROM assistant.knowledge_document WHERE id=:id FOR UPDATE",
+                Map.of("id", documentId),
+                (rs, i) -> rs.getObject("id", UUID.class));
+        if (lockedDocuments.isEmpty()) return 0;
         int nextVersion = maxVersion(documentId) + 1;
         @SuppressWarnings("unchecked")
         Map<String, Object> typedDoc = doc;
