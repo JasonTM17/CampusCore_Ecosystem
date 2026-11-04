@@ -20,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * R7 fan-out: every ACTIVE student gets one in-app inbox notification when an
  * announcement is created. The notice body is the announcement's first 160
- * characters and the inbox deep-links to the announcements page.
+ * code points (marked with an ellipsis when cut) and the inbox deep-links to
+ * the announcements page.
  *
  * <p>{@code REQUIRES_NEW} is the fail-soft mechanism: the batch runs in its own
  * transaction so a notification-side failure (missing table, constraint, the
@@ -36,6 +37,8 @@ public class AnnouncementStudentNotifier {
     static final String TITLE_PREFIX = "[Announcement] ";
     static final String LINK = "/dashboard/announcements";
     static final String TYPE = "INFO";
+    /** Marks a preview the fan-out shortened; plain-text clients do not clamp it again. */
+    private static final char ELLIPSIS = '\u2026';
     /** notifications.message is VARCHAR(2000); the brief caps previews at 160. */
     static final int MESSAGE_CODE_POINTS = 160;
     /** notifications.title is VARCHAR(240); announcement titles may reach 240 themselves. */
@@ -136,10 +139,48 @@ public class AnnouncementStudentNotifier {
     }
 
     /** Truncates by code points so Vietnamese diacritics are never split. */
-    private static String capCodePoints(String value, int cap) {
-        if (value.codePointCount(0, value.length()) <= cap) {
+    static String capCodePoints(String value, int cap) {
+        if (value == null || value.isEmpty()) {
             return value;
         }
-        return value.substring(0, value.offsetByCodePoints(0, cap));
+        if (cap <= 0) {
+            return "";
+        }
+        int[] points = value.codePoints().limit((long) cap + 1).toArray();
+        if (points.length <= cap) {
+            return value;
+        }
+        // The ellipsis occupies the last slot, so at most cap - 1 code points
+        // of the value survive; prefer a whitespace in the final fifth of the
+        // cap so the preview does not stop mid-word.
+        int end = cap - 1;
+        int windowStart = Math.max(0, end - Math.max(1, cap / 5));
+        for (int index = end - 1; index >= windowStart; index--) {
+            if (isWordBoundary(points[index])) {
+                end = index;
+                break;
+            }
+        }
+        // A trailing space reads as a gap before the ellipsis, and a trailing
+        // combining mark would attach itself to the ellipsis.
+        while (end > 0 && (isWordBoundary(points[end - 1]) || isCombiningMark(points[end - 1]))) {
+            end--;
+        }
+        StringBuilder capped = new StringBuilder(cap);
+        for (int index = 0; index < end; index++) {
+            capped.appendCodePoint(points[index]);
+        }
+        return capped.append(ELLIPSIS).toString();
+    }
+
+    private static boolean isWordBoundary(int codePoint) {
+        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
+    }
+
+    private static boolean isCombiningMark(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.NON_SPACING_MARK
+                || type == Character.ENCLOSING_MARK
+                || type == Character.COMBINING_SPACING_MARK;
     }
 }
