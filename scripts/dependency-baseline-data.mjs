@@ -25,12 +25,13 @@ export const dependencyBaseline = {
     'docker.java-services/restful-api/Dockerfile.1': { path: 'java-services/restful-api/Dockerfile', label: 'Docker base image 1', version: '3.9', pinRequired: true, image: 'maven' },
     'docker.java-services/restful-api/Dockerfile.2': { path: 'java-services/restful-api/Dockerfile', label: 'Docker base image 2', version: '21', pinRequired: true, image: 'eclipse-temurin' },
     'ci..github/workflows/ci.yml.1': { path: '.github/workflows/ci.yml', label: 'CI Node 1', version: '22', pinRequired: false },
-    'ci..github/workflows/ci.yml.2': { path: '.github/workflows/ci.yml', label: 'CI Node 2', version: '20', pinRequired: false },
+    'ci..github/workflows/ci.yml.2': { path: '.github/workflows/ci.yml', label: 'CI Node 2', version: '22', pinRequired: false },
     'ci..github/workflows/ci.yml.3': { path: '.github/workflows/ci.yml', label: 'CI Node 3', version: '20', pinRequired: false },
-    'ci..github/workflows/ci.yml.4': { path: '.github/workflows/ci.yml', label: 'CI Node 4', version: '22', pinRequired: false },
-    'ci..github/workflows/ci.yml.5': { path: '.github/workflows/ci.yml', label: 'CI Node 5', version: '20', pinRequired: false },
+    'ci..github/workflows/ci.yml.4': { path: '.github/workflows/ci.yml', label: 'CI Node 4', version: '20', pinRequired: false },
+    'ci..github/workflows/ci.yml.5': { path: '.github/workflows/ci.yml', label: 'CI Node 5', version: '22', pinRequired: false },
     'ci..github/workflows/ci.yml.6': { path: '.github/workflows/ci.yml', label: 'CI Node 6', version: '20', pinRequired: false },
-    'ci..github/workflows/ci.yml.7': { path: '.github/workflows/ci.yml', label: 'CI Node 7', version: '22', pinRequired: false },
+    'ci..github/workflows/ci.yml.7': { path: '.github/workflows/ci.yml', label: 'CI Node 7', version: '20', pinRequired: false },
+    'ci..github/workflows/ci.yml.8': { path: '.github/workflows/ci.yml', label: 'CI Node 8', version: '22', pinRequired: false },
   },
   reviewGates: {
     bootBomSasJackson: {
