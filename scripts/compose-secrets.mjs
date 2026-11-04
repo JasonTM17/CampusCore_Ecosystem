@@ -17,11 +17,19 @@ export const COMPOSE_SECRET_NAMES = Object.freeze([
 ]);
 
 const PUBLISHED_DEFAULTS = new Map([
-  ['POSTGRES_PASSWORD', new Set(['campuscore_password'])],
+  ['POSTGRES_PASSWORD', new Set(['campuscore_password', 'replace-with-a-local-course-password'])],
   ['ASSISTANT_DB_PASSWORD', new Set(['dev-only-not-a-secret-16+', 'dev-ci-password-16chars-min'])],
   ['HEALTH_READINESS_KEY', new Set(['local-course-health-key', 'edge-e2e-readiness-key-12345'])],
-  ['JWT_SECRET', new Set(['local-course-jwt-secret-change-me', 'edge-e2e-jwt-secret-0123456789abcdef'])],
-  ['JWT_REFRESH_SECRET', new Set(['local-course-refresh-secret-change-me', 'edge-e2e-refresh-secret-0123456789abcdef'])],
+  ['JWT_SECRET', new Set([
+    'local-course-jwt-secret-change-me',
+    'edge-e2e-jwt-secret-0123456789abcdef',
+    'replace-with-a-long-random-access-secret',
+  ])],
+  ['JWT_REFRESH_SECRET', new Set([
+    'local-course-refresh-secret-change-me',
+    'edge-e2e-refresh-secret-0123456789abcdef',
+    'replace-with-a-long-random-refresh-secret',
+  ])],
   ['ASSISTANT_RAG_SERVICE_TOKEN', new Set(['dev-rag-service-token-rotate-before-exposing'])],
   ['ASSISTANT_RAG_OWNER_ASSERTION_SECRET', new Set(['dev-ci-owner-assertion-not-a-secret'])],
   ['INTERNAL_SERVICE_TOKEN', new Set(['edge-e2e-internal-service-token-12345'])],

@@ -72,6 +72,23 @@ test('replaces recognized published Compose and E2E secrets', (t) => {
   for (const value of published.values()) assert.equal(content.includes(value), false);
 });
 
+test('replaces the required secrets published by the previous env template', (t) => {
+  const root = fixture(t);
+  const file = path.join(root, '.env');
+  const published = new Map([
+    ['POSTGRES_PASSWORD', 'replace-with-a-local-course-password'],
+    ['JWT_SECRET', 'replace-with-a-long-random-access-secret'],
+    ['JWT_REFRESH_SECRET', 'replace-with-a-long-random-refresh-secret'],
+  ]);
+  fs.writeFileSync(file, [...published].map(([name, value]) => `${name}=${value}`).join('\n') + '\n', 'utf8');
+
+  const result = ensureComposeSecrets({ root, env: {}, randomBytes: sequenceRandomBytes() });
+  const content = fs.readFileSync(file, 'utf8');
+
+  for (const name of published.keys()) assert.ok(result.generatedKeys.includes(name), `${name} must be regenerated`);
+  for (const value of published.values()) assert.equal(content.includes(value), false);
+});
+
 test('replaces published defaults followed by dotenv inline comments', (t) => {
   const root = fixture(t);
   const file = path.join(root, '.env');

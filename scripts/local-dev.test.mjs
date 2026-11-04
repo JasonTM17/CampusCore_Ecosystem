@@ -573,6 +573,58 @@ function runUp(root) {
   }).then((code) => ({ code, messages }));
 }
 
+test('up stops before Compose when a generated database password meets an existing volume', async (t) => {
+  const root = upFixture(t, 'POSTGRES_PASSWORD=campuscore_password\n');
+  const before = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  const calls = [];
+  const messages = [];
+
+  const code = await main(['up', '--no-build', '--project', 'existing-stack'], {
+    root,
+    env: {},
+    run: (_command, args) => {
+      calls.push(args);
+      if (args.includes('volume') && args.includes('ls')) {
+        return { code: 0, stdout: 'existing-postgres-volume\n', stderr: '' };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    },
+    fetch: async () => ({ status: 200 }),
+    log: (message) => messages.push(message),
+    errorLog: (message) => messages.push(message),
+  });
+
+  assert.notEqual(code, 0, messages.join('\n'));
+  assert.equal(calls.some((args) => args.includes('up')), false, 'Compose must not start with a rotated database password');
+  assert.equal(fs.readFileSync(path.join(root, '.env'), 'utf8') === before, true, '.env must remain unchanged');
+  assert.match(messages.join('\n'), /docs\/ecosystem\/environment\.md#existing-local-postgresql-volumes/);
+});
+
+test('status, logs, and down leave existing Compose secrets unchanged', async (t) => {
+  for (const command of ['status', 'logs', 'down']) {
+    const root = upFixture(t, 'POSTGRES_PASSWORD=campuscore_password\n');
+    const before = fs.readFileSync(path.join(root, '.env'), 'utf8');
+    const output = [];
+    const code = await main([command, '--project', 'existing-stack'], {
+      root,
+      env: {},
+      run: (_executable, args) => args.includes('ps') && args.includes('--format')
+        ? { code: 0, stdout: '[]', stderr: '' }
+        : { code: 0, stdout: '', stderr: '' },
+      fetch: async () => ({ status: 200 }),
+      log: (message) => output.push(message),
+      errorLog: (message) => output.push(message),
+    });
+
+    assert.equal(code, 0, `${command}: ${output.join('\n')}`);
+    assert.equal(
+      fs.readFileSync(path.join(root, '.env'), 'utf8') === before,
+      true,
+      `${command} must not update .env`,
+    );
+  }
+});
+
 test('up generates the compose owner-assertion secret into the git-ignored .env', async (t) => {
   const root = upFixture(t);
 
