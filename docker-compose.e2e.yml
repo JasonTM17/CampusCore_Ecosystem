@@ -2,7 +2,7 @@ name: campuscore-course-e2e
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-campuscore}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
@@ -29,7 +29,7 @@ services:
   # runtime password when the role is NOLOGIN or the probe connection fails.
   # The default below is a dev-only non-secret for disposable e2e stacks.
   assistant-db-provisioner:
-    image: node:20-alpine
+    image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
     working_dir: /provision
     volumes:
       - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
