@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 public record AssistantRagProperties(
         String baseUrl,
         String serviceToken,
+        String ownerAssertionSecret,
         boolean serviceMode,
         int connectTimeoutMs,
         int readTimeoutMs) {
@@ -26,13 +27,19 @@ public record AssistantRagProperties(
     public static final String DEV_COMPOSE_DEFAULT_TOKEN = "dev-rag-service-token-rotate-before-exposing";
 
     @ConstructorBinding
-    public AssistantRagProperties(String baseUrl, String serviceToken, boolean serviceMode,
-            int connectTimeoutMs, int readTimeoutMs) {
+    public AssistantRagProperties(String baseUrl, String serviceToken, String ownerAssertionSecret,
+            boolean serviceMode, int connectTimeoutMs, int readTimeoutMs) {
         this.baseUrl = baseUrl == null ? "" : baseUrl.trim();
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+        this.ownerAssertionSecret = ownerAssertionSecret == null ? "" : ownerAssertionSecret.trim();
         this.serviceMode = serviceMode;
         this.connectTimeoutMs = clamp(connectTimeoutMs, 250, 10_000);
         this.readTimeoutMs = clamp(readTimeoutMs, 1_000, 120_000);
+    }
+
+    public AssistantRagProperties(String baseUrl, String serviceToken, boolean serviceMode,
+            int connectTimeoutMs, int readTimeoutMs) {
+        this(baseUrl, serviceToken, "", serviceMode, connectTimeoutMs, readTimeoutMs);
     }
 
     public boolean enabled() {
@@ -45,6 +52,16 @@ public record AssistantRagProperties(
 
     public boolean tokenIsDevComposeDefault() {
         return DEV_COMPOSE_DEFAULT_TOKEN.equalsIgnoreCase(serviceToken);
+    }
+
+    @Override
+    public String toString() {
+        return "AssistantRagProperties[baseUrl=" + baseUrl
+                + ", serviceTokenConfigured=" + tokenConfigured()
+                + ", ownerAssertionSecretConfigured=" + !ownerAssertionSecret.isBlank()
+                + ", serviceMode=" + serviceMode
+                + ", connectTimeoutMs=" + connectTimeoutMs
+                + ", readTimeoutMs=" + readTimeoutMs + "]";
     }
 
     private static int clamp(int value, int minimum, int maximum) {

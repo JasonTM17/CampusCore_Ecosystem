@@ -45,6 +45,7 @@ import org.springframework.stereotype.Component;
 @Profile("persistence")
 public class RagAssistantGateway {
     private static final String OWNER_HEADER = "X-Assistant-Owner";
+    private static final String OWNER_ASSERTION_HEADER = AssistantOwnerAssertion.HEADER;
     private static final String TOKEN_HEADER = "X-Rag-Service-Token";
     private static final ScheduledThreadPoolExecutor BODY_DEADLINES = bodyDeadlineScheduler();
 
@@ -59,11 +60,13 @@ public class RagAssistantGateway {
     }
 
     private final AssistantRagProperties properties;
+    private final AssistantOwnerAssertion ownerAssertions;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public RagAssistantGateway(AssistantRagProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
+        this.ownerAssertions = new AssistantOwnerAssertion(properties);
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.connectTimeoutMs()))
@@ -129,9 +132,12 @@ public class RagAssistantGateway {
     }
 
     public RemotePage<List<ThesisAssistantRepository.Message>> messages(UUID conversationId, String ownerId, Integer limit, String cursor) {
-        return exchangeJson("GET", "/conversations/{id}/messages",
+        RemotePage<List<ThesisAssistantRepository.Message>> page = exchangeJson("GET", "/conversations/{id}/messages",
                 Map.of("id", conversationId.toString()), query(limit, cursor), null, ownerId,
                 new TypeReference<List<ThesisAssistantRepository.Message>>() { });
+        List<ThesisAssistantRepository.Message> safeMessages = page.data() == null ? List.of()
+                : page.data().stream().map(AssistantLinkSanitizer::sanitize).toList();
+        return new RemotePage<>(safeMessages, page.nextCursor());
     }
 
     public void deleteConversation(UUID id, String ownerId) {
@@ -158,7 +164,7 @@ public class RagAssistantGateway {
                         throw problem(response.statusCode(), new String(body.readAllBytes(), StandardCharsets.UTF_8));
                     }
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
-                        boolean terminal = parseStream(reader, guardedSink(sink,
+                        boolean terminal = parseStream(reader, guardedSink(AssistantLinkSanitizer.sanitizingSink(sink),
                                 request == null ? "vi" : request.locale(),
                                 request == null ? null : request.scope()));
                         if (!terminal && deadlineExpired.get()) {
@@ -212,7 +218,8 @@ public class RagAssistantGateway {
                 .timeout(Duration.ofMillis(properties.readTimeoutMs()))
                 .header("Accept", accept)
                 .header(TOKEN_HEADER, properties.serviceToken())
-                .header(OWNER_HEADER, ownerId == null ? "" : ownerId);
+                .header(OWNER_ASSERTION_HEADER, ownerAssertions.issueAssistant(ownerId))
+                .header(OWNER_HEADER, ownerId);
         if (jsonBody) {
             builder.header("Content-Type", "application/json");
         }
@@ -414,7 +421,8 @@ public class RagAssistantGateway {
         if (response == null) return null;
         String normalizedLocale = AssistantInputGuard.normalizeLocale(locale);
         boolean unsafeAnswer = !AssistantOutputGuard.isSafeForScope(response.answer(), scope);
-        String normalizedAnswer = ThesisAssistantService.normalizeAssistantCopy(response.answer(), normalizedLocale);
+        String normalizedAnswer = AssistantLinkSanitizer.sanitizeMarkdownLinks(
+                ThesisAssistantService.normalizeAssistantCopy(response.answer(), normalizedLocale));
         boolean noMatch = "NO_MATCH".equals(response.reasonCode());
         List<io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.Citation> citations =
                 response.citations() == null ? List.of() : response.citations().stream()
@@ -481,7 +489,13 @@ public class RagAssistantGateway {
     }
 
     private DomainException problem(int statusCode, String body) {
-        HttpStatus status = HttpStatus.valueOf(statusCode);
+        HttpStatus status = HttpStatus.resolve(statusCode);
+        if (status == null) {
+            // A proxy or CDN can answer with a status Spring does not
+            // enumerate (520/522/524/599).  Those are upstream failures, never
+            // a caller error: keep them transient so the local fallback runs.
+            status = statusCode >= 500 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+        }
         String code = status.is5xxServerError() ? "RAG_SERVICE_UNAVAILABLE" : "RAG_SERVICE_ERROR";
         String message = status.getReasonPhrase();
         if (body != null && !body.isBlank()) {

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.identity.bff;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.campuscore.restfulapi.identity.IdentityProperties;
 import io.campuscore.restfulapi.identity.IdentityProperties.Surface;
 import io.campuscore.restfulapi.identity.bff.BffSessionService.CallbackResult;
@@ -23,6 +24,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 
 /**
  * Browser-facing session endpoints (host-policy §3). Every response is
@@ -59,6 +63,10 @@ public class BffSessionController {
         this.sessions = sessions;
     }
 
+    @SecurityRequirements
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "Redirects the browser to the identity provider.")
+    })
     @GetMapping("/login")
     public Object login(@RequestParam(name = "return", required = false) String returnPath,
             HttpServletRequest request, HttpServletResponse response) {
@@ -80,6 +88,10 @@ public class BffSessionController {
                 .build();
     }
 
+    @SecurityRequirements
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "Redirects the browser to the configured surface.")
+    })
     @GetMapping("/callback")
     public Object callback(@RequestParam(name = "code", required = false) String code,
             @RequestParam(name = "state", required = false) String state,
@@ -126,6 +138,7 @@ public class BffSessionController {
      * shadow the logged-out state. Minimal HTML by design; surfaces may
      * layer richer styling later without touching this contract.
      */
+    @SecurityRequirements
     @GetMapping("/logged-out")
     public ResponseEntity<String> loggedOut(HttpServletRequest request,
             HttpServletResponse response) {
@@ -139,6 +152,7 @@ public class BffSessionController {
                         + "</body></html>");
     }
 
+    @SecurityRequirements
     @GetMapping("/state")
     public ResponseEntity<Map<String, Object>> state(HttpServletRequest request,
             HttpServletResponse response) {
@@ -167,6 +181,7 @@ public class BffSessionController {
         return ResponseEntity.ok(body);
     }
 
+    @SecurityRequirements
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request,
             HttpServletResponse response) {
@@ -177,12 +192,10 @@ public class BffSessionController {
                     .body(Map.of("error", "SURFACE_UNKNOWN"));
         }
         String opaque = sessionCookieValue(request);
-        // Idempotent logout (host-policy §3): when the session row is already
-        // gone — revoked, expired, or swept by an earlier logout — the token
-        // leg is meaningless, so only the Origin check applies and the id
-        // logout URL is still returned (hint null). Skipping this left a
-        // retried/double logout stranded: the browser never reached
-        // /connect/logout and the id session silently re-authenticated.
+        // Idempotent logout (host-policy §3): when the session row is missing
+        // or already revoked, only the Origin check applies. The
+        // response still clears the local cookie but never recovers an ID
+        // token hint from a dead session.
         BffSessionStore.Session live = opaque == null
                 ? null
                 : sessions.findByOpaque(surface, opaque);
@@ -330,6 +343,7 @@ public class BffSessionController {
             HttpStatus status, String code, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", code);
+        body.put("code", code);
         body.put("message", message);
         return ResponseEntity.status(status).body(body);
     }

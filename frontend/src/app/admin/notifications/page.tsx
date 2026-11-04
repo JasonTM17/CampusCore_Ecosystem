@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
@@ -50,9 +50,11 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { safeInternalPath } from '@/lib/safe-url';
 
 const TITLE_MAX = 120;
 const MESSAGE_MAX = 500;
@@ -110,9 +112,11 @@ export default function AdminNotificationsPage() {
   const [recipient, setRecipient] = useState<User | null>(null);
   const [recipientInput, setRecipientInput] = useState('');
   const [recipientResults, setRecipientResults] = useState<User[]>([]);
+  const [recipientTotal, setRecipientTotal] = useState(0);
   const [recipientSearched, setRecipientSearched] = useState(false);
   const [recipientSearching, setRecipientSearching] = useState(false);
   const [recipientError, setRecipientError] = useState('');
+  const recipientSearchRequestRef = useRef(0);
   const [type, setType] = useState<AdminNotificationType>('INFO');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -133,7 +137,7 @@ export default function AdminNotificationsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -171,38 +175,61 @@ export default function AdminNotificationsPage() {
   // POST a userId the server cannot resolve.
   const searchRecipients = useCallback(async () => {
     const term = recipientInput.trim();
-    if (!term || recipientSearching) {
+    if (!term) {
       return;
     }
 
+    // Fence responses by request id: a search for the previous term must
+    // never populate results under the text the admin is now editing.
+    const requestId = ++recipientSearchRequestRef.current;
     setRecipientSearching(true);
     setRecipientError('');
 
     try {
       const response = await usersApi.getAll({ page: 1, limit: 5, search: term });
-      setRecipientResults(response.data ?? []);
+      if (recipientSearchRequestRef.current !== requestId) return;
+      const results = response.data ?? [];
+      setRecipientResults(results);
+      setRecipientTotal(response.meta?.total ?? results.length);
       setRecipientSearched(true);
     } catch (cause) {
+      if (recipientSearchRequestRef.current !== requestId) return;
       setRecipientResults([]);
+      setRecipientTotal(0);
       setRecipientSearched(false);
       setRecipientError(
         campusErrorMessage(cause, messages.common.campusErrors, copy.recipientSearchFailed),
       );
     } finally {
-      setRecipientSearching(false);
+      if (recipientSearchRequestRef.current === requestId) {
+        setRecipientSearching(false);
+      }
     }
   }, [
     copy.recipientSearchFailed,
     messages.common.campusErrors,
     recipientInput,
-    recipientSearching,
   ]);
 
+  const handleRecipientInputChange = (value: string) => {
+    // Changing the term invalidates any in-flight lookup and its results.
+    recipientSearchRequestRef.current += 1;
+    setRecipientInput(value);
+    setRecipientResults([]);
+    setRecipientTotal(0);
+    setRecipientSearched(false);
+    setRecipientSearching(false);
+    setRecipientError('');
+  };
+
   const clearRecipient = () => {
+    recipientSearchRequestRef.current += 1;
     setRecipient(null);
     setRecipientInput('');
     setRecipientResults([]);
+    setRecipientTotal(0);
     setRecipientSearched(false);
+    setRecipientSearching(false);
     setRecipientError('');
   };
 
@@ -212,7 +239,7 @@ export default function AdminNotificationsPage() {
   const titleValid = trimmedTitle.length >= 1 && title.length <= TITLE_MAX;
   const messageValid =
     trimmedMessage.length >= 1 && message.length <= MESSAGE_MAX;
-  const linkValid = trimmedLink === '' || trimmedLink.startsWith('/');
+  const linkValid = trimmedLink === '' || safeInternalPath(trimmedLink) !== null;
   const isValid = Boolean(recipient) && titleValid && messageValid && linkValid;
 
   const clearDraft = () => {
@@ -368,7 +395,7 @@ export default function AdminNotificationsPage() {
                       <Input
                         type="text"
                         value={recipientInput}
-                        onChange={(event) => setRecipientInput(event.target.value)}
+                        onChange={(event) => handleRecipientInputChange(event.target.value)}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             // Keep the directory lookup out of the composer
@@ -397,48 +424,61 @@ export default function AdminNotificationsPage() {
                           {copy.recipientNoMatch}
                         </p>
                       ) : (
-                        <ul
-                          aria-label={copy.recipientResultsLabel}
-                          className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-card"
-                        >
-                          {recipientResults.map((candidate) => (
-                            <li key={candidate.id}>
-                              <button
-                                type="button"
-                                className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                                onClick={() => {
-                                  setRecipient(candidate);
-                                  setRecipientResults([]);
-                                  setRecipientSearched(false);
-                                  setRecipientInput('');
-                                  setRecipientError('');
-                                }}
-                              >
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                                  {initialsOf(candidate)}
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-medium text-foreground" title={displayName(candidate)}>
-                                    {displayName(candidate)}
+                        <>
+                          <ul
+                            aria-label={copy.recipientResultsLabel}
+                            className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-card"
+                          >
+                            {recipientResults.map((candidate) => (
+                              <li key={candidate.id}>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                  onClick={() => {
+                                    recipientSearchRequestRef.current += 1;
+                                    setRecipient(candidate);
+                                    setRecipientResults([]);
+                                    setRecipientTotal(0);
+                                    setRecipientSearched(false);
+                                    setRecipientInput('');
+                                    setRecipientSearching(false);
+                                    setRecipientError('');
+                                  }}
+                                >
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                                    {initialsOf(candidate)}
                                   </span>
-                                  <span className="block truncate text-xs text-muted-foreground" title={candidate.email}>
-                                    {candidate.email}
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-foreground" title={displayName(candidate)}>
+                                      {displayName(candidate)}
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground" title={candidate.email}>
+                                      {candidate.email}
+                                    </span>
                                   </span>
-                                </span>
-                                {roleLabel(candidate) ? (
-                                  <span
-                                    className={cn(
-                                      'shrink-0 rounded-md px-2 py-0.5 text-xs font-medium',
-                                      statusToneClass('neutral'),
-                                    )}
-                                  >
-                                    {roleLabel(candidate)}
-                                  </span>
-                                ) : null}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                                  {roleLabel(candidate) ? (
+                                    <span
+                                      className={cn(
+                                        'shrink-0 rounded-md px-2 py-0.5 text-xs font-medium',
+                                        statusToneClass('neutral'),
+                                      )}
+                                    >
+                                      {roleLabel(candidate)}
+                                    </span>
+                                  ) : null}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                          {recipientTotal > recipientResults.length ? (
+                            <p className="text-xs text-muted-foreground">
+                              {copy.recipientRefineHint.replace(
+                                '{total}',
+                                formatNumber(recipientTotal),
+                              )}
+                            </p>
+                          ) : null}
+                        </>
                       )
                     ) : null}
                   </div>
@@ -457,7 +497,7 @@ export default function AdminNotificationsPage() {
                       <label
                         key={option}
                         className={cn(
-                          'flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 p-2.5 text-xs font-semibold transition-colors',
+                          'flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 p-2.5 text-xs font-semibold transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
                           checked
                             ? 'border-primary bg-primary/5 text-primary'
                             : 'border-border bg-background text-muted-foreground hover:bg-secondary/40 hover:text-foreground',
@@ -708,14 +748,14 @@ export default function AdminNotificationsPage() {
               })}
             </div>
             <AdminTableScroll className="hidden md:block">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-[720px] text-sm" aria-label={copy.sentTitle}>
                 <thead>
                   <tr className="bg-secondary text-left text-muted-foreground">
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.title}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.type}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.recipient}</th>
-                    <th className="px-2 py-3 font-medium">{copy.sentHeaders.time}</th>
-                    <th className="px-2 py-3 text-right font-medium">
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.title}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.type}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.recipient}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.sentHeaders.time}</th>
+                    <th scope="col" className="px-2 py-3 text-right font-medium">
                       {copy.sentHeaders.actions}
                     </th>
                   </tr>

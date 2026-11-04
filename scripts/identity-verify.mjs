@@ -74,6 +74,18 @@ function composeTry(args, argv, opts = {}) {
   return tryRun('docker', composeArgs(args, argv), opts);
 }
 
+function preflightComposeProject(args) {
+  const containers = composeTry(args, ['ps', '-aq']);
+  if (!containers.ok) throw new Error('Compose project ownership preflight failed; refusing startup.');
+  if (containers.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains containers.');
+
+  const volumes = tryRun('docker', [
+    'volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${args.project}`,
+  ]);
+  if (!volumes.ok) throw new Error('Compose volume ownership preflight failed; refusing startup.');
+  if (volumes.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains volumes.');
+}
+
 async function allocPort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
@@ -133,7 +145,10 @@ async function casePgRace(args) {
     E2E_API_HOST_PORT: String(await allocPort()),
   };
   const result = { case: 'pg-race', target: 'local', project: args.project, ports: { ...args_env } };
+  let ownsStack = false;
   try {
+    preflightComposeProject(args);
+    ownsStack = true;
     const up = composeTry(args, ['up', '-d', 'postgres']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     await waitServiceHealthy(args, /postgres/, 240000);
@@ -177,8 +192,12 @@ async function casePgRace(args) {
     result.ok = false;
     result.error = String(e.message || e).slice(-3000);
   } finally {
-    const down = composeTry(args, ['down', '-v', '--remove-orphans']);
-    result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    if (ownsStack) {
+      const down = composeTry(args, ['down', '-v', '--remove-orphans']);
+      result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    } else {
+      result.teardown = 'not-created';
+    }
   }
   fs.writeFileSync(path.join(dir, 'pg-race.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   if (!result.ok) {
@@ -208,9 +227,5 @@ async function main() {
 
 main().catch((e) => {
   console.error(`FAIL ${e.message || e}`);
-  try {
-    const args = { project: process.env.IDENTITY_VERIFY_PROJECT || 'campuscore-identity-verify' };
-    composeTry(args, ['down', '-v', '--remove-orphans']);
-  } catch { /* best-effort */ }
   process.exit(1);
 });

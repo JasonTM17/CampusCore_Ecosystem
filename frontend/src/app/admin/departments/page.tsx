@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -29,7 +29,10 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { toast } from 'sonner';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedDescription,
   getLocalizedName,
@@ -47,10 +50,50 @@ interface Department {
   isActive: boolean;
 }
 
+function departmentOverviewCounts(totalItems: number | null, departments: Department[]) {
+  return {
+    unitCount: totalItems,
+    activeOnPageCount: departments.filter((department) => department.isActive).length,
+  };
+}
+
+function buildDepartmentUpdatePayload(
+  baseline: Department,
+  formData: {
+    nameEn: string;
+    nameVi: string;
+    code: string;
+    descriptionEn: string;
+    descriptionVi: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+  const descriptionEnChanged = formData.descriptionEn
+    !== (baseline.descriptionEn || baseline.description || '');
+  const descriptionViChanged = formData.descriptionVi !== (baseline.descriptionVi || '');
+
+  if (formData.code !== baseline.code) payload.code = formData.code;
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (descriptionEnChanged) payload.descriptionEn = formData.descriptionEn;
+  if (descriptionViChanged) payload.descriptionVi = formData.descriptionVi;
+  const description = formData.descriptionEn || formData.descriptionVi;
+  if ((descriptionEnChanged || descriptionViChanged)
+      && description !== (baseline.description || '')) {
+    payload.description = description;
+  }
+  return payload;
+}
+
 export default function AdminDepartmentsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.departments, vi: adminAcademicsVi.departments }[locale];
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -58,11 +101,15 @@ export default function AdminDepartmentsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
+  const departmentsEpoch = useRef(createRequestEpoch()).current;
   const [formData, setFormData] = useState({
     nameEn: '',
     nameVi: '',
@@ -71,7 +118,12 @@ export default function AdminDepartmentsPage() {
     descriptionVi: '',
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const overviewCounts = departmentOverviewCounts(totalItems, departments);
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (name: string) =>
+    copy.editLabel.replace('{name}', () => name);
+  const deleteLabel = (name: string) =>
+    copy.deleteLabel.replace('{name}', () => name);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -79,7 +131,7 @@ export default function AdminDepartmentsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -89,6 +141,7 @@ export default function AdminDepartmentsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchDepartments = useCallback(async () => {
+    const epoch = departmentsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -98,118 +151,22 @@ export default function AdminDepartmentsPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await departmentsApi.getAll(query);
 
+      if (!departmentsEpoch.isCurrent(epoch)) return;
       setDepartments(response.data || []);
+      setTotalItems(response.meta?.total ?? null);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách khoa.'
-          : 'Departments could not be loaded.',
-      );
+      if (!departmentsEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!departmentsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search]);
+  }, [copy, departmentsEpoch, page, search]);
 
-  const copy = useMemo(
-    () =>
-      locale === 'vi'
-        ? {
-          loading: 'Đang tải khoa',
-          title: 'Khoa',
-          description:
-            'Giữ cấu trúc học thuật rõ ràng để môn học, giảng viên và chương trình có người phụ trách cụ thể.',
-          create: 'Tạo khoa',
-          searchLabel: 'Tìm khoa',
-          searchPlaceholder: 'Tìm theo tên hoặc mã khoa',
-          pageSummaryEmpty: 'Không có bản ghi phù hợp',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          unavailableTitle: 'Khoa chưa sẵn sàng',
-          emptyTitle: 'Không có khoa phù hợp',
-          emptyDescription:
-            'Hãy tạo khoa để môn học, giảng viên và chương trình cùng nằm trong một cấu trúc rõ ràng.',
-          tableTitle: 'Bản ghi khoa',
-          headers: {
-            code: 'Mã',
-            name: 'Tên khoa',
-            description: 'Mô tả',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          noDescription: 'Chưa có mô tả',
-          active: 'Đang hoạt động',
-          inactive: 'Ngừng hoạt động',
-          deleteTitle: 'Xóa khoa',
-          deleteMessage: (name: string) =>
-            `Xóa ${name}? Hành động này sẽ gỡ khoa khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa khoa',
-          deleted: 'Đã xóa khoa',
-          deleteFailed: 'Hiện chưa thể xóa khoa này.',
-          updated: 'Đã cập nhật khoa',
-          created: 'Đã tạo khoa',
-          saveFailed: 'Hiện chưa thể lưu khoa.',
-          editTitle: 'Chỉnh sửa khoa',
-          createTitle: 'Tạo khoa',
-          fields: {
-            code: 'Mã khoa',
-            name: 'Tên khoa',
-            description: 'Mô tả',
-          },
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (name: string) => `Chỉnh sửa khoa ${name}`,
-          deleteLabel: (name: string) => `Xóa khoa ${name}`,
-        }
-        : {
-          loading: 'Loading departments',
-          title: 'Departments',
-          description:
-            'Keep the academic structure readable for courses, lecturers, and curriculum responsibilities.',
-          create: 'Create department',
-          searchLabel: 'Search departments',
-          searchPlaceholder: 'Search by name or code',
-          pageSummaryEmpty: 'No matching records',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          unavailableTitle: 'Departments unavailable',
-          emptyTitle: 'No matching departments',
-          emptyDescription:
-            'Create a department to organize courses, lecturer assignments, and curriculum responsibilities.',
-          tableTitle: 'Department records',
-          headers: {
-            code: 'Code',
-            name: 'Name',
-            description: 'Description',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          noDescription: 'No description',
-          active: 'Active',
-          inactive: 'Inactive',
-          deleteTitle: 'Delete department',
-          deleteMessage: (name: string) =>
-            `Delete ${name}? This removes the department from the current admin view.`,
-          deleteConfirm: 'Delete department',
-          deleted: 'Department deleted',
-          deleteFailed: 'We could not delete that department.',
-          updated: 'Department updated',
-          created: 'Department created',
-          saveFailed: 'The department could not be saved.',
-          editTitle: 'Edit department',
-          createTitle: 'Create department',
-          fields: {
-            code: 'Code',
-            name: 'Name',
-            description: 'Description',
-          },
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (name: string) => `Edit department ${name}`,
-          deleteLabel: (name: string) => `Delete department ${name}`,
-        },
-    [locale, messages.common.actions.saveChanges],
-  );
+  useEffect(() => () => {
+    departmentsEpoch.invalidate();
+  }, [departmentsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -239,7 +196,9 @@ export default function AdminDepartmentsPage() {
       return copy.pageSummaryEmpty;
     }
 
-    return copy.pageSummary(page, totalPages);
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
   }, [copy, departments.length, page, totalPages]);
 
   if (isAuthLoading || isLoggingOut || !canAccess) {
@@ -289,23 +248,25 @@ export default function AdminDepartmentsPage() {
   };
 
   const handleDelete = async (department: Department) => {
-    const departmentLabel = getLocalizedName(
-      locale,
-      department,
-      department.name,
-    );
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(departmentLabel),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingDepartmentId(department.id);
 
     try {
+      const departmentLabel = getLocalizedName(
+        locale,
+        department,
+        department.name,
+      );
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{name}', () => departmentLabel),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) return;
+
       await departmentsApi.delete(department.id);
       toast.success(copy.deleted);
       if (departments.length === 1 && page > 1) {
@@ -315,6 +276,9 @@ export default function AdminDepartmentsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingDepartmentId(null);
     }
   };
 
@@ -323,17 +287,20 @@ export default function AdminDepartmentsPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-        description: formData.descriptionEn || formData.descriptionVi,
-        descriptionEn: formData.descriptionEn,
-        descriptionVi: formData.descriptionVi,
-      };
       if (editingDepartment) {
-        await departmentsApi.update(editingDepartment.id, payload);
+        const payload = buildDepartmentUpdatePayload(editingDepartment, formData);
+        if (Object.keys(payload).length > 0) {
+          await departmentsApi.update(editingDepartment.id, payload);
+        }
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+          description: formData.descriptionEn || formData.descriptionVi,
+          descriptionEn: formData.descriptionEn,
+          descriptionVi: formData.descriptionVi,
+        };
         await departmentsApi.create(payload);
         toast.success(copy.created);
       }
@@ -371,32 +338,28 @@ export default function AdminDepartmentsPage() {
             <div className="p-6 lg:col-span-8 space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                 <Building2 className="h-3.5 w-3.5" />
-                <span>{locale === 'vi' ? 'CƠ CẤU TỔ CHỨC & KHOA ĐÀO TẠO HCMUTE' : 'HCMUTE ACADEMIC FACULTIES & DEPARTMENTS'}</span>
+                <span>{copy.banner.eyebrow}</span>
               </div>
               <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                {locale === 'vi'
-                  ? 'Quản trị Cơ cấu Khoa & Viện Đào tạo Trọng điểm'
-                  : 'Faculty & Department Administration'}
+                {copy.banner.title}
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground max-w-2xl">
-                {locale === 'vi'
-                  ? 'Phân cấp tổ chức học thuật, quản lý các khoa chuyên ngành, phòng thí nghiệm nghiên cứu công nghệ cao và bộ môn trực thuộc phục vụ đào tạo tín chỉ, phân bổ giảng viên và quản lý đồ án tốt nghiệp.'
-                  : 'Manage university faculties, specialized research laboratories, and academic departments supporting curriculum delivery and thesis mentorship.'}
+                {copy.banner.description}
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-medium text-muted-foreground">
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
-                  <span className="font-bold text-foreground text-sm">{departments.length}</span>
-                  <span>{locale === 'vi' ? 'Khoa & Đơn vị trực thuộc' : 'Academic Units'}</span>
+                  <span className="font-bold text-foreground text-sm">{overviewCounts.unitCount ?? '—'}</span>
+                  <span>{copy.banner.unitsLabel}</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
                   <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {departments.filter((d) => d.isActive).length}
+                    {overviewCounts.activeOnPageCount}
                   </span>
-                  <span>{locale === 'vi' ? 'Đang hoạt động' : 'Active'}</span>
+                  <span>{copy.banner.activeOnPage}</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
                   <span className="font-bold text-primary text-sm">100%</span>
-                  <span>{locale === 'vi' ? 'Chuẩn hóa tín chỉ' : 'Curriculum Aligned'}</span>
+                  <span>{copy.banner.curriculumLabel}</span>
                 </div>
               </div>
             </div>
@@ -406,7 +369,7 @@ export default function AdminDepartmentsPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/images/banners/department_research_lab.jpg"
-                  alt="HCMUTE IT Department Research Lab"
+                  alt={copy.banner.imageAlt}
                   width={1376}
                   height={768}
                   className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
@@ -414,7 +377,7 @@ export default function AdminDepartmentsPage() {
               </picture>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden" />
               <div className="absolute bottom-2 left-3 rounded-md bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-foreground backdrop-blur-xs">
-                Smart Systems & Robotics Lab
+                {copy.banner.labLabel}
               </div>
             </div>
           </div>
@@ -510,8 +473,8 @@ export default function AdminDepartmentsPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openEdit(department)}
-                          aria-label={copy.editLabel(departmentLabel)}
-                          title={copy.editLabel(departmentLabel)}
+                          aria-label={editLabel(departmentLabel)}
+                          title={editLabel(departmentLabel)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -520,8 +483,9 @@ export default function AdminDepartmentsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(department)}
-                          aria-label={copy.deleteLabel(departmentLabel)}
-                          title={copy.deleteLabel(departmentLabel)}
+                          disabled={deletingDepartmentId !== null}
+                          aria-label={deleteLabel(departmentLabel)}
+                          title={deleteLabel(departmentLabel)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -584,8 +548,8 @@ export default function AdminDepartmentsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(department)}
-                              aria-label={copy.editLabel(departmentLabel)}
-                              title={copy.editLabel(departmentLabel)}
+                              aria-label={editLabel(departmentLabel)}
+                              title={editLabel(departmentLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -594,8 +558,9 @@ export default function AdminDepartmentsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(department)}
-                              aria-label={copy.deleteLabel(departmentLabel)}
-                              title={copy.deleteLabel(departmentLabel)}
+                              disabled={deletingDepartmentId !== null}
+                              aria-label={deleteLabel(departmentLabel)}
+                              title={deleteLabel(departmentLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -632,7 +597,7 @@ export default function AdminDepartmentsPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}>
+            <AdminFormField label={copy.fields.englishName}>
               <Input
                 type="text"
                 value={formData.nameEn}
@@ -646,7 +611,7 @@ export default function AdminDepartmentsPage() {
               />
             </AdminFormField>
             <AdminFormField
-              label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}
+              label={copy.fields.vietnameseName}
             >
               <Input
                 type="text"
@@ -664,7 +629,7 @@ export default function AdminDepartmentsPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <AdminFormField
-              label={locale === 'vi' ? 'Mô tả tiếng Anh' : 'English description'}
+              label={copy.fields.englishDescription}
             >
               <Textarea
                 value={formData.descriptionEn}
@@ -678,7 +643,7 @@ export default function AdminDepartmentsPage() {
               />
             </AdminFormField>
             <AdminFormField
-              label={locale === 'vi' ? 'Mô tả tiếng Việt' : 'Vietnamese description'}
+              label={copy.fields.vietnameseDescription}
             >
               <Textarea
                 value={formData.descriptionVi}
@@ -701,7 +666,7 @@ export default function AdminDepartmentsPage() {
               {isSaving
                 ? copy.saving
                 : editingDepartment
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : copy.create}
             </Button>
           </AdminDialogFooter>

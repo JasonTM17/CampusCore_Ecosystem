@@ -13,8 +13,10 @@ import io.campuscore.restfulapi.engagement.service.GradePublishNotifier;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
+import java.util.HexFormat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -46,10 +48,10 @@ class GradePublishAtomicityTest {
     void seed() {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS notifications");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Section\" (\"id\" VARCHAR PRIMARY KEY, \"semesterId\" VARCHAR, \"capacity\" INT, \"enrolledCount\" INT, \"status\" VARCHAR)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Section\" (\"id\" VARCHAR(120) PRIMARY KEY, \"semesterId\" VARCHAR(120), \"capacity\" INT, \"enrolledCount\" INT, \"status\" VARCHAR)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Student\" (\"id\" VARCHAR PRIMARY KEY, \"userId\" VARCHAR)");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" DECIMAL, \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP)");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"GradeItem\" (\"id\" VARCHAR PRIMARY KEY, \"type\" VARCHAR, \"sectionId\" VARCHAR, \"name\" VARCHAR, \"maxScore\" DECIMAL, \"weight\" DECIMAL, \"gradedAt\" TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Enrollment\" (\"id\" VARCHAR(120) PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR(120), \"semesterId\" VARCHAR(120), \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" DECIMAL(5,2), \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP, \"version\" INTEGER NOT NULL DEFAULT 0)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"GradeItem\" (\"id\" VARCHAR(120) PRIMARY KEY, \"type\" VARCHAR, \"sectionId\" VARCHAR(120), \"name\" VARCHAR, \"maxScore\" DECIMAL, \"weight\" DECIMAL, \"gradedAt\" TIMESTAMP)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"StudentGrade\" (\"id\" VARCHAR PRIMARY KEY, \"enrollmentId\" VARCHAR, \"gradeItemId\" VARCHAR, \"score\" DECIMAL)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS notifications.notification (id VARCHAR PRIMARY KEY, user_id VARCHAR, title VARCHAR, message VARCHAR, type VARCHAR, link VARCHAR, is_read BOOLEAN, read_at TIMESTAMP, created_at TIMESTAMP, updated_at TIMESTAMP)");
         for (String table : new String[]{"StudentGrade", "GradeItem", "Enrollment", "Student", "Section"}) {
@@ -58,7 +60,7 @@ class GradePublishAtomicityTest {
         jdbc.execute("DELETE FROM notifications.notification");
         jdbc.execute("INSERT INTO \"academic\".\"Section\" VALUES ('section', 'semester', 30, 1, 'ACTIVE')");
         jdbc.execute("INSERT INTO \"academic\".\"Student\" VALUES ('student', 'student-user')");
-        jdbc.execute("INSERT INTO \"academic\".\"Enrollment\" VALUES ('enrollment', 'student', 'section', 'ENROLLED', 'DRAFT', 8, 'B+', CURRENT_TIMESTAMP)");
+        jdbc.execute("INSERT INTO \"academic\".\"Enrollment\" VALUES ('enrollment', 'student', 'section', 'semester', 'ENROLLED', 'DRAFT', 8, 'B+', CURRENT_TIMESTAMP, 0)");
         jdbc.execute("INSERT INTO \"academic\".\"GradeItem\" (\"id\", \"type\") VALUES ('process', 'PROCESS'), ('final', 'FINAL')");
         jdbc.execute("INSERT INTO \"academic\".\"StudentGrade\" VALUES ('p', 'enrollment', 'process', 8), ('f', 'enrollment', 'final', 8)");
     }
@@ -84,6 +86,54 @@ class GradePublishAtomicityTest {
         assertThatThrownBy(() -> service.publishGrades("section", null, true, null))
                 .hasMessageContaining("No complete grades");
         assertThat(inboxCount()).isEqualTo(1);
+    }
+
+    @Test
+    void publicationUsesTheSameSemesterPopulationAsTheGradeSheet() {
+        jdbc.update("INSERT INTO \"academic\".\"Student\" VALUES ('student-hidden-incomplete', 'hidden-incomplete-user')");
+        jdbc.update("INSERT INTO \"academic\".\"Student\" VALUES ('student-hidden-graded', 'hidden-graded-user')");
+        jdbc.update("INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\", \"updatedAt\")"
+                        + " VALUES ('hidden-incomplete', 'student-hidden-incomplete', 'section', 'previous-semester', 'ENROLLED', 'DRAFT', CURRENT_TIMESTAMP),"
+                        + " ('hidden-graded', 'student-hidden-graded', 'section', 'previous-semester', 'ENROLLED', 'DRAFT', CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO \"academic\".\"StudentGrade\" VALUES"
+                        + " ('hidden-process-grade', 'hidden-graded', 'process', 9),"
+                        + " ('hidden-final-grade', 'hidden-graded', 'final', 9)");
+
+        service.publishGrades("section", null, true, null);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"gradeStatus\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enrollment'",
+                String.class)).isEqualTo("PUBLISHED");
+        assertThat(jdbc.queryForList(
+                "SELECT \"gradeStatus\" FROM \"academic\".\"Enrollment\""
+                        + " WHERE \"id\" IN ('hidden-incomplete', 'hidden-graded') ORDER BY \"id\"",
+                String.class)).containsExactly("DRAFT", "DRAFT");
+        assertThat(inboxCount()).isEqualTo(1);
+        assertThat(jdbc.queryForList("SELECT user_id FROM notifications.notification", String.class))
+                .containsExactly("student-user");
+    }
+
+    @Test
+    void legacyLongSectionIdsUseBoundedCanonicalGradeItemIds() throws Exception {
+        String sectionId = "s".repeat(115);
+        jdbc.update("INSERT INTO \"academic\".\"Section\""
+                        + " (\"id\", \"semesterId\", \"capacity\", \"enrolledCount\", \"status\")"
+                        + " VALUES (?, 'semester', 30, 1, 'ACTIVE')", sectionId);
+        jdbc.update("INSERT INTO \"academic\".\"Student\" VALUES ('student-long', 'student-long-user')");
+        jdbc.update("INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\", \"version\")"
+                        + " VALUES ('enrollment-long', 'student-long', ?, 'semester', 'ENROLLED', 'DRAFT', 0)", sectionId);
+
+        service.updateGrades(sectionId, null, true, null,
+                List.of(new GradeUpdate("enrollment-long", new BigDecimal("8"), new BigDecimal("9"))));
+
+        String sectionHash = HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(sectionId.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThat(jdbc.queryForList(
+                "SELECT \"id\" FROM \"academic\".\"GradeItem\" WHERE \"sectionId\" = ?",
+                String.class, sectionId))
+                .containsExactlyInAnyOrder("v36-process-" + sectionHash, "v36-final-" + sectionHash)
+                .allMatch(id -> id.length() <= 120);
     }
 
     private int inboxCount() {

@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Badge, Button, Card, Divider, Field, ListRow, ProgressBar, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
 import { Dialog } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { ThesisRoundPicker } from './ThesisRoundPicker';
@@ -136,7 +137,7 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
                 {group ? (
                   <View style={styles.header}>
                     <UiText variant="bodySmall" tone="muted" style={styles.grow}>
-                      {fillThesisCopy(copy.groupMembersCount, { count: memberCount })}
+                      {fillThesisCopy(countForm(memberCount, copy.groupMembersCountOne, copy.groupMembersCount), { count: memberCount })}
                     </UiText>
                     <Badge label={copy.status[group.approvalStatus] ?? group.approvalStatus} tone={statusTone(group.approvalStatus)} />
                   </View>

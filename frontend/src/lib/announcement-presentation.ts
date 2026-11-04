@@ -1,6 +1,32 @@
 import type { Locale } from '@/i18n/config';
 import type { AnnouncementRecord } from '@/lib/api';
 import { isSafeAnnouncementImageUrl } from '@/lib/html-sanitizer';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+  type AnnouncementWorkspaceCopy,
+} from '@/i18n/messages-announcements';
+
+/**
+ * Presentation helpers are called from non-React code (exports, server
+ * rendering) with an explicit locale, so they read the fragment directly
+ * instead of using the root dictionary hook.
+ */
+const announcementWorkspace: Record<Locale, AnnouncementWorkspaceCopy> = {
+  en: announcementWorkspaceEn,
+  vi: announcementWorkspaceVi,
+};
+
+function workspaceCopy(locale: Locale): AnnouncementWorkspaceCopy {
+  return announcementWorkspace[locale];
+}
+
+function fillCopy(template: string, values: Record<string, string | number>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replace(`{${key}}`, () => String(value)),
+    template,
+  );
+}
 
 export const ANNOUNCEMENT_PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
 export type AnnouncementPriority = (typeof ANNOUNCEMENT_PRIORITIES)[number];
@@ -19,38 +45,14 @@ export type AnnouncementHistoryAction =
   | 'ARCHIVED'
   | 'RESTORED';
 
-const priorityLabels: Record<AnnouncementPriority, [string, string]> = {
-  LOW: ['Thấp', 'Low'],
-  NORMAL: ['Bình thường', 'Normal'],
-  HIGH: ['Cao', 'High'],
-  URGENT: ['Khẩn cấp', 'Urgent'],
-};
-
-const roleLabels: Record<AnnouncementRole, [string, string]> = {
-  STUDENT: ['Sinh viên', 'Student'],
-  LECTURER: ['Giảng viên', 'Lecturer'],
-  ADMIN: ['Quản trị viên', 'Administrator'],
-  SUPER_ADMIN: ['Quản trị viên cấp cao', 'Super administrator'],
-};
-
-const historyActionLabels: Record<AnnouncementHistoryAction, [string, string]> = {
-  CREATED: ['Đã tạo', 'Created'],
-  UPDATED: ['Đã chỉnh sửa', 'Edited'],
-  ARCHIVED: ['Đã lưu trữ', 'Archived'],
-  RESTORED: ['Đã khôi phục', 'Restored'],
-};
-
-function localizedPair(pair: [string, string], locale: Locale) {
-  return pair[locale === 'vi' ? 0 : 1];
-}
-
 function normalized(value: unknown) {
   return typeof value === 'string' ? value.trim().toUpperCase() : '';
 }
 
 export function announcementPriorityLabel(value: unknown, locale: Locale) {
-  const key = normalized(value) as AnnouncementPriority;
-  return localizedPair(priorityLabels[key] ?? ['Khác', 'Other'], locale);
+  const labels = workspaceCopy(locale).presentation.priority as Record<string, string>;
+  const key = normalized(value);
+  return labels[key] ?? labels.other;
 }
 
 export function announcementPriorityTone(value: unknown) {
@@ -67,8 +69,9 @@ export function announcementPriorityTone(value: unknown) {
 }
 
 export function announcementRoleLabel(value: unknown, locale: Locale) {
-  const key = normalized(value) as AnnouncementRole;
-  return localizedPair(roleLabels[key] ?? ['Đối tượng khác', 'Other audience'], locale);
+  const labels = workspaceCopy(locale).presentation.role as Record<string, string>;
+  const key = normalized(value);
+  return labels[key] ?? labels.other;
 }
 
 export function announcementRoleValues(values: readonly unknown[] | null | undefined) {
@@ -83,23 +86,21 @@ export function announcementAudienceLabel(
   announcement: Pick<AnnouncementRecord, 'isGlobal' | 'targetRoles'>,
   locale: Locale,
 ) {
+  const copy = workspaceCopy(locale).presentation.audience;
   if (announcement.isGlobal) {
-    return locale === 'vi' ? 'Toàn trường' : 'Campus-wide';
+    return copy.campusWide;
   }
 
   const labels = announcementRoleValues(announcement.targetRoles).map((role) =>
     announcementRoleLabel(role, locale),
   );
-  return labels.length > 0
-    ? labels.join(locale === 'vi' ? ', ' : ', ')
-    : locale === 'vi'
-      ? 'Chưa chọn đối tượng'
-      : 'No audience selected';
+  return labels.length > 0 ? labels.join(', ') : copy.none;
 }
 
 export function announcementHistoryActionLabel(value: unknown, locale: Locale) {
-  const key = normalized(value) as AnnouncementHistoryAction;
-  return localizedPair(historyActionLabels[key] ?? ['Đã thay đổi', 'Changed'], locale);
+  const labels = workspaceCopy(locale).presentation.history as Record<string, string>;
+  const key = normalized(value);
+  return labels[key] ?? labels.other;
 }
 
 /** Translate only compatibility-generated reasons; preserve administrator input verbatim. */
@@ -108,21 +109,20 @@ export function announcementHistoryReason(
   action: unknown,
   locale: Locale,
 ) {
+  const copy = workspaceCopy(locale).presentation.historyReason;
   const reason = typeof value === 'string' ? value.trim() : '';
   if (!reason) return '—';
   if (reason === 'Announcement created' && normalized(action) === 'CREATED') {
-    return locale === 'vi' ? 'Khởi tạo thông báo' : 'Announcement created';
+    return copy.created;
   }
   if (reason === 'Archived from the legacy delete action' && normalized(action) === 'ARCHIVED') {
-    return locale === 'vi' ? 'Lưu trữ thông báo' : 'Archived by a compatibility action';
+    return copy.archivedCompat;
   }
   // Generated by AnnouncementWriteService.updateDisplayOrder — a server-side
   // fixed-format sentence, so pattern-translate it instead of leaking English.
   const displayOrder = reason.match(/^Display order set to (\d+)$/);
   if (displayOrder) {
-    return locale === 'vi'
-      ? `Đặt thứ tự hiển thị thành ${displayOrder[1]}`
-      : reason;
+    return fillCopy(copy.displayOrder, { order: displayOrder[1] });
   }
   return reason;
 }
@@ -171,7 +171,7 @@ export function announcementPriorityValue(value: unknown): AnnouncementPriority 
 export function formatAnnouncementSemester(
   announcement: Pick<AnnouncementRecord, 'semesterName' | 'semester'>,
   locale: Locale,
-  prefix = locale === 'vi' ? 'Học kỳ' : 'Semester',
+  prefix = workspaceCopy(locale).presentation.semesterPrefix,
 ) {
   const raw = announcementSemesterName(announcement);
   if (!raw) return '';
@@ -210,26 +210,27 @@ export function announcementAudienceBadge(
   announcement: Pick<AnnouncementRecord, 'isGlobal' | 'targetRoles'>,
   locale: Locale,
 ): { label: string; tone: 'info' | 'primary' | 'neutral' } {
+  const copy = workspaceCopy(locale).presentation.audienceBadge;
   const type = announcementAudienceType(announcement);
   switch (type) {
     case 'GLOBAL':
       return {
-        label: locale === 'vi' ? '🌐 Thông báo toàn trường' : '🌐 Campus-wide Notice',
+        label: copy.global,
         tone: 'info',
       };
     case 'STUDENT':
       return {
-        label: locale === 'vi' ? '🎓 Dành riêng cho Sinh viên' : '🎓 Student Dedicated',
+        label: copy.student,
         tone: 'primary',
       };
     case 'LECTURER':
       return {
-        label: locale === 'vi' ? '👨‍🏫 Nghiệp vụ Giảng viên' : '👨‍🏫 Faculty & Lecturer',
+        label: copy.lecturer,
         tone: 'primary',
       };
     default:
       return {
-        label: locale === 'vi' ? 'Thông báo chuyên biệt' : 'Specialized Notice',
+        label: copy.other,
         tone: 'neutral',
       };
   }
@@ -239,21 +240,16 @@ export function announcementSalutation(
   announcement: Pick<AnnouncementRecord, 'isGlobal' | 'targetRoles'>,
   locale: Locale,
 ): string {
+  const copy = workspaceCopy(locale).presentation.salutation;
   const type = announcementAudienceType(announcement);
   switch (type) {
     case 'STUDENT':
-      return locale === 'vi'
-        ? 'Toàn thể sinh viên, học viên Nhà trường'
-        : 'All students and trainees of the University';
+      return copy.student;
     case 'LECTURER':
-      return locale === 'vi'
-        ? 'Quý Thầy/Cô, Cán bộ giảng dạy và Nghiên cứu viên Nhà trường'
-        : 'All Faculty Members, Lecturers, and Researchers of the University';
+      return copy.lecturer;
     case 'GLOBAL':
     default:
-      return locale === 'vi'
-        ? 'Toàn thể cán bộ, giảng viên, học viên và sinh viên Nhà trường'
-        : 'All faculty members, staff, researchers, and students of the University';
+      return copy.global;
   }
 }
 
@@ -304,9 +300,7 @@ export function formatAnnouncementPublisher(
     lower.includes('r&d') ||
     lower.includes('international cooperation')
   ) {
-    return locale === 'vi'
-      ? 'Khoa Công nghệ Thông tin & Phòng Đào Tạo'
-      : 'Faculty of Information Technology & Academic Affairs Office';
+    return workspaceCopy(locale).presentation.publisher.informationTechnology;
   }
   return trimmed;
 }
@@ -378,6 +372,20 @@ export const INSTITUTIONAL_ARTICLE_CATEGORIES: Record<ArticleCategoryCode, Artic
     accentGradient: 'from-purple-600 via-violet-600 to-indigo-700',
   },
 };
+
+/**
+ * The reader-facing label for an institutional article category.
+ *
+ * Homepage filter tabs, feed cards and reader headers all resolve through this
+ * function, so a category code can never be called two different things again.
+ */
+export function articleCategoryLabel(
+  code: ArticleCategoryCode,
+  locale: Locale = 'vi',
+): string {
+  const meta = INSTITUTIONAL_ARTICLE_CATEGORIES[code];
+  return locale === 'vi' ? meta.nameVi : meta.nameEn;
+}
 
 export type AnnouncementDomainType = 'OFFICIAL_DISPATCH' | 'EDITORIAL_ARTICLE';
 
@@ -460,7 +468,6 @@ export function resolveAnnouncementDomain(
   locale: Locale = 'vi',
   categories?: readonly TaxonomyCategory[],
 ): DomainResolution {
-  const isVi = locale === 'vi';
   const title = (announcement.title || '').toLowerCase();
   const publisher = (announcement.publishedBy || '').toLowerCase();
   const content = (announcement.content || '').toLowerCase();
@@ -480,7 +487,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'RESEARCH_TECH',
-        categoryLabel: isVi ? 'Nghiên cứu & Công nghệ' : 'Research & Tech',
+        categoryLabel: articleCategoryLabel('RESEARCH_TECH', locale),
         categoryTone: 'info',
         iconType: 'flask',
         accentGradient: 'from-cyan-600 via-blue-600 to-indigo-700',
@@ -490,7 +497,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'AWARDS_HONORS',
-        categoryLabel: isVi ? 'Học bổng & Khen thưởng' : 'Scholarships & Honors',
+        categoryLabel: articleCategoryLabel('AWARDS_HONORS', locale),
         categoryTone: 'success',
         iconType: 'award',
         accentGradient: 'from-emerald-600 via-teal-600 to-green-700',
@@ -500,7 +507,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'STUDENT_LIFE',
-        categoryLabel: isVi ? 'Đời sống Sinh viên' : 'Student Life',
+        categoryLabel: articleCategoryLabel('STUDENT_LIFE', locale),
         categoryTone: 'warning',
         iconType: 'users',
         accentGradient: 'from-amber-600 via-orange-600 to-red-600',
@@ -510,7 +517,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'CULTURE_ARTS',
-        categoryLabel: isVi ? 'Văn hóa & Nghệ thuật' : 'Culture & Arts',
+        categoryLabel: articleCategoryLabel('CULTURE_ARTS', locale),
         categoryTone: 'primary',
         iconType: 'sparkles',
         accentGradient: 'from-rose-600 via-pink-600 to-purple-700',
@@ -520,7 +527,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'CAREER_OPPORTUNITIES',
-        categoryLabel: isVi ? 'Cơ hội Việc làm' : 'Career & Industry',
+        categoryLabel: articleCategoryLabel('CAREER_OPPORTUNITIES', locale),
         categoryTone: 'primary',
         iconType: 'briefcase',
         accentGradient: 'from-purple-600 via-violet-600 to-indigo-700',
@@ -530,7 +537,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'ACADEMIC_AFFAIRS',
-        categoryLabel: isVi ? 'Đào tạo & Học vụ' : 'Academic Affairs',
+        categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
         categoryTone: 'primary',
         iconType: 'book',
         accentGradient: 'from-indigo-600 via-blue-700 to-slate-800',
@@ -551,7 +558,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'OFFICIAL_DISPATCH',
       categoryCode: 'ACADEMIC_AFFAIRS',
-      categoryLabel: isVi ? 'Công văn Đào tạo & Khảo thí' : 'Academic Dispatch',
+      categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
       categoryTone: 'danger',
       iconType: 'document',
       accentGradient: 'from-red-600 to-amber-600',
@@ -563,7 +570,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'CULTURE_ARTS',
-      categoryLabel: isVi ? 'Văn hóa & Nghệ thuật' : 'Culture & Arts',
+      categoryLabel: articleCategoryLabel('CULTURE_ARTS', locale),
       categoryTone: 'primary',
       iconType: 'sparkles',
       accentGradient: 'from-rose-600 via-pink-600 to-purple-700',
@@ -584,7 +591,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'STUDENT_LIFE',
-      categoryLabel: isVi ? 'Đời sống Sinh viên' : 'Student Life',
+      categoryLabel: articleCategoryLabel('STUDENT_LIFE', locale),
       categoryTone: 'warning',
       iconType: 'users',
       accentGradient: 'from-amber-600 via-orange-600 to-red-600',
@@ -596,7 +603,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'AWARDS_HONORS',
-      categoryLabel: isVi ? 'Học bổng & Khen thưởng' : 'Scholarships & Honors',
+      categoryLabel: articleCategoryLabel('AWARDS_HONORS', locale),
       categoryTone: 'success',
       iconType: 'award',
       accentGradient: 'from-emerald-600 to-teal-700',
@@ -623,7 +630,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'RESEARCH_TECH',
-      categoryLabel: isVi ? 'Nghiên cứu & Công nghệ' : 'Research & Tech',
+      categoryLabel: articleCategoryLabel('RESEARCH_TECH', locale),
       categoryTone: 'info',
       iconType: 'flask',
       accentGradient: 'from-cyan-600 to-blue-700',
@@ -641,7 +648,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'CAREER_OPPORTUNITIES',
-      categoryLabel: isVi ? 'Sự kiện & Hướng nghiệp' : 'Career & Events',
+      categoryLabel: articleCategoryLabel('CAREER_OPPORTUNITIES', locale),
       categoryTone: 'warning',
       iconType: 'briefcase',
       accentGradient: 'from-amber-600 to-orange-700',
@@ -660,7 +667,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'ACADEMIC_AFFAIRS',
-      categoryLabel: isVi ? 'Đào tạo & Học vụ' : 'Academic Affairs',
+      categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
       categoryTone: 'primary',
       iconType: 'book',
       accentGradient: 'from-indigo-600 to-blue-700',
@@ -671,7 +678,7 @@ export function resolveAnnouncementDomain(
   return {
     domain: 'OFFICIAL_DISPATCH',
     categoryCode: 'ACADEMIC_AFFAIRS',
-    categoryLabel: isVi ? 'Văn bản Hành chính' : 'Official Notice',
+    categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
     categoryTone: 'danger',
     iconType: 'document',
     accentGradient: 'from-blue-700 to-slate-800',
@@ -718,12 +725,12 @@ export function calculateReadingTime(
   wordCount: number;
   displayText: string;
 } {
-  const isVi = locale === 'vi';
+  const copy = workspaceCopy(locale).presentation.readingTime;
   if (!content) {
     return {
       minutes: 1,
       wordCount: 0,
-      displayText: isVi ? '1 phút đọc' : '1 min read',
+      displayText: copy.oneMinute,
     };
   }
   // Strip html and markdown
@@ -737,9 +744,10 @@ export function calculateReadingTime(
   return {
     minutes,
     wordCount: words,
-    displayText: isVi
-      ? `${minutes} phút đọc (${words.toLocaleString('vi-VN')} từ)`
-      : `${minutes} min read (${words.toLocaleString('en-US')} words)`,
+    displayText: fillCopy(copy.minutes, {
+      minutes,
+      words: words.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US'),
+    }),
   };
 }
 
@@ -759,22 +767,22 @@ export function formatRelativeTime(
   const diffHours = Math.floor(diffMin / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  const isVi = locale === 'vi';
+  const copy = workspaceCopy(locale).presentation.relativeTime;
 
   if (diffMin < 1) {
-    return isVi ? 'Vừa xong' : 'Just now';
+    return copy.justNow;
   }
   if (diffMin < 60) {
-    return isVi ? `${diffMin} phút trước` : `${diffMin}m ago`;
+    return fillCopy(copy.minutesAgo, { minutes: diffMin });
   }
   if (diffHours < 24) {
-    return isVi ? `${diffHours} giờ trước` : `${diffHours}h ago`;
+    return fillCopy(copy.hoursAgo, { hours: diffHours });
   }
   if (diffDays === 1) {
-    return isVi ? 'Hôm qua' : 'Yesterday';
+    return copy.yesterday;
   }
   if (diffDays < 7) {
-    return isVi ? `${diffDays} ngày trước` : `${diffDays}d ago`;
+    return fillCopy(copy.daysAgo, { days: diffDays });
   }
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');

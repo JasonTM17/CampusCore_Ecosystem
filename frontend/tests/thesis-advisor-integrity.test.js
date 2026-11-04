@@ -7,6 +7,15 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
+function loadThesisWorkflowCopy() {
+  const output = ts.transpileModule(read('src/i18n/messages-thesis-workflow.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
 // Execute the real name formatter and JSX consumers without mounting network hooks.
 function loadAdvisorNameRenderers() {
   const source = read('src/components/dashboard/thesis/ThesisAdvisorDirectoryPage.tsx');
@@ -170,7 +179,12 @@ test('the thesis workspace reports a failed supervisor directory instead of seed
     page,
     /<ErrorState[\s\S]*?description=\{lecturersError\}[\s\S]*?onRetry=\{\(\) => void loadLecturers\(\)\}/,
   );
-  assert.match(page, /<EmptyState[\s\S]*?Chưa có giảng viên hướng dẫn/);
+  assert.match(page, /<EmptyState[\s\S]*?workspaceCopy\.noSupervisorsTitle/);
+  // The empty-state label lives in thesisWorkflow.workspace.
+  assert.equal(
+    loadThesisWorkflowCopy().thesisWorkflowVi.workspace.noSupervisorsTitle,
+    'Chưa có giảng viên hướng dẫn',
+  );
 });
 
 test('the advisor directory page renders honest failure and empty states', () => {

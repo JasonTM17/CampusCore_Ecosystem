@@ -97,7 +97,7 @@ const contract = {
       "lineHeight": 16,
       "fontWeight": "600"
     },
-    "maxFontScale": 1.5
+    "maxFontScale": 2
   },
   "messages": {
     "loading": "ui.state.loading",
@@ -143,7 +143,7 @@ const contract = {
     "lecturer": {
       "light": "#186777",
       "dark": "#6AD2E7",
-      "solid": "#148CA3",
+      "solid": "#186777",
       "solidDark": "#148CA3"
     },
     "admin": {

@@ -37,6 +37,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { statusToneClass } from '@/components/ui/status';
 import { UPLOAD_ACCEPT_COURSEWORK } from '@/lib/upload-validation';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { learningMessages } from '@/i18n/learning-messages';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,17 @@ async function pickFile(input: HTMLInputElement | null): Promise<FilePayload | n
   return file ? readFilePayload(file) : null;
 }
 
+/** The student-owned working copy restored into the editor on reopen. */
+function draftFromSubmission(submission: LearningSubmission | null): {
+  textBody: string;
+  fileName: string | null;
+} {
+  return {
+    textBody: submission?.draftText ?? '',
+    fileName: submission?.draftFileName ?? null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Student surface — enrolled-section roster → materials → work lifecycle
 // ---------------------------------------------------------------------------
@@ -94,25 +106,33 @@ export function StudentLearningPage() {
   const [sectionId, setSectionId] = useState('');
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [assignments, setAssignments] = useState<LearningAssignment[]>([]);
+  const [sectionLoadError, setSectionLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [workAssignment, setWorkAssignment] = useState<LearningAssignment | null>(null);
+  const sectionsListEpoch = useRef(createRequestEpoch()).current;
+  const sectionEpoch = useRef(createRequestEpoch()).current;
 
   const loadSections = useCallback(async () => {
+    const epoch = sectionsListEpoch.begin();
     setIsLoading(true);
     setError('');
     try {
       const rows = await learningApi.mySections();
+      if (!sectionsListEpoch.isCurrent(epoch)) return;
       setSections(rows);
       setSectionId((current) => (rows.some((row) => row.sectionId === current) ? current : rows[0]?.sectionId ?? ''));
     } catch (cause) {
+      if (!sectionsListEpoch.isCurrent(epoch)) return;
       setError(friendlyError(copy, cause));
     } finally {
-      setIsLoading(false);
+      if (sectionsListEpoch.isCurrent(epoch)) setIsLoading(false);
     }
-  }, [copy]);
+  }, [copy, sectionsListEpoch]);
 
   const loadSection = useCallback(async (id: string) => {
+    const epoch = sectionEpoch.begin();
+    setSectionLoadError(false);
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -123,15 +143,19 @@ export function StudentLearningPage() {
         learningApi.materials(id),
         learningApi.assignments(id),
       ]);
+      if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
-    } catch (cause) {
-      toast.error(friendlyError(copy, cause));
+    } catch {
+      if (!sectionEpoch.isCurrent(epoch)) return;
+      setSectionLoadError(true);
     }
-  }, [copy]);
+  }, [sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
+  useEffect(() => () => { sectionsListEpoch.invalidate(); }, [sectionsListEpoch]);
+  useEffect(() => () => { sectionEpoch.invalidate(); }, [sectionEpoch]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
   if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
@@ -173,7 +197,10 @@ export function StudentLearningPage() {
             ))}
           </div>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          {sectionLoadError ? (
+            <ErrorState title={copy.failed} description="" onRetry={() => void loadSection(sectionId)} />
+          ) : (
+            <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-border p-5" data-testid="learning-materials">
               <h2 className="mb-4 flex items-center gap-2 font-semibold">
                 <FileText className="h-4 w-4" />{copy.materials}
@@ -250,7 +277,8 @@ export function StudentLearningPage() {
                 </ul>
               )}
             </div>
-          </section>
+            </section>
+          )}
         </>
       )}
 
@@ -280,70 +308,124 @@ function StudentWorkModal({
   const [revisions, setRevisions] = useState<LearningRevision[]>([]);
   const [feedback, setFeedback] = useState<LearningFeedback[]>([]);
   const [textBody, setTextBody] = useState('');
+  const [draftFileName, setDraftFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const idemKey = useRef(newLearningIdempotencyKey());
+  // The server binds one Idempotency-Key to one request hash, so each write
+  // intent keeps its own key: a retry replays its intent instead of colliding
+  // with the draft or submit that came before it.
+  const idemKeys = useRef<Record<'draft' | 'submit' | 'resubmit', string | null>>({
+    draft: null,
+    submit: null,
+    resubmit: null,
+  });
+  const assignmentRequestRef = useRef({ assignmentId: assignment?.id ?? null, generation: 0 });
+  if (assignmentRequestRef.current.assignmentId !== (assignment?.id ?? null)) {
+    assignmentRequestRef.current = {
+      assignmentId: assignment?.id ?? null,
+      generation: assignmentRequestRef.current.generation + 1,
+    };
+  }
 
-  const refresh = useCallback(async (submissionId: string) => {
+  const refresh = useCallback(async (
+    submissionId: string,
+    request: { assignmentId: string | null; generation: number },
+  ) => {
     const [detail, revisionRows, feedbackRows] = await Promise.all([
       learningApi.mySubmission(submissionId),
       learningApi.myRevisions(submissionId),
       learningApi.myFeedback(submissionId),
     ]);
+    if (assignmentRequestRef.current !== request || detail.assignmentId !== request.assignmentId) {
+      return false;
+    }
     setSubmission(detail);
     setRevisions(revisionRows);
     setFeedback(feedbackRows);
+    return true;
   }, []);
 
   useEffect(() => {
+    const request = assignmentRequestRef.current;
+    busyRef.current = false;
+    setBusy(false);
     setSubmission(null);
     setRevisions([]);
     setFeedback([]);
     setTextBody('');
-    idemKey.current = newLearningIdempotencyKey();
+    idemKeys.current = { draft: null, submit: null, resubmit: null };
     if (assignment?.mySubmissionId) {
-      void refresh(assignment.mySubmissionId).catch(() => toast.error(copy.failed));
+      void refresh(assignment.mySubmissionId, request).catch(() => {
+        if (assignmentRequestRef.current === request) toast.error(copy.failed);
+      });
     }
   }, [assignment, copy, refresh]);
 
-  const editable = submission == null || submission.status === 'DRAFT' || submission.status === 'RETURNED';
+  // Reopening an assignment must regain the saved working copy, otherwise the
+  // next save would replace a draft the student can no longer see.
+  useEffect(() => {
+    const restoredDraft = draftFromSubmission(submission);
+    setTextBody(restoredDraft.textBody);
+    setDraftFileName(restoredDraft.fileName);
+  }, [submission]);
+
+  const activeSubmission = submission?.assignmentId === assignment?.id ? submission : null;
+  const editable = activeSubmission == null
+    || activeSubmission.status === 'DRAFT'
+    || activeSubmission.status === 'RETURNED';
 
   const run = async (action: () => Promise<LearningSubmission>, ok: string) => {
-    if (!assignment) return;
+    const request = assignmentRequestRef.current;
+    if (!assignment || request.assignmentId !== assignment.id || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const result = await action();
+      if (assignmentRequestRef.current !== request || result.assignmentId !== request.assignmentId) return;
       setSubmission(result);
-      await refresh(result.id);
+      const refreshed = await refresh(result.id, request);
+      if (!refreshed || assignmentRequestRef.current !== request) return;
       toast.success(ok);
       onChanged();
     } catch (cause) {
-      toast.error(friendlyError(copy, cause));
+      if (assignmentRequestRef.current === request) toast.error(friendlyError(copy, cause));
     } finally {
-      setBusy(false);
+      if (assignmentRequestRef.current === request) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   };
 
+  const idemKeyFor = (intent: 'draft' | 'submit' | 'resubmit') => {
+    const existing = idemKeys.current[intent];
+    if (existing) return existing;
+    const created = newLearningIdempotencyKey();
+    idemKeys.current[intent] = created;
+    return created;
+  };
+
   const ensureDraft = () => run(
-    () => learningApi.openDraft(assignment!.id, idemKey.current), copy.draftSaved);
+    () => learningApi.openDraft(assignment!.id, idemKeyFor('draft')), copy.draftSaved);
 
   const save = () => run(async () => {
     const file = await pickFile(fileRef.current);
-    return learningApi.saveDraft(submission!.id, {
+    return learningApi.saveDraft(activeSubmission!.id, {
       textBody: textBody || null,
       ...(file ?? {}),
     });
   }, copy.draftSaved);
 
   const submit = () => run(
-    () => learningApi.submit(assignment!.id, idemKey.current), copy.submittedOk);
+    () => learningApi.submit(assignment!.id, idemKeyFor('submit')), copy.submittedOk);
 
   const resubmit = () => run(async () => {
     const file = await pickFile(fileRef.current);
     return learningApi.resubmit(assignment!.id, {
       textBody: textBody || null,
       ...(file ?? {}),
-    }, idemKey.current);
+    }, idemKeyFor('resubmit'));
   }, copy.submittedOk);
 
   return (
@@ -354,18 +436,18 @@ function StudentWorkModal({
             {copy.deadline}: {assignment.deadlineAt ? formatDateTime(assignment.deadlineAt) : '—'}
           </p>
 
-          {submission == null ? (
+          {activeSubmission == null ? (
             <Button onClick={() => void ensureDraft()} disabled={busy || assignment.status !== 'PUBLISHED'}>
               <Upload className="mr-2 h-4 w-4" />{copy.draftWork}
             </Button>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className={cn('rounded-full px-2 py-0.5 text-xs', statusToneClass(submissionTone(submission.status)))}>
-                  {copy.statusLabels[submission.status] ?? submission.status}
+                <span className={cn('rounded-full px-2 py-0.5 text-xs', statusToneClass(submissionTone(activeSubmission.status)))}>
+                  {copy.statusLabels[activeSubmission.status] ?? activeSubmission.status}
                 </span>
-                {submission.submittedAt ? (
-                  <span className="text-xs text-muted-foreground">{formatDateTime(submission.submittedAt)}</span>
+                {activeSubmission.submittedAt ? (
+                  <span className="text-xs text-muted-foreground">{formatDateTime(activeSubmission.submittedAt)}</span>
                 ) : null}
               </div>
 
@@ -380,8 +462,13 @@ function StudentWorkModal({
                   />
                   <label className="block text-xs font-medium">{copy.attachFile}</label>
                   <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT_COURSEWORK} className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
+                  {draftFileName ? (
+                    <p className="truncate text-xs text-muted-foreground" data-testid="learning-draft-file">
+                      {copy.fileLabel}: {draftFileName}
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
-                    {submission.status === 'DRAFT' ? (
+                    {activeSubmission.status === 'DRAFT' ? (
                       <>
                         <Button size="sm" variant="outline" onClick={() => void save()} disabled={busy}>
                           {copy.saveDraft}
@@ -462,11 +549,15 @@ export function LecturerLearningPage() {
   const [sectionId, setSectionId] = useState('');
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [assignments, setAssignments] = useState<LearningAssignment[]>([]);
+  const [sectionLoadError, setSectionLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [materialOpen, setMaterialOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [rosterAssignment, setRosterAssignment] = useState<LearningAssignment | null>(null);
+  const sectionEpoch = useRef(createRequestEpoch()).current;
+  const pendingActionRef = useRef<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const loadSections = useCallback(async () => {
     setIsLoading(true);
@@ -484,6 +575,8 @@ export function LecturerLearningPage() {
   }, [copy]);
 
   const loadSection = useCallback(async (id: string) => {
+    const epoch = sectionEpoch.begin();
+    setSectionLoadError(false);
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -494,46 +587,58 @@ export function LecturerLearningPage() {
         learningApi.staffMaterials(id),
         learningApi.staffAssignments(id),
       ]);
+      if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
-    } catch (cause) {
-      toast.error(friendlyError(copy, cause));
+    } catch {
+      if (!sectionEpoch.isCurrent(epoch)) return;
+      setSectionLoadError(true);
     }
-  }, [copy]);
+  }, [sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
+  useEffect(() => () => { sectionEpoch.invalidate(); }, [sectionEpoch]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
   if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
 
-  const lifecycle = (assignment: LearningAssignment) => (
-    <div className="flex flex-wrap gap-1">
-      {assignment.status === 'DRAFT' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffPublish(assignment.id), copy.updated)}>
-          {copy.publish}
-        </Button>
-      ) : null}
-      {assignment.status === 'PUBLISHED' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffClose(assignment.id), copy.updated)}>
-          {copy.closeAssignment}
-        </Button>
-      ) : null}
-      {assignment.status === 'CLOSED' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffArchive(assignment.id), copy.updated)}>
-          {copy.archive}
-        </Button>
-      ) : null}
-    </div>
-  );
+  const lifecycle = (assignment: LearningAssignment) => {
+    const actionKey = `lifecycle:${assignment.id}`;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {assignment.status === 'DRAFT' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffPublish(assignment.id), copy.updated)}>
+            {copy.publish}
+          </Button>
+        ) : null}
+        {assignment.status === 'PUBLISHED' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffClose(assignment.id), copy.updated)}>
+            {copy.closeAssignment}
+          </Button>
+        ) : null}
+        {assignment.status === 'CLOSED' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffArchive(assignment.id), copy.updated)}>
+            {copy.archive}
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
 
-  const staffAction = async (action: () => Promise<unknown>, ok: string) => {
+  const staffAction = async (actionKey: string, action: () => Promise<unknown>, ok: string) => {
+    if (pendingActionRef.current !== null) return;
+    pendingActionRef.current = actionKey;
+    setPendingActionId(actionKey);
     try {
       await action();
       toast.success(ok);
       await loadSection(sectionId);
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
+    } finally {
+      pendingActionRef.current = null;
+      setPendingActionId(null);
     }
   };
 
@@ -571,7 +676,10 @@ export function LecturerLearningPage() {
             </select>
           </div>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          {sectionLoadError ? (
+            <ErrorState title={copy.failed} description="" onRetry={() => void loadSection(sectionId)} />
+          ) : (
+            <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-border p-5" data-testid="learning-staff-materials">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 font-semibold">
@@ -606,7 +714,8 @@ export function LecturerLearningPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => void staffAction(() => learningApi.staffDeleteMaterial(material.id, material.version), copy.deleted)}
+                          disabled={pendingActionId === `material:${material.id}`}
+                          onClick={() => void staffAction(`material:${material.id}`, () => learningApi.staffDeleteMaterial(material.id, material.version), copy.deleted)}
                         >
                           ×
                         </Button>
@@ -655,7 +764,8 @@ export function LecturerLearningPage() {
                 </ul>
               )}
             </div>
-          </section>
+            </section>
+          )}
         </>
       )}
 
@@ -694,9 +804,12 @@ function MaterialModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const create = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const file = await pickFile(fileRef.current);
@@ -714,6 +827,7 @@ function MaterialModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -745,8 +859,11 @@ function AssignmentModal({
   const [deadline, setDeadline] = useState('');
   const [maxScore, setMaxScore] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const create = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       await learningApi.staffCreateAssignment(sectionId, {
@@ -765,6 +882,7 @@ function AssignmentModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -772,23 +890,54 @@ function AssignmentModal({
   return (
     <Modal isOpen={open} onClose={onClose} title={copy.addAssignment}>
       <div className="space-y-3">
-        <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.assignmentTitle} />
-        <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder={copy.descriptionField} />
-        <label className="block text-xs font-medium">{copy.deadline}</label>
-        <input
-          type="datetime-local"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          aria-label={copy.deadline}
-          value={deadline}
-          onChange={(event) => setDeadline(event.target.value)}
-          data-testid="learning-assignment-deadline"
-        />
-        <Input
-          value={maxScore}
-          onChange={(event) => setMaxScore(event.target.value)}
-          placeholder={copy.maxScore}
-          type="number"
-        />
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-title" className="block text-xs font-medium">
+            {copy.assignmentTitle}
+          </label>
+          <Input
+            id="learning-assignment-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={copy.assignmentTitle}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-description" className="block text-xs font-medium">
+            {copy.descriptionField}
+          </label>
+          <Input
+            id="learning-assignment-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder={copy.descriptionField}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-deadline" className="block text-xs font-medium">
+            {copy.deadline}
+          </label>
+          <input
+            id="learning-assignment-deadline"
+            type="datetime-local"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            aria-label={copy.deadline}
+            value={deadline}
+            onChange={(event) => setDeadline(event.target.value)}
+            data-testid="learning-assignment-deadline"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-max-score" className="block text-xs font-medium">
+            {copy.maxScore}
+          </label>
+          <Input
+            id="learning-assignment-max-score"
+            value={maxScore}
+            onChange={(event) => setMaxScore(event.target.value)}
+            placeholder={copy.maxScore}
+            type="number"
+          />
+        </div>
         <Button onClick={() => void create()} disabled={busy || !title.trim()}>{copy.addAssignment}</Button>
       </div>
     </Modal>
@@ -807,9 +956,10 @@ function RosterModal({
   const [work, setWork] = useState<LearningSubmission | null>(null);
   const [revisions, setRevisions] = useState<LearningRevision[]>([]);
   const [feedback, setFeedback] = useState<LearningFeedback[]>([]);
-  const [comment, setComment] = useState('');
-  const [score, setScore] = useState('');
+  const [gradeDrafts, setGradeDrafts] = useState<Record<string, { comment: string; score: string }>>({});
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const workRequestToken = useRef(0);
 
   const load = useCallback(async () => {
     if (!assignment) return;
@@ -825,45 +975,58 @@ function RosterModal({
     setWork(null);
     setRevisions([]);
     setFeedback([]);
-    setComment('');
-    setScore('');
+    setGradeDrafts({});
     void load();
   }, [load]);
 
   const openWork = async (submissionId: string) => {
+    const requestToken = workRequestToken.current + 1;
+    workRequestToken.current = requestToken;
+    setWork(null);
+    setRevisions([]);
+    setFeedback([]);
     try {
       const [detail, revisionRows, feedbackRows] = await Promise.all([
         learningApi.staffSubmission(submissionId),
         learningApi.staffRevisions(submissionId),
         learningApi.staffFeedback(submissionId),
       ]);
+      if (workRequestToken.current !== requestToken) return;
       setWork(detail);
       setRevisions(revisionRows);
       setFeedback(feedbackRows);
     } catch (cause) {
+      if (workRequestToken.current !== requestToken) return;
       toast.error(friendlyError(copy, cause));
     }
   };
 
   const grade = async (action: 'return' | 'review') => {
-    if (!work) return;
+    if (!work || busyRef.current) return;
+    const submissionId = work.id;
+    const requestToken = workRequestToken.current;
+    const draft = gradeDrafts[submissionId] ?? { comment: '', score: '' };
+    busyRef.current = true;
     setBusy(true);
     try {
       const payload = {
-        comment: comment || null,
-        score: score ? Number(score) : null,
+        comment: draft.comment || null,
+        score: draft.score ? Number(draft.score) : null,
         expectedVersion: work.version,
       };
       const result = action === 'return'
-        ? await learningApi.staffReturn(work.id, { comment: comment || '', score: payload.score, expectedVersion: work.version })
-        : await learningApi.staffReview(work.id, payload);
-      setWork(result);
+        ? await learningApi.staffReturn(submissionId, { comment: draft.comment || '', score: payload.score, expectedVersion: work.version })
+        : await learningApi.staffReview(submissionId, payload);
+      if (workRequestToken.current === requestToken && result.id === submissionId) {
+        setWork(result);
+        await openWork(submissionId);
+      }
       toast.success(action === 'return' ? copy.returnedOk : copy.reviewedOk);
-      await openWork(result.id);
       await load();
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -944,11 +1107,26 @@ function RosterModal({
             ) : null}
 
             {reviewable ? (
-              <div className="space-y-2" data-testid="learning-grade-form">
-                <Input value={comment} onChange={(event) => setComment(event.target.value)} placeholder={copy.comment} />
-                <Input value={score} onChange={(event) => setScore(event.target.value)} placeholder={copy.score} type="number" />
+              <div key={work.id} className="space-y-2" data-testid="learning-grade-form">
+                <Input
+                  value={gradeDrafts[work.id]?.comment ?? ''}
+                  onChange={(event) => setGradeDrafts((current) => {
+                    const draft = current[work.id] ?? { comment: '', score: '' };
+                    return { ...current, [work.id]: { ...draft, comment: event.target.value } };
+                  })}
+                  placeholder={copy.comment}
+                />
+                <Input
+                  value={gradeDrafts[work.id]?.score ?? ''}
+                  onChange={(event) => setGradeDrafts((current) => {
+                    const draft = current[work.id] ?? { comment: '', score: '' };
+                    return { ...current, [work.id]: { ...draft, score: event.target.value } };
+                  })}
+                  placeholder={copy.score}
+                  type="number"
+                />
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void grade('return')} disabled={busy || !comment.trim()}>
+                  <Button size="sm" variant="outline" onClick={() => void grade('return')} disabled={busy || !(gradeDrafts[work.id]?.comment ?? '').trim()}>
                     {copy.returnWork}
                   </Button>
                   <Button size="sm" onClick={() => void grade('review')} disabled={busy}>

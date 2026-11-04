@@ -100,6 +100,7 @@ class ThesisResultPublicationSmtpTest extends ThesisPublicationFixture {
     @Test
     void committedPublicationProducesIndividualEscapedUtf8PlainAndHtmlMessages() throws Exception {
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         SMTP.assertHealthy();
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
@@ -153,6 +154,7 @@ class ThesisResultPublicationSmtpTest extends ThesisPublicationFixture {
         SMTP.reset(true);
 
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         SMTP.assertHealthy();
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
@@ -201,6 +203,7 @@ class ThesisResultPublicationSmtpTest extends ThesisPublicationFixture {
     @Test
     void repeatedPublicationConflictDoesNotRetryPreviouslySubmittedSmtpMessages() {
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
         assertThat(SMTP.messages).hasSize(6);
         int connections = SMTP.connections.get();
 
@@ -209,6 +212,7 @@ class ThesisResultPublicationSmtpTest extends ThesisPublicationFixture {
                     assertThat(failure.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(failure.getCode()).isEqualTo("ROUND_STATE_CONFLICT");
                 });
+        awaitMailIdle();
 
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
         assertThat(inboxCount()).isEqualTo(6);

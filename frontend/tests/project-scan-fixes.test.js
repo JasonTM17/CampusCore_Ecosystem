@@ -81,8 +81,8 @@ test('lecturer grade saves submit only edited rows, not the seeded roster', () =
   assert.match(page, /updates\.length === 0/);
   assert.doesNotMatch(page, /Array\.from\(grades\.values\(\)\)/);
   // Scores are nullable so a both-null row can clear a saved draft grade.
-  assert.match(read('src/lib/api.ts'), /processScore: number \| null; finalExamScore: number \| null/);
-  assert.doesNotMatch(read('src/lib/api.ts'), /grades: \{ enrollmentId: string; finalGrade/);
+  assert.match(read('src/types/api.ts'), /processScore: number \| null;\s*finalExamScore: number \| null/);
+  assert.doesNotMatch(read('src/types/api.ts'), /grades: \{ enrollmentId: string; finalGrade/);
 });
 
 test('grade score inputs use canonical 50-50 components and derive the letter grade', () => {
@@ -98,13 +98,16 @@ test('grade score inputs use canonical 50-50 components and derive the letter gr
 test('student grade views never invent component scores and lecturer notices expose four templates', () => {
   const gradesPage = read('src/app/dashboard/grades/page.tsx');
   const detailModal = read('src/components/dashboard/GradeDetailModal.tsx');
+  // The component-type labels live in the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
   // The four lecturer notice presets live in the shared message catalog and are
   // rendered by LecturerAnnouncementCreateModal's preset picker (PRESETS).
   const templates = read('src/i18n/messages.ts');
 
   assert.doesNotMatch(gradesPage, /getComponentScores/);
   assert.doesNotMatch(detailModal, /2 \* finalScore|finalScore - 0\.2/);
-  assert.match(detailModal, /Điểm quá trình \(ĐQT - 50%\)/);
+  assert.match(studentPortal, /Điểm quá trình \(ĐQT - 50%\)/);
+  assert.match(detailModal, /copy\.processItem/);
   for (const label of ['Nghỉ học & Học bù', 'Nhắc nhở nộp bài tập lớn/đồ án', 'Lịch thi & Kiểm tra', 'Thông báo lớp học phần']) {
     assert.match(templates, new RegExp(label.replace(/[&/]/g, '\\$&')));
   }
@@ -214,6 +217,8 @@ test('feedback polish: office-issued credentials are server-generated while stud
 test('feedback polish: curriculum counts stay localized and enrolled schedules use CampusCore weekdays', () => {
   const page = read('src/app/dashboard/enrollments/page.tsx');
   const grid = read('src/lib/weekly-grid.ts');
+  // The status-filter copy moved to the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /const courseCountLabel = useCallback/);
   assert.match(page, /value: courseCountLabel\(curriculumCourses\.length\)/);
@@ -223,7 +228,8 @@ test('feedback polish: curriculum counts stay localized and enrolled schedules u
   assert.match(page, /curriculumStatusSummary/);
   assert.match(page, /aria-label=\{copy\.statusSummaryLabel\}/);
   assert.match(page, /aria-pressed=\{statusFilter === btn\.key\}/);
-  assert.match(page, /filterNotStarted: 'Not completed'/);
+  assert.match(studentPortal, /filterNotStarted: 'Not completed'/);
+  assert.match(page, /copy\.filterNotStarted/);
   assert.match(page, /\{copy\.semesterPrefix\} \{sem\} - \{courseCountLabel\(courses\.length\)\}/);
   // Day names come from the shared weekly-grid source (single day-name source
   // of truth across every schedule view), with the legacy 0=Sunday fold kept.
@@ -242,19 +248,20 @@ test('feedback polish: curriculum counts stay localized and enrolled schedules u
 
 test('feedback polish: transcript semester selector is singular and chart controls expose state', () => {
   const page = read('src/app/dashboard/transcript/page.tsx');
+  const catalog = read('src/i18n/messages-student-pages.ts');
 
-  assert.equal((page.match(/aria-label=\{copy\.selectSemester\}/g) ?? []).length, 1);
+  assert.equal((page.match(/aria-label=\{transcriptMessages\.selectSemester\}/g) ?? []).length, 1);
   // Round-5: the toggle is a mapped segmented control; every mode still
   // exposes its pressed state through the single aria-pressed expression.
   assert.match(page, /aria-pressed=\{gpaMode === mode\}/);
-  assert.match(page, /\['cumulative', copy\.gpaAllTrend\]/);
-  assert.match(page, /\['semester', copy\.gpaSemesterTrend\]/);
-  assert.match(page, /\['both', copy\.gpaBothTrend\]/);
+  assert.match(page, /\['cumulative', transcriptMessages\.gpaAllTrend\]/);
+  assert.match(page, /\['semester', transcriptMessages\.gpaSemesterTrend\]/);
+  assert.match(page, /\['both', transcriptMessages\.gpaBothTrend\]/);
   // Honesty (phase 04, STUD-P2-6): the header must not claim a per-semester
   // GPA while the card shows the cumulative figure.
   assert.doesNotMatch(page, /description: `GPA, credits, and course outcomes for \$\{selectedSemesterName\}\.`/);
-  assert.match(page, /Cumulative GPA and credits across all semesters; select a semester for per-course outcomes\./);
-  assert.match(page, /clickToViewDetail: 'Midterm\/final detail'/);
+  assert.match(catalog, /Cumulative GPA and credits across all semesters; select a semester for per-course outcomes\./);
+  assert.match(catalog, /clickToViewDetail: 'Midterm\/final detail'/);
   assert.doesNotMatch(page, /Click on a course to view Midterm & Final score breakdown/);
   assert.doesNotMatch(page, /Nhấn vào môn học để xem chi tiết điểm/);
 });
@@ -269,22 +276,6 @@ test('registration idempotency keeps PostgreSQL duplicate claims inside the tran
   assert.ok(service.includes('ON CONFLICT (\\"ownerId\\", \\"idempotencyKey\\") DO NOTHING'));
   assert.match(service, /if \(inserted == 1\) \{\s*return null;/s);
   assert.match(service, /H2 does not implement PostgreSQL's ON CONFLICT syntax/);
-});
-
-test('published image tags are full-SHA, revision-bound, and never auto-promote latest', () => {
-  const workflow = fs.readFileSync(path.join(root, '../.github/workflows/publish-ghcr.yml'), 'utf8');
-  const overlay = fs.readFileSync(path.join(root, '../docker-compose.rag.override.yml'), 'utf8');
-
-  assert.match(workflow, /type=raw,value=candidate-\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
-  assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
-  assert.match(workflow, /\.Image\.Config\.Labels/);
-  assert.match(workflow, /--format '\{\{\.Manifest\.Digest\}\}'/);
-  assert.doesNotMatch(workflow, /\|\s*awk/);
-  assert.match(workflow, /refusing wrong-revision|revision.*not \$full_sha/s);
-  assert.doesNotMatch(workflow, /promote-latest|:latest\b|value=latest/);
-  assert.equal((workflow.match(/imagetools create/g) ?? []).length, 1, 'release tags are created only by the single scanned-digest promotion');
-  assert.match(workflow, /imagetools create --tag "\$target" "\$SCAN_REF"/);
-  assert.match(overlay, /CAMPUSCORE_IMAGE_TAG:\?Set CAMPUSCORE_IMAGE_TAG/);
 });
 
 test('Playwright defaults to the collision-checked CampusCore frontend port', () => {
@@ -399,14 +390,14 @@ test('conduct score page localizes dense records and gives mobile its own cards'
   const page = read('src/app/dashboard/conduct/page.tsx');
 
   assert.match(page, /const \{ messages, formatDate, formatNumber, locale \} = useI18n\(\)/);
-  assert.match(page, /const conductCopy =/);
+  assert.match(page, /messages\.studentPages\.conduct/);
   assert.match(page, /const activityDetails = \(activity: ConductActivity\)/);
   assert.match(page, /const selectedActivityDetails = selectedActivity \? activityDetails\(selectedActivity\) : null/);
-  assert.match(page, /copy\.historyTitle/);
+  assert.match(page, /conductMessages\.historyTitle/);
   assert.match(page, /formatSemesterName\(item\.semesterName\)/);
-  assert.match(page, /copy\.classificationScaleTitle/);
+  assert.match(page, /conductMessages\.classificationScaleTitle/);
   assert.match(page, /selectedActivity && selectedActivityDetails/);
-  assert.match(page, /copy\.certificateTitle/);
+  assert.match(page, /conductMessages\.certificateTitle/);
   // Honest conduct states: no client-side criterion guessing, no id-keyed EN
   // rewrite of real activity records, no invented semester name, and the
   // criteria grid says when details have not been published.
@@ -414,7 +405,7 @@ test('conduct score page localizes dense records and gives mobile its own cards'
   assert.doesNotMatch(page, /conductActivityCopy/);
   assert.doesNotMatch(page, /Học kỳ 1 năm học 2026/);
   assert.match(page, /if \(!name\) return '—';/);
-  assert.match(page, /copy\.criteriaEmpty/);
+  assert.match(page, /conductMessages\.criteriaEmpty/);
   assert.match(page, /className="divide-y divide-border\/60 sm:hidden"/);
   assert.match(page, /className="hidden overflow-x-auto sm:block"/);
   assert.doesNotMatch(page, /Lịch Sử Điểm Rèn Luyện Qua Các Học Kỳ/);
@@ -433,15 +424,23 @@ test('dogfood audit: admin enrollments section lookup respects the 100 cap and c
 
 test('feedback polish: admin enrollment opens a student-focused detail profile', () => {
   const page = read('src/app/admin/enrollments/page.tsx');
+  // The profile labels live in the adminAcademics fragment; the
+  // page still renders them through its `copy` group.
+  const catalogue = read('src/i18n/messages-admin-academics.ts');
 
   assert.match(page, /function getLearnerLabel\(enrollment: Enrollment\)/);
   assert.match(page, /function getStudentCodeLabel\(enrollment: Enrollment\)/);
-  assert.match(page, /viewStudentLabel: \(learnerLabel: string\) =>/);
-  assert.match(page, /type="button"[\s\S]{0,500}?copy\.viewStudentLabel\(learnerLabel\)/);
+  assert.match(page, /const viewStudentLabel = \(learnerLabel: string\) =>/);
+  assert.match(page, /type="button"[\s\S]{0,500}?viewStudentLabel\(learnerLabel\)/);
   assert.match(page, /title=\{copy\.detail\.title\}/);
-  assert.match(page, /studentProfile: 'Student profile'/);
-  assert.match(page, /studentCode: 'Student code'/);
-  assert.match(page, /enrollmentId: 'Enrollment ID'/);
+  for (const literal of [
+    "studentProfile: 'Student profile'",
+    "studentCode: 'Student code'",
+    "enrollmentId: 'Enrollment ID'",
+  ]) {
+    assert.equal(catalogue.includes(literal), true, `the catalogue must carry ${literal}`);
+    assert.equal(page.includes(literal), false, `the page still owns ${literal}`);
+  }
   assert.match(page, /getStudentCodeLabel\(selectedEnrollment\)/);
   assert.match(page, /selectedEnrollment\.finalGrade !== null &&[\s\S]{0,90}?selectedEnrollment\.finalGrade !== undefined/);
   assert.doesNotMatch(page, /selectedEnrollment\.finalGrade \?/);
@@ -451,17 +450,22 @@ test('feedback polish: grade breakdown opens through native controls and guards 
   const page = read('src/app/dashboard/grades/page.tsx');
   const modal = read('src/components/dashboard/GradeDetailModal.tsx');
   const spec = read('e2e/demo-polish.spec.ts');
+  // Grades copy lives in the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /function isFiniteScore\(value: number \| null \| undefined\): value is number/);
   assert.match(page, /const scoreLabel = \(value: number \| null \| undefined\) =>/);
-  assert.match(page, /componentSummary: 'Component scores by course'/);
-  assert.match(page, /openBreakdown: \(courseCode: string, courseName: string\) =>/);
+  assert.match(studentPortal, /componentSummary: 'Component scores by course'/);
+  assert.match(page, /copy\.componentSummary/);
+  assert.match(studentPortal, /openBreakdown: 'Open grade breakdown for \{courseCode\} \{courseName\}'/);
+  assert.match(page, /copy\.openBreakdown/);
   assert.match(page, /type="button"[\s\S]{0,520}?aria-label=\{openLabel\}/);
   assert.doesNotMatch(page, /<tr[\s\S]{0,140}?onClick=\{\(\) => setSelectedRecord\(record\)\}/);
   assert.doesNotMatch(page, /record\.finalGrade !== null\s*\?\s*record\.finalGrade\.toFixed\(1\)/);
 
   assert.match(modal, /getStudentGradesByEnrollment\(record\.id\)/);
-  assert.match(modal, /const emptyValue = locale === 'vi' \? 'Chưa có' : 'N\/A'/);
+  assert.match(studentPortal, /emptyValue: 'N\/A'/);
+  assert.match(modal, /const emptyValue = copy\.emptyValue/);
   assert.match(modal, /isFiniteScore\(record\.finalGrade\)/);
   assert.match(modal, /isFiniteScore\(item\.score\)/);
   assert.doesNotMatch(modal, /'—'/);
@@ -718,4 +722,28 @@ test('attendance ships both route twins on the attendance API', () => {
   assert.match(messages, /statsPresentRateHint: 'số phiên có mặt ÷ số phiên đã ghi'/);
   assert.match(messages, /tableTitle: 'Attendance records'/);
   assert.match(messages, /tableTitle: 'Bản ghi điểm danh'/);
+});
+
+test('weekly grid keeps hydration-time media and clock reads out of render', () => {
+  const grid = read('src/components/schedule/weekly-grid.tsx');
+
+  assert.match(grid, /const \[railNarrow, setRailNarrow\] = useState\(false\)/);
+  assert.doesNotMatch(grid, /useState\(\s*\(\) => typeof window/);
+  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?window\.matchMedia\('\(max-width: 639px\)'\)/);
+  const componentStart = grid.indexOf('export function WeeklyGrid');
+  const renderPrelude = grid.slice(componentStart, grid.indexOf('useEffect', componentStart));
+  assert.doesNotMatch(renderPrelude, /new Date\(\)/);
+  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?setClientTodayDow\(campusTodayDow\)/);
+  assert.match(grid, /useCampusDayOfWeek/);
+  assert.doesNotMatch(grid, /new Date\(\)\.getDay\(\)/,
+    'the fallback must not derive today from the viewer calendar');
+});
+
+test('compact weekly agenda keeps list containment around its row buttons', () => {
+  const grid = read('src/components/schedule/weekly-grid.tsx');
+
+  assert.match(grid, /<div role="list" aria-label=\{dayName\} className="space-y-1">/);
+  assert.match(grid, /<div key=\{item\.id\} role="listitem">/);
+  assert.doesNotMatch(grid, /role=\{onItemSelect \? 'button' : 'listitem'\}/);
+  assert.match(grid, /<button\s+type="button"\s+onClick=\{\(\) => onItemSelect\(item\)\}/);
 });

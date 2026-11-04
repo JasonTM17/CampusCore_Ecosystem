@@ -2,9 +2,11 @@ import { groupedRows } from '../../components/perf/grouped-rows';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, HeroCard, IconChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, HeroCard, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type RegistrationWorkspace } from '../academic/academic-api';
 import { isActiveEnrollment, isDroppableEnrollment } from '../academic/academic-model';
@@ -20,7 +22,7 @@ import {
   type SectionMeeting,
 } from '../academic/registration-browse';
 import { RegistrationControls } from '../academic/RegistrationControls';
-import { AcademicShell, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { AcademicShell, academicErrorMessage, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 import { useRegistrationActions } from '../academic/useRegistrationActions';
 
 const PAGE_SIZE = 20;
@@ -47,6 +49,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.registration', () => academicApi.registrationWorkspace(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const workspace = preview ? previewWorkspace : query.data;
   const [browse, setBrowse] = useState<BrowseQuery>({ search: '', curriculum: 'ALL', hideFull: false, sort: 'code' });
   const [visibleGroups, setVisibleGroups] = useState(PAGE_SIZE);
@@ -56,6 +59,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const catalogIds = useMemo(() => sections.map((section) => section.id), [sections]);
   const actions = useRegistrationActions({
     copy, locale, preview, knownOffline: query.errorStatus === 0, reload: query.reload, catalogIds,
+    roundOpen: workspace?.roundOpen,
   });
 
   const enrolledMeetings = useMemo<SectionMeeting[]>(
@@ -68,7 +72,15 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const roundOpen = workspace?.roundOpen ?? false;
 
   const toView = (section: BrowseSection): SectionView => {
-    const availability = sectionAvailability(section, { roundOpen, enrolledMeetings, creditsRemaining: workspace?.eligibility?.creditsRemaining });
+    // The basket joins the checks: a second section must fit beside the picks.
+    const others = sections.filter((item) => item.id !== section.id && actions.basket.selected.includes(item.id));
+    const availability = sectionAvailability(section, {
+      roundOpen,
+      enrolledMeetings: others.length === 0 ? enrolledMeetings : [...enrolledMeetings, ...others.flatMap((item) => item.schedules ?? [])],
+      creditsRemaining: typeof workspace?.eligibility?.creditsRemaining === 'number'
+        ? workspace.eligibility.creditsRemaining - others.reduce((sum, item) => sum + (item.credits ?? 0), 0)
+        : workspace?.eligibility?.creditsRemaining,
+    });
     const failure = actions.basket.failures[section.id];
     const enrollment = (workspace?.enrollments ?? []).find((item) => item.sectionId === section.id && isDroppableEnrollment(item.status));
     return {
@@ -77,7 +89,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       name: section.courseName,
       number: section.sectionNumber,
       credits: section.credits ?? 0,
-      seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(copy.seatsLeft, { n: section.remainingSeats }),
+      seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(countForm(section.remainingSeats, copy.seatsLeftOne, copy.seatsLeft), { n: section.remainingSeats }),
       availability,
       meetings: (section.schedules ?? []).map((slot) => `${copy.dayLong[slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek] ?? ''} ${slot.startTime}–${slot.endTime}${slot.room ? ` · ${slot.room}` : ''}`).join('; '),
       failure: failure ? copy.errors[failure.messageKey] ?? copy.errors.generic : undefined,
@@ -96,6 +108,8 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(groups.slice(0, visibleGroups), (group) => group.courseKey, (group) => group.sections, (item) => item.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;
@@ -103,7 +117,7 @@ if (entry.kind === "header") return <>
           <View style={styles.courseHeading}>
             <IconChip icon="book-open-variant" size={32} />
             <UiText accessibilityRole="header" variant="label" tone="primary" style={styles.courseHeadingText}>
-              {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
+              {group.courseCode} · {group.courseName} · {fillCopy(countForm(group.credits, copy.creditsOne, copy.credits), { n: group.credits })}
             </UiText>
           </View>
           </>;
@@ -169,7 +183,7 @@ return (
       >
         <View style={styles.heroActions}>
           {roundOpen ? <StatusPill label={copy.availability.open} tone="success" /> : null}
-          {selectedCount > 0 ? (
+          {selectedCount > 0 && roundOpen ? (
             <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
           ) : null}
         </View>
@@ -177,7 +191,10 @@ return (
           <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
         ) : null}
       </HeroCard>
-      {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
+      {workspace?.eligibilityError ? (
+        <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+      ) : null}
+      {!roundOpen ? <StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /> : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
       <ScreenSpacer />
       {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}

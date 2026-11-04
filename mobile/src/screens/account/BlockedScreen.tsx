@@ -4,6 +4,7 @@ import { Button, StatusPill, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useSession } from '../../session/SessionContext';
+import { configuredPortalUrl } from '../operations/shared/portal-url';
 import { AccountFrame } from './AccountFrame';
 import { useAccountCopy } from './use-account-copy';
 
@@ -14,27 +15,26 @@ import { useAccountCopy } from './use-account-copy';
 export function BlockedScreen({ navigation }: MobileScreenProps) {
   const copy = useAccountCopy();
   const session = useSession();
-  const reason =
-    session.blockedReason ??
-    'Sign-in could not finish. Use the web portal if this keeps happening.';
+  const reason = session.blockedReason ?? copy.blocked.fallbackReason;
+  const portal = configuredPortalUrl();
 
   return (
-    <AccountFrame title="Sign-in blocked" subtitle="Access verification required">
+    <AccountFrame title={copy.blocked.title} subtitle={copy.blocked.subtitle}>
       <View style={styles.content}>
-        <StatusPill label="Blocked" tone="error" icon="shield-alert-outline" />
+        <StatusPill label={copy.blocked.status} tone="error" icon="shield-alert-outline" />
         <UiText variant="bodyMedium" tone="muted" style={styles.reason}>
           {reason}
         </UiText>
-        <Button
-          icon="web"
-          label="Open web portal"
-          onPress={() => {
-            const portal =
-              process.env.EXPO_PUBLIC_PORTAL_URL ?? 'https://portal.localhost:3102';
-            void Linking.openURL(portal).catch(() => undefined);
-          }}
-          style={styles.primaryAction}
-        />
+        {portal ? (
+          <Button
+            icon="web"
+            label={copy.blocked.openPortal}
+            onPress={() => {
+              void Linking.openURL(portal).catch(() => undefined);
+            }}
+            style={styles.primaryAction}
+          />
+        ) : null}
         <Button
           label={copy.common.backToSignIn}
           variant="secondary"

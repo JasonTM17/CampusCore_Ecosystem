@@ -2,7 +2,7 @@
 // `preview` and always label it as preview data; live mode never reads this.
 
 import type { AcademicEnrollment, AcademicSemester } from './academic-model';
-import type { AcademicGradeRecord, AttendanceSummaryRow } from './academic-api';
+import type { AcademicGradeRecord, AttendanceSummaryRow, MyCurriculum } from './academic-api';
 import type { BrowseSection } from './registration-browse';
 
 const course = (code: string, name: string, credits: number) => ({ code, name, nameEn: name, nameVi: name, credits });
@@ -44,6 +44,15 @@ export const previewGrades: AcademicGradeRecord[] = [
   { id: 'preview-g-cs204', courseCode: 'CS204', courseName: 'Software Architecture', credits: 3, finalGrade: 9.1, letterGrade: 'A+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id, semesterNameEn: previewSemester.nameEn, semesterNameVi: previewSemester.nameVi },
   { id: 'preview-g-ba312', courseCode: 'BA312', courseName: 'Business Analytics', credits: 3, finalGrade: 8.4, letterGrade: 'B+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id, semesterNameEn: previewSemester.nameEn, semesterNameVi: previewSemester.nameVi },
 ];
+
+export const previewCurriculum: MyCurriculum = {
+  curriculum: { id: 'preview-curriculum', code: 'SE2026', name: 'Kỹ thuật phần mềm', nameVi: 'Kỹ thuật phần mềm', nameEn: 'Software Engineering', totalCredits: 120 },
+  courses: [
+    { courseId: 'preview-cs101', code: 'CS101', name: 'Nhập môn lập trình', nameVi: 'Nhập môn lập trình', nameEn: 'Introduction to Programming', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED', finalGrade: 8.7, letterGrade: 'A' },
+    { courseId: 'preview-cs204', code: 'CS204', name: 'Kiến trúc phần mềm', nameVi: 'Kiến trúc phần mềm', nameEn: 'Software Architecture', credits: 3, year: 2, semester: 1, isMandatory: true, status: 'IN_PROGRESS' },
+    { courseId: 'preview-ux305', code: 'UX305', name: 'Thiết kế dịch vụ', nameVi: 'Thiết kế dịch vụ', nameEn: 'Service Design', credits: 2, year: 2, semester: 2, isMandatory: false, status: 'NOT_STARTED', prerequisites: ['CS101'] },
+  ],
+};
 
 export const previewAttendance: AttendanceSummaryRow[] = [
   { sectionId: 'preview-sec-cs204', courseCode: 'CS204', courseName: 'Software Architecture', total: 16, present: 15, absent: 1, late: 0, excused: 0, attendanceRate: 94 },

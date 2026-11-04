@@ -5,30 +5,47 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createWebModuleLoader } from './helpers/load-web-module.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
+const webSrc = path.resolve(mobileRoot, '..', 'frontend', 'src');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-lecturer-'));
+const loadWeb = createWebModuleLoader(webSrc, tmp);
 
-async function load(file, name) {
-  const source = fs.readFileSync(file, 'utf8');
+async function load(file, name, development, rewrites = {}) {
+  let source = fs.readFileSync(file, 'utf8');
+  for (const [from, to] of Object.entries(rewrites)) source = source.split(`'${from}'`).join(`'${to}'`);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: `${name}.ts`,
   });
   const out = path.join(tmp, `${name}.mjs`);
   fs.writeFileSync(out, outputText);
-  return import(pathToFileURL(out).href);
+  const previousDev = globalThis.__DEV__;
+  if (development !== undefined) globalThis.__DEV__ = development;
+  try {
+    return await import(pathToFileURL(out).href);
+  } finally {
+    if (development !== undefined) {
+      if (previousDev === undefined) delete globalThis.__DEV__;
+      else globalThis.__DEV__ = previousDev;
+    }
+  }
 }
 
 const ops = path.join(mobileRoot, 'src', 'screens', 'operations');
-const model = await load(path.join(ops, 'lecturer-model.ts'), 'lecturer-model');
+const localeUrl = pathToFileURL(path.join(tmp, 'locale.mjs')).href;
+const locale = await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
+const model = await load(path.join(ops, 'lecturer-model.ts'), 'lecturer-model', undefined, { '../../i18n/locale': localeUrl });
 const csv = await load(path.join(ops, 'lecturer-csv.ts'), 'lecturer-csv');
 const portal = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url');
+const portalDevelopment = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-development', true);
+const portalRelease = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-release', false);
 const opsMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'operations-messages.ts'), 'operations-messages');
 const laneMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'lanes-messages.ts'), 'lanes-messages');
-const webAttendance = await load(path.join(webLib, 'attendance-export.ts'), 'web-attendance-export');
-const webGrade = await load(path.join(webLib, 'grade-export.ts'), 'web-grade-export');
+const webAttendance = await import(pathToFileURL(loadWeb(path.join(webLib, 'attendance-export.ts'))).href);
+const webGrade = await import(pathToFileURL(loadWeb(path.join(webLib, 'grade-export.ts'))).href);
 
 const roster = [
   { studentId: 's1', studentCode: '2110001', firstName: 'An', lastName: 'Nguyễn' },
@@ -71,6 +88,17 @@ test('grade csv, summary and letter scale match the web generator', () => {
   assert.equal(csv.escapeCsvField('a,"b"\nc'), webAttendance.escapeCsvField('a,"b"\nc'));
 });
 
+test('escapeCsvField neutralizes formula characters preceded by line breaks', () => {
+  assert.equal(
+    csv.escapeCsvField('\n=HYPERLINK("https://attacker.example","Review")'),
+    '"\'\n=HYPERLINK(""https://attacker.example"",""Review"")"',
+  );
+  assert.equal(csv.escapeCsvField('\r\n+1234'), '"\'\r\n+1234"');
+  assert.equal(csv.escapeCsvField('\n-5'), '"\'\n-5"');
+  assert.equal(csv.escapeCsvField('\n@SUM(1,2)'), '"\'\n@SUM(1,2)"');
+  assert.equal(csv.escapeCsvField('\n\t123'), '"\'\n\t123"');
+});
+
 test('csv file names and data uri carry no path separators', () => {
   assert.equal(csv.attendanceCsvFilename('01', '2026-10-28'), 'diem-danh-01-2026-10-28.csv');
   assert.equal(csv.gradeCsvFilename('CS101', '01', '2026-10-28'), 'Bang_diem_CS101_Lop_01_2026-10-28.csv');
@@ -101,6 +129,58 @@ test('stale attendance is detected when the server marks or roster changed', () 
   assert.equal(model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'ABSENT' }]), true);
   assert.equal(model.isStaleAttendance(baseline, roster, [...marks, { studentId: 's2', status: 'LATE' }]), true);
   assert.equal(model.isStaleAttendance(baseline, roster.slice(1), marks), true);
+});
+
+test('a note-only server edit makes the attendance sheet stale', () => {
+  const marks = [{ studentId: 's1', status: 'EXCUSED', notes: 'sick' }];
+  const baseline = model.baselineOf(roster, marks);
+  assert.equal(model.isStaleAttendance(baseline, roster, marks), false);
+  assert.equal(
+    model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'EXCUSED', notes: 'medical leave' }]),
+    true,
+    'a note edited elsewhere is a newer server state',
+  );
+  assert.equal(
+    model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'EXCUSED', notes: ' sick ' }]),
+    false,
+    'surrounding whitespace is not an edit',
+  );
+
+  const saved = model.savedBaseline(model.buildRosterRows(roster, marks));
+  assert.equal(
+    model.isStaleAttendance(saved, roster, [{ studentId: 's1', status: 'EXCUSED', notes: 'medical leave' }]),
+    true,
+    'the baseline after a save still tracks notes',
+  );
+});
+
+test('the attendance day is the fixed UTC+07 campus day', () => {
+  assert.equal(typeof locale.campusIsoDate, 'function', 'a campus-day helper exists');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-02T23:30:00Z')), '2026-11-03');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-03T16:59:59Z')), '2026-11-03');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-03T17:00:00Z')), '2026-11-04');
+
+  const screen = fs.readFileSync(path.join(ops, 'LecturerAttendanceScreen.tsx'), 'utf8');
+  assert.match(screen, /const today = campusIsoDate\(\);/);
+  assert.doesNotMatch(screen, /localIsoDate/);
+});
+
+test('grade CSV file names follow the fixed UTC+07 campus day', () => {
+  const screen = fs.readFileSync(path.join(ops, 'LecturerGradingScreen.tsx'), 'utf8');
+  assert.match(screen, /gradeCsvFilename\([^)]*campusIsoDate\(\)/);
+  assert.doesNotMatch(screen, /localIsoDate/);
+});
+
+test('lecturer today follows the fixed UTC+07 campus day', () => {
+  const getDay = Date.prototype.getDay;
+  Date.prototype.getDay = Date.prototype.getUTCDay;
+  try {
+    assert.equal(model.dayNumberOf(new Date('2026-11-02T23:00:00Z')), 3);
+    assert.equal(model.dayNumberOf(new Date('2026-11-03T16:59:00Z')), 3);
+    assert.equal(model.dayNumberOf(new Date('2026-11-03T17:00:00Z')), 4);
+  } finally {
+    Date.prototype.getDay = getDay;
+  }
 });
 
 test('attendance metrics use present plus late over the whole roster', () => {
@@ -150,6 +230,19 @@ test('portal hand-off joins only a fixed same-path onto the configured base', ()
   for (const bad of ['//evil.com', '/a/../b', '/a?x=1', 'https://evil.com', '', '/a b']) {
     assert.equal(portal.portalUrl(bad, 'https://portal.example.edu'), 'https://portal.example.edu', bad);
   }
+});
+
+test('the default portal URL follows the build mode', () => {
+  assert.equal(portal.defaultPortalUrl(true), 'https://portal.localhost:3102');
+  assert.equal(portal.defaultPortalUrl(false), undefined);
+  assert.equal(portal.DEFAULT_PORTAL_URL, undefined);
+  assert.equal(portalDevelopment.DEFAULT_PORTAL_URL, 'https://portal.localhost:3102');
+  assert.equal(portalRelease.DEFAULT_PORTAL_URL, undefined);
+  assert.equal(portal.resolvePortalBaseUrl(undefined, true), 'https://portal.localhost:3102');
+  assert.equal(portal.resolvePortalBaseUrl('', false), undefined);
+  assert.equal(portal.resolvePortalBaseUrl(undefined, false), undefined);
+  assert.equal(portal.resolvePortalBaseUrl('https://portal.example.edu', false), 'https://portal.example.edu');
+  assert.equal(portal.portalUrl('/admin/users', undefined), undefined);
 });
 
 const keyShape = (value) =>

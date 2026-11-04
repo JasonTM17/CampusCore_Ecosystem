@@ -107,7 +107,7 @@ public class AdmissionService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !roles.contains("ADMIN")) {
+        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
             throw problem(HttpStatus.FORBIDDEN, "ADMISSIONS_ADMIN_REQUIRED",
                     "Grant administration requires the ADMIN role");
         }
@@ -123,18 +123,25 @@ public class AdmissionService {
 
     public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
             List<String> actorRoles, ListPaging.Window window) {
-        if (actorRoles == null || !actorRoles.contains("ADMIN")) {
+        boolean administrator = actorRoles != null
+                && (actorRoles.contains("ADMIN") || actorRoles.contains("SUPER_ADMIN"));
+        if (!administrator) {
             requireStaffGrant(actorId);
         }
         MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        String scopeFilter = " WHERE \"scope\" = :scope";
+        if (!administrator) {
+            scopeFilter += " AND \"userId\" = :actor";
+            params.addValue("actor", actorId);
+        }
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT + scopeFilter,
                     params, Long.class);
         }
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT + scopeFilter + " ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());
@@ -551,8 +558,18 @@ public class AdmissionService {
         notifications.create(new CreateNotificationCommand(
                 UUID.randomUUID().toString(),
                 String.valueOf(application.get("applicantUserId")),
-                title, message, type,
+                capNotificationText(title, 240), capNotificationText(message, 2000), type,
                 "/apply", Instant.now()));
+    }
+
+    /** Fits notification columns in both supported databases without splitting surrogate pairs. */
+    private static String capNotificationText(String value, int maxLength) {
+        int end = Math.min(value.length(), maxLength);
+        if (end < value.length() && Character.isHighSurrogate(value.charAt(end - 1))
+                && Character.isLowSurrogate(value.charAt(end))) {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private String serializeChecklist(List<ChecklistItemRequest> checklist) {

@@ -58,6 +58,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { WeeklyGrid, shortDayLabel, type WeeklyGridAgendaItem } from '@/components/schedule/weekly-grid';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
+import { countLabel } from '@/lib/plural';
 import { toast } from 'sonner';
 import { RegisteredCoursesPanel } from '@/components/registration/registered-courses-panel';
 import { RegistrationTabs, type RegistrationTab } from '@/components/registration/registration-tabs';
@@ -303,10 +304,16 @@ export default function RegisterPage() {
   );
 
   const eligibilityErrorCode = eligibilityQuery.error ? campusErrorCode(eligibilityQuery.error) : undefined;
+  // A cohort rejection is about this student, not about the round's window:
+  // keep it out of the "no round is open" answer and say why registration is
+  // blocked.
+  const eligibilityBlocked =
+    eligibilityErrorCode === 'COHORT_INELIGIBLE'
+    || eligibilityQuery.data?.eligible === false;
   const roundOpen =
     Boolean(roundId)
     && !(eligibilityQuery.isError && ROUND_UNAVAILABLE_CODES.has(eligibilityErrorCode ?? ''))
-    && eligibilityQuery.data?.eligible !== false;
+    && !eligibilityBlocked;
 
   const sections = useMemo(() => sectionsQuery.data ?? [], [sectionsQuery.data]);
   const enrollments = useMemo(() => enrollmentsQuery.data ?? [], [enrollmentsQuery.data]);
@@ -967,7 +974,7 @@ export default function RegisterPage() {
               <div className="inline-flex max-w-full items-center gap-2.5 rounded-lg border border-border/70 bg-secondary/40 px-3 py-1.5 text-xs">
                 <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-foreground">
                   <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                  {copy.groupSectionCount.replace('{count}', formatNumber(registered.length))}
+                  {countLabel(registered.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(registered.length))}
                 </span>
                 <span className="text-border" aria-hidden="true">|</span>
                 <span className="inline-flex shrink-0 items-center gap-1.5">
@@ -1002,7 +1009,11 @@ export default function RegisterPage() {
                 </span>
                 {creditLimit !== null && creditLimit - totalRegisteredCredits > 0 ? (
                   <span className="hidden shrink-0 font-medium text-muted-foreground md:inline">
-                    {copy.headerCreditsRemaining.replace('{count}', formatNumber(creditLimit - totalRegisteredCredits))}
+                    {countLabel(
+                      creditLimit - totalRegisteredCredits,
+                      copy.headerCreditRemaining,
+                      copy.headerCreditsRemaining,
+                    ).replace('{count}', formatNumber(creditLimit - totalRegisteredCredits))}
                   </span>
                 ) : null}
                 {railWarnings.length > 0 ? (
@@ -1050,6 +1061,12 @@ export default function RegisterPage() {
           title={copy.loadFailed}
           description={actionMessage(roundsQuery.error)}
           onRetry={() => void roundsQuery.refetch()}
+        />
+      ) : eligibilityBlocked ? (
+        <EmptyState
+          icon={CalendarClock}
+          title={copy.errorCodes.cohortIneligible}
+          description={copy.cohortIneligibleDescription}
         />
       ) : !roundOpen ? (
         <EmptyState icon={CalendarClock} title={copy.roundUnavailable} description={copy.roundUnavailableDescription} />
@@ -1118,7 +1135,7 @@ export default function RegisterPage() {
           ) : null}
           {actionError ? (
             <div ref={actionErrorRef} data-testid="registration-action-error" role="alert"
-              className="scroll-mt-[calc(var(--portal-header-height)+5rem)] rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              className="scroll-mt-[calc(var(--portal-header-height)+5rem)] rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-status-danger-foreground">
               {actionError}
             </div>
           ) : null}
@@ -1187,7 +1204,11 @@ export default function RegisterPage() {
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground">
-                      {copy.sectionCount.replace('{count}', formatNumber(filteredSections.length))}
+                      {countLabel(
+                        filteredSections.length,
+                        copy.sectionCountSingular,
+                        copy.sectionCount,
+                      ).replace('{count}', formatNumber(filteredSections.length))}
                     </p>
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{copy.sortLabel}</span>
@@ -1248,7 +1269,7 @@ export default function RegisterPage() {
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
                                   {formatNumber(group.credits)} {copy.creditsUnit} ·{' '}
-                                  {copy.groupSectionCount.replace('{count}', formatNumber(group.sections.length))}
+                                  {countLabel(group.sections.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(group.sections.length))}
                                 </span>
                               </span>
                             </button>
@@ -1260,7 +1281,7 @@ export default function RegisterPage() {
                               }`}
                             >
                               {openSeats > 0
-                                ? copy.seatsOpen.replace('{count}', formatNumber(openSeats))
+                                ? countLabel(openSeats, copy.seatsOpenOne, copy.seatsOpen).replace('{count}', formatNumber(openSeats))
                                 : copy.full}
                             </span>
                           </div>
@@ -1315,7 +1336,7 @@ export default function RegisterPage() {
                                         </span>
                                       ) : null}
                                       {section.scheduleConflict ? (
-                                        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                                        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-status-danger-foreground">
                                           {copy.conflictBadge}
                                         </span>
                                       ) : null}
@@ -1425,7 +1446,7 @@ export default function RegisterPage() {
                 <CardTitle className="mr-auto whitespace-nowrap">{copy.enrolledRail}</CardTitle>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className="whitespace-nowrap rounded-md bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                    {copy.groupSectionCount.replace('{count}', formatNumber(registered.length))}
+                    {countLabel(registered.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(registered.length))}
                   </span>
                   <span className="whitespace-nowrap rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                     {formatNumber(totalRegisteredCredits)} / {creditLimit === null ? copy.creditLimitUnavailable : formatNumber(creditLimit)}{' '}
@@ -1484,7 +1505,11 @@ export default function RegisterPage() {
                           ? copy.creditLimitExceeded.replace('{limit}', formatNumber(creditLimit))
                           : totalRegisteredCredits === creditLimit
                             ? copy.creditLimitReached.replace('{limit}', formatNumber(creditLimit))
-                            : copy.creditLimitRemaining.replace(
+                            : countLabel(
+                                creditLimit - totalRegisteredCredits,
+                                copy.creditLimitRemainingOne,
+                                copy.creditLimitRemaining,
+                              ).replace(
                                 '{count}',
                                 formatNumber(creditLimit - totalRegisteredCredits),
                               )}

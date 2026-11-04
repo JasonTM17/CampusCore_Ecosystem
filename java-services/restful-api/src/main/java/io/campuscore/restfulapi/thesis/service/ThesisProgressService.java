@@ -68,6 +68,14 @@ public class ThesisProgressService {
                            t.final_score,
                            t.final_score_finalized_at,
                            t.result_status,
+                           t.result_reason,
+                           t.result_resolved_at,
+                           EXISTS (
+                               SELECT 1 FROM thesis.thesis_group_member active_member
+                               WHERE active_member.group_id = g.id
+                                 AND active_member.student_id = :studentId
+                                 AND active_member.active_participation = TRUE
+                           ) AS active_membership,
                            (SELECT COUNT(*) FROM thesis.thesis_group_member gm WHERE gm.group_id = g.id) AS member_count
                     FROM thesis.thesis_registration_round r
                     LEFT JOIN thesis.thesis_group g
@@ -98,6 +106,10 @@ public class ThesisProgressService {
         UUID councilId = uuid(row.get("council_id"));
         BigDecimal finalScore = (BigDecimal) row.get("final_score");
         Instant finalScoreFinalizedAt = instantOf(row.get("final_score_finalized_at"));
+        String resultStatus = string(row.get("result_status"));
+        String resultReason = string(row.get("result_reason"));
+        Instant resultResolvedAt = instantOf(row.get("result_resolved_at"));
+        boolean activeMembership = Boolean.TRUE.equals(row.get("active_membership"));
         int memberCount = number(row.get("member_count"));
 
         /*
@@ -114,18 +126,31 @@ public class ThesisProgressService {
                     || List.of("RESULTS_PUBLISHED", "CLOSED", "CANCELLED").contains(roundStatus))
                 && memberCount >= 1 && memberCount <= 2;
         boolean validApprovedSize = (memberCount >= 3 && memberCount <= 5) || historicalSize;
-        boolean approvedGroup = "APPROVED".equals(approvalStatus) && validApprovedSize;
+        boolean approvedGroup = "APPROVED".equals(approvalStatus)
+                && !"CANCELLED".equals(groupStatus) && validApprovedSize;
         boolean scoreFinalized = finalScore != null
-                && "GRADED".equals(string(row.get("result_status")));
+                && "GRADED".equals(resultStatus);
         boolean publishedResult = "RESULTS_PUBLISHED".equals(roundStatus)
                 && approvedGroup
+                && activeMembership
                 && scoreFinalized;
-        // Students must never see a score or council assignment before the
-        // round publishes results — the finalize step is internal evidence only.
+        boolean publishedNotQualified = "RESULTS_PUBLISHED".equals(roundStatus)
+                && approvedGroup
+                && activeMembership
+                && "NOT_QUALIFIED".equals(resultStatus)
+                && finalScore == null
+                && "GVPB_BELOW_THRESHOLD".equals(resultReason)
+                && resultResolvedAt != null;
+        // A topic score belongs to the approved group that defended it; reject
+        // and cancellation paths may leave the shared topic score in place.
+        // Students see result fields only when their own published result exists.
         boolean resultsVisible = "RESULTS_PUBLISHED".equals(roundStatus);
-        BigDecimal visibleFinalScore = resultsVisible ? finalScore : null;
-        Instant visibleFinalizedAt = resultsVisible ? finalScoreFinalizedAt : null;
-        UUID visibleCouncilId = resultsVisible ? councilId : null;
+        BigDecimal visibleFinalScore = publishedResult ? finalScore : null;
+        Instant visibleFinalizedAt = publishedResult ? finalScoreFinalizedAt : null;
+        UUID visibleCouncilId = resultsVisible && approvedGroup && !publishedNotQualified ? councilId : null;
+        String visibleResultStatus = publishedResult || publishedNotQualified ? resultStatus : null;
+        String visibleResultReason = publishedResult || publishedNotQualified ? resultReason : null;
+        Instant visibleResultResolvedAt = publishedResult || publishedNotQualified ? resultResolvedAt : null;
         List<Boolean> evidence = List.of(
                 groupId != null,
                 groupId != null,
@@ -138,13 +163,26 @@ public class ThesisProgressService {
                 resultsVisible && scoreFinalized,
                 publishedResult);
         List<String> completed = new ArrayList<>();
+        List<String> skippedMilestones = List.of();
         boolean chainOpen = true;
-        for (int index = 0; index < MILESTONES.size(); index++) {
-            if (!chainOpen || !evidence.get(index)) {
-                chainOpen = false;
-                continue;
+        if (publishedNotQualified) {
+            for (int index = 0; index < 5; index++) {
+                if (!chainOpen || !evidence.get(index)) {
+                    chainOpen = false;
+                    continue;
+                }
+                completed.add(MILESTONES.get(index));
             }
-            completed.add(MILESTONES.get(index));
+            completed.add("RESULTS_PUBLISHED");
+            skippedMilestones = List.of("COUNCIL_ASSIGNED", "SCORE_FINALIZED");
+        } else {
+            for (int index = 0; index < MILESTONES.size(); index++) {
+                if (!chainOpen || !evidence.get(index)) {
+                    chainOpen = false;
+                    continue;
+                }
+                completed.add(MILESTONES.get(index));
+            }
         }
         boolean inconsistentLaterEvidence = false;
         int firstMissing = completed.size();
@@ -165,6 +203,8 @@ public class ThesisProgressService {
         } else if (memberCount < 1 || memberCount > 5
                 || ("APPROVED".equals(approvalStatus) && !validApprovedSize)) {
             attention = "GROUP_INVALID_MEMBER_COUNT";
+        } else if (publishedNotQualified) {
+            attention = "NOT_QUALIFIED";
         } else if (inconsistentLaterEvidence) {
             attention = "PROGRESS_INCONSISTENT";
         } else if ("RESULTS_PUBLISHED".equals(roundStatus) && finalScore == null) {
@@ -172,6 +212,9 @@ public class ThesisProgressService {
         }
 
         String current = completed.isEmpty() ? "ROUND_SELECTED" : completed.get(completed.size() - 1);
+        if (publishedNotQualified) {
+            current = "RESULTS_PUBLISHED";
+        }
         if ("RESULT_NOT_AVAILABLE".equals(attention) || "GROUP_INVALID_MEMBER_COUNT".equals(attention)) {
             current = completed.get(completed.size() - 1);
         }
@@ -193,7 +236,11 @@ public class ThesisProgressService {
                 visibleCouncilId,
                 visibleFinalScore,
                 visibleFinalizedAt,
-                groupStatus);
+                groupStatus,
+                visibleResultStatus,
+                visibleResultReason,
+                visibleResultResolvedAt,
+                skippedMilestones);
     }
 
     private static MapSqlParameterSource params() {

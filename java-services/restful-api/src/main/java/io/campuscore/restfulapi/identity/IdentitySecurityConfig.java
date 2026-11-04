@@ -78,7 +78,8 @@ public class IdentitySecurityConfig {
             io.campuscore.restfulapi.security.CsrfCookieFilter csrfCookieFilter,
             AuthUserRepository users, ApiErrorWriter errorWriter,
             UnifiedSessionAuthority authority, IdentitySessionMirror mirror,
-            IdentityProperties properties, PlatformTransactionManager transactionManager) throws Exception {
+            IdentityProperties properties, PlatformTransactionManager transactionManager,
+            io.campuscore.restfulapi.auth.web.SessionCookieService sessionCookies) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServer =
                 new OAuth2AuthorizationServerConfigurer();
         http
@@ -132,7 +133,7 @@ public class IdentitySecurityConfig {
                         .oidc(oidc -> oidc.logoutEndpoint(logout -> logout
                                 .logoutResponseHandler((request, response, authentication) ->
                                         handleLogout(request, response, authentication, authority,
-                                                identityAuthorizationService)))))
+                                                identityAuthorizationService, sessionCookies)))))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .csrf(csrf -> csrf.disable())
                 // SAS endpoint filters terminate before servlet component
@@ -353,15 +354,17 @@ public class IdentitySecurityConfig {
                 io.campuscore.restfulapi.security.SecurityConfig::requireAccessTokenShape);
     }
 
-    /** Per-client RP-initiated logout: revoke that client's grants, then redirect. */
+    /** Per-client RP-initiated logout: revoke its grants, clear the OP browser cookies, then redirect. */
     private static void handleLogout(jakarta.servlet.http.HttpServletRequest request,
             HttpServletResponse response,
             org.springframework.security.core.Authentication authentication,
-            UnifiedSessionAuthority authority, OAuth2AuthorizationService authorizations) throws IOException {
+            UnifiedSessionAuthority authority, OAuth2AuthorizationService authorizations,
+            io.campuscore.restfulapi.auth.web.SessionCookieService sessionCookies) throws IOException {
         if (authentication instanceof OidcLogoutAuthenticationToken logoutToken) {
             String userId = logoutToken.getIdToken() != null
                     ? logoutToken.getIdToken().getSubject() : null;
             String clientId = logoutToken.getClientId();
+            boolean revokeCompleted = false;
             if (userId != null) {
                 try {
                     // client_id is optional for RP-initiated logout. SAS has
@@ -379,6 +382,7 @@ public class IdentitySecurityConfig {
                         authority.revokeClientGrants(userId, clientId, "OIDC_LOGOUT",
                                 request.getHeader("X-Request-Id"));
                     }
+                    revokeCompleted = true;
                 } catch (RuntimeException revokeFailure) {
                     // Logout UX must not fail on audit trouble; the revoke is
                     // best-effort at the edge and replay-safe server-side.
@@ -386,6 +390,9 @@ public class IdentitySecurityConfig {
                             .warn("OIDC logout revoke failed user={} client={}: {}",
                                     userId, clientId, revokeFailure.toString());
                 }
+            }
+            if (revokeCompleted) {
+                sessionCookies.clear(response);
             }
             String redirect = logoutToken.getPostLogoutRedirectUri();
             if (redirect != null && !redirect.isBlank()) {

@@ -76,8 +76,9 @@ class ThesisReportConcurrencyTest {
     static void properties(DynamicPropertyRegistry registry) {
         String postgresUrl = System.getenv("CAMPUSCORE_REPORT_POSTGRES_URL");
         boolean postgres = postgresUrl != null;
-        if (postgres && !postgresUrl.matches("jdbc:postgresql://[^/]+/[A-Za-z0-9_]+_regression(?:\\?.*)?")) {
-            throw new IllegalArgumentException("Report tests require a dedicated database with a name ending in _regression");
+        if (postgres && !postgresUrl.matches(
+                "jdbc:postgresql://[^/]+/(?:[A-Za-z0-9_]+_regression|campuscore_restful_e2e_report)(?:\\?.*)?")) {
+            throw new IllegalArgumentException("Report tests require a dedicated database target");
         }
         registry.add("spring.datasource.url", () -> postgres
                 ? postgresUrl
@@ -418,7 +419,8 @@ class ThesisReportConcurrencyTest {
     @EnabledIfEnvironmentVariable(named = "CAMPUSCORE_REPORT_POSTGRES_URL", matches = ".+")
     void actualPublicationMustWaitForAnInFlightUploadThenPreserveTheCommittedReport() throws Exception {
         Fixture fx = fixture();
-        jdbc.update("UPDATE thesis.thesis_topic SET final_score = 8.50, final_score_finalized_at = CURRENT_TIMESTAMP "
+        jdbc.update("UPDATE thesis.thesis_topic SET final_score = 8.50, result_status = 'GRADED', "
+                + "final_score_finalized_at = CURRENT_TIMESTAMP "
                 + "WHERE id = (SELECT topic_id FROM thesis.thesis_group WHERE id = ?)", fx.groupId());
         CountDownLatch uploadSaved = new CountDownLatch(1);
         CountDownLatch commitUpload = new CountDownLatch(1);
@@ -434,7 +436,7 @@ class ThesisReportConcurrencyTest {
                 publisherAtLock.countDown();
             }
             return invocation.callRealMethod();
-        }).when(namedJdbc).queryForObject(anyString(), any(SqlParameterSource.class), eq(UUID.class));
+        }).when(namedJdbc).queryForMap(anyString(), any(SqlParameterSource.class));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {

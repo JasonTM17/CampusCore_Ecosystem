@@ -129,6 +129,22 @@ describe('mounted query identity isolation', () => {
     expect(result.current.error).toBeNull();
   });
 
+  test('a read dispatched before a local mutation cannot overwrite the mutation', async () => {
+    const pending = deferred<string>();
+    let calls = 0;
+    const fetcher = jest.fn(() => ++calls === 1 ? Promise.resolve('initial') : pending.promise);
+    const key = queryCacheKey('a', 'one', { locale: 'vi', roleLane: 'student', grants: [] });
+    const { result } = await renderHook(() => useScreenQuery('one', fetcher));
+    expect(result.current.data).toBe('initial');
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = result.current.reload(); });
+    await act(async () => result.current.setData('mutated'));
+    expect(result.current.data).toBe('mutated');
+    await act(async () => { pending.resolve('older read'); await refresh; });
+    expect(result.current.data).toBe('mutated');
+    expect(readQueryCache(key)).toBe('mutated');
+  });
+
   test('an old-key connectivity lookup finishing after a key change cannot alter the new result', async () => {
     const old = deferred<string>();
     const connectivity = deferred<Awaited<ReturnType<typeof getNetworkStateAsync>>>();

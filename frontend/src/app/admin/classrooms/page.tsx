@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoorOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,7 +29,10 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface Classroom {
   id: string;
@@ -40,10 +43,23 @@ interface Classroom {
   isActive?: boolean;
 }
 
+function buildClassroomUpdatePayload(
+  baseline: Classroom,
+  formData: { building: string; roomNumber: string; capacity: number; type: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.building !== baseline.building) payload.building = formData.building;
+  if (formData.roomNumber !== baseline.roomNumber) payload.roomNumber = formData.roomNumber;
+  if (Number(formData.capacity) !== baseline.capacity) payload.capacity = Number(formData.capacity);
+  if (formData.type !== baseline.type) payload.type = formData.type;
+  return payload;
+}
+
 export default function AdminClassroomsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatNumber, href, locale, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.classrooms, vi: adminAcademicsVi.classrooms }[locale];
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,7 +69,10 @@ export default function AdminClassroomsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Classroom | null>(null);
+  const classroomsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     building: '',
     roomNumber: '',
@@ -62,6 +81,14 @@ export default function AdminClassroomsPage() {
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (building: string, roomNumber: string) =>
+    copy.editLabel
+      .replace('{building}', () => building)
+      .replace('{roomNumber}', () => roomNumber);
+  const deleteLabel = (building: string, roomNumber: string) =>
+    copy.deleteLabel
+      .replace('{building}', () => building)
+      .replace('{roomNumber}', () => roomNumber);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -69,7 +96,7 @@ export default function AdminClassroomsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -79,6 +106,7 @@ export default function AdminClassroomsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchClassrooms = useCallback(async () => {
+    const epoch = classroomsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -88,141 +116,38 @@ export default function AdminClassroomsPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await classroomsApi.getAll(query);
 
+      if (!classroomsEpoch.isCurrent(epoch)) return;
       setClassrooms(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách phòng học.'
-          : 'Classrooms could not be loaded.',
-      );
+      if (!classroomsEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!classroomsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search]);
+  }, [classroomsEpoch, copy, page, search]);
+
+  useEffect(() => () => {
+    classroomsEpoch.invalidate();
+  }, [classroomsEpoch]);
 
   const classroomTypeOptions = useMemo(
     () => [
-      { value: 'LECTURE', label: locale === 'vi' ? 'Lớp học lý thuyết' : 'Lecture' },
-      { value: 'LAB', label: locale === 'vi' ? 'Phòng thí nghiệm' : 'Lab' },
-      { value: 'WORKSHOP', label: locale === 'vi' ? 'Phòng workshop' : 'Workshop' },
-      { value: 'SEMINAR', label: locale === 'vi' ? 'Phòng seminar' : 'Seminar' },
-      { value: 'AUDITORIUM', label: locale === 'vi' ? 'Hội trường' : 'Auditorium' },
-      { value: 'OTHER', label: locale === 'vi' ? 'Khác' : 'Other' },
+      { value: 'LECTURE', label: copy.typeOptions.LECTURE },
+      { value: 'LAB', label: copy.typeOptions.LAB },
+      { value: 'WORKSHOP', label: copy.typeOptions.WORKSHOP },
+      { value: 'SEMINAR', label: copy.typeOptions.SEMINAR },
+      { value: 'AUDITORIUM', label: copy.typeOptions.AUDITORIUM },
+      { value: 'OTHER', label: copy.typeOptions.OTHER },
     ],
-    [locale],
+    [copy.typeOptions],
   );
 
   const getClassroomTypeLabel = useCallback(
     (type: string) =>
       classroomTypeOptions.find((option) => option.value === type)?.label ?? type,
     [classroomTypeOptions],
-  );
-
-  const copy = useMemo(
-    () =>
-      locale === 'vi'
-        ? {
-          loading: 'Đang tải phòng học',
-          title: 'Phòng học',
-          description:
-            'Giữ dữ liệu phòng học rõ ràng để section, lịch học và kế hoạch sức chứa luôn khớp nhau.',
-          create: 'Tạo phòng học',
-          searchLabel: 'Tìm phòng học',
-          searchPlaceholder: 'Tìm theo tòa nhà hoặc số phòng',
-          pageSummaryEmpty: 'Không có bản ghi phù hợp',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          unavailableTitle: 'Phòng học chưa sẵn sàng',
-          emptyTitle: 'Không có phòng học phù hợp',
-          emptyDescription:
-            'Hãy tạo phòng học để phần xếp section có nguồn dữ liệu phòng ổn định.',
-          tableTitle: 'Bản ghi phòng học',
-          headers: {
-            building: 'Tòa nhà',
-            room: 'Phòng',
-            capacity: 'Sức chứa',
-            type: 'Loại phòng',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          active: 'Đang hoạt động',
-          inactive: 'Ngừng hoạt động',
-          deleteTitle: 'Xóa phòng học',
-          deleteMessage: (building: string, roomNumber: string) =>
-            `Xóa phòng ${building} ${roomNumber}? Hành động này sẽ gỡ phòng khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa phòng học',
-          deleted: 'Đã xóa phòng học',
-          deleteFailed: 'Hiện chưa thể xóa phòng học này.',
-          updated: 'Đã cập nhật phòng học',
-          created: 'Đã tạo phòng học',
-          saveFailed: 'Hiện chưa thể lưu phòng học.',
-          editTitle: 'Chỉnh sửa phòng học',
-          createTitle: 'Tạo phòng học',
-          fields: {
-            building: 'Tòa nhà',
-            roomNumber: 'Số phòng',
-            capacity: 'Sức chứa',
-            type: 'Loại phòng',
-          },
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (building: string, roomNumber: string) =>
-            `Chỉnh sửa phòng học ${building} ${roomNumber}`,
-          deleteLabel: (building: string, roomNumber: string) =>
-            `Xóa phòng học ${building} ${roomNumber}`,
-        }
-        : {
-          loading: 'Loading classrooms',
-          title: 'Classrooms',
-          description:
-            'Keep room inventory readable so sections, schedules, and capacity planning stay aligned.',
-          create: 'Create classroom',
-          searchLabel: 'Search classrooms',
-          searchPlaceholder: 'Search by building or room number',
-          pageSummaryEmpty: 'No matching records',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          unavailableTitle: 'Classrooms unavailable',
-          emptyTitle: 'No matching classrooms',
-          emptyDescription:
-            'Create a classroom so section scheduling has a reliable room inventory to work with.',
-          tableTitle: 'Classroom records',
-          headers: {
-            building: 'Building',
-            room: 'Room',
-            capacity: 'Capacity',
-            type: 'Type',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          active: 'Active',
-          inactive: 'Inactive',
-          deleteTitle: 'Delete classroom',
-          deleteMessage: (building: string, roomNumber: string) =>
-            `Delete ${building} ${roomNumber}? This removes the classroom from the current admin view.`,
-          deleteConfirm: 'Delete classroom',
-          deleted: 'Classroom deleted',
-          deleteFailed: 'We could not delete that classroom.',
-          updated: 'Classroom updated',
-          created: 'Classroom created',
-          saveFailed: 'The classroom could not be saved.',
-          editTitle: 'Edit classroom',
-          createTitle: 'Create classroom',
-          fields: {
-            building: 'Building',
-            roomNumber: 'Room number',
-            capacity: 'Capacity',
-            type: 'Type',
-          },
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (building: string, roomNumber: string) =>
-            `Edit classroom ${building} ${roomNumber}`,
-          deleteLabel: (building: string, roomNumber: string) =>
-            `Delete classroom ${building} ${roomNumber}`,
-        },
-    [locale, messages.common.actions.saveChanges],
   );
 
   useEffect(() => {
@@ -253,7 +178,9 @@ export default function AdminClassroomsPage() {
       return copy.pageSummaryEmpty;
     }
 
-    return copy.pageSummary(page, totalPages);
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
   }, [classrooms.length, copy, page, totalPages]);
 
   if (isAuthLoading || isLoggingOut || !canAccess) {
@@ -301,19 +228,29 @@ export default function AdminClassroomsPage() {
   };
 
   const handleDelete = async (room: Classroom) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(room.building, room.roomNumber),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingRoomId(room.id);
 
     try {
-      await classroomsApi.delete(room.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage
+          .replace('{building}', () => room.building)
+          .replace('{roomNumber}', () => room.roomNumber),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await classroomsApi.delete(room.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (classrooms.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -322,6 +259,9 @@ export default function AdminClassroomsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingRoomId(null);
     }
   };
 
@@ -331,7 +271,10 @@ export default function AdminClassroomsPage() {
 
     try {
       if (editingRoom) {
-        await classroomsApi.update(editingRoom.id, formData);
+        const payload = buildClassroomUpdatePayload(editingRoom, formData);
+        if (Object.keys(payload).length > 0) {
+          await classroomsApi.update(editingRoom.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await classroomsApi.create(formData);
@@ -459,8 +402,8 @@ export default function AdminClassroomsPage() {
                         size="icon"
                         variant="ghost"
                         onClick={() => openEdit(room)}
-                        aria-label={copy.editLabel(room.building, room.roomNumber)}
-                        title={copy.editLabel(room.building, room.roomNumber)}
+                        aria-label={editLabel(room.building, room.roomNumber)}
+                        title={editLabel(room.building, room.roomNumber)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -469,8 +412,9 @@ export default function AdminClassroomsPage() {
                         variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDelete(room)}
-                        aria-label={copy.deleteLabel(room.building, room.roomNumber)}
-                        title={copy.deleteLabel(room.building, room.roomNumber)}
+                        disabled={deletingRoomId !== null}
+                        aria-label={deleteLabel(room.building, room.roomNumber)}
+                        title={deleteLabel(room.building, room.roomNumber)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -516,8 +460,8 @@ export default function AdminClassroomsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(room)}
-                              aria-label={copy.editLabel(room.building, room.roomNumber)}
-                              title={copy.editLabel(room.building, room.roomNumber)}
+                              aria-label={editLabel(room.building, room.roomNumber)}
+                              title={editLabel(room.building, room.roomNumber)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -526,8 +470,9 @@ export default function AdminClassroomsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(room)}
-                              aria-label={copy.deleteLabel(room.building, room.roomNumber)}
-                              title={copy.deleteLabel(room.building, room.roomNumber)}
+                              disabled={deletingRoomId !== null}
+                              aria-label={deleteLabel(room.building, room.roomNumber)}
+                              title={deleteLabel(room.building, room.roomNumber)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -613,7 +558,7 @@ export default function AdminClassroomsPage() {
               {isSaving
                 ? copy.saving
                 : editingRoom
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : copy.create}
             </Button>
           </AdminDialogFooter>

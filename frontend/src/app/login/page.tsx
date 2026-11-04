@@ -9,6 +9,7 @@ import { AuthShell } from '@/components/auth/AuthShell';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authPagesEn, authPagesVi } from '@/i18n/messages-auth';
 import { useI18n } from '@/i18n';
 import type { User } from '@/types/api';
 import { API_BASE_URL, SessionVerificationError } from '@/lib/api';
@@ -23,6 +24,7 @@ import {
   type LoginPortal,
 } from '@/lib/login-portal';
 import { isTwoFactorChallenge, maskEmail, normalizeOtpCode } from '@/lib/two-factor';
+import { safeInternalPath } from '@/lib/safe-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 import { cn } from '@/lib/utils';
 
@@ -103,15 +105,23 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   // The SSO lane exists only on BFF surface hosts — the host name is known
-  // only in the browser, so the button is revealed after hydration.
+  // only in the browser, so the button is revealed after hydration. The BFF
+  // proxy has no credential login route, so the same flag hides the password
+  // form that the direct-API lane keeps.
   const [bffSurface, setBffSurface] = useState(false);
   const formErrorRef = useRef<HTMLDivElement>(null);
+  const ssoActionRef = useRef<HTMLAnchorElement>(null);
   const { login, verifyTwoFactor, logout } = useAuth();
   const { href, messages, locale } = useI18n();
+  const loginCopy = locale === 'vi' ? authPagesVi.login : authPagesEn.login;
   const router = useRouter();
   const searchParams = useSearchParams();
   const portal = parseLoginPortal(searchParams.get('portal'));
   const portalCopy = messages.login.portals[portal];
+  // The page the visitor was bounced away from. Validated once at the top so
+  // every consumer — tabs, credential finish, two-factor finish, SSO return —
+  // can only ever navigate to a same-origin path.
+  const nextTarget = safeInternalPath(searchParams.get('next'));
   // Memoized so the prefill effect below depends on a stable reference.
   const demoCredentials = useMemo(() => demoCredentialsFor(portal), [portal]);
 
@@ -127,6 +137,14 @@ export default function LoginPage() {
         && process.env.NEXT_PUBLIC_BFF_LANE !== 'false',
     );
   }, []);
+
+  // On a BFF host the SSO action is the only sign-in control, so it takes the
+  // initial focus once the effect above has resolved the surface.
+  useEffect(() => {
+    if (bffSurface && !challenge) {
+      ssoActionRef.current?.focus();
+    }
+  }, [bffSurface, challenge]);
 
   useEffect(() => {
     setFormError('');
@@ -226,7 +244,7 @@ export default function LoginPage() {
           portal === 'admin' && belongsTo === 'dean'
             ? '/admin/thesis'
             : postLoginRoute(belongsTo);
-        router.push(href(target));
+        router.push(href(nextTarget ?? target));
         return;
       }
       await logout({ redirect: false });
@@ -235,11 +253,14 @@ export default function LoginPage() {
       return;
     }
 
-    if (portal === 'lecturer' && user.roles?.includes('TRUONG_BO_MON')) {
-      router.push(href('/dashboard/thesis'));
-    } else {
-      router.push(href(postLoginRoute(portal)));
-    }
+    router.push(
+      href(
+        nextTarget ??
+          (portal === 'lecturer' && user.roles?.includes('TRUONG_BO_MON')
+            ? '/dashboard/thesis'
+            : postLoginRoute(portal)),
+      ),
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -318,28 +339,23 @@ export default function LoginPage() {
     if (reason) {
       params.set('reason', reason);
     }
+    if (nextTarget) {
+      params.set('next', nextTarget);
+    }
     return `${href('/login')}?${params.toString()}`;
   };
 
   return (
     <AuthShell
       portal={portal}
-      eyebrow={portalCopy.eyebrow}
       title={portalCopy.title}
       description={portalCopy.description}
-      features={portalCopy.featureTitles.map((label, index) => ({
-        label,
-        description: portalCopy.featureDescriptions[index],
-      }))}
     >
       <div className="space-y-6">
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold leading-8 text-foreground">
             {portalCopy.heading}
           </h2>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {portalCopy.subheading}
-          </p>
         </div>
 
         <div
@@ -367,14 +383,13 @@ export default function LoginPage() {
             );
           })}
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">{portalCopy.destination}</p>
 
-        {demoCredentials ? (
+        {demoCredentials && !bffSurface ? (
         <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-xs space-y-2.5 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              {locale === 'vi' ? 'Tài khoản demo để trải nghiệm:' : 'Demo account to experience the system:'}
+              {loginCopy.demoIntro}
             </span>
             <button
               type="button"
@@ -386,14 +401,14 @@ export default function LoginPage() {
                 setEmail(demoCredentials.email);
                 setPassword(demoCredentials.password);
               }}
-              className="inline-flex min-h-8 shrink-0 items-center text-primary hover:underline font-semibold text-xs gap-1 cursor-pointer"
+              className="inline-flex min-h-11 shrink-0 items-center text-primary hover:underline font-semibold text-xs gap-1 cursor-pointer"
             >
               <ArrowRight className="h-3.5 w-3.5" />
-              {locale === 'vi' ? 'Điền nhanh' : 'Quick fill'}
+              {loginCopy.quickFill}
             </button>
           </div>
           {portal === 'student' ? (
-            <div className="space-y-1" role="group" aria-label={locale === 'vi' ? 'Chọn tài khoản sinh viên demo' : 'Choose a demo student account'}>
+            <div className="space-y-1" role="group" aria-label={loginCopy.chooseDemoAria}>
               {STUDENT_DEMO_ACCOUNTS.map((account) => {
                 const active = email === account.email;
                 return (
@@ -405,7 +420,7 @@ export default function LoginPage() {
                       setPassword(demoCredentials.password);
                     }}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer',
+                      'flex w-full min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer',
                       active ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-primary/5',
                     )}
                   >
@@ -414,7 +429,7 @@ export default function LoginPage() {
                       {account.name}
                       {account.leader ? (
                         <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary align-middle">
-                          {locale === 'vi' ? 'Nhóm trưởng' : 'Leader'}
+                          {loginCopy.leaderBadge}
                         </span>
                       ) : null}
                     </span>
@@ -424,7 +439,7 @@ export default function LoginPage() {
               })}
               <div className="flex items-center justify-between gap-2 px-2 pt-1">
                 <span className="text-[11px] text-muted-foreground">
-                  {locale === 'vi' ? 'Mật khẩu chung' : 'Shared password'}
+                  {loginCopy.sharedPassword}
                 </span>
                 <span className="text-[11px] bg-secondary px-2 py-0.5 rounded text-foreground font-mono font-medium">
                   {demoCredentials.password}
@@ -449,13 +464,7 @@ export default function LoginPage() {
             </p>
           ) : null}
           <p className="text-[11px] text-muted-foreground pt-1 border-t border-primary/10">
-            {portal === 'student'
-              ? (locale === 'vi'
-                ? '💡 Bốn tài khoản là 4 thành viên cùng một nhóm KLTN — chọn từng tài khoản để xem nhóm chung.'
-                : '💡 These four accounts are members of the same KLTN thesis group — sign in as each to see the shared group.')
-              : (locale === 'vi'
-                ? '💡 Đây là tài khoản demo dùng để trải nghiệm đầy đủ các tính năng của hệ thống CampusUTE.'
-                : '💡 This is a demo account provided to experience all features of CampusUTE.')}
+            {portal === 'student' ? messages.login.demoGroupNote : messages.login.demoAccountNote}
           </p>
         </div>
         ) : null}
@@ -486,7 +495,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="min-w-0 flex-1 pr-6">
+              <div className="min-w-0 flex-1 pr-12">
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
@@ -497,12 +506,12 @@ export default function LoginPage() {
                     )}
                   >
                     {reason === 'signed-out'
-                      ? (locale === 'vi' ? 'Đã đăng xuất an toàn' : 'Signed Out Securely')
+                      ? (loginCopy.signedOutTitle)
                       : notice.title}
                   </span>
                   {reason === 'signed-out' && (
                     <span className="inline-flex items-center rounded-xs bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                      {locale === 'vi' ? 'Bảo mật hệ thống' : 'System Secured'}
+                      {loginCopy.securedTitle}
                     </span>
                   )}
                 </div>
@@ -515,19 +524,15 @@ export default function LoginPage() {
                       : 'text-muted-foreground'
                   )}
                 >
-                  {reason === 'signed-out'
-                    ? (locale === 'vi'
-                        ? 'Bạn đã đăng xuất khỏi cổng học vụ thành công. Phiên làm việc đã kết thúc và dữ liệu bảo mật đã được xóa an toàn khỏi trình duyệt này.'
-                        : 'You have signed out of the academic portal. The session has terminated and security tokens have been safely cleared.')
-                    : notice.body}
+                  {notice.body}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setNoticeDismissed(true)}
-                className="absolute top-3.5 right-3.5 rounded-md p-1 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
-                aria-label={locale === 'vi' ? 'Đóng thông báo' : 'Dismiss notice'}
+                className="absolute right-3.5 top-3.5 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+                aria-label={loginCopy.dismissNoticeAria}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -559,13 +564,13 @@ export default function LoginPage() {
             role="alert"
             aria-live="assertive"
             tabIndex={-1}
-            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive shadow-xs"
+            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive shadow-xs"
           >
             <p>{formError}</p>
             {mismatchPortal ? (
               <LocalizedLink
                 href={portalHref(mismatchPortal)}
-                className="mt-2.5 inline-flex min-h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mt-2.5 inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {messages.login.portals.mismatchAction.replace(
                   '{portal}',
@@ -576,6 +581,21 @@ export default function LoginPage() {
           </div>
         ) : null}
 
+        {bffSurface && !challenge ? (
+          <div className="pb-5 pt-1">
+            {/* Full-page navigation: the opaque host-only session cookie is
+                written by the surface host itself. `return` stays relative —
+                the Java allowlist rejects anything else. */}
+            <a
+              ref={ssoActionRef}
+              href={`/session/login?return=${encodeURIComponent(href(nextTarget ?? postLoginRoute(portal)))}`}
+              className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              {loginCopy.sso}
+            </a>
+          </div>
+        ) : null}
         {challenge ? (
           <form
             onSubmit={handleVerifySubmit}
@@ -642,7 +662,7 @@ export default function LoginPage() {
               </span>
             </Button>
           </form>
-        ) : (
+        ) : bffSurface ? null : (
         <form
           onSubmit={handleSubmit}
           className="space-y-5"
@@ -661,7 +681,7 @@ export default function LoginPage() {
                 : email === demoCredentials.email) ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                  {loginCopy.demoSectionAria}
                 </span>
               ) : null}
             </div>
@@ -697,7 +717,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((current) => !current)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                   title={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                   aria-pressed={showPassword}
@@ -714,11 +734,11 @@ export default function LoginPage() {
               <p className="text-xs leading-5 text-muted-foreground">
                 <LocalizedLink
                   href="/forgot-password"
-                  className="font-medium text-primary hover:underline"
+                  className="inline-flex min-h-11 items-center font-medium text-primary hover:underline"
                 >
-                  {locale === 'vi' ? 'Quên mật khẩu?' : 'Forgot your password?'}
+                  {loginCopy.forgotPassword}
                 </LocalizedLink>{' '}
-                {locale === 'vi' ? 'Liên hệ ' : 'Contact '}
+                {loginCopy.contactPrefix}
                 {portalCopy.officeSupport}.
               </p>
             )}
@@ -748,45 +768,20 @@ export default function LoginPage() {
             )}
           </Button>
 
-          {bffSurface ? (
-            <div className="space-y-3 pt-1">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <span className="w-full border-t border-border/70" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    {locale === 'vi' ? 'hoặc' : 'or'}
-                  </span>
-                </div>
-              </div>
-              {/* Full-page navigation: the BFF login leg must ride a real
-                  redirect chain so the opaque host-only cookie is written by
-                  the surface host itself. `return` stays a relative path —
-                  the Java allowlist rejects anything else. */}
-              <a
-                href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
-                className="inline-flex w-full min-h-10 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                {locale === 'vi' ? 'Đăng nhập qua SSO' : 'Sign in with SSO'}
-              </a>
-            </div>
-          ) : null}
         </form>
         )}
 
         {portal === 'student' || portal === 'lecturer' ? (
           <p className="text-sm text-muted-foreground">
             {messages.signup.needAccount}{' '}
-            <LocalizedLink href="/register" className="inline-flex min-h-8 items-center font-medium text-primary hover:underline">
+            <LocalizedLink href="/register" className="inline-flex min-h-11 items-center font-medium text-primary hover:underline">
               {messages.signup.submit}
             </LocalizedLink>
           </p>
         ) : null}
         <p className="text-sm text-muted-foreground">
           {messages.login.returnHomeLead}{' '}
-          <LocalizedLink href="/" className="inline-flex min-h-8 items-center font-medium text-primary hover:underline">
+          <LocalizedLink href="/" className="inline-flex min-h-11 items-center font-medium text-primary hover:underline">
             {messages.common.actions.returnHome}
           </LocalizedLink>
           .

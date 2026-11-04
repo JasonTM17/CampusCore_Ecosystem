@@ -14,6 +14,7 @@ import {
   BookMarked,
   BookOpen,
   BrainCircuit,
+  Briefcase,
   Building2,
   Calendar,
   CalendarCheck,
@@ -66,6 +67,9 @@ import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { stripLocaleFromPathname } from '@/i18n/paths';
 import { isDemoUser, loginHref, portalFromPathname } from '@/lib/login-portal';
+import { safeInternalPath } from '@/lib/safe-url';
+import { noticeBoardHrefFor } from '@/lib/notification-targets';
+import { subscribeNotificationsChanged } from '@/lib/notification-sync';
 
 type DashboardMenuLabelKey =
   | 'dashboard'
@@ -87,6 +91,7 @@ type DashboardMenuLabelKey =
   | 'mailCompose'
   | 'events'
   | 'learning'
+  | 'staffDesks'
   | 'deanOverview';
 
 type DashboardMenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus';
@@ -129,6 +134,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/certificates', icon: ClipboardCheck, labelKey: 'certificates' },
       { href: '/dashboard/events', icon: Users, labelKey: 'events' },
+      { href: '/staff', icon: Briefcase, labelKey: 'staffDesks' },
       { href: '/dashboard/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -157,6 +163,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/events', icon: Users, labelKey: 'events' },
+      { href: '/staff', icon: Briefcase, labelKey: 'staffDesks' },
       { href: '/dashboard/lecturer/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -239,7 +246,7 @@ function resolveNotificationTarget(notification: {
   type?: string;
   link?: string;
 }): string {
-  const link = typeof notification.link === 'string' ? notification.link.trim() : '';
+  const link = safeInternalPath(notification.link);
   if (link) {
     return link;
   }
@@ -253,6 +260,30 @@ function resolveNotificationTarget(notification: {
 // Notification bodies are authored HTML (the same bodies the reader renders).
 // The bell shows a plain-text preview via the shared htmlToPlainText helper.
 const notificationPreview = htmlToPlainText;
+
+function unreadAriaLabel(label: string, unreadCount: number, unreadLabel: string): string {
+  return unreadCount > 0 ? `${label}, ${unreadCount} ${unreadLabel.toLowerCase()}` : label;
+}
+
+// Full admins are bounced out of the student/lecturer dashboard because their
+// workspace is the admin console. The shared self-service surfaces the admin
+// shell still links are the exceptions; /dashboard/profile hosts two-factor
+// setup and the self-service password change, which have no /admin twin.
+const FULL_ADMIN_DASHBOARD_PATHS = [
+  '/dashboard/editor',
+  '/dashboard/profile',
+  '/dashboard/sign-out',
+] as const;
+
+export function adminDashboardRedirectTarget(pathname: string): string | null {
+  if (FULL_ADMIN_DASHBOARD_PATHS.some((path) => pathname === path)) {
+    return null;
+  }
+  if (pathname.startsWith('/dashboard/thesis')) {
+    return null;
+  }
+  return '/admin';
+}
 
 export default function DashboardLayout({
   children,
@@ -284,6 +315,7 @@ export default function DashboardLayout({
   // Set by the trigger's ArrowUp so the open effect focuses the last item.
   const profileFocusLastRef = useRef(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const notificationsTriggerRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarCloseRef = useRef<HTMLButtonElement>(null);
   const openSidebarButtonRef = useRef<HTMLButtonElement>(null);
@@ -338,7 +370,8 @@ export default function DashboardLayout({
         label: messages.adminShell.menuSections.campus,
         items: [
           { href: '/admin/thesis', icon: GraduationCap, label: messages.admin.menuItems[0]?.[0] },
-          { href: '/dashboard/editor', icon: FileEdit, label: locale === 'vi' ? 'Trình soạn thảo website' : 'Site Editor & CMS' },
+          { href: '/dashboard/editor', icon: FileEdit, label: messages.adminShell.menuSiteEditor },
+          { href: '/staff', icon: Briefcase, label: menuLabels.staffDesks },
           { href: '/admin/announcements', icon: Megaphone, label: messages.admin.menuItems[9]?.[0] },
           { href: '/admin/notifications', icon: Bell, label: messages.adminShell.menuSystemNotifications },
           { href: '/admin/assistant-knowledge', icon: BrainCircuit, label: messages.admin.menuItems[10]?.[0] },
@@ -349,7 +382,6 @@ export default function DashboardLayout({
       },
     ],
     [
-      locale,
       messages.admin.menuItems,
       messages.admin.title,
       messages.adminShell.academicYears,
@@ -359,7 +391,9 @@ export default function DashboardLayout({
       messages.adminShell.menuSections.campus,
       messages.adminShell.menuSections.overview,
       messages.adminShell.menuSections.people,
+      messages.adminShell.menuSiteEditor,
       messages.adminShell.menuSystemNotifications,
+      menuLabels.staffDesks,
     ],
   );
   const fullAdminAccess = isAdmin || isSuperAdmin;
@@ -501,16 +535,15 @@ export default function DashboardLayout({
     if (isLoading || isLoggingOut) return;
     if (!user) {
       const portal = portalFromPathname(pathname);
-      router.replace(loginHref(href, portal, 'unauthorized'));
+      router.replace(
+        loginHref(href, portal, 'unauthorized', pathname + window.location.search),
+      );
       return;
     }
-    if (
-      fullAdminAccess &&
-      pathname !== '/dashboard/editor' &&
-      pathname !== '/dashboard/sign-out' &&
-      !pathname.startsWith('/dashboard/thesis')
-    ) {
-      router.replace(href('/admin'));
+    if (!fullAdminAccess) return;
+    const redirectTarget = adminDashboardRedirectTarget(pathname);
+    if (redirectTarget) {
+      router.replace(href(redirectTarget));
     }
   }, [href, user, isLoading, isLoggingOut, fullAdminAccess, isLecturer, router, pathname]);
 
@@ -627,6 +660,7 @@ export default function DashboardLayout({
         profileTriggerRef.current?.focus();
       } else if (notificationsOpen) {
         setNotificationsOpen(false);
+        notificationsTriggerRef.current?.focus();
       } else if (sidebarOpen) {
         setSidebarOpen(false);
         window.requestAnimationFrame(() => openSidebarButtonRef.current?.focus());
@@ -784,6 +818,19 @@ export default function DashboardLayout({
       }
     }
   }, [user]);
+
+  // The centre marks rows read through the same API the bell previews, but it
+  // owns no reference to this shell. Its writes publish a change event so the
+  // badge and the preview rows refresh immediately instead of waiting for the
+  // 3-minute count poll (which never refetches the rows).
+  useEffect(() => {
+    return subscribeNotificationsChanged(() => {
+      if (notificationSessionRef.current.isLoggingOut) {
+        return;
+      }
+      void reloadNotifications({ force: true });
+    });
+  }, [reloadNotifications]);
 
   // Periodic unread count polling (3 minutes) while the tab is visible;
   // hidden tabs pause polling. Avoids redundant heavy fetches on every tab switch.
@@ -1083,7 +1130,7 @@ export default function DashboardLayout({
                     {isDemoUser(user) && (
                       <span className="inline-flex items-center gap-1 rounded-md border border-portal-brand-gold/35 bg-portal-brand-gold/15 px-2 py-0.5 text-[11px] font-medium text-portal-sidebar-text">
                         <span className="h-1.5 w-1.5 rounded-full bg-portal-brand-gold shadow-xs" />
-                        {locale === 'vi' ? 'TK Demo trải nghiệm' : 'Demo account'}
+                        {messages.dashboardShell.demoTag}
                       </span>
                     )}
                   </div>
@@ -1267,17 +1314,25 @@ export default function DashboardLayout({
 
               <div className="relative" ref={notificationsRef}>
                 <Button
+                  ref={notificationsTriggerRef}
                   type="button"
                   variant="ghost"
                   size="icon"
                   onClick={() => setNotificationsOpen((current) => !current)}
-                  aria-label={messages.dashboardShell.controls.toggleNotifications}
+                  aria-label={unreadAriaLabel(
+                    messages.dashboardShell.controls.toggleNotifications,
+                    unreadCount,
+                    messages.dashboardShell.notifications.unread,
+                  )}
                   aria-expanded={notificationsOpen}
                   aria-controls="dashboard-notifications-panel"
                 >
                   <Bell className="h-5 w-5" aria-hidden="true" />
                   {unreadCount > 0 ? (
-                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[hsl(var(--accent-warm))]" />
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[hsl(var(--accent-warm))]"
+                    />
                   ) : null}
                 </Button>
 
@@ -1392,13 +1447,13 @@ export default function DashboardLayout({
                     </div>
                     <div className="border-t border-border/70 px-4 py-3 flex flex-col gap-2">
                       <LocalizedLink
-                        href="/dashboard/announcements"
+                        href={noticeBoardHrefFor(user?.roles)}
                         className="text-xs font-semibold text-primary hover:underline flex items-center justify-between"
                         onClick={() => setNotificationsOpen(false)}
                       >
                         <span className="flex items-center gap-1.5">
                           <Megaphone className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                          <span>{locale === 'vi' ? 'Bảng tin Phòng Đào tạo' : 'Academic Affairs Notice Board'}</span>
+                          <span>{messages.dashboardShell.notifications.academicAffairsNoticeBoard}</span>
                         </span>
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </LocalizedLink>
@@ -1457,7 +1512,7 @@ export default function DashboardLayout({
                             className="h-1.5 w-1.5 rounded-full bg-portal-brand-gold"
                             aria-hidden="true"
                           />
-                          {locale === 'vi' ? 'Demo trải nghiệm' : 'Demo'}
+                          {messages.adminShell.demoTag}
                         </span>
                       )}
                     </div>
@@ -1507,7 +1562,7 @@ export default function DashboardLayout({
                           {isDemoUser(user) && (
                             <div className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                              {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                              {messages.dashboardShell.demoAccount}
                             </div>
                           )}
                         </div>
@@ -1584,7 +1639,11 @@ export default function DashboardLayout({
                     key="mobile-menu"
                     type="button"
                     onClick={() => setSidebarOpen(true)}
-                    aria-label={messages.dashboardShell.controls.openSidebar}
+                    aria-label={unreadAriaLabel(
+                      messages.dashboardShell.controls.openSidebar,
+                      unreadCount,
+                      messages.dashboardShell.notifications.unread,
+                    )}
                     aria-expanded={sidebarOpen}
                     aria-controls="dashboard-sidebar"
                     className={cn(
@@ -1602,7 +1661,10 @@ export default function DashboardLayout({
                       {messages.dashboardShell.controls.bottomNav.menu}
                     </span>
                     {unreadCount > 0 ? (
-                      <span className="absolute right-1 top-1 min-w-4 rounded-md bg-primary px-1 text-center text-[11px] font-semibold leading-4 text-primary-foreground">
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-1 top-1 min-w-4 rounded-md bg-primary px-1 text-center text-[11px] font-semibold leading-4 text-primary-foreground"
+                      >
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     ) : null}

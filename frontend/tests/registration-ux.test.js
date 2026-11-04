@@ -13,7 +13,11 @@ function load(relativePath, dependencies = {}) {
   return moduleRecord.exports;
 }
 const grid = load('src/lib/weekly-grid.ts');
-const labels = load('src/components/schedule/weekly-grid.tsx', { '@/lib/weekly-grid': grid });
+const studentPages = load('src/i18n/messages-student-pages.ts');
+const labels = load('src/components/schedule/weekly-grid.tsx', {
+  '@/lib/weekly-grid': grid,
+  '@/i18n/messages-student-pages': studentPages,
+});
 
 test('agenda ordering uses start/end time and preserves equal meetings and cached input', () => {
   const rows = Object.freeze([

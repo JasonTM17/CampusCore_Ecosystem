@@ -33,7 +33,15 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { statusToneClass } from '@/components/ui/status';
 import { useI18n } from '@/i18n';
 import { eventsMessages } from '@/i18n/events-messages';
+import { campusLocalDateTimeToUtcIso } from '@/lib/attendance-checkin';
+import {
+  correctEmptyPage,
+  hasNextPage as hasNextPageFor,
+  pageCount,
+} from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
+
+const PAGE_SIZE = 20;
 
 /**
  * /dashboard/events — single surface for both audiences (contract D4):
@@ -69,7 +77,7 @@ export function EventsConsolePage() {
     'TRUONG_BO_MON',
     'TRUONG_KHOA',
   ]);
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
 
   const [mode, setMode] = useState<'loading' | 'error' | 'staff' | 'student'>('loading');
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
@@ -78,16 +86,27 @@ export function EventsConsolePage() {
   const accountRef = useRef(accountId);
   accountRef.current = accountId;
   const loadSequence = useRef(0);
+  const staffSequence = useRef(0);
   const rosterSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
+  const deepLinkConsumed = useRef(false);
+  const staffPageRef = useRef(0);
+  const rosterPageRef = useRef(0);
   const [staffEvents, setStaffEvents] = useState<CampusEvent[]>([]);
+  const [staffPage, setStaffPage] = useState(0);
+  const [staffTotal, setStaffTotal] = useState<number | null>(null);
   const [studentEvents, setStudentEvents] = useState<CampusEvent[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<MyEventRegistration[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [roster, setRoster] = useState<EventRosterEntry[]>([]);
+  const [rosterPage, setRosterPage] = useState(0);
+  const [rosterTotal, setRosterTotal] = useState<number | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingStaffActionRef = useRef<string | null>(null);
+  const [pendingStaffActionKey, setPendingStaffActionKey] = useState<string | null>(null);
   // A retry after a timeout must replay the same Idempotency-Key, so a
   // registration that already landed is returned instead of failing as a duplicate.
   const pendingKeys = useRef(new Map<string, string>());
@@ -108,10 +127,31 @@ export function EventsConsolePage() {
 
   const copy = eventsMessages[locale];
 
-  const loadStaff = useCallback(async () => {
-    const events = await eventsApi.staffList();
-    if (accountRef.current === accountId) setStaffEvents(events);
+  const loadStaff = useCallback(async (requestedPage: number = staffPageRef.current) => {
+    const request = ++staffSequence.current;
+    const current = () => request === staffSequence.current && accountRef.current === accountId;
+    let result = await eventsApi.staffListPage(requestedPage, PAGE_SIZE);
+    if (!current()) return;
+    let page = requestedPage;
+    const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+    if (correction) {
+      page = correction.page;
+      if (correction.refetch) {
+        result = await eventsApi.staffListPage(page, PAGE_SIZE);
+        if (!current()) return;
+      }
+    }
+    staffPageRef.current = page;
+    setStaffPage(page);
+    setStaffEvents(result.items);
+    setStaffTotal(result.total ?? null);
   }, [accountId]);
+
+  const goToStaffPage = useCallback((page: number) => {
+    void loadStaff(page).catch(() => {
+      if (accountRef.current === accountId) setError(copy.failed);
+    });
+  }, [accountId, copy.failed, loadStaff]);
 
   const loadStudent = useCallback(async () => {
     const [events, mine] = await Promise.all([
@@ -128,9 +168,8 @@ export function EventsConsolePage() {
     const current = () => request === loadSequence.current && accountRef.current === accountId;
     setError('');
     try {
-      const events = await eventsApi.staffList();
+      await loadStaff();
       if (!current()) return;
-      setStaffEvents(events);
       setStaffGranted(true);
       setMode((previous) => previous === 'student' ? previous : 'staff');
       if (isStudent) {
@@ -152,7 +191,7 @@ export function EventsConsolePage() {
       setError(copy.failed);
       setMode('error');
     }
-  }, [accountId, copy.failed, isStudent, loadStudent]);
+  }, [accountId, copy.failed, isStudent, loadStaff, loadStudent]);
 
   const invalidateReads = useCallback(() => {
     ++loadSequence.current;
@@ -167,9 +206,18 @@ export function EventsConsolePage() {
 
   useEffect(() => {
     invalidateReads();
+    ++staffSequence.current;
     selectedRef.current = null;
+    deepLinkConsumed.current = false;
+    staffPageRef.current = 0;
+    rosterPageRef.current = 0;
     setSelectedEventId(null);
+    setStaffPage(0);
+    setStaffTotal(null);
     setRoster([]);
+    setRosterPage(0);
+    setRosterTotal(null);
+    setRosterError(false);
     setStaffEvents([]);
     setStudentEvents([]);
     setMyRegistrations([]);
@@ -182,17 +230,37 @@ export function EventsConsolePage() {
     return invalidateReads;
   }, [accountId, authLoading, hasAccess, invalidateReads, load]);
 
-  const loadRoster = useCallback(async (eventId: string) => {
+  const loadRoster = useCallback(async (
+    eventId: string,
+    requestedPage: number = rosterPageRef.current,
+  ) => {
     const request = ++rosterSequence.current;
     const current = () => request === rosterSequence.current &&
       accountRef.current === accountId && selectedRef.current === eventId;
     setRoster([]);
+    setRosterError(false);
     setRosterLoading(true);
     try {
-      const entries = await eventsApi.staffRoster(eventId);
-      if (current()) setRoster(entries);
+      let result = await eventsApi.staffRosterPage(eventId, requestedPage, PAGE_SIZE);
+      if (!current()) return;
+      let page = requestedPage;
+      const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+      if (correction) {
+        page = correction.page;
+        if (correction.refetch) {
+          result = await eventsApi.staffRosterPage(eventId, page, PAGE_SIZE);
+          if (!current()) return;
+        }
+      }
+      rosterPageRef.current = page;
+      setRosterPage(page);
+      setRoster(result.items);
+      setRosterTotal(result.total ?? null);
     } catch {
-      if (current()) setRoster([]);
+      if (current()) {
+        setRoster([]);
+        setRosterError(true);
+      }
     } finally {
       if (current()) setRosterLoading(false);
     }
@@ -202,16 +270,24 @@ export function EventsConsolePage() {
     const next = selectedRef.current === eventId ? null : eventId;
     selectedRef.current = next;
     ++rosterSequence.current;
+    rosterPageRef.current = 0;
     setSelectedEventId(next);
     setRoster([]);
-    if (next) void loadRoster(next);
+    setRosterPage(0);
+    setRosterTotal(null);
+    setRosterError(false);
+    if (next) void loadRoster(next, 0);
   }, [loadRoster]);
 
   const switchView = async (view: 'staff' | 'student') => {
     ++rosterSequence.current;
     selectedRef.current = null;
+    rosterPageRef.current = 0;
     setSelectedEventId(null);
     setRoster([]);
+    setRosterPage(0);
+    setRosterTotal(null);
+    setRosterError(false);
     setError('');
     setMode(view);
     if (view === 'student') {
@@ -220,37 +296,73 @@ export function EventsConsolePage() {
     }
   };
 
-  // Notification deep links carry ?event=<id> — expand that card once the
-  // mode resolves (roster only loads for the staff surface).
+  // Notification deep links carry ?event=<id> - expand that card once the
+  // mode resolves; the student surface highlights the matching card instead
+  // of loading a roster it may not read.
   useEffect(() => {
-    if (mode !== 'staff') return;
+    if (mode === 'loading' || deepLinkConsumed.current) return;
     const id = new URLSearchParams(window.location.search).get('event');
-    if (id) {
-      selectedRef.current = id;
-      setSelectedEventId(id);
-      if (mode === 'staff') void loadRoster(id);
-    }
+    if (!id) return;
+    deepLinkConsumed.current = true;
+    selectedRef.current = id;
+    rosterPageRef.current = 0;
+    setSelectedEventId(id);
+    setRosterPage(0);
+    setRosterTotal(null);
+    if (mode === 'staff') void loadRoster(id, 0);
   }, [mode, loadRoster]);
 
+  useEffect(() => {
+    if (mode !== 'student' || !selectedEventId) return;
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-event-id]'));
+    const target = cards.find((card) => card.dataset.eventId === selectedEventId);
+    target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [mode, selectedEventId, studentEvents]);
+
   const runStaffAction = useCallback(
-    async (action: () => Promise<CampusEvent | EventRosterEntry[]>, message: string) => {
+    async (actionKey: string, action: () => Promise<unknown>, message: string) => {
+      if (pendingStaffActionRef.current !== null) return;
+      pendingStaffActionRef.current = actionKey;
+      setPendingStaffActionKey(actionKey);
       setBusy(true);
+      let mutationSucceeded = false;
       try {
-        await action();
+        const result = await action();
+        mutationSucceeded = true;
         if (accountRef.current !== accountId) return;
         toast.success(message);
-        await loadStaff();
-        if (accountRef.current !== accountId) return;
-        if (selectedEventId && selectedRef.current === selectedEventId) {
-          void loadRoster(selectedEventId);
+        if (result && typeof result === 'object' && 'id' in result && 'status' in result) {
+          const updatedEvent = result as CampusEvent;
+          setStaffEvents((prev) =>
+            prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
+          );
         }
       } catch (actionError) {
         if (accountRef.current !== accountId) return;
         const code = (actionError as { response?: { data?: { code?: string } } })
           ?.response?.data?.code;
         toast.error(code === 'EVENT_NOT_OWNER' ? copy.ownerOnly : copy.failed);
-      } finally {
-        if (accountRef.current === accountId) setBusy(false);
+      }
+
+      if (mutationSucceeded) {
+        try {
+          await loadStaff();
+        } catch {
+          // Keep successful action feedback; refresh failure does not invalidate mutation
+        }
+        if (accountRef.current === accountId && selectedEventId && selectedRef.current === selectedEventId) {
+          try {
+            await loadRoster(selectedEventId);
+          } catch {
+            // Non-blocking roster refresh
+          }
+        }
+      }
+
+      if (pendingStaffActionRef.current === actionKey) pendingStaffActionRef.current = null;
+      if (accountRef.current === accountId) {
+        setPendingStaffActionKey(null);
+        setBusy(false);
       }
     },
     [accountId, copy.failed, copy.ownerOnly, loadRoster, loadStaff, selectedEventId],
@@ -261,25 +373,36 @@ export function EventsConsolePage() {
       toast.error(copy.failed);
       return;
     }
-    setBusy(true);
-    try {
+    const startsAt = campusLocalDateTimeToUtcIso(form.startsAt);
+    const endsAt = campusLocalDateTimeToUtcIso(form.endsAt);
+    const registrationOpensAt = form.registrationOpensAt
+      ? campusLocalDateTimeToUtcIso(form.registrationOpensAt)
+      : null;
+    const registrationClosesAt = form.registrationClosesAt
+      ? campusLocalDateTimeToUtcIso(form.registrationClosesAt)
+      : null;
+    if (
+      !startsAt
+      || !endsAt
+      || (form.registrationOpensAt && !registrationOpensAt)
+      || (form.registrationClosesAt && !registrationClosesAt)
+    ) {
+      toast.error(copy.failed);
+      return;
+    }
+    await runStaffAction('create', async () => {
       await eventsApi.staffCreate({
         title: form.title.trim(),
         organizer: form.organizer.trim(),
         location: form.location.trim() || undefined,
         description: form.description.trim() || undefined,
         capacity: Number.parseInt(form.capacity, 10) || 1,
-        startsAt: new Date(form.startsAt).toISOString(),
-        endsAt: new Date(form.endsAt).toISOString(),
-        registrationOpensAt: form.registrationOpensAt
-          ? new Date(form.registrationOpensAt).toISOString()
-          : null,
-        registrationClosesAt: form.registrationClosesAt
-          ? new Date(form.registrationClosesAt).toISOString()
-          : null,
+        startsAt,
+        endsAt,
+        registrationOpensAt,
+        registrationClosesAt,
       });
       if (accountRef.current !== accountId) return;
-      toast.success(copy.created);
       setCreateOpen(false);
       setForm({
         title: '',
@@ -292,13 +415,8 @@ export function EventsConsolePage() {
         registrationClosesAt: '',
         description: '',
       });
-      await loadStaff();
-    } catch {
-      if (accountRef.current === accountId) toast.error(copy.failed);
-    } finally {
-      if (accountRef.current === accountId) setBusy(false);
-    }
-  }, [accountId, copy.created, copy.failed, form, loadStaff]);
+    }, copy.created);
+  }, [accountId, copy.created, copy.failed, form, runStaffAction]);
 
   const studentRegister = useCallback(
     async (eventId: string) => {
@@ -362,10 +480,10 @@ export function EventsConsolePage() {
           key="publish"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `publish:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            void runStaffAction(() => eventsApi.staffPublish(event.id), copy.actionDone);
+            void runStaffAction(`publish:${event.id}`, () => eventsApi.staffPublish(event.id), copy.actionDone);
           }}
         >
           <Megaphone className="h-3.5 w-3.5" /> {copy.publish}
@@ -378,10 +496,11 @@ export function EventsConsolePage() {
           key="open"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `open:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
             void runStaffAction(
+              `open:${event.id}`,
               () => eventsApi.staffOpenRegistration(event.id),
               copy.actionDone,
             );
@@ -397,10 +516,11 @@ export function EventsConsolePage() {
           key="close"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `close:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
             void runStaffAction(
+              `close:${event.id}`,
               () => eventsApi.staffCloseRegistration(event.id),
               copy.actionDone,
             );
@@ -416,10 +536,10 @@ export function EventsConsolePage() {
           key="complete"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `complete:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            void runStaffAction(() => eventsApi.staffComplete(event.id), copy.actionDone);
+            void runStaffAction(`complete:${event.id}`, () => eventsApi.staffComplete(event.id), copy.actionDone);
           }}
         >
           <CheckCircle2 className="h-3.5 w-3.5" /> {copy.complete}
@@ -444,6 +564,59 @@ export function EventsConsolePage() {
       );
     }
     return buttons;
+  };
+
+  const renderPager = (
+    testId: string,
+    page: number,
+    total: number | null,
+    itemCount: number,
+    onPage: (next: number) => void,
+  ) => {
+    const totalPages = pageCount(total ?? undefined, PAGE_SIZE);
+    const previous = page > 0;
+    const next = hasNextPageFor(page, totalPages, itemCount, PAGE_SIZE);
+    const firstVisible = itemCount === 0 ? 0 : page * PAGE_SIZE + 1;
+    const lastVisible = page * PAGE_SIZE + itemCount;
+    const summary = total === null
+      ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+      : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
+    return (
+      <div
+        className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between"
+        data-testid={testId}
+      >
+        <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+          {summary}
+          <span className="ml-2">
+            {messages.common.states.page} {page + 1}
+            {totalPages === undefined ? '' : ` / ${totalPages}`}
+          </span>
+        </p>
+        {previous || next ? (
+          <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!previous}
+              data-testid={`${testId}-previous`}
+              onClick={() => onPage(page - 1)}
+            >
+              {messages.common.states.goToPreviousPage}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!next}
+              data-testid={`${testId}-next`}
+              onClick={() => onPage(page + 1)}
+            >
+              {messages.common.states.goToNextPage}
+            </Button>
+          </nav>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -479,7 +652,8 @@ export function EventsConsolePage() {
           {staffEvents.length === 0 ? (
             <EmptyState title={copy.emptyStaff} description="" />
           ) : (
-            staffEvents.map((event) => (
+            <>
+              {staffEvents.map((event) => (
               <div
                 key={event.id}
                 className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
@@ -531,6 +705,12 @@ export function EventsConsolePage() {
                     </div>
                     {rosterLoading ? (
                       <LoadingState label={copy.loading} />
+                    ) : rosterError ? (
+                      <ErrorState
+                        title={copy.failed}
+                        description=""
+                        onRetry={() => void loadRoster(event.id)}
+                      />
                     ) : roster.length === 0 ? (
                       <EmptyState title={copy.rosterEmpty} description="" />
                     ) : (
@@ -550,9 +730,10 @@ export function EventsConsolePage() {
                             {roster.map((entry, index) => (
                               <tr
                                 key={entry.registrationId}
+                                data-testid="events-roster-row"
                                 className="border-b border-border/30 last:border-0"
                               >
-                                <td className="py-2 pr-3 text-muted-foreground">{index + 1}</td>
+                                <td className="py-2 pr-3 text-muted-foreground">{rosterPage * PAGE_SIZE + index + 1}</td>
                                 <td className="py-2 pr-3 font-medium">{entry.studentName}</td>
                                 <td className="py-2 pr-3 text-muted-foreground">{entry.email}</td>
                                 <td className="py-2 pr-3">{statusLabel(entry.status)}</td>
@@ -570,9 +751,10 @@ export function EventsConsolePage() {
                                       variant={
                                         entry.attendanceStatus === 'ATTENDED' ? 'ghost' : 'outline'
                                       }
-                                      disabled={busy}
+                                      disabled={pendingStaffActionKey === `attendance:${event.id}:${entry.registrationId}`}
                                       onClick={() =>
                                         void runStaffAction(
+                                          `attendance:${event.id}:${entry.registrationId}`,
                                           () =>
                                             eventsApi.staffMarkAttendance(event.id, [
                                               {
@@ -599,12 +781,21 @@ export function EventsConsolePage() {
                             ))}
                           </tbody>
                         </table>
+                        {renderPager(
+                          'events-roster',
+                          rosterPage,
+                          rosterTotal,
+                          roster.length,
+                          (page) => void loadRoster(event.id, page),
+                        )}
                       </div>
                     )}
                   </div>
                 ) : null}
               </div>
-            ))
+            ))}
+              {renderPager('events-staff', staffPage, staffTotal, staffEvents.length, goToStaffPage)}
+            </>
           )}
         </div>
       ) : mode === 'student' ? (
@@ -617,7 +808,12 @@ export function EventsConsolePage() {
               {studentEvents.map((event) => (
                 <div
                   key={event.id}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
+                  data-event-id={event.id}
+                  aria-current={selectedEventId === event.id ? 'true' : undefined}
+                  className={cn(
+                    'flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm',
+                    selectedEventId === event.id && 'border-primary ring-2 ring-ring',
+                  )}
                 >
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -659,7 +855,8 @@ export function EventsConsolePage() {
                     ) : null}
                     {isStudent && event.myRegistrationStatus === 'REGISTERED' &&
                     event.status !== 'CANCELLED' &&
-                    event.status !== 'COMPLETED' ? (
+                    event.status !== 'COMPLETED' &&
+                    Date.parse(event.startsAt) > Date.now() ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -716,16 +913,19 @@ export function EventsConsolePage() {
         <div className="space-y-3">
           <Input
             placeholder={copy.titleField}
+            aria-label={copy.titleField}
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           />
           <Input
             placeholder={copy.organizer}
+            aria-label={copy.organizer}
             value={form.organizer}
             onChange={(e) => setForm((f) => ({ ...f, organizer: e.target.value }))}
           />
           <Input
             placeholder={copy.where}
+            aria-label={copy.where}
             value={form.location}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
           />
@@ -769,6 +969,7 @@ export function EventsConsolePage() {
           </div>
           <Input
             placeholder={copy.capacity}
+            aria-label={copy.capacity}
             type="number"
             min={1}
             value={form.capacity}
@@ -776,6 +977,7 @@ export function EventsConsolePage() {
           />
           <Input
             placeholder={copy.descriptionField}
+            aria-label={copy.descriptionField}
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
@@ -783,7 +985,7 @@ export function EventsConsolePage() {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               {copy.dismiss}
             </Button>
-            <Button onClick={() => void submitCreate()} disabled={busy}>
+            <Button onClick={() => void submitCreate()} disabled={pendingStaffActionKey === 'create'}>
               {copy.submitCreate}
             </Button>
           </div>
@@ -798,6 +1000,7 @@ export function EventsConsolePage() {
         <div className="space-y-3">
           <Input
             placeholder={copy.cancelReason}
+            aria-label={copy.cancelReason}
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           />
@@ -807,12 +1010,13 @@ export function EventsConsolePage() {
             </Button>
             <Button
               variant="destructive"
-              disabled={busy}
+              disabled={pendingStaffActionKey === `cancel:${cancelOpen?.id}`}
               onClick={() => {
                 const target = cancelOpen;
                 setCancelOpen(null);
                 if (target) {
                   void runStaffAction(
+                    `cancel:${target.id}`,
                     () => eventsApi.staffCancel(target.id, cancelReason || undefined),
                     copy.cancelledEventOk,
                   );

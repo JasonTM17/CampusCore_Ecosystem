@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { shareTimetable, timetableShareCapability } from './academic-api';
 import type { AcademicEnrollment, AcademicSemester } from './academic-model';
 import { buildTimetableExport, icsDataUri } from './ical-export';
@@ -33,7 +34,7 @@ export function ScheduleExport({ enrollments, semester }: ScheduleExportProps) {
   };
 
   const status: FileRowStatus = available ? state.status : 'unavailable';
-  const label = available ? state.label ?? fillCopy(copy.exportReady, { n: bundle.eventCount }) : copy.exportUnavailable;
+  const label = available ? state.label ?? fillCopy(countForm(bundle.eventCount, copy.exportReadyOne, copy.exportReady), { n: bundle.eventCount }) : copy.exportUnavailable;
   return (
     <FileRow
       name={bundle.filename}

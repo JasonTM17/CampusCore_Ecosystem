@@ -32,10 +32,22 @@ public class PeopleReadService {
 
     @Transactional(readOnly = true)
     public StudentListResponse findStudents(int page, int limit, String status) {
+        return findStudents(page, limit, status, null);
+    }
+
+    /**
+     * Lecturer-scoped directory listing: ADMIN/SUPER_ADMIN see everyone;
+     * a lecturer sees only students enrolled in their visibility tier
+     * (own sections, department courses for TRUONG_BO_MON, faculty courses
+     * for TRUONG_KHOA). Callers without a lecturer identity see nothing.
+     */
+    public StudentListResponse findStudents(int page, int limit, String status, Authentication authentication) {
         requirePage(page, limit);
         String normalizedStatus = normalizeStatus(status);
-        long total = people.countStudents(normalizedStatus);
-        List<StudentResponse> data = people.findStudents(offset(page, limit), limit, normalizedStatus);
+        long total = people.countStudents(normalizedStatus,
+                rolesOf(authentication), lecturerIdOf(authentication));
+        List<StudentResponse> data = people.findStudents(offset(page, limit), limit, normalizedStatus,
+                rolesOf(authentication), lecturerIdOf(authentication));
         return new StudentListResponse(data, meta(total, page, limit));
     }
 
@@ -71,8 +83,42 @@ public class PeopleReadService {
             return people.findStudentByIdAndUserId(id, ownerId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found"));
         }
-        return people.findStudentById(id)
+        StudentResponse student = people.findStudentById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found"));
+        if (authentication != null && !studentOnly(authentication)
+                && !people.studentVisibleToLecturer(student.id(), rolesOf(authentication), lecturerIdOf(authentication))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found");
+        }
+        return student;
+    }
+
+    private static List<String> rolesOf(Authentication authentication) {
+        if (authentication == null) {
+            return java.util.List.of("ADMIN");
+        }
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(authority -> authority.startsWith("ROLE_") ? authority.substring(5) : authority)
+                .toList();
+    }
+
+    private static String lecturerIdOf(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
+        if (authentication.getPrincipal()
+                instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+            return jwt.getClaimAsString("lecturerId");
+        }
+        if (authentication.getCredentials()
+                instanceof org.springframework.security.oauth2.jwt.Jwt jwtCredentials) {
+            return jwtCredentials.getClaimAsString("lecturerId");
+        }
+        if (authentication.getPrincipal()
+                instanceof org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal principal) {
+            return principal.getAttribute("lecturerId");
+        }
+        return null;
     }
 
     private static boolean studentOnly(Authentication authentication) {

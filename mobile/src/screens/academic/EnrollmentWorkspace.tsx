@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, InlineError, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileNavigation } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import {
@@ -40,6 +42,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
+  const pull = usePullToRefresh(() => Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()]));
   const [tab, setTab] = useState<EnrollmentTab>('active');
   const [term, setTerm] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -54,14 +57,20 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
 
   const loading = !preview && enrollmentsQuery.isLoading;
   const error = preview ? null : enrollmentsQuery.error;
+  const warning = preview
+    ? null
+    : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
+  const semestersFailed = !preview && semestersQuery.error !== null;
 
   return (
     <AcademicShell
       title={copy[title]}
       loading={loading}
       error={error}
-      warning={preview ? null : enrollmentsQuery.warning}
+      warning={warning}
       onRetry={() => void enrollmentsQuery.reload()}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: selected ? [] : rows, keyExtractor: (item) => `${item.semesterId}:${item.id}`,
         testID: 'course-grid', style: gridStyle(windowClass, largeText),
@@ -87,7 +96,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                           <StatusPill label={copy.status[item.status] ?? item.status} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
                         </View>
                         <UiText variant="headlineSmall">{name}</UiText>
-                        <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: item.section?.course?.credits ?? 0 })}</UiText>
+                        <UiText variant="meta" tone="muted">{fillCopy(countForm(item.section?.course?.credits ?? 0, copy.creditsOne, copy.credits), { n: item.section?.course?.credits ?? 0 })}</UiText>
                         {item.section?.sectionNumber ? (
                           <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
                         ) : null}
@@ -106,7 +115,11 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       {selected ? (
         <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
       ) : (<View>
-          <TermField options={options} value={term} onChange={setTerm} />
+          {semestersFailed ? (
+            <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+          ) : (
+            <TermField options={options} value={term} onChange={setTerm} />
+          )}
           <SegmentTabs
             label={copy.tabLabel}
             value={tab}

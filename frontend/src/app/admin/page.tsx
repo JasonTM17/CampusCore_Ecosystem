@@ -14,6 +14,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { metricToneClass } from '@/components/ui/status';
 import { ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 
 interface QuickStats {
   totalStudents: number;
@@ -63,7 +64,7 @@ export default function AdminDashboardPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 

@@ -1,10 +1,12 @@
 package io.campuscore.restfulapi.careers.service;
 
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
 import io.campuscore.restfulapi.careers.web.CareerDtos.ApplicationResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.ApplyRequest;
 import io.campuscore.restfulapi.careers.web.CareerDtos.AttachmentResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.AttachmentUploadRequest;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OpportunityResponse;
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
@@ -77,10 +79,17 @@ public class CareerCandidateService {
     public ListPaging.Result<OpportunityResponse> browse(String query, ListPaging.Window window) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         String where = " WHERE o.\"status\" = 'PUBLISHED'";
-        if (query != null && !query.isBlank()) {
-            where += " AND (LOWER(o.\"title\") LIKE :q OR LOWER(o.\"description\") LIKE :q"
-                    + " OR LOWER(o.\"location\") LIKE :q OR LOWER(g.\"name\") LIKE :q)";
-            params.addValue("q", "%" + query.trim().toLowerCase() + "%");
+        String pattern = LikePattern.contains(query);
+        if (pattern != null) {
+            params.addValue("foldFrom", LikePattern.FOLD_FROM)
+                    .addValue("foldTo", LikePattern.FOLD_TO)
+                    .addValue("q", pattern);
+            where += " AND (TRANSLATE(LOWER(o.\"title\"), :foldFrom, :foldTo) LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(o.\"description\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(o.\"location\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(g.\"name\"), :foldFrom, :foldTo) LIKE :q ESCAPE '\\')";
         }
         Long total = null;
         if (window != null) {
@@ -296,10 +305,15 @@ public class CareerCandidateService {
             throw problem(HttpStatus.BAD_REQUEST, "FILE_CHECKSUM_MISMATCH",
                     "Uploaded content does not match the declared checksum");
         }
+        // Keep JSON uploads under the same document type and signature policy
+        // as multipart uploads.
+        String fileName = MultipartAttachment.displayName(request.fileName());
+        String contentType = MultipartAttachment.declaredType(request.contentType());
+        MultipartAttachment.validateContentTypeAndSignature(
+                contentType, bytes, MultipartAttachment.DOCUMENTS);
         Map<String, Object> claimed = claimIdempotency(candidateId, idempotencyKey,
                 "attachment:" + sha256((applicationId + "|" + checksum + "|"
-                        + request.fileName().trim() + "|" + (request.contentType() == null
-                                ? "" : request.contentType()))
+                        + fileName + "|" + contentType)
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         if (claimed != null) {
             return replayResponse(claimed);
@@ -314,9 +328,8 @@ public class CareerCandidateService {
                 new MapSqlParameterSource()
                         .addValue("id", UUID.randomUUID().toString())
                         .addValue("app", applicationId)
-                        .addValue("name", request.fileName().trim())
-                        .addValue("type", request.contentType() == null
-                                ? "application/octet-stream" : request.contentType())
+                        .addValue("name", fileName)
+                        .addValue("type", contentType)
                         .addValue("checksum", checksum)
                         .addValue("data", bytes)
                         .addValue("actor", candidateId));
@@ -324,7 +337,7 @@ public class CareerCandidateService {
                         + " \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id",
                 new MapSqlParameterSource("id", applicationId));
         staff.audit("APPLICATION", applicationId, candidateId, "ATTACHMENT_ADDED",
-                null, null, "file=" + request.fileName().trim());
+                null, null, "file=" + fileName);
         ApplicationResponse response = myApplication(candidateId, applicationId);
         completeIdempotency(candidateId, idempotencyKey, applicationId, response);
         return response;

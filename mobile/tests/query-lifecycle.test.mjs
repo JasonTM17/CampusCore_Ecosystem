@@ -43,7 +43,8 @@ test('every data screen distinguishes loading/error/empty states', () => {
     assert.match(source, /kind="empty"|kind=\{[^}]*'empty'/);
   }
   // Denied + offline copy exists in both lanes.
-  assert.match(student, /HTTP_403|ACCESS_DENIED/);
+  const academicCopy = read('src/i18n/academic-messages.ts');
+  assert.match(student + academicCopy, /HTTP_403|ACCESS_DENIED/);
   assert.match(operations, /status === 403/);
   assert.match(operations, /status === 0/);
 });

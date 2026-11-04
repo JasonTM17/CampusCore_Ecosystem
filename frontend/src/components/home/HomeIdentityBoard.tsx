@@ -3,11 +3,19 @@
 import { useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
+import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
+
+const IDENTITY_TAB_VALUES = ['0', '1', '2'] as const;
 
 export function HomeIdentityBoard() {
   const { messages, locale } = useI18n();
+  const identityCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).identity;
   const [activeIndex, setActiveIndex] = useState(0);
+  const identityTabs = useRovingTabs(IDENTITY_TAB_VALUES, String(activeIndex), (value) => {
+    setActiveIndex(Number(value));
+  });
   const lanes = useMemo(
     () => [
       messages.home.identityRows,
@@ -25,15 +33,15 @@ export function HomeIdentityBoard() {
   const targetPortals = [
     {
       href: '/login?portal=student',
-      label: locale === 'vi' ? 'Vào Cổng Sinh viên' : 'Enter Student Portal',
+      label: identityCopy.student,
     },
     {
       href: '/login?portal=lecturer',
-      label: locale === 'vi' ? 'Vào Cổng Giảng viên' : 'Enter Lecturer Portal',
+      label: identityCopy.lecturer,
     },
     {
       href: '/login',
-      label: locale === 'vi' ? 'Vào Cổng Quản trị' : 'Enter Admin Portal',
+      label: identityCopy.admin,
     },
   ];
   const activePortal = targetPortals[activeIndex] ?? targetPortals[0];
@@ -56,7 +64,12 @@ export function HomeIdentityBoard() {
                 key={tab}
                 type="button"
                 role="tab"
+                id={`home-identity-tab-${index}`}
+                aria-controls="home-identity-panel"
                 aria-selected={selected}
+                tabIndex={identityTabs.tabIndex(String(index))}
+                ref={identityTabs.tabRef(String(index))}
+                onKeyDown={(event) => identityTabs.onKeyDown(event, index)}
                 onClick={() => setActiveIndex(index)}
                 className={
                   selected
@@ -69,7 +82,13 @@ export function HomeIdentityBoard() {
             );
           })}
         </div>
-        <div className="mt-2 flex-1 divide-y divide-white/10" role="tabpanel">
+        <div
+          className="mt-2 flex-1 divide-y divide-white/10"
+          id="home-identity-panel"
+          role="tabpanel"
+          tabIndex={0}
+          aria-labelledby={`home-identity-tab-${activeIndex}`}
+        >
           {rows.map((row) => (
             <div key={`${activeIndex}-${row.title}`} className="py-3 text-sm">
               <div className="flex items-center gap-1.5 font-medium">

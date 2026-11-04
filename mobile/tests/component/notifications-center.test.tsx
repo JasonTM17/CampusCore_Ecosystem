@@ -18,6 +18,10 @@ const mockQuery = {
     errorStatus: null as number | null,
   },
 };
+const mockUnreadQuery = {
+  data: 1 as number | undefined,
+  error: null as string | null,
+};
 
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live', baseUrl: 'http://localhost' },
@@ -55,16 +59,30 @@ jest.mock('../../src/api/expo-push-platform', () => ({
 }));
 jest.mock('../../src/session/SessionContext', () => ({ useSession: () => mockSession.value }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: (key: string) => ({
-    data: key === 'content.notifications.unread-count' ? 1 : mockQuery.value.data,
-    error: mockQuery.value.error,
-    warning: mockQuery.value.warning,
-    errorStatus: mockQuery.value.errorStatus,
-    isLoading: false,
-    isStale: false,
-    reload: jest.fn(async () => {}),
-    setData: jest.fn(),
-  }),
+  useScreenQuery: (key: string) => {
+    if (key === 'content.notifications.unread-count') {
+      return {
+        data: mockUnreadQuery.data,
+        error: mockUnreadQuery.error,
+        warning: null,
+        errorStatus: null,
+        isLoading: false,
+        isStale: false,
+        reload: jest.fn(async () => {}),
+        setData: jest.fn(),
+      };
+    }
+    return {
+      data: mockQuery.value.data,
+      error: mockQuery.value.error,
+      warning: mockQuery.value.warning,
+      errorStatus: mockQuery.value.errorStatus,
+      isLoading: false,
+      isStale: false,
+      reload: jest.fn(async () => {}),
+      setData: jest.fn(),
+    };
+  },
 }));
 
 import { contentApi } from '../../src/screens/content/content-api';
@@ -83,6 +101,12 @@ const navigateLane = jest.fn();
 const navigation = { navigate, navigateLane, signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student' } as MobileScreenProps;
 const renderThemed = (element: ReactElement) => render(<ThemeProvider forcedScheme="light">{element}</ThemeProvider>);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 function setWidth(width: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
@@ -103,6 +127,8 @@ afterEach(() => {
   mockQuery.value = { data: undefined, warning: null, error: null, errorStatus: null };
   mockPushOptIn.value = false;
   mockPushPermission.value = { granted: false, canAskAgain: true };
+  mockUnreadQuery.data = 1;
+  mockUnreadQuery.error = null;
 });
 
 /** The row's own button, not its delete button (whose label repeats the title). */
@@ -258,6 +284,34 @@ describe('push opt-in denial recovery', () => {
     expect(screen.queryByRole('button', { name: notificationsMessages.vi.enableAction })).toBeNull();
   });
 
+  test('double-tapping push opt-in starts one permission flow', async () => {
+    showOptIn({ granted: false, canAskAgain: true });
+    const permission = deferred<{ granted: boolean; canAskAgain?: boolean }>();
+    jest.mocked(expoPushPlatform.requestPermissionsAsync).mockReturnValue(permission.promise);
+    await renderThemed(<NotificationsScreen {...props} />);
+    const button = screen.getByRole('button', { name: notificationsMessages.vi.enableAction });
+    try {
+      await fireEvent.press(button);
+      await waitFor(() => expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1));
+      await fireEvent.press(screen.getByRole('button', { name: notificationsMessages.vi.enableAction }));
+
+      expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: notificationsMessages.vi.enableAction })).toBeDisabled();
+
+      await act(async () => {
+        permission.resolve({ granted: false, canAskAgain: true });
+        await permission.promise;
+      });
+      expect(await screen.findByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
+    } finally {
+      await act(async () => {
+        permission.resolve({ granted: false, canAskAgain: true });
+        await permission.promise;
+      });
+      jest.mocked(expoPushPlatform.requestPermissionsAsync).mockImplementation(async () => mockPushPermission.value);
+    }
+  });
+
   test('a denial the OS will still prompt for offers a retry, and a final denial swaps to settings', async () => {
     showOptIn({ granted: false, canAskAgain: true });
     await renderThemed(<NotificationsScreen {...props} />);
@@ -288,5 +342,15 @@ describe('push opt-in denial recovery', () => {
     // The rejection is not hidden and nothing pretends the grant succeeded.
     expect(screen.getByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
     expect(jest.mocked(expoPushPlatform.getPushToken)).not.toHaveBeenCalled();
+  });
+
+  test('displays an indeterminate unread count when unread-count query fails and list has more', async () => {
+    mockUnreadQuery.data = undefined;
+    mockUnreadQuery.error = '500 Internal Server Error';
+    const items = Array.from({ length: 25 }, (_, i) => row(`id-${i}`, `Title ${i}`, null, false));
+    showRows(items, { data: { items, total: 45, hasMore: true } });
+    await renderThemed(<NotificationsScreen {...props} />);
+    expect(screen.queryByText('25 chưa đọc')).toBeNull();
+    expect(screen.getByText('25+ chưa đọc')).toBeOnTheScreen();
   });
 });

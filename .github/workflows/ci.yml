@@ -11,6 +11,7 @@
 #    - Lineage & migrations: check-migrations.mjs and flyway-lineage-check.mjs.
 #    - Assistant offline eval: assistant-eval.test.mjs (fail on 0 tests).
 #    - Event collision guard: events-preview-collision.test.mjs (fail on 0 tests).
+#    - Source identity guard: tests/ecosystem-source-identity.test.mjs (fail on 0 tests).
 #    - BFF host registry & static policy: host-registry-verify.mjs, static-policy-verify.mjs.
 #
 # 2. java-api (BLOCKS MERGE):
@@ -22,7 +23,7 @@
 #    - Web unit tests (npm test) with assertion that > 0 tests executed.
 #
 # 4. portal-viewport (BLOCKS MERGE):
-#    - Portal shell responsiveness at 1440, 768, and 390 viewports (fail on 0 tests).
+#    - Portal shell responsiveness at 1440, 768, and 390 viewports (fail on 0 or skipped tests).
 #
 # 5. mobile (BLOCKS MERGE):
 #    - Expo mobile dependencies (npm ci), typecheck (tsc --noEmit).
@@ -79,6 +80,31 @@ jobs:
         run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - name: Install mobile dependencies for native parity resolution
         run: npm ci --prefix mobile --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Prometheus promtool
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROMETHEUS_VERSION=2.55.1
+          PROMETHEUS_ARCHIVE="prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          PROMETHEUS_URL="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}"
+          PROMETHEUS_DIR="$RUNNER_TEMP/prometheus-${PROMETHEUS_VERSION}"
+          mkdir -p "$PROMETHEUS_DIR"
+          curl --fail --silent --show-error --location "$PROMETHEUS_URL/$PROMETHEUS_ARCHIVE" -o "$PROMETHEUS_DIR/$PROMETHEUS_ARCHIVE"
+          curl --fail --silent --show-error --location "$PROMETHEUS_URL/sha256sums.txt" -o "$PROMETHEUS_DIR/sha256sums.txt"
+          grep -E "^[[:xdigit:]]{64}  ${PROMETHEUS_ARCHIVE}$" "$PROMETHEUS_DIR/sha256sums.txt" > "$PROMETHEUS_DIR/asset.sha256"
+          test "$(wc -l < "$PROMETHEUS_DIR/asset.sha256")" -eq 1
+          (cd "$PROMETHEUS_DIR" && sha256sum --check asset.sha256)
+          mkdir -p "$PROMETHEUS_DIR/bin"
+          tar -xzf "$PROMETHEUS_DIR/$PROMETHEUS_ARCHIVE" -C "$PROMETHEUS_DIR/bin" --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          chmod +x "$PROMETHEUS_DIR/bin/promtool"
+          echo "$PROMETHEUS_DIR/bin" >> "$GITHUB_PATH"
+      - name: Test Prometheus alert rules
+        run: |
+          promtool check rules \
+            ops/monitoring/alerts-api-slo.yml \
+            ops/monitoring/alerts-assistant.yml \
+            ops/monitoring/alerts-infrastructure.yml
+          promtool test rules ops/monitoring/alert-tests.yml
       - name: Secret hygiene gate (masked secret scan and test)
         shell: bash
         run: |
@@ -100,25 +126,37 @@ jobs:
           set -o pipefail
           node --test \
             scripts/alert-uri-policy.test.mjs \
+            scripts/caddy-validate.test.mjs \
+            scripts/check-migration-immutability.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
+            scripts/compose-contract.test.mjs \
+            scripts/compose-env-forwarding.test.mjs \
             scripts/contract-verify-options.test.mjs \
             scripts/contract-verify-teardown.test.mjs \
             scripts/dependency-baseline.test.mjs \
             scripts/diagnostic-target-policy.test.mjs \
             scripts/doc-links.test.mjs \
+            scripts/e2e-process-control.test.mjs \
+            scripts/eas-profile-check.test.mjs \
             scripts/ecosystem-backup-drill.test.mjs \
             scripts/ecosystem-devices-verify.test.mjs \
             scripts/ecosystem-doc-index.test.mjs \
+            scripts/ecosystem-verify-shared.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
+            scripts/image-reference-policy.test.mjs \
+            scripts/local-dev.test.mjs \
             scripts/locale-keys.test.mjs \
+            scripts/mobile-local-oidc-verify.test.mjs \
+            scripts/ops-delivery-contract.test.mjs \
             scripts/platform-load.test.mjs \
+            scripts/platform-verify.test.mjs \
             scripts/provision-assistant-runtime.test.mjs \
-            scripts/release-promotion-policy.test.mjs \
             scripts/runtime-env-inventory.test.mjs \
             scripts/secret-hygiene.test.mjs \
+            scripts/seed-script-guard.test.mjs \
             scripts/text-encoding.test.mjs \
             scripts/verify-backup.test.mjs \
             2>&1 | tee /tmp/root-script-tests.log
@@ -142,7 +180,37 @@ jobs:
       - name: Design tokens synchronization gate
         run: node scripts/sync-tokens.mjs --check
       - name: Migration source checks
+        shell: bash
         run: |
+          set -euo pipefail
+          migration_dir=java-services/restful-api/src/main/resources/db/migration
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            event_path="${GITHUB_EVENT_PATH:?push event payload is missing}"
+            base_ref="$(node -e 'const fs = require("node:fs"); const event = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(event.before || "");' "$event_path")"
+            if [[ -z "$base_ref" ]]; then
+              echo 'FAIL push event has no prior revision in its payload'
+              exit 1
+            fi
+          else
+            base_ref=origin/main
+          fi
+          if [[ "$base_ref" =~ ^0+$ ]]; then base_ref=HEAD^; fi
+          baseline="$(git ls-tree -r --name-only "$base_ref" -- "$migration_dir" \
+            | sed -nE 's#^.*/V([0-9]+)__[^/]*\.sql$#\1#p' \
+            | sort -n | tail -n 1)"
+          if [[ ! "$baseline" =~ ^[0-9]+$ ]]; then
+            echo "FAIL migration baseline not found in $base_ref"
+            exit 1
+          fi
+          added="$(git diff --name-only --diff-filter=A "$base_ref...HEAD" -- "$migration_dir")"
+          while IFS= read -r migration; do
+            [[ -n "$migration" ]] || continue
+            version="$(basename "$migration" | sed -nE 's/^V([0-9]+)__.*/\1/p')"
+            if [[ ! "$version" =~ ^[0-9]+$ ]] || (( version <= baseline )); then
+              echo "FAIL new migration $migration is not newer than baseline V$baseline"
+              exit 1
+            fi
+          done <<< "$added"
           node scripts/check-migrations.mjs
           node scripts/flyway-lineage-check.mjs
       - name: Offline assistant evaluation gate (AUD-16)
@@ -174,6 +242,21 @@ jobs:
               process.exit(1);
             }
             console.log(`PASS: Verified ${m[1]} events collision tests executed.`);
+          '
+      - name: Ecosystem source identity gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/tests/ecosystem-source-identity.test.mjs 2>&1 | tee /tmp/source-identity.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/source-identity.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero source identity tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} source identity tests executed.`);
           '
       - name: BFF host registry parity and static policy sentinels
         run: |
@@ -345,6 +428,10 @@ jobs:
     name: Portal viewport shell
     # Playwright 1.59 has no browser build for ubuntu-latest (26.04); stay on a supported image.
     runs-on: ubuntu-24.04
+    env:
+      # The suite may skip locally when no browser or dev server exists; in CI
+      # a skip means the responsive gate checked nothing and must fail.
+      PORTAL_REQUIRE_BROWSER: '1'
     steps:
       - name: Capture CI job start
         id: ci_timing_start
@@ -382,12 +469,26 @@ jobs:
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/portal-viewport.log", "utf8");
-            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
-            if (!m || parseInt(m[1], 10) === 0) {
-              console.error("FAIL: Zero viewport tests executed or summary count missing!");
+            const count = (label) => {
+              const match = log.match(new RegExp(`(?:#|ℹ)\\s*${label}\\s+(\\d+)`));
+              return match ? parseInt(match[1], 10) : null;
+            };
+            const tests = count("tests");
+            const passed = count("pass");
+            const skipped = count("skipped");
+            if (tests === null || tests === 0 || passed === null || skipped === null) {
+              console.error("FAIL: Viewport summary is missing tests/pass/skipped counts!");
               process.exit(1);
             }
-            console.log(`PASS: Verified ${m[1]} viewport tests executed.`);
+            if (skipped > 0) {
+              console.error(`FAIL: ${skipped} viewport test(s) skipped; the responsive gate must run them.`);
+              process.exit(1);
+            }
+            if (passed !== tests) {
+              console.error(`FAIL: Only ${passed}/${tests} viewport tests passed.`);
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${tests} viewport tests executed and passed.`);
           '
       - name: Write and validate CI timing summary
         if: always()
@@ -523,6 +624,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run official e2e suite on a disposable stack
         run: node scripts/run-course-e2e.mjs
+      - name: Run mobile unread recovery on mobile-390
+        env:
+          E2E_PLAYWRIGHT_PROJECT: mobile-390
+          E2E_PLAYWRIGHT_FILTER: failed mark-read restores the preview row and unread badge without duplicates
+        run: node scripts/run-course-e2e.mjs
       - name: Upload Playwright failure traces
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -565,6 +671,10 @@ jobs:
       # role needs a password (>= 16 chars) before the stack can boot. It is
       # committed on purpose (CI-only, not a secret) and never used elsewhere.
       ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
+      # docker-compose.yml has no default for the owner-assertion key because a
+      # deployed stack must generate its own; this job still needs a non-empty
+      # value to interpolate the model. CI-only placeholder, not a secret.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: 'dev-ci-owner-assertion-not-a-secret'
     steps:
       - name: Capture CI job start
         id: ci_timing_start
@@ -576,25 +686,16 @@ jobs:
           # origin/main (shallow clones make the merge-base diff empty).
           fetch-depth: 0
       - name: Flyway migrations are immutable once merged
-        shell: bash
-        run: |
-          edited="$(git diff --name-only origin/main...HEAD -- 'java-services/**/db/migration/*.sql' 'java-services/**/db/migration-h2/*.sql')"
-          if [ -n "$edited" ]; then
-            while IFS= read -r f; do
-              if git cat-file -e "origin/main:$f" 2>/dev/null; then
-                echo "IMMUTABLE migration edited: $f"
-                echo "Corrective changes are new forward migrations (V<n+1>); see db/migration/README.md."
-                exit 1
-              fi
-            done <<< "$edited"
-          fi
+        run: node scripts/check-migration-immutability.mjs origin/main
       - name: Validate Compose
         run: docker compose config
+      - name: Validate Caddyfile
+        run: node scripts/caddy-validate.mjs
       - name: Supabase content tooling tests
         shell: bash
         run: |
           set -o pipefail
-          node --test scripts/supabase/assistant-knowledge.test.mjs 2>&1 | tee /tmp/supabase-tests.log
+          node --test scripts/supabase/assistant-knowledge.test.mjs scripts/supabase/assistant-knowledge-version.test.mjs 2>&1 | tee /tmp/supabase-tests.log
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/supabase-tests.log", "utf8");
@@ -656,7 +757,8 @@ jobs:
           ASSISTANT="$assistant" python3 -c 'import json, os; data=json.loads(os.environ["ASSISTANT"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
           rag_rejection="$(docker compose exec -T rag-service wget --server-response --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: wrong-token' --header='X-Assistant-Owner: ci-rag-probe' --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O /dev/null http://localhost:4011/internal/rag/assistant/chat 2>&1 || true)"
           printf '%s\n' "$rag_rejection" | grep -Eq 'HTTP/[0-9.]+ 403'
-          rag_internal="$(docker compose exec -T rag-service wget --no-verbose --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: dev-rag-service-token-rotate-before-exposing' --header='X-Assistant-Owner: ci-rag-probe' --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O- http://localhost:4011/internal/rag/assistant/chat)"
+          rag_owner_assertion="$(python3 -c 'import base64, hashlib, hmac, json, os, time; b64=lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode(); now=int(time.time()); head=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode()); body=b64(json.dumps({"iss":"https://campuscore.invalid/restful-api","sub":"ci-rag-probe","aud":["campuscore-internal-rag"],"capability":"assistant","iat":now,"exp":now+30},separators=(",",":")).encode()); sig=b64(hmac.new(os.environ["ASSISTANT_RAG_OWNER_ASSERTION_SECRET"].encode(),(head+"."+body).encode(),hashlib.sha256).digest()); print(head+"."+body+"."+sig)')"
+          rag_internal="$(docker compose exec -T rag-service wget --no-verbose --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: dev-rag-service-token-rotate-before-exposing' --header='X-Assistant-Owner: ci-rag-probe' --header="X-Assistant-Owner-Assertion: $rag_owner_assertion" --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O- http://localhost:4011/internal/rag/assistant/chat)"
           RAG_INTERNAL="$rag_internal" python3 -c 'import json, os; data=json.loads(os.environ["RAG_INTERNAL"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
           docker compose stop postgres
           # With the database stopped, Hikari must evict its dead pooled

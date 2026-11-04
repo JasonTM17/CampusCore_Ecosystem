@@ -7,6 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -15,9 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
  * service code (ownership, checksum, size, idempotency, versioning) as the JSON
  * ones. Only the transport differs; the JSON body cap is not touched.
  *
- * <p>The multipart lane additionally refuses a declared content type outside
- * the policy allowlist and a body whose leading bytes contradict the declared
- * type. The part's file name is reduced to a single display-only segment.
+ * <p>Both transports apply the same declared-type allowlist and leading-byte
+ * signature checks. The part's file name is reduced to a single display-only
+ * segment.
  */
 public final class MultipartAttachment {
 
@@ -96,11 +98,6 @@ public final class MultipartAttachment {
         if (file.getSize() > MAX_BYTES) {
             throw tooLarge();
         }
-        String type = normalizedType(file.getContentType());
-        if (!policy.allows(type)) {
-            throw new DomainException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "ATTACHMENT_TYPE_UNSUPPORTED",
-                    "This file type is not accepted");
-        }
         byte[] bytes;
         try {
             bytes = file.getBytes();
@@ -111,13 +108,24 @@ public final class MultipartAttachment {
         if (bytes.length > MAX_BYTES) {
             throw tooLarge();
         }
+        String type = validateContentTypeAndSignature(file.getContentType(), bytes, policy);
+        return new Payload(displayName(file.getOriginalFilename()), type,
+                Base64.getEncoder().encodeToString(bytes));
+    }
+
+    /** Applies the lane allowlist and declared-type signature rule to either upload transport. */
+    public static String validateContentTypeAndSignature(String declared, byte[] bytes, Policy policy) {
+        String type = normalizedType(declared);
+        if (!policy.allows(type)) {
+            throw new DomainException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "ATTACHMENT_TYPE_UNSUPPORTED",
+                    "This file type is not accepted");
+        }
         byte[] signature = policy.signedTypes().get(type);
         if (signature != null && !startsWith(bytes, signature)) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_CONTENT_MISMATCH",
                     "The file content does not match its declared type");
         }
-        return new Payload(displayName(file.getOriginalFilename()), type,
-                Base64.getEncoder().encodeToString(bytes));
+        return type;
     }
 
     private static DomainException tooLarge() {
@@ -134,8 +142,51 @@ public final class MultipartAttachment {
         return type.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * JSON/base64 counterpart of the multipart declared-type checks: the
+     * declared type must parse as a media type or the upload is rejected at
+     * the boundary. The returned value is the canonical {@code type/subtype}
+     * (parameters stripped, lowercased) and defaults to octet-stream when
+     * absent, so what is persisted always parses on a later download and
+     * always fits the attachment column.
+     */
+    public static String declaredType(String declared) {
+        String normalized = normalizedType(declared);
+        if (normalized.isEmpty()) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        String canonical;
+        try {
+            canonical = MediaType.parseMediaType(normalized).toString();
+        } catch (InvalidMediaTypeException exception) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_TYPE_INVALID",
+                    "contentType is not a valid media type");
+        }
+        if (canonical.length() > 120) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_TYPE_INVALID",
+                    "contentType is not a valid media type");
+        }
+        return canonical;
+    }
+
+    /**
+     * Read-side counterpart of {@link #declaredType}: a stored value that
+     * predates boundary validation, or is otherwise unparseable, degrades to
+     * octet-stream instead of failing the whole download.
+     */
+    public static MediaType downloadType(Object stored) {
+        if (stored == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(String.valueOf(stored));
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+    }
+
     /** Single path segment, printable characters only, capped; never used as a storage path. */
-    static String displayName(String original) {
+    public static String displayName(String original) {
         String name = original == null ? "" : original;
         int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
         if (slash >= 0) {

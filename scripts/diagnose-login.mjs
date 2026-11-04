@@ -159,6 +159,7 @@ async function run() {
 
   } catch (err) {
     console.error('Browser diagnostic failed: ' + err.name);
+    process.exitCode = 1;
   } finally {
     await browser.close();
   }

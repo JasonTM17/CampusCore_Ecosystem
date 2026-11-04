@@ -1,5 +1,14 @@
 # Khuyến nghị vòng 10 — Deep scan toàn hệ thống (2026-09-24)
 
+> **Trạng thái: tài liệu lịch sử.** Viết trước khi workspace chuyển sang
+> **local-first**; repo này hiện không có production, DNS hay deploy. Các tệp
+> `render.yaml`, `docker-compose.prod.yml`, `deployment.md`, `PRODUCTION_RUNBOOK.md`
+> và `publish-ghcr.yml` được nhắc trong bảng **đã bị gỡ** — finding giữ giá trị
+> lịch sử, không phải hướng dẫn. Hành động operator nhắm vào Render dashboard/VPS
+> (`flyway repair`, `DEMO_ACCOUNTS_ENABLED`, …) là **deferred — future deployment
+> work**, không chạy được từ workspace này. Quick start local:
+> [README.md](../README.md#quick-start-local).
+
 > Vòng 10 chạy đúng quy trình AgentKit: **6 subagents scout song song** (backend security/concurrency,
 > frontend quality, review diff pending, tests/CI/hygiene, data model/migrations, RAG/Supabase/deploy/mobile)
 > → **hội đồng 3 role** (Wukong phản biện 5 tuyên bố trọng yếu, Kongming kiến trúc & sequencing,

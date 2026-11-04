@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Search } from 'lucide-react';
 import { publicDocsApi } from '@/lib/api';
 import { LocalizedLink } from '@/components/LocalizedLink';
@@ -12,7 +12,10 @@ import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
+import { clampPage, hasNextPage } from '@/lib/pager';
 import { formatRelativeTime } from '@/lib/announcement-presentation';
+
+const PAGE_SIZE = 50;
 
 /**
  * Anonymous public-documentation lane (publication-policy §6): the server
@@ -23,12 +26,21 @@ export default function DocsPage() {
   const copy = messages.content.docs;
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   const query = useApiQuery(
-    ['public-docs', search],
-    () => publicDocsApi.list({ page: 1, limit: 50, search: search || undefined }),
+    ['public-docs', search, page],
+    () => publicDocsApi.list({ page, limit: PAGE_SIZE, search: search || undefined }),
   );
   const items = query.data?.data ?? [];
+  const totalPages = Math.max(1, query.data?.meta?.totalPages ?? 1);
+  useEffect(() => {
+    if (!query.data || query.isFetching || query.isError) return;
+    const correctedPage = clampPage(page, totalPages);
+    if (correctedPage !== page) setPage(correctedPage);
+  }, [page, query.data, query.isError, query.isFetching, totalPages]);
+  const hasPreviousPage = page > 1;
+  const goToPage = (nextPage: number) => setPage(clampPage(nextPage, totalPages));
 
   return (
     <PublicChrome>
@@ -42,6 +54,7 @@ export default function DocsPage() {
         className="mb-8 flex max-w-xl gap-2"
         onSubmit={(event) => {
           event.preventDefault();
+          setPage(1);
           setSearch(searchInput.trim());
         }}
       >
@@ -102,6 +115,34 @@ export default function DocsPage() {
           })}
         </ul>
       )}
+
+      {!query.isLoading && !query.isError && items.length > 0 ? (
+        <div className="mt-8 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+            {messages.common.states.page} {page} / {totalPages}
+          </p>
+          {hasPreviousPage || hasNextPage(page, totalPages) ? (
+            <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!hasPreviousPage}
+                onClick={() => goToPage(page - 1)}
+              >
+                {messages.common.states.goToPreviousPage}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!hasNextPage(page, totalPages)}
+                onClick={() => goToPage(page + 1)}
+              >
+                {messages.common.states.goToNextPage}
+              </Button>
+            </nav>
+          ) : null}
+        </div>
+      ) : null}
     </PublicChrome>
   );
 }

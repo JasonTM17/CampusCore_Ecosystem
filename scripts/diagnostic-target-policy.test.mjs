@@ -1,23 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptsDirectory, '..');
 const browserDiagnostics = [
   'diagnose-login.mjs',
   'benchmark-all-roles.mjs',
-  'audit-prod-browser.mjs',
-];
-const retiredPollers = [
-  'wait-prod-e98423.mjs',
-  'wait-prod-v131.mjs',
-  'wait-prod-section-search.mjs',
-];
-const fetchDiagnostics = [
-  'prod-deep-audit.mjs',
 ];
 
 const readScript = (name) => readFileSync(resolve(scriptsDirectory, name), 'utf8');
@@ -94,7 +86,7 @@ test('diagnostic logs omit URL queries and unknown option values', () => {
 });
 
 test('role diagnostics require named environment credentials', () => {
-  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs', 'diagnose-login.mjs']) {
+  for (const name of ['benchmark-all-roles.mjs', 'diagnose-login.mjs']) {
     const source = readScript(name);
     assert.ok(source.includes('CAMPUS_DIAGNOSTIC_'), `${name} must name its credential environment variables`);
     assert.ok(source.includes('process.env'), `${name} must read credentials from the environment`);
@@ -109,7 +101,7 @@ test('role diagnostics require named environment credentials', () => {
 
 test('role diagnostics reject missing environment credentials before browser startup', () => {
   const credentialRoles = ['STUDENT', 'LECTURER', 'DEPARTMENT_HEAD', 'DEAN', 'ADMIN'];
-  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs']) {
+  for (const name of ['benchmark-all-roles.mjs']) {
     const source = readScript(name);
     const rolesPrepared = source.search(/const roles\s*=\s*(?:ROLES|ROLES_TO_TEST)\.map/);
     const browserStart = source.indexOf('chromium.launch');
@@ -147,61 +139,37 @@ test('login diagnostic writes screenshots only under the ignored artifact tree',
   assert.ok(!source.includes('scripts/dashboard-rendered.png'), 'screenshot output must not dirty scripts');
 });
 
-test('historical deployment pollers are retired without requests', () => {
-  for (const name of retiredPollers) {
-    const source = readScript(name);
-    assert.ok(/retired/i.test(source), `${name} must identify itself as retired`);
-    assert.ok(source.includes('--help'), `${name} must provide guarded help`);
-    assert.ok(!/\bfetch\s*\(/.test(source), `${name} must not issue a request`);
-
-    const help = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--help'], { encoding: 'utf8', timeout: 5000 });
-    const defaultRun = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], { encoding: 'utf8', timeout: 5000 });
-    assert.equal(help.status, 0, `${name} help must exit cleanly`);
-    assert.equal(defaultRun.status, 2, `${name} must fail closed without network access`);
-  }
-});
-
-test('fetch diagnostics validate an explicit target before issuing requests', () => {
-  for (const name of fetchDiagnostics) {
-    const source = readScript(name);
-    const validation = source.indexOf('parseTargetOptions(process.argv.slice(2))');
-    const firstRequest = source.indexOf('fetch(');
-
-    assert.ok(source.includes('--target'), `${name} must document an explicit target`);
-    assert.ok(source.includes('--allow-network'), `${name} must require network opt-in for remote targets`);
-    assert.ok(validation >= 0 && firstRequest > validation, `${name} must validate its target before any request helper exists`);
-    assert.ok(/if\s*\(\s*!isLoopback\(url\.hostname\)\s*&&\s*!allowNetwork\s*\)/.test(source), `${name} must reject remote targets without opt-in`);
-    assert.ok(!/https:\/\/(?:www\.)?campusute\.io\.vn|https:\/\/campuscore-backend-p4em\.onrender\.com/i.test(source), `${name} must not embed a remote target`);
-  }
-});
-
-test('fetch diagnostics reject bad targets and unknown options before any request', () => {
-  for (const name of fetchDiagnostics) {
-    const invalidTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--target', 'file:///invalid-target'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(invalidTarget.status, 2, `${name} must reject non-HTTP targets`);
-
-    const missingTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(missingTarget.status, 2, `${name} must fail closed without an explicit target`);
-
-    const help = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--help'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(help.status, 0, `${name} help must exit cleanly`);
-
-    const unknown = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--unrecognized-option=probe'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(unknown.status, 2, `${name} must reject unknown options`);
-    assert.ok(!unknown.stderr.includes('--unrecognized-option=probe'), `${name} must not echo the rejected option`);
-  }
+test('login diagnostic exits non-zero when the login journey fails', (t) => {
+  const fixture = mkdtempSync(join(repoRoot, '.test-diagnose-login-'));
+  t.after(() => rmSync(fixture, { recursive: true, force: true }));
+  const preload = join(fixture, 'preload.mjs');
+  writeFileSync(preload, `
+import Module from 'node:module';
+const page = {
+  on() {},
+  async goto() {},
+  async waitForSelector() { throw new Error('stubbed missing submit button'); },
+};
+const context = { async route() {}, async newPage() { return page; } };
+const stub = { chromium: { async launch() { return { async newContext() { return context; }, async close() {} }; } } };
+const original = Module._load;
+Module._load = function (request, ...rest) {
+  if (request === 'playwright') return stub;
+  return original.apply(this, [request, ...rest]);
+};
+`, 'utf8');
+  const env = {
+    ...process.env,
+    CAMPUS_DIAGNOSTIC_STUDENT_EMAIL: 'probe@example.invalid',
+    CAMPUS_DIAGNOSTIC_STUDENT_PASSWORD: 'diagnostic-probe-password',
+  };
+  const result = spawnSync(process.execPath, [
+    '--import', pathToFileURL(preload).href,
+    resolve(scriptsDirectory, 'diagnose-login.mjs'),
+    '--target', 'http://127.0.0.1:3000',
+  ], { encoding: 'utf8', timeout: 15000, env });
+  assert.equal(result.status, 1, `a failed login journey must exit non-zero\n${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /Browser diagnostic failed/);
 });
 
 test('Java container health reports unauthenticated liveness only', () => {

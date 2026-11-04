@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.academic.web;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
@@ -18,9 +19,11 @@ public final class AcademicAttendanceReadDtos {
     public record StudentSummary(String id, String studentId, UserSummary user) {
     }
 
+    @Schema(name = "AttendanceCourseSummary")
     public record CourseSummary(String id, String code, String name, String nameEn, String nameVi) {
     }
 
+    @Schema(name = "AttendanceSectionSummary")
     public record SectionSummary(
             String id,
             String sectionNumber,

@@ -11,7 +11,11 @@ import { SignInScreen } from '../../src/screens/auth/SignInScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 let mockStore: ReturnType<typeof createSessionStore>;
-const mockApi = { mode: 'live', setOnSessionExpired: jest.fn() };
+let sessionExpiredHandler: (() => void) | undefined;
+const mockApi = {
+  mode: 'live',
+  setOnSessionExpired: jest.fn((handler?: () => void) => { sessionExpiredHandler = handler; }),
+};
 jest.mock('../../src/api/client', () => ({ get apiClient() { return mockApi; }, campusApi: {} }));
 jest.mock('../../src/auth/mobile-session-store', () => ({ get sessionStore() { return mockStore; } }));
 jest.mock('../../src/auth/oidc-session', () => jest.requireActual('../../src/auth/oidc-core'));
@@ -32,6 +36,8 @@ function access(claims: Record<string, unknown> = {}) {
 beforeEach(() => {
   jest.restoreAllMocks();
   mockApi.mode = 'live';
+  mockApi.setOnSessionExpired.mockClear();
+  sessionExpiredHandler = undefined;
   secure = new Map([['cu.install', JSON.stringify({ appInstanceId: 'install' })], ['cu.refresh', 'synthetic-refresh']]);
   request = jest.fn(async () => new Response('{}', { status: 503 }));
   mockStore = createSessionStore({
@@ -49,32 +55,40 @@ beforeEach(() => {
   });
 });
 
-test('offline boot is honestly unavailable and manual retry recovers', async () => {
+test('a lost boot refresh requires sign-in and cannot be retried with the old token', async () => {
   request.mockRejectedValueOnce(new TypeError('offline'));
   const { result } = await renderHook(useSession, { wrapper });
   expect(result.current.kind).toBe('signedOut');
-  expect(result.current.bootStatus).toBe('unavailable');
+  expect(result.current.bootStatus).toBe('reauthRequired');
   expect(result.current.accountId).toBeNull();
-  expect(secure.has('cu.refresh')).toBe(true);
+  expect(secure.has('cu.refresh')).toBe(false);
   expect(mockStore.getAccessToken()).toBeNull();
-  request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access() })));
-  await act(async () => result.current.retryBoot!());
+  await act(async () => { foreground('active'); await result.current.retryBoot!(); });
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+test('manual retries share a pre-dispatch bootstrap recovery', async () => {
+  jest.spyOn(mockStore, 'loadBootstrap').mockRejectedValueOnce(new Error('storage unavailable'));
+  const { result } = await renderHook(useSession, { wrapper });
+  expect(result.current.bootStatus).toBe('unavailable');
+  expect(request).not.toHaveBeenCalled();
+  let release!: (response: Response) => void;
+  request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  let first!: Promise<void>;
+  let second!: Promise<void>;
+  await act(async () => {
+    first = result.current.retryBoot!();
+    second = result.current.retryBoot!();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    release(new Response(JSON.stringify({ access_token: access(), refresh_token: 'synthetic-rotation' })));
+    await Promise.all([first, second]);
+  });
   expect(result.current.kind).toBe('authenticated');
   expect(result.current.accountId).toBe('account');
   expect(result.current.bootStatus).toBe('ready');
-  expect(request).toHaveBeenCalledTimes(2);
-});
-
-test('foreground retries once and concurrent manual retry shares the attempt', async () => {
-  const { result } = await renderHook(useSession, { wrapper });
-  let release!: (response: Response) => void;
-  request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
-  await act(async () => { foreground('active'); foreground('active'); void result.current.retryBoot!(); });
-  expect(request).toHaveBeenCalledTimes(2);
-  await act(async () => release(new Response(JSON.stringify({ access_token: access() }))));
-  expect(result.current.kind).toBe('authenticated');
-  await act(async () => foreground('active'));
-  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenCalledTimes(1);
 });
 
 test('invalid grant ends bootstrap without a retry loop', async () => {
@@ -87,17 +101,69 @@ test('invalid grant ends bootstrap without a retry loop', async () => {
   expect(request).toHaveBeenCalledTimes(1);
 });
 
+test('boot quarantines a lost refresh response and disables manual and foreground retries', async () => {
+  request.mockRejectedValueOnce(new TypeError('response lost'));
+  const { result } = await renderHook(useSession, { wrapper });
+
+  expect(result.current.kind).toBe('signedOut');
+  expect(result.current.bootStatus).toBe('reauthRequired');
+  expect(secure.has('cu.refresh')).toBe(false);
+  await act(async () => foreground('active'));
+  await act(async () => result.current.retryBoot!());
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+test('boot without a refresh credential clears partial access state and remains signed out', async () => {
+  secure.delete('cu.refresh');
+  secure.set('cu.profile', JSON.stringify({ accountId: 'old-account' }));
+  mockStore.setAccessToken(access());
+
+  const { result } = await renderHook(useSession, { wrapper });
+
+  expect(result.current.kind).toBe('signedOut');
+  expect(result.current.accountId).toBeNull();
+  expect(result.current.bootStatus).toBe('ready');
+  expect(mockStore.getAccessToken()).toBeNull();
+  expect(request).not.toHaveBeenCalled();
+});
+
+test('a definitive issuer rejection ends the session instead of retrying a dead grant', async () => {
+  request.mockResolvedValueOnce(new Response('{}', { status: 401 }));
+  const { result } = await renderHook(useSession, { wrapper });
+  expect(result.current.kind).toBe('signedOut');
+  expect(result.current.bootStatus).toBe('ready');
+  expect(secure.has('cu.refresh')).toBe(false);
+});
+
+test('the shared terminal notification clears and fences the current session', async () => {
+  request.mockResolvedValueOnce(new Response(JSON.stringify({
+    access_token: access(),
+    refresh_token: 'synthetic-rotation',
+  })));
+  const { result } = await renderHook(useSession, { wrapper });
+  expect(result.current.kind).toBe('authenticated');
+  const priorEpoch = mockStore.sessionEpoch();
+
+  await act(async () => sessionExpiredHandler?.());
+
+  expect(result.current.kind).toBe('signedOut');
+  expect(result.current.bootStatus).toBe('reauthRequired');
+  expect(mockStore.sessionEpoch()).toBe(priorEpoch + 1);
+  expect(mockStore.getAccessToken()).toBeNull();
+});
+
 test.each([access({ exp: 1 }), access({ sub: null }), 'malformed-access'])('unusable access claims never authenticate bootstrap (%#)', async (token) => {
-  request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: token })));
+  request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: token, refresh_token: 'synthetic-rotation' })));
   const { result } = await renderHook(useSession, { wrapper });
   expect(result.current.kind).toBe('signedOut');
   expect(result.current.bootStatus).toBe('unavailable');
   expect(result.current.accountId).toBeNull();
   expect(mockStore.getAccessToken()).toBeNull();
-  expect(secure.has('cu.refresh')).toBe(true);
+  expect(secure.get('cu.refresh')).toBe('synthetic-rotation');
 });
 
 test('sign-out during boot retry fences the late result', async () => {
+  jest.spyOn(mockStore, 'loadBootstrap').mockRejectedValueOnce(new Error('storage unavailable'));
   const { result } = await renderHook(useSession, { wrapper });
   let release!: (response: Response) => void;
   request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
@@ -148,16 +214,16 @@ test.each(['network', 'malformed'] as const)('foreground does not automatically 
   if (failure === 'network') request.mockRejectedValueOnce(new TypeError('response lost'));
   else request.mockResolvedValueOnce(new Response('{"refresh_token":"synthetic-rotation"}'));
   const { result } = await renderHook(useSession, { wrapper });
-  expect(result.current.bootStatus).toBe('unavailable');
+  expect(result.current.bootStatus).toBe('reauthRequired');
+  expect(secure.has('cu.refresh')).toBe(false);
   await act(async () => foreground('active'));
-  expect(request).toHaveBeenCalledTimes(1);
-  request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access() })));
   await act(async () => result.current.retryBoot!());
-  expect(result.current.kind).toBe('authenticated');
-  expect(request).toHaveBeenCalledTimes(2);
+  expect(result.current.kind).toBe('signedOut');
+  expect(request).toHaveBeenCalledTimes(1);
 });
 
 test.each([['vi', 'Thử lại phiên'], ['en', 'Retry session']] as ['vi' | 'en', string][])('the %s sign-in screen exposes a bounded manual boot retry', async (locale, retryLabel) => {
+  jest.spyOn(mockStore, 'loadBootstrap').mockRejectedValueOnce(new Error('storage unavailable'));
   const props = { navigation: { navigate: jest.fn() }, role: 'student', selectedThesisTopicId: null } as unknown as MobileScreenProps;
   await render(
     <ThemeProvider forcedScheme="light"><LocaleProvider initialLocale={locale}>
@@ -168,7 +234,25 @@ test.each([['vi', 'Thử lại phiên'], ['en', 'Retry session']] as ['vi' | 'en
   request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
   await fireEvent.press(screen.getByRole('button', { name: retryLabel }));
   expect(screen.getByRole('button', { name: retryLabel })).toBeDisabled();
-  expect(request).toHaveBeenCalledTimes(2);
-  await act(async () => release(new Response(JSON.stringify({ access_token: access() }))));
+  expect(request).toHaveBeenCalledTimes(1);
+  await act(async () => release(new Response(JSON.stringify({ access_token: access(), refresh_token: 'synthetic-rotation' }))));
   expect(screen.queryByRole('button', { name: retryLabel })).toBeNull();
+});
+
+test.each([
+  ['vi', 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.'],
+  ['en', 'Your session has expired. Sign in again.'],
+] as ['vi' | 'en', string][])(`the %s sign-in screen explains why fresh authentication is required`, async (locale, reason) => {
+  request.mockRejectedValueOnce(new TypeError('response lost'));
+  const props = { navigation: { navigate: jest.fn() }, role: 'student', selectedThesisTopicId: null } as unknown as MobileScreenProps;
+
+  await render(
+    <ThemeProvider forcedScheme="light"><LocaleProvider initialLocale={locale}>
+      <SessionProvider><SignInScreen {...props} /></SessionProvider>
+    </LocaleProvider></ThemeProvider>,
+  );
+
+  expect(await screen.findByText(reason)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: locale === 'vi' ? 'Thử lại phiên' : 'Retry session' })).toBeNull();
+  expect(secure.has('cu.refresh')).toBe(false);
 });

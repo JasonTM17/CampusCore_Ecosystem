@@ -19,6 +19,7 @@ import io.campuscore.restfulapi.auth.web.AuthDtos.UpdateProfileRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -61,6 +62,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("login")
+    @SecurityRequirements
     @Operation(summary = "Đăng nhập hệ thống", description = "Xác thực tài khoản bằng email và mật khẩu, trả về cặp Access Token và Refresh Token cùng thông tin vai trò. Với tài khoản đã bật xác thực hai yếu tố, trả về twoFactorRequired=true kèm challengeId và email che khuất thay cho token.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đăng nhập thành công, phát hành token"),
@@ -99,6 +101,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("refresh")
+    @SecurityRequirements
     @Operation(summary = "Làm mới Access Token", description = "Cấp mới Access Token bằng Refresh Token hợp lệ khi phiên làm việc sắp hết hạn.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Làm mới phiên thành công, trả về token mới"),
@@ -155,6 +158,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("forgot-password")
+    @SecurityRequirements
     @Operation(summary = "Yêu cầu đặt lại mật khẩu", description = "Gửi liên kết đặt lại mật khẩu tới email của tài khoản. Phản hồi luôn giống nhau dù email có tồn tại hay không, để tránh lộ thông tin tài khoản.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đã tiếp nhận yêu cầu; nếu tài khoản khớp, liên kết đặt lại sẽ được gửi"),
@@ -170,6 +174,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("reset-password")
+    @SecurityRequirements
     @Operation(summary = "Đặt lại mật khẩu bằng liên kết", description = "Đặt mật khẩu mới từ liên kết một lần được gửi qua email; liên kết chỉ dùng được một lần trong 30 phút.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đặt lại mật khẩu thành công"),

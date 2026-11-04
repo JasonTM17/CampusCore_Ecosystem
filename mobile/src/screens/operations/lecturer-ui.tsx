@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { RefreshControl, View } from 'react-native';
 
 import { apiClient } from '../../api/client';
 import type { LecturerScheduleEntry } from '../../api/client';
@@ -9,14 +9,20 @@ import type { PerformanceListProps } from '../../components/perf/performance-lis
 import { ChoiceField } from '../../components/ui/choice-field';
 import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { OperationsCopy } from '../../i18n/operations-messages';
 import { csvShareAvailable, shareCsv } from './lecturer-api';
 import { courseTitle, normalizeDay, type SectionLike } from './lecturer-model';
 import { openPortalPath, opsErrorMessage, useOpsCopy } from './shared/helpers';
+import { configuredPortalUrl } from './shared/portal-url';
 import { useOpsStyles } from './shared/styles';
 
 export const isOpsPreview = (): boolean => apiClient.mode === 'preview';
+
+/** The unavailable portal action is disabled, so its handler is unreachable. */
+const NOOP = () => {};
 
 /** Live-only query: preview sessions never fetch and screens fall back to labelled preview data. */
 export function useOpsQuery<T>(key: string, fetcher: () => Promise<T>, copy: OperationsCopy, enabled = true) {
@@ -36,14 +42,20 @@ export interface OpsShellProps<T = unknown> {
   error?: string | null;
   warning?: string | null;
   onRetry?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   children: ReactNode;
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function OpsShell<T>({ title, eyebrow, subtitle, loading = false, error, warning, onRetry, children, list }: OpsShellProps<T>) {
+export function OpsShell<T>({ title, eyebrow, subtitle, loading = false, error, warning, onRetry, onRefresh, refreshing = false, children, list }: OpsShellProps<T>) {
   const { copy } = useOpsCopy();
+  const { colors } = useTheme();
+  const refreshControl = onRefresh
+    ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+    : undefined;
   return (
-    <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
+    <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle} refreshControl={refreshControl} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
       {warning ? <DataNotice message={warning} /> : null}
       {loading || error ? (
         <StatePanel
@@ -105,6 +117,15 @@ export function HandoffButton({ label, path }: HandoffButtonProps) {
   const { copy } = useOpsCopy();
   const styles = useOpsStyles();
   const [failed, setFailed] = useState(false);
+  if (!configuredPortalUrl()) {
+    // Never a silent no-op: the build has no portal, so the action stays visible and explains itself.
+    return (
+      <View>
+        <Button label={label} variant="secondary" disabled onPress={NOOP} style={styles.topButton} />
+        <UiText variant="bodySmall" tone="muted">{copy.webUnavailable}</UiText>
+      </View>
+    );
+  }
   return (
     <View>
       <Button
@@ -145,7 +166,7 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
   };
 
   const status: FileRowStatus = available ? state.status : 'unavailable';
-  const label = available ? state.label ?? fillCopy(copy.exportReady, { n: rows }) : copy.exportUnavailable;
+  const label = available ? state.label ?? fillCopy(countForm(rows, copy.exportReadyOne, copy.exportReady), { n: rows }) : copy.exportUnavailable;
   return (
     <FileRow
       name={name}

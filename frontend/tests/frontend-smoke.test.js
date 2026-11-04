@@ -59,8 +59,8 @@ test('the web client has one Java API boundary and no removed domain client', ()
   assert.doesNotMatch(apiSource, /verify-email|resend-verification/);
   assert.doesNotMatch(nextConfig, /LOCAL_EDGE_ORIGIN|socket\.io|redis|rabbitmq/i);
   assert.doesNotMatch(nextConfig, /rewrites|JAVA_API_ORIGIN/);
-  assert.match(apiProxy, /process\.env\.JAVA_API_ORIGIN/);
-  assert.match(docsProxy, /process\.env\.JAVA_API_ORIGIN/);
+  assert.match(apiProxy, /resolveJavaApiOrigin\(\)/);
+  assert.match(docsProxy, /resolveJavaApiOrigin\(\)/);
 });
 
 test('the Java API proxy preserves query parameters and encodes path segments', () => {
@@ -81,9 +81,50 @@ test('site metadata defaults to the local course demo and contains no retired do
   const siteSource = read('src/lib/site.ts');
   const envExample = read('.env.example');
 
+  assert.match(siteSource, /NEXT_PUBLIC_SITE_URL/);
   assert.match(siteSource, /http:\/\/localhost:3000/);
   assert.match(envExample, /NEXT_PUBLIC_SITE_URL=http:\/\/localhost:3000/);
-  assert.doesNotMatch(`${siteSource}\n${envExample}`, /tienson\.io\.vn/i);
+  assert.doesNotMatch(
+    `${siteSource}\n${envExample}`,
+    /campusute\.io\.vn|tienson\.io\.vn|VERCEL_(?:PROJECT_PRODUCTION_)?URL/i,
+  );
+});
+
+test('server-side Java API calls default local and use only explicit backend origin overrides', () => {
+  const { resolveJavaApiOrigin } = loadTypeScriptModule('src/lib/proxy-url.ts');
+
+  for (const NODE_ENV of ['development', 'test', 'production']) {
+    assert.equal(resolveJavaApiOrigin({ NODE_ENV }), 'http://127.0.0.1:4010');
+  }
+  assert.equal(
+    resolveJavaApiOrigin({
+      NODE_ENV: 'production',
+      JAVA_API_ORIGIN: undefined,
+      BACKEND_INTERNAL_ORIGIN: undefined,
+    }),
+    'http://127.0.0.1:4010',
+  );
+  assert.equal(
+    resolveJavaApiOrigin({ JAVA_API_ORIGIN: ' https://api.example.test/// ' }),
+    'https://api.example.test',
+  );
+  assert.equal(
+    resolveJavaApiOrigin({
+      JAVA_API_ORIGIN: ' ',
+      BACKEND_INTERNAL_ORIGIN: 'http://127.0.0.1:4100///',
+    }),
+    'http://127.0.0.1:4100',
+  );
+
+  const routeSources = [
+    read('src/app/api/v1/[...path]/route.ts'),
+    read('src/app/api/docs/[[...path]]/route.ts'),
+    read('src/app/api/site-appearance/route.ts'),
+    read('src/app/health/route.ts'),
+    read('src/app/session/[...path]/route.ts'),
+  ].join('\n');
+  assert.equal((routeSources.match(/resolveJavaApiOrigin\(\)/g) ?? []).length, 5);
+  assert.doesNotMatch(routeSources, /campuscore-backend-p4em\.onrender\.com/);
 });
 
 test('assistant UI exposes provenance and degraded state', () => {

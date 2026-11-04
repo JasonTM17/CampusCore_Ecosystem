@@ -38,6 +38,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful_e2e}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
+      # Private compose network; TLS is not available on the database image.
+      PGSSLMODE: disable
     command: ["node", "/provision/provision-assistant-runtime.mjs"]
     depends_on:
       postgres:

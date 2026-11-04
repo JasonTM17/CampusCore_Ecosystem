@@ -20,8 +20,9 @@
 //   3. Ensures LOGIN + the ASSISTANT_DB_PASSWORD password ONLY when needed:
 //      if the role can already log in, the script first tries to connect with
 //      ASSISTANT_DB_PASSWORD and leaves the credential untouched on success.
-//      A password reset happens only when the role is NOLOGIN or the probe
-//      connection fails (unknown password).
+//      A password reset happens only when the role is NOLOGIN or PostgreSQL
+//      confirms an invalid password (SQLSTATE 28P01). Other authorization
+//      rejections fail closed because they do not prove the password is wrong.
 //
 // INPUT (environment)
 //   ASSISTANT_DB_PASSWORD       required; at least 16 characters; fail-closed.
@@ -29,6 +30,11 @@
 //   SPRING_DATASOURCE_USERNAME  primary/admin login (Compose: campuscore)
 //   SPRING_DATASOURCE_PASSWORD  primary/admin password
 //   PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD   optional low-level override.
+//   PGSSLMODE                   TLS policy (disable|allow|prefer|require|
+//                               verify-ca|verify-full); the JDBC ?sslmode=
+//                               parameter wins when both are set. Default:
+//                               require for non-loopback hosts, prefer for
+//                               loopback.
 //
 // OUTPUT
 //   Counts and state names only — the script never prints any secret, and
@@ -36,10 +42,14 @@
 //
 // It speaks the PostgreSQL wire protocol directly (SCRAM-SHA-256, MD5, or
 // cleartext auth) so it stays dependency-free like the rest of scripts/ — CI
-// runs `node --test scripts/...` with no npm install.
+// runs `node --test scripts/...` with no npm install. The role password
+// crosses the wire inside the CREATE/ALTER ROLE query text, so TLS is
+// negotiated first and the SCRAM server signature is verified before any
+// statement is sent.
 
 import crypto from 'node:crypto';
 import net from 'node:net';
+import tls from 'node:tls';
 
 const RUNTIME_ROLE = 'campuscore_assistant_runtime';
 const MIN_PASSWORD_LENGTH = 16;
@@ -70,7 +80,13 @@ export function parseJdbcUrl(jdbcUrl) {
   }
   let rest = jdbcUrl.slice(prefix.length);
   const queryIndex = rest.indexOf('?');
-  if (queryIndex >= 0) rest = rest.slice(0, queryIndex);
+  const params = {};
+  if (queryIndex >= 0) {
+    for (const [key, value] of new URLSearchParams(rest.slice(queryIndex + 1))) {
+      params[key] = value;
+    }
+    rest = rest.slice(0, queryIndex);
+  }
   const slashIndex = rest.indexOf('/');
   if (slashIndex < 0) throw new ProvisioningError('SPRING_DATASOURCE_URL must end with /database');
   const hostPort = rest.slice(0, slashIndex);
@@ -84,7 +100,7 @@ export function parseJdbcUrl(jdbcUrl) {
     const maybePort = Number(hostPort.slice(colonIndex + 1));
     if (Number.isInteger(maybePort) && maybePort > 0 && maybePort < 65536) port = maybePort;
   }
-  return { host, port, database };
+  return { host, port, database, params };
 }
 
 function resolveTarget(env) {
@@ -95,6 +111,7 @@ function resolveTarget(env) {
       database: env.PGDATABASE,
       user: env.PGUSER,
       password: env.PGPASSWORD ?? '',
+      sslmode: env.PGSSLMODE,
     };
   }
   const parsed = parseJdbcUrl(requireEnv('SPRING_DATASOURCE_URL', env));
@@ -104,6 +121,7 @@ function resolveTarget(env) {
     database: parsed.database,
     user: requireEnv('SPRING_DATASOURCE_USERNAME', env),
     password: requireEnv('SPRING_DATASOURCE_PASSWORD', env),
+    sslmode: parsed.params.sslmode ?? env.PGSSLMODE,
   };
 }
 
@@ -111,11 +129,33 @@ function sqlLiteral(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+const SSL_MODES = new Set(['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full']);
+const TLS_REQUIRED_MODES = new Set(['require', 'verify-ca', 'verify-full']);
+
+function isLoopbackHost(host) {
+  const normalized = String(host).replace(/^\[|\]$/g, '').toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '::1'
+    || (net.isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+// Provisioning ships role passwords inside plain SQL text, so transport
+// encryption is the default everywhere except a loopback peer; an explicit
+// sslmode=disable/prefer remains the operator's downgrade escape hatch.
+function effectiveSslMode(target) {
+  const requested = String(target.sslmode ?? '').trim().toLowerCase();
+  if (!requested) return isLoopbackHost(target.host) ? 'prefer' : 'require';
+  if (!SSL_MODES.has(requested)) {
+    throw new ProvisioningError(`unsupported sslmode '${target.sslmode}'`);
+  }
+  return requested;
+}
+
 // ---------------------------------------------------------------------------
 // Minimal PostgreSQL wire client (extended-free, simple query protocol)
 // ---------------------------------------------------------------------------
 
-class PostgresError extends Error {
+export class PostgresError extends Error {
   constructor(fields) {
     super(`PostgreSQL ${fields.C ?? 'ERROR'}: ${fields.M ?? 'unknown error'}`);
     this.fields = fields;
@@ -133,6 +173,8 @@ export class WireClient {
     this.wake = null;
     this.failure = null;
     this.closed = false;
+    this.tlsActive = false;
+    this.idleTimeouts = new Map();
   }
 
   // Resolves each time new bytes arrive; the caller re-parses the buffer.
@@ -148,37 +190,74 @@ export class WireClient {
     if (waiter) waiter.resolve();
   }
 
+  // A dead socket must fail every pending and future read; a silently dropped
+  // peer otherwise leaves #awaitData pending forever and hangs compose --wait.
+  #fail(error) {
+    if (!this.failure) this.failure = error;
+    const waiter = this.wake;
+    this.wake = null;
+    if (this.socket) this.socket.destroy();
+    if (waiter) waiter.reject(this.failure);
+  }
+
+  // The idle timeout stays armed for the whole wire phase — SSL negotiation,
+  // startup, authentication and query reads — so a peer that accepts the TCP
+  // connection and then goes silent still fails fast.
+  #armIdleTimeout(socket) {
+    const onTimeout = () => this.#fail(
+      new Error(`connection to ${this.target.host}:${this.target.port} timed out`));
+    socket.on('timeout', onTimeout);
+    this.idleTimeouts.set(socket, onTimeout);
+  }
+
   async connect(authPassword) {
     const socket = net.createConnection({ host: this.target.host, port: this.target.port });
     socket.setTimeout(CONNECT_TIMEOUT_MS);
     this.socket = socket;
+    this.#armIdleTimeout(socket);
     await new Promise((resolve, reject) => {
-      const onTimeout = () => {
-        socket.destroy();
-        reject(new Error(`connection to ${this.target.host}:${this.target.port} timed out`));
-      };
-      socket.once('timeout', onTimeout);
-      socket.once('error', (error) => reject(new Error(`connection failed: ${error.message}`)));
+      const onError = (error) => this.#fail(new Error(`connection failed: ${error.message}`));
+      this.wake = { resolve, reject };
+      socket.once('error', onError);
       socket.once('connect', () => {
-        socket.off('timeout', onTimeout);
+        socket.off('error', onError);
+        this.wake = null;
         resolve();
       });
     });
+    const sslmode = effectiveSslMode(this.target);
+    if (sslmode !== 'disable') {
+      const response = await negotiateSsl(socket);
+      if (response === 'S') {
+        this.socket = await upgradeTls(socket, this.target.host, sslmode);
+        this.socket.setTimeout(CONNECT_TIMEOUT_MS);
+        this.#armIdleTimeout(this.socket);
+        this.tlsActive = true;
+      } else if (TLS_REQUIRED_MODES.has(sslmode)) {
+        socket.destroy();
+        throw new Error(`server refused SSL but sslmode=${sslmode} requires it`);
+      }
+    }
+
+    this.#bindSocket(this.socket);
+    this.#send(startupMessage(this.target.user, this.target.database));
+    await this.#authenticate(authPassword);
+  }
+
+  // Listeners attach only after TLS negotiation: a 'data' listener carried
+  // over the wrap would feed ciphertext into the plaintext message parser.
+  #bindSocket(socket) {
     socket.on('data', (chunk) => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.#notify();
     });
     socket.on('error', (error) => {
-      this.failure = new Error(`connection error: ${error.message}`);
-      this.#notify();
+      this.#fail(new Error(`connection error: ${error.message}`));
     });
     socket.on('close', () => {
       this.closed = true;
       this.#notify();
     });
-
-    this.#send(startupMessage(this.target.user, this.target.database));
-    await this.#authenticate(authPassword);
   }
 
   #send(message) {
@@ -221,6 +300,9 @@ export class WireClient {
       const code = message.body.readUInt32BE(0);
       if (code === 0) continue; // authentication ok
       if (code === 3) {
+        if (!this.tlsActive && !isLoopbackHost(this.target.host)) {
+          throw new Error('server requested cleartext password authentication on an unencrypted non-loopback connection');
+        }
         this.#send(passwordMessage(password));
         continue;
       }
@@ -260,6 +342,21 @@ export class WireClient {
         if (serverFinal.type !== 'R' || serverFinal.body.readUInt32BE(0) !== 12) {
           throw new Error('unexpected SASL final from the server');
         }
+        const serverFinalMessage = serverFinal.body.subarray(4).toString('utf8');
+        const finalParts = Object.fromEntries(
+          serverFinalMessage.split(',').map((piece) => [piece.slice(0, 1), piece.slice(2)]));
+        if (finalParts.e) {
+          throw new Error(`server reported a SASL failure (${finalParts.e})`);
+        }
+        // Without the ServerSignature check a fake server accepts any proof and
+        // then reads the role password out of the cleartext DDL that follows.
+        const serverKey = crypto.createHmac('sha256', saltedPassword).update('Server Key').digest();
+        const expectedSignature = crypto.createHmac('sha256', serverKey).update(authMessage).digest();
+        const receivedSignature = Buffer.from(finalParts.v ?? '', 'base64');
+        if (receivedSignature.length !== expectedSignature.length
+            || !crypto.timingSafeEqual(receivedSignature, expectedSignature)) {
+          throw new Error('SCRAM server signature mismatch; refusing to trust this server');
+        }
         continue;
       }
       throw new Error(`unsupported PostgreSQL authentication method (code ${code})`);
@@ -285,6 +382,8 @@ export class WireClient {
   }
 
   close() {
+    for (const [socket, onTimeout] of this.idleTimeouts) socket.off('timeout', onTimeout);
+    this.idleTimeouts.clear();
     if (this.socket && !this.closed) {
       try { this.socket.end(Buffer.from([0x58, 0, 0, 0, 4])); } catch { /* already gone */ }
       this.socket.destroy();
@@ -295,6 +394,86 @@ export class WireClient {
 
 function clientNonce() {
   return crypto.randomBytes(18).toString('base64');
+}
+
+// SSLRequest is the pre-startup probe asking the server to speak TLS (code
+// 80877103). The answer is a single 'S'/'N' byte (or an ErrorResponse), read
+// with one-shot listeners so nothing on the raw socket outlives the TLS wrap.
+function negotiateSsl(socket) {
+  return new Promise((resolve, reject) => {
+    let received = Buffer.alloc(0);
+    const cleanup = () => {
+      socket.off('data', onData);
+      socket.off('error', onError);
+      socket.off('close', onClose);
+      socket.off('timeout', onTimeout);
+    };
+    const onData = (chunk) => {
+      received = Buffer.concat([received, chunk]);
+      const response = String.fromCharCode(received[0]);
+      if (response === 'S' || response === 'N') {
+        cleanup();
+        resolve(response);
+        return;
+      }
+      if (response === 'E' && received.length >= 5) {
+        const length = received.readUInt32BE(1);
+        if (received.length >= 1 + length) {
+          cleanup();
+          reject(new PostgresError(parseFields(received.subarray(5, 1 + length))));
+        }
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(new Error(`SSL negotiation failed: ${error.message}`));
+    };
+    const onClose = () => {
+      cleanup();
+      reject(new Error('connection closed during SSL negotiation'));
+    };
+    const onTimeout = () => {
+      cleanup();
+      reject(new Error('SSL negotiation timed out'));
+    };
+    const request = Buffer.alloc(8);
+    request.writeUInt32BE(8, 0);
+    request.writeUInt32BE(80877103, 4);
+    socket.on('data', onData);
+    socket.once('error', onError);
+    socket.once('close', onClose);
+    socket.once('timeout', onTimeout);
+    socket.write(request);
+  });
+}
+
+// 'require' encrypts without pinning a CA (libpq semantics); verify-ca checks
+// the chain only, verify-full additionally verifies the hostname.
+function upgradeTls(socket, host, sslmode) {
+  const verify = sslmode === 'verify-ca' || sslmode === 'verify-full';
+  const options = { socket, servername: host, rejectUnauthorized: verify };
+  if (sslmode === 'verify-ca') options.checkServerIdentity = () => undefined;
+  const secure = tls.connect(options);
+  secure.setTimeout(CONNECT_TIMEOUT_MS);
+  return new Promise((resolve, reject) => {
+    const settle = (callback) => {
+      secure.off('error', onError);
+      secure.off('timeout', onTimeout);
+      secure.off('close', onClose);
+      callback();
+    };
+    const onError = (error) => settle(() =>
+      reject(new Error(`TLS handshake failed: ${error.message}`)));
+    const onTimeout = () => settle(() => {
+      secure.destroy();
+      reject(new Error('TLS handshake timed out'));
+    });
+    const onClose = () => settle(() => reject(new Error('connection closed during TLS handshake')));
+    secure.once('secureConnect', () => settle(() => resolve(secure)));
+    secure.once('error', onError);
+    secure.once('timeout', onTimeout);
+    secure.once('close', onClose);
+  });
 }
 
 function startupMessage(user, database) {
@@ -371,12 +550,17 @@ function parseDataRow(body) {
 
 async function connectAs(target, password) {
   const client = new WireClient(target);
-  await client.connect(password);
-  await client.query('SELECT 1');
-  return client;
+  try {
+    await client.connect(password);
+    await client.query('SELECT 1');
+    return client;
+  } catch (error) {
+    client.close();
+    throw error;
+  }
 }
 
-export async function provision(env = process.env, log = defaultLog) {
+export async function provision(env = process.env, log = defaultLog, connect = connectAs) {
   const assistantPassword = env.ASSISTANT_DB_PASSWORD;
   if (assistantPassword == null || assistantPassword.trim() === '') {
     throw new ProvisioningError('ASSISTANT_DB_PASSWORD is required');
@@ -388,7 +572,7 @@ export async function provision(env = process.env, log = defaultLog) {
   log('ASSISTANT_DB_PASSWORD present: yes');
 
   const target = resolveTarget(env);
-  const admin = await connectAs(target, target.password);
+  const admin = await connect(target, target.password);
   try {
     const roles = await admin.query(
       `SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname IN ('postgres', '${RUNTIME_ROLE}')`);
@@ -426,17 +610,25 @@ export async function provision(env = process.env, log = defaultLog) {
     // Login already enabled — probe with the supplied password so an operator
     // rotation elsewhere is never silently clobbered by a re-run.
     try {
-      const probe = await connectAs({ ...target, user: RUNTIME_ROLE }, assistantPassword);
+      const probe = await connect({ ...target, user: RUNTIME_ROLE }, assistantPassword);
       probe.close();
       log('runtime_role: existing');
       log('runtime_role_login: enabled-already');
       log('runtime_role_password: verified (unchanged)');
-    } catch {
+    } catch (error) {
+      // Only invalid_password proves that the supplied credential is wrong.
+      if (error instanceof PostgresError && error.fields.C === '28000') {
+        throw new Error(
+          'PostgreSQL rejected runtime role authentication with SQLSTATE 28000; check pg_hba rules and role login rights.');
+      }
+      if (!(error instanceof PostgresError && error.fields.C === '28P01')) {
+        throw error;
+      }
       await admin.query(
         `ALTER ROLE ${RUNTIME_ROLE} LOGIN PASSWORD ${sqlLiteral(assistantPassword)}`);
       log('runtime_role: existing');
       log('runtime_role_login: enabled-already');
-      log('runtime_role_password: reset (probe connection failed)');
+      log('runtime_role_password: reset (probe authentication failed)');
     }
   } finally {
     admin.close();

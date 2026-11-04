@@ -35,6 +35,19 @@ test('every registry screen and lane has a title in both locales', () => {
   }
 });
 
+test('live route titles never claim a simulated screen', () => {
+  for (const locale of ['vi', 'en']) {
+    for (const name of ['admissions', 'library', 'careers']) {
+      assert.doesNotMatch(shellMessages[locale].screens[name], /simulated|mô phỏng/i, `${locale} ${name}`);
+    }
+  }
+  for (const name of ['admissions', 'library', 'careers']) {
+    const match = routes.match(new RegExp(`\\{ name: '${name}', title: '([^']*)'`));
+    assert.ok(match, `${name} registry row`);
+    assert.doesNotMatch(match[1], /simulated/i, `${name} registry title`);
+  }
+});
+
 test('every bottom navigation label localizes and both locales share the same keys', () => {
   for (const label of navLabels) {
     assert.notEqual(localizedNavLabel('vi', label), label, `vi nav ${label}`);
@@ -43,6 +56,18 @@ test('every bottom navigation label localizes and both locales share the same ke
   const keys = (value) => Object.keys(value).sort();
   assert.deepEqual(keys(shellMessages.vi), keys(shellMessages.en));
   assert.deepEqual(keys(shellMessages.vi.dashboard), keys(shellMessages.en.dashboard));
+});
+
+test('retired dashboard preview labels stay out of the shell catalogue', () => {
+  for (const locale of ['vi', 'en']) {
+    for (const key of ['previewEyebrow', 'previewSemester']) {
+      assert.equal(
+        Object.hasOwn(shellMessages[locale].dashboard, key),
+        false,
+        `${locale} dashboard.${key}`,
+      );
+    }
+  }
 });
 
 test('placeholders fill and unknown ones collapse to empty', () => {

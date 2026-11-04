@@ -31,7 +31,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
 | `learning` | `/learning` | student | native (text lane) | `learning/sections`, `learning/sections/{id}/materials`, `learning/sections/{id}/assignments`, draft/save/submit/resubmit + revisions/feedback (Idempotency-Key; file picking P13) |
 | `admissions` | `/apply` | student / applicant (`admissions:self`) | native (simulated) | `admissions/applications` draft/save/submit/withdraw (Idempotency-Key; attachments web lane; app path mirrors the portal `/apply` route) |
-| `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/loans/my` (Idempotency-Key) |
+| `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/requests/my` (own requests/loans; Idempotency-Key on writes) |
 | `careers` | `/careers` | student | native (simulated) | `careers/opportunities`, `careers/applications` apply/withdraw (Idempotency-Key; recruiter/reviewer web) |
 | `news` | `/news` | student | native | `announcements/public` anonymous feed (PUBLISHED/global only) |
 | `docs` | `/docs` | student | native | `public/docs` search + `public/docs/{slug}` (publishedRevision body only) |
@@ -39,14 +39,14 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `thesis.topics` | `/thesis` | student | native | `thesis/rounds`, `thesis/topics`, `thesis/groups` |
 | `thesis.detail` | `/thesis/[topicId]` | student | native | idem — dynamic segment, id trên path (KM-5) |
 | `thesis.registration` | `/thesis/register?topicId=` | student | native | `thesis/groups` create/assign |
-| `thesis.progress` | `/thesis/progress` | student | native | `thesis/groups` |
+| `thesis.progress` | `/thesis/progress` | student | native | `thesis/groups/mine`, `thesis/me/progress` |
 | `assistant.chat` | `/assistant` | all | native | `assistant/*` (live only; preview local) |
 | `admin.dashboard` | `/admin/dashboard` | admin | **web-only** | — |
 | `admin.students` | `/admin/students` | admin | **web-only** | — |
 | `admin.lecturers` | `/admin/lecturers` | admin | **web-only** | — |
 | `lecturer.dashboard` | `/lecturer/dashboard` | lecturer | native | `sections/my/schedule`, `sections/my/grading` |
 | `lecturer.schedule` | `/lecturer/schedule` | lecturer | native | `sections/my/schedule` |
-| `lecturer.grading` | `/lecturer/grading?sectionId=` | lecturer | native | `grades/student-grades/section`, `sections/{id}/grades` PUT/publish |
+| `lecturer.grading` | `/lecturer/grading?sectionId=` | lecturer | native | `sections/{id}/grades` GET/PUT, `sections/{id}/grades/publish` |
 | `lecturer.attendance` | `/lecturer/attendance?sectionId=` | lecturer | native | `attendance/section/{id}/roster`, `attendance/section/{id}` GET/PUT |
 
 Deep-link `/auth/callback` không route tới screen nào — OIDC session consumes
@@ -105,4 +105,4 @@ nó); sign-out path của nó cũng gọi `sessionStore.signOut()` +
 | Lớp cửa sổ compact/medium/expanded (600/840 dp), `ResponsiveContent`/`ResponsiveGrid` | native | component test theo chiều rộng 360/700/1000 |
 | Chatbot qua `AssistantTransport` (buffered mặc định, SSE sau cờ `STREAMING_PARITY_VERIFIED`) | native; **không tuyên bố streaming parity** | canary runtime trên dev build: BLOCKED_CAPABILITY (M07) |
 | Push opt-in (cờ `PUSH_OPT_IN_ENABLED=false`), đăng ký thiết bị owner-scoped, outbox phía server | server + client sẵn sàng, tắt | Postgres IT PASS; gửi thật: BLOCKED_CAPABILITY (chưa provider/khóa) |
-| Cache đọc theo tài khoản + locale/role-lane, purge khi hết phiên | native | node test `offline-read` |
+| Cache đọc theo tài khoản + locale/role-lane, purge khi hết phiên | native | `node --test mobile/tests/offline-read.test.mjs` |

@@ -219,6 +219,25 @@ class ThesisAssistantTurnLedgerH2Test {
     }
 
     @Test
+    void cancelledFirstTurnKeepsItsConversationReusable() {
+        String owner = "cancel-first-turn-" + UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        ThesisAssistantTurnRepository.Reservation reservation = turns.reserve(owner, key,
+                reservationHash("cancel first", "vi"), null, "vi", "lease", 90);
+        assertTrue(turns.markSnapshotReady(reservation.turnId(), owner, reservation.leaseGeneration(), "c".repeat(64)));
+        assertTrue(turns.cancel(reservation.turnId(), owner, key).cancelled());
+
+        // The stream meta already carried this conversation id; a cancelled
+        // first turn must leave the row reachable for the very next send.
+        ThesisAssistantTurnRepository.Reservation next = turns.reserve(owner, UUID.randomUUID(),
+                reservationHash("after cancel", "vi"), reservation.conversationId(), "vi", "lease", 90);
+        assertEquals(ThesisAssistantTurnRepository.ReservationStatus.NEW, next.status());
+        assertEquals(reservation.conversationId(), next.conversationId());
+        assertEquals(1, count("SELECT COUNT(*) FROM assistant.chat_conversation WHERE id=:conversation",
+                p("conversation", reservation.conversationId())));
+    }
+
+    @Test
     void ownerAndPayloadArePartOfTheIdempotencyFence() {
         String owner = "owner-a-" + UUID.randomUUID();
         String other = "owner-b-" + UUID.randomUUID();
@@ -391,6 +410,27 @@ class ThesisAssistantTurnLedgerH2Test {
         assertEquals(0, count("SELECT COUNT(*) FROM assistant.chat_conversation WHERE id=:conversation", p("conversation", reservation.conversationId())));
         assertEquals("PURGED", jdbc.queryForObject("SELECT state FROM assistant.chat_turn_ledger WHERE turn_id=:turn",
                 p("turn", reservation.turnId()), String.class));
+    }
+
+    @Test
+    void retentionDrainsExpiredConversationBatches() {
+        String owner = "retention-batch-" + UUID.randomUUID();
+        Timestamp expired = Timestamp.from(Instant.now().minusSeconds(1));
+        for (int i = 0; i < 201; i++) {
+            jdbc.update("INSERT INTO assistant.chat_conversation (id,owner_id,locale,expires_at,state) "
+                            + "VALUES (:id,:owner,'en',:expired,'ACTIVE')",
+                    p("id", UUID.randomUUID()).addValue("owner", owner).addValue("expired", expired));
+        }
+
+        assertEquals(201, count("SELECT COUNT(*) FROM assistant.chat_conversation "
+                + "WHERE owner_id=:owner AND expires_at<=CURRENT_TIMESTAMP AND state<>'PURGED'", p("owner", owner)));
+
+        ThesisAssistantRetentionJob job = new ThesisAssistantRetentionJob(
+                legacyHistory, turns, new AssistantCancellationRegistry());
+        job.purgeExpiredConversations();
+
+        assertEquals(0, count("SELECT COUNT(*) FROM assistant.chat_conversation "
+                + "WHERE owner_id=:owner AND expires_at<=CURRENT_TIMESTAMP AND state<>'PURGED'", p("owner", owner)));
     }
 
     @Test

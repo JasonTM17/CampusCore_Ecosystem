@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '..');
+const root = process.env.W13_SRC_ROOT
+  ? path.resolve(process.env.W13_SRC_ROOT)
+  : path.resolve(__dirname, '..');
 
 // ---------------------------------------------------------------------------
 // The shared primitive layer keeps to the semantic token system.
@@ -195,4 +197,44 @@ test('the warning foreground clears WCAG AA 4.5:1 on the warning surface in both
       `${theme} warning notice contrast ${ratio.toFixed(2)}:1 is below WCAG AA 4.5:1`,
     );
   }
+});
+
+function hexToRgb(hex) {
+  const value = hex.replace('#', '');
+  return [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) / 255);
+}
+
+function contrastRatio(foreground, background) {
+  const [hi, lo] = [relativeLuminance(hexToRgb(foreground)), relativeLuminance(hexToRgb(background))]
+    .sort((a, b) => b - a);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+test('lecturer and editor status badges keep AA contrast on their light tinted card', () => {
+  const lecturer = fs.readFileSync(
+    path.join(root, 'src/app/dashboard/lecturer/announcements/page.tsx'),
+    'utf8',
+  );
+  const editor = fs.readFileSync(
+    path.join(root, 'src/app/dashboard/editor/page.tsx'),
+    'utf8',
+  );
+  assert.match(
+    lecturer,
+    /bg-emerald-500\/10 text-emerald-700 border-emerald-500\/20 dark:text-emerald-400/,
+    'published badge uses the darker emerald step while dark mode stays unchanged',
+  );
+  assert.match(
+    lecturer,
+    /bg-amber-500\/10 text-amber-700 border-amber-500\/20 dark:text-amber-400/,
+    'review badge uses the darker amber step while dark mode stays unchanged',
+  );
+  assert.match(
+    editor,
+    /bg-amber-500\/10 text-amber-700 dark:text-amber-300 border border-amber-500\/30/,
+    'editor priority badge uses the darker amber step',
+  );
+  // Tailwind emerald-700 / amber-700 over each 10% tint on the white card.
+  assert.ok(contrastRatio('#047857', '#e7f8f2') >= 4.5, 'emerald-700 on emerald tint');
+  assert.ok(contrastRatio('#b45309', '#fef5e7') >= 4.5, 'amber-700 on amber tint');
 });

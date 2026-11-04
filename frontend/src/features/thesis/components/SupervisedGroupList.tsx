@@ -8,7 +8,8 @@ import { MemberAvatars } from '@/components/thesis/MemberAvatars';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import { SupervisedGroupMembers } from '@/components/dashboard/thesis/SupervisedGroupMembers';
 import type { I18nMessages } from '@/i18n/messages';
-import { type ThesisGroup, type ThesisGroupReport } from '@/lib/thesis-api';
+import { isHttpUrl } from '@/lib/safe-url';
+import { type ThesisGroup, type ThesisGroupReport, type ThesisRoundStatus } from '@/lib/thesis-api';
 
 interface SupervisedGroupListProps {
   messages: I18nMessages;
@@ -18,6 +19,7 @@ interface SupervisedGroupListProps {
   reportsByGroup: Record<string, ThesisGroupReport | null>;
   isActionPending: boolean;
   getTopicTitle: (topicId?: string | null) => string;
+  roundStatus?: ThesisRoundStatus;
   isRoundOpen: (group: ThesisGroup) => boolean;
   /** R3 supervisor or admin — proposed-but-not-supervised topics stay read-only. */
   canReviewGroup?: (group: ThesisGroup) => boolean;
@@ -39,6 +41,7 @@ export default function SupervisedGroupList({
   reportsByGroup,
   isActionPending,
   getTopicTitle,
+  roundStatus,
   isRoundOpen,
   canReviewGroup,
   onGroupUpdated,
@@ -47,6 +50,10 @@ export default function SupervisedGroupList({
   onDownloadReport,
 }: SupervisedGroupListProps) {
   const pageCopy = messages.thesisWorkflow.page;
+  const isReviewLocked =
+    roundStatus === 'CANCELLED' ||
+    roundStatus === 'RESULTS_PUBLISHED' ||
+    roundStatus === 'CLOSED';
 
   return (
     <Card variant="muted" className="border-primary/20">
@@ -74,11 +81,15 @@ export default function SupervisedGroupList({
             {groups.map((group) => {
               const topicTitle = getTopicTitle(group.topicId);
               const isPending =
-                group.status === 'SUBMITTED' && group.approvalStatus === 'PENDING';
+                group.approvalStatus === 'PENDING' && group.status !== 'CANCELLED';
+              const canApprove = isPending && group.status === 'SUBMITTED' && Boolean(group.topicId);
+              // A topic-less draft has no approve path, but rejecting it is the
+              // only way to clear the publication block it creates.
+              const canReject = isPending && (group.status === 'SUBMITTED' || !group.topicId);
               // The backend reviewer check is R3 supervision (or admin), not
               // topic authorship — a department head who merely proposed the
               // topic must not see dead approve/reject buttons.
-              const mayReview = !canReviewGroup || canReviewGroup(group);
+              const mayReview = !isReviewLocked && (!canReviewGroup || canReviewGroup(group));
               return (
                 <div
                   key={group.id}
@@ -117,19 +128,25 @@ export default function SupervisedGroupList({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {reportsByGroup[group.id] ? (
                           <>
-                            {/* A report is a link, an attached document,
-                                or both (feedback item 7). */}
+                            {/* A report link is shown only for a safe URL, alongside any attached document (feedback item 7). */}
                             {reportsByGroup[group.id]?.url ? (
-                              <a
-                                href={reportsByGroup[group.id]?.url || undefined}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline transition-colors"
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                                <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
+                              isHttpUrl(reportsByGroup[group.id]?.url) ? (
+                                <a
+                                  href={reportsByGroup[group.id]?.url || undefined}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline transition-colors"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
+                                </span>
+                              )
                             ) : null}
                             {reportsByGroup[group.id]?.fileName ? (
                               <button
@@ -155,26 +172,30 @@ export default function SupervisedGroupList({
                   <div className="flex shrink-0 items-center gap-2">
                     {isPending && mayReview ? (
                       <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="bg-emerald-700 text-white hover:bg-emerald-800"
-                          onClick={() => void onApprove(group.id)}
-                          disabled={isActionPending}
-                        >
-                          <Check className="mr-1.5 h-4 w-4" />
-                          {messages.thesis.approve}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => onReject(group.id)}
-                          disabled={isActionPending}
-                        >
-                          <X className="mr-1.5 h-4 w-4" />
-                          {messages.thesis.reject}
-                        </Button>
+                        {canApprove ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-emerald-700 text-white hover:bg-emerald-800"
+                            onClick={() => void onApprove(group.id)}
+                            disabled={isActionPending}
+                          >
+                            <Check className="mr-1.5 h-4 w-4" />
+                            {messages.thesis.approve}
+                          </Button>
+                        ) : null}
+                        {canReject ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => onReject(group.id)}
+                            disabled={isActionPending}
+                          >
+                            <X className="mr-1.5 h-4 w-4" />
+                            {messages.thesis.reject}
+                          </Button>
+                        ) : null}
                       </>
                     ) : null}
                   </div>

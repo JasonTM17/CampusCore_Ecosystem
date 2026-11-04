@@ -8,6 +8,8 @@ import {
   type WeeklyGridItem,
 } from '@/lib/weekly-grid';
 import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 import type { Locale } from '@/i18n/config';
 import { cn } from '@/lib/utils';
 
@@ -16,45 +18,13 @@ import { cn } from '@/lib/utils';
  * Shared with the registration page so schedule chips and the timetable grid
  * never disagree about a day number.
  */
-export const DAY_LABELS_VI: Record<number, string> = {
-  1: 'Chủ Nhật',
-  2: 'Thứ Hai',
-  3: 'Thứ Ba',
-  4: 'Thứ Tư',
-  5: 'Thứ Năm',
-  6: 'Thứ Sáu',
-  7: 'Thứ Bảy',
-};
+export const DAY_LABELS_VI: Record<number, string> = studentPagesVi.schedule.grid.dayLabels;
 
-export const DAY_LABELS_EN: Record<number, string> = {
-  1: 'Sunday',
-  2: 'Monday',
-  3: 'Tuesday',
-  4: 'Wednesday',
-  5: 'Thursday',
-  6: 'Friday',
-  7: 'Saturday',
-};
+export const DAY_LABELS_EN: Record<number, string> = studentPagesEn.schedule.grid.dayLabels;
 
-export const SHORT_DAY_LABELS_VI: Record<number, string> = {
-  1: 'CN',
-  2: 'T2',
-  3: 'T3',
-  4: 'T4',
-  5: 'T5',
-  6: 'T6',
-  7: 'T7',
-};
+export const SHORT_DAY_LABELS_VI: Record<number, string> = studentPagesVi.schedule.grid.shortDayLabels;
 
-export const SHORT_DAY_LABELS_EN: Record<number, string> = {
-  1: 'Sun',
-  2: 'Mon',
-  3: 'Tue',
-  4: 'Wed',
-  5: 'Thu',
-  6: 'Fri',
-  7: 'Sat',
-};
+export const SHORT_DAY_LABELS_EN: Record<number, string> = studentPagesEn.schedule.grid.shortDayLabels;
 
 // Standard academic week display order: Monday to Sunday
 export const ORDERED_DAYS = [2, 3, 4, 5, 6, 7, 1];
@@ -62,13 +32,13 @@ export const ORDERED_DAYS = [2, 3, 4, 5, 6, 7, 1];
 export function dayLabel(locale: Locale, day: number): string {
   const normalized = day === 0 ? 1 : day;
   return (locale === 'vi' ? DAY_LABELS_VI[normalized] : DAY_LABELS_EN[normalized])
-    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
+    ?? (locale === 'vi' ? studentPagesVi.schedule.grid.unknownDay : studentPagesEn.schedule.grid.unknownDay);
 }
 
 export function shortDayLabel(locale: Locale, day: number): string {
   const normalized = day === 0 ? 1 : day;
   return (locale === 'vi' ? SHORT_DAY_LABELS_VI[normalized] : SHORT_DAY_LABELS_EN[normalized])
-    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
+    ?? (locale === 'vi' ? studentPagesVi.schedule.grid.unknownDay : studentPagesEn.schedule.grid.unknownDay);
 }
 
 /**
@@ -152,7 +122,7 @@ export interface WeeklyGridProps {
   items: WeeklyGridAgendaItem[];
   locale: Locale;
   labels: WeeklyGridLabels;
-  /** CampusCore day number to badge as today; defaults to the real today. */
+  /** CampusCore day number to badge as today; defaults to the campus day. */
   todayDow?: number;
   /** Click handler for class blocks; receives the original agenda item. */
   onItemSelect?: (item: WeeklyGridAgendaItem) => void;
@@ -176,9 +146,15 @@ export function WeeklyGrid({
   conflictIds,
   className,
 }: WeeklyGridProps) {
-  const jsDay = new Date().getDay();
-  const effectiveTodayDow = todayDow ?? (jsDay === 0 ? 1 : jsDay + 1);
   const weeklyGrid = buildWeeklyGrid(items);
+  // Set after mount so the server pass and the first client render agree; the
+  // campus clock keeps it current across midnight and tab sleeps.
+  const campusTodayDow = useCampusDayOfWeek();
+  const [clientTodayDow, setClientTodayDow] = useState<number>();
+  useEffect(() => {
+    setClientTodayDow(campusTodayDow);
+  }, [campusTodayDow]);
+  const effectiveTodayDow = todayDow ?? clientTodayDow;
 
   /**
    * The compact register rail lives in a narrow sidebar whose width depends
@@ -187,13 +163,18 @@ export function WeeklyGrid({
    * fall back to the day-grouped agenda list.
    */
   const railRef = useRef<HTMLDivElement>(null);
-  const [railNarrow, setRailNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
-  );
+  const [railNarrow, setRailNarrow] = useState(false);
   useEffect(() => {
-    if (!compact || typeof ResizeObserver === 'undefined') return undefined;
+    if (!compact) return undefined;
     const el = railRef.current;
     if (!el) return undefined;
+    if (typeof ResizeObserver === 'undefined') {
+      const media = window.matchMedia('(max-width: 639px)');
+      const syncNarrow = () => setRailNarrow(media.matches);
+      syncNarrow();
+      media.addEventListener('change', syncNarrow);
+      return () => media.removeEventListener('change', syncNarrow);
+    }
     const observer = new ResizeObserver(([entry]) => {
       setRailNarrow(entry.contentRect.width < 480);
     });
@@ -239,7 +220,7 @@ export function WeeklyGrid({
           aria-label={labels.gridAriaLabel}
         >
           <div role="row" className="contents">
-          <div role="columnheader" aria-label={locale === 'vi' ? 'Giờ' : 'Time'} style={{ gridColumn: 1, gridRow: 1 }} />
+          <div role="columnheader" aria-label={locale === 'vi' ? studentPagesVi.schedule.grid.hourLabel : studentPagesEn.schedule.grid.hourLabel} style={{ gridColumn: 1, gridRow: 1 }} />
           {ORDERED_DAYS.map((dayNum, colIndex) => {
             const dayName = dayLabel(locale, dayNum);
             const isToday = dayNum === effectiveTodayDow;
@@ -343,10 +324,10 @@ export function WeeklyGrid({
                         (item.startTime || '').localeCompare('12:00') >= 0
                         && (item.startTime || '').localeCompare('18:00') < 0;
                       const shiftBadge = isMorning
-                        ? (locale === 'vi' ? 'Sáng' : 'AM')
+                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.morningLabel : 'AM')
                         : isAfternoon
-                        ? (locale === 'vi' ? 'Chiều' : 'PM')
-                        : (locale === 'vi' ? 'Tối' : 'Eve');
+                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.afternoonLabel : 'PM')
+                        : (locale === 'vi' ? studentPagesVi.schedule.grid.eveningLabel : 'Eve');
 
                       if (compact) {
                         const room = item.roomNumber
@@ -487,11 +468,12 @@ export function WeeklyGrid({
           of a 7-column grid that would squeeze each block below readable
           width. */}
       {compact ? (
-        <div className={cn('space-y-2', compactNarrow ? '' : 'hidden')} role="list" aria-label={labels.gridAriaLabel}>
+        <div className={cn('space-y-2', compactNarrow ? '' : 'hidden')}>
           {ORDERED_DAYS.map((dayNum) => {
             const dayItems = agendaByDay[dayNum] ?? [];
             if (dayItems.length === 0) return null;
             const isToday = dayNum === effectiveTodayDow;
+            const dayName = dayLabel(locale, dayNum);
             return (
               <div
                 key={`compact-day-${dayNum}`}
@@ -510,44 +492,50 @@ export function WeeklyGrid({
                     </span>
                   ) : null}
                 </div>
-                <div className="space-y-1">
-                  {dayItems.map((item) => (
-                    <div
-                      key={item.id}
-                      role={onItemSelect ? 'button' : 'listitem'}
-                      tabIndex={onItemSelect ? 0 : undefined}
-                      onKeyDown={onItemSelect ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          onItemSelect(item);
-                        }
-                      } : undefined}
-                      onClick={onItemSelect ? () => onItemSelect(item) : undefined}
-                      className={cn(
-                        'flex min-w-0 items-center gap-2 rounded-md border-y border-r border-l-[3px] px-2 py-1 text-[11px] leading-tight',
-                        onItemSelect ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : '',
-                        blockTone(item),
-                      )}
-                    >
-                      <span className="min-w-0 truncate font-mono font-bold">
-                        {item.courseCode}
-                      </span>
-                      <span className="shrink-0 rounded-sm border border-border/40 bg-background/80 px-0.5 text-[10px] font-semibold">
-                        {sectionSuffix(item.courseCode, item.sectionNumber)}
-                      </span>
-                      <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums text-muted-foreground">
-                        <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
-                        {item.startTime}-{item.endTime}
-                      </span>
-                      {item.roomNumber ? (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap font-semibold text-foreground">
-                          <MapPin className="h-3 w-3 text-primary" aria-hidden="true" />
-                          {item.building ? `${item.building}-` : ''}
-                          {item.roomNumber}
+                <div role="list" aria-label={dayName} className="space-y-1">
+                  {dayItems.map((item) => {
+                    const rowClass = 'flex min-w-0 items-center gap-2 rounded-md border-y border-r border-l-[3px] px-2 py-1 text-[11px] leading-tight';
+                    const rowContent = (
+                      <>
+                        <span className="min-w-0 truncate font-mono font-bold">
+                          {item.courseCode}
                         </span>
-                      ) : null}
-                    </div>
-                  ))}
+                        <span className="shrink-0 rounded-sm border border-border/40 bg-background/80 px-0.5 text-[10px] font-semibold">
+                          {sectionSuffix(item.courseCode, item.sectionNumber)}
+                        </span>
+                        <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums text-muted-foreground">
+                          <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
+                          {item.startTime}-{item.endTime}
+                        </span>
+                        {item.roomNumber ? (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap font-semibold text-foreground">
+                            <MapPin className="h-3 w-3 text-primary" aria-hidden="true" />
+                            {item.building ? `${item.building}-` : ''}
+                            {item.roomNumber}
+                          </span>
+                        ) : null}
+                      </>
+                    );
+                    return (
+                      <div key={item.id} role="listitem">
+                        {onItemSelect ? (
+                          <button
+                            type="button"
+                            onClick={() => onItemSelect(item)}
+                            className={cn(
+                              rowClass,
+                              'w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              blockTone(item),
+                            )}
+                          >
+                            {rowContent}
+                          </button>
+                        ) : (
+                          <div className={cn(rowClass, blockTone(item))}>{rowContent}</div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

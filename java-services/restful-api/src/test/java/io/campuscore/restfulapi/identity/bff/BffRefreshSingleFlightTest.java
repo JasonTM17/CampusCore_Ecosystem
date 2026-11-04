@@ -20,13 +20,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.*;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 
 class BffRefreshSingleFlightTest {
     private final BffSessionStore store = mock(BffSessionStore.class);
     private final BffTokenClient tokens = mock(BffTokenClient.class);
     private final AuthUserRepository users = mock(AuthUserRepository.class);
-    private final org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService grants =
-            mock(org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService.class);
+    private final OAuth2AuthorizationService grants = mock(OAuth2AuthorizationService.class);
     private final IdentityProperties.Surface surface = new IdentityProperties.Surface();
     private BffSessionService service;
 
@@ -41,7 +41,7 @@ class BffRefreshSingleFlightTest {
                         "portal-client", "grant", null, Instant.now().plusSeconds(3600), null));
         when(users.findAccountAuthorization("user")).thenReturn(Optional.of(
                 new AuthUserRepository.AccountAuthorization("ACTIVE", false, null, null, null,
-                        Set.of(), Set.of(), 0)));
+                        Set.of(), Set.of(), 0, null, null, null)));
         // Every new request observes expiry (including expiry after a previous rotation).
         when(grants.findById("grant")).thenReturn(grant(true));
         when(grants.findByToken(anyString(), any())).thenReturn(grant(false));

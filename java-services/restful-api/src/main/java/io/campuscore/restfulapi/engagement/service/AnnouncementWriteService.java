@@ -44,6 +44,7 @@ public class AnnouncementWriteService {
     private static final Set<String> TARGET_ROLES = Set.of("STUDENT", "LECTURER", "ADMIN", "SUPER_ADMIN", "TRUONG_KHOA", "TRUONG_BO_MON");
     private static final int MAX_HISTORY_PAGE_SIZE = 100;
     private static final int MAX_ACTOR_LABEL_LENGTH = 240;
+    private static final int MAX_AUDIT_REASON_LENGTH = 500;
 
     private final AnnouncementWriteRepository announcements;
     private final AnnouncementAuditRepository audits;
@@ -86,12 +87,17 @@ public class AnnouncementWriteService {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
         List<String> targetRoles = immutableStrings(request.targetRoles(), "targetRoles");
+        List<Integer> targetYears = immutableYears(request.targetYears());
         boolean lecturer = isLecturerOnly(roles);
         if (lecturer) {
             requireLecturerAnnouncement(lecturerId, request.sectionId(), targetRoles, request.isGlobal(), request.lecturerId());
         }
-        List<Integer> targetYears = immutableYears(request.targetYears());
+        requireConsistentAudience(
+                Boolean.TRUE.equals(request.isGlobal()), request.sectionId(), request.lecturerId(), targetYears);
         Instant now = Instant.now(clock);
+        Instant publishAt = toMicros(request.publishAt());
+        Instant expiresAt = toMicros(request.expiresAt());
+        requirePublicationWindow(publishAt, expiresAt);
         AnnouncementResponse created = announcements.create(new CreateAnnouncementCommand(
                 UUID.randomUUID().toString(),
                 requireValue(request.title(), "title"),
@@ -100,8 +106,8 @@ public class AnnouncementWriteService {
                 targetRoles,
                 targetYears,
                 Boolean.TRUE.equals(request.isGlobal()),
-                toMicros(request.publishAt()),
-                toMicros(request.expiresAt()),
+                publishAt,
+                expiresAt,
                 publisher,
                 request.semesterId(),
                 request.sectionId(),
@@ -190,10 +196,27 @@ public class AnnouncementWriteService {
             String requestedLecturer = request.has("lecturerId") ? request.lecturerId() : lecturerId;
             requireLecturerAnnouncement(lecturerId, effectiveSection, effectiveRoles, effectiveGlobal, requestedLecturer);
         }
+        // A legacy row can still hold the refused pair; an edit that leaves the audience alone stays possible.
+        boolean effectiveGlobal = request.has("isGlobal") ? Boolean.TRUE.equals(request.isGlobal()) : before.isGlobal();
+        if (request.has("isGlobal") || request.has("sectionId") || request.has("lecturerId")
+                || request.has("targetYears")) {
+            // Only a year list supplied by this edit forms the refused pair: a
+            // legacy global row's stored years no longer narrow its delivery.
+            List<Integer> explicitYears = request.has("targetYears")
+                    ? immutableYears(request.targetYears()) : List.of();
+            requireConsistentAudience(
+                    effectiveGlobal,
+                    request.has("sectionId") ? request.sectionId() : before.sectionId(),
+                    request.has("lecturerId") ? request.lecturerId() : before.lecturerId(),
+                    explicitYears);
+        }
         if (request.has("priority") && !PRIORITIES.contains(request.priority())) {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
         requireEditableField(request);
+        Instant publishAt = request.has("publishAt") ? toMicros(request.publishAt()) : before.publishAt();
+        Instant expiresAt = request.has("expiresAt") ? toMicros(request.expiresAt()) : before.expiresAt();
+        requirePublicationWindow(publishAt, expiresAt);
         Instant now = Instant.now(clock);
         // RT-P2-5: sanitize before persist and keep the removed-element count
         // so the write-time mutation is observable in the audit trail.
@@ -213,8 +236,8 @@ public class AnnouncementWriteService {
                         "targetYears",
                         request.has("targetYears") ? immutableYears(request.targetYears()) : null),
                 patch(request, "isGlobal", request.isGlobal()),
-                patch(request, "publishAt", toMicros(request.publishAt())),
-                patch(request, "expiresAt", toMicros(request.expiresAt())),
+                patch(request, "publishAt", publishAt),
+                patch(request, "expiresAt", expiresAt),
                 patch(request, "semesterId", request.semesterId()),
                 patch(request, "sectionId", request.sectionId()),
                 lecturer ? PatchValue.present(lecturerId) : patch(request, "lecturerId", request.lecturerId()),
@@ -235,7 +258,7 @@ public class AnnouncementWriteService {
         AnnouncementResponse after = requireAnnouncement(id);
         int sanitizedElements = contentPatch == null ? 0 : contentPatch.removedElements();
         String auditReason = sanitizedElements > 0
-                ? reason + " (sanitizer removed " + sanitizedElements + " element(s))"
+                ? sanitizedAuditReason(reason, sanitizedElements)
                 : reason;
         if (sanitizedElements > 0) {
             LOGGER.info(
@@ -244,6 +267,38 @@ public class AnnouncementWriteService {
         }
         appendAudit("UPDATED", actor, label, auditReason, before, after, now);
         return after;
+    }
+
+    /**
+     * isGlobal reaches the anonymous feed and the whole campus; a sectionId or
+     * lecturerId on the same row still narrows the student or staff feed, and a
+     * year list still narrows the student inbox, so the combination labels a
+     * notice campus-wide while delivering it to a subset — it is refused.
+     */
+    private static void requireConsistentAudience(
+            boolean isGlobal, String sectionId, String lecturerId, List<Integer> targetYears) {
+        if (isGlobal && (sectionId != null || lecturerId != null)) {
+            throw new IllegalArgumentException(
+                    "A campus-wide announcement cannot target a section or a lecturer");
+        }
+        if (isGlobal && targetYears != null && !targetYears.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "A campus-wide announcement cannot target specific years");
+        }
+    }
+
+    /**
+     * Publication gate: a notice that resolves to nobody (not global, no target
+     * role, no lecturer) can stay a draft but must never reach the live feed —
+     * the reader predicate could never match it and the fan-out sends nothing.
+     */
+    private static void requireDeliverableAudience(AnnouncementResponse announcement) {
+        if (!announcement.isGlobal()
+                && announcement.targetRoles().isEmpty()
+                && announcement.lecturerId() == null) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ANNOUNCEMENT_AUDIENCE_EMPTY",
+                    "A targeted announcement needs at least one audience role or lecturer");
+        }
     }
 
     private void requireLecturerAnnouncement(
@@ -294,6 +349,8 @@ public class AnnouncementWriteService {
             throw new DomainException(HttpStatus.FORBIDDEN, "ANNOUNCEMENT_NOT_AUTHOR",
                     "Only the author may submit a draft for review");
         }
+        requirePublicationWindow(before.publishAt(), before.expiresAt());
+        requireDeliverableAudience(before);
         Instant now = Instant.now(clock);
         if (announcements.submitForReview(id, before.version(), now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
@@ -305,15 +362,17 @@ public class AnnouncementWriteService {
 
     /**
      * IN_REVIEW {@literal ->} PUBLISHED — the only path that makes content
-     * live. The reviewer must be a writer-set member other than the author;
-     * the approve binds the current version as {@code publishedRevision} and
-     * is the notification trigger.
+     * live. The reviewer must be a governance role, or a lecturer (other than
+     * the author) whose section the announcement targets; the approve binds
+     * the current version as {@code publishedRevision} and is the
+     * notification trigger.
      */
     @Transactional
     public AnnouncementResponse approve(
             String actorId,
             String actorLabel,
             List<String> roles,
+            String lecturerId,
             String announcementId) {
         String actor = requireText(actorId, "actor");
         String label = requireActorLabel(actorLabel, "actorLabel");
@@ -326,11 +385,14 @@ public class AnnouncementWriteService {
             throw conflict("REVIEWER_EQUALS_AUTHOR",
                     "The author cannot approve their own announcement");
         }
+        requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
+        requirePublicationWindow(before.publishAt(), before.expiresAt());
         if (before.expiresAt() != null && !before.expiresAt().isAfter(now)) {
             throw conflict("ANNOUNCEMENT_ALREADY_EXPIRED",
                     "The publication window already closed; return the draft and fix expiresAt");
         }
+        requireDeliverableAudience(before);
         if (announcements.approveForPublication(id, before.version(), actor, now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
         }
@@ -346,6 +408,7 @@ public class AnnouncementWriteService {
             String actorId,
             String actorLabel,
             List<String> roles,
+            String lecturerId,
             String announcementId,
             LifecycleRequest request) {
         String actor = requireText(actorId, "actor");
@@ -356,6 +419,11 @@ public class AnnouncementWriteService {
         if (!"IN_REVIEW".equals(before.status())) {
             throw invalidState();
         }
+        if (actor.equals(before.authorId())) {
+            throw conflict("REVIEWER_EQUALS_AUTHOR",
+                    "The author cannot return their own announcement");
+        }
+        requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
         if (announcements.returnForRework(id, before.version(), actor, reason, now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
@@ -517,6 +585,23 @@ public class AnnouncementWriteService {
                 new PageMeta(total, page, limit, Math.toIntExact(totalPages)));
     }
 
+    /**
+     * Review scope for approve/return: governance may review anything; a
+     * lecturer who is not the author may review only a non-global
+     * announcement whose section they teach.
+     */
+    private void requireReviewScope(List<String> roles, String lecturerId, AnnouncementResponse before) {
+        if (isGovernanceRole(roles)) {
+            return;
+        }
+        String sectionId = before.sectionId();
+        if (Boolean.TRUE.equals(before.isGlobal()) || sectionId == null
+                || !announcements.sectionBelongsToLecturer(sectionId, lecturerId)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "ANNOUNCEMENT_APPROVAL_FORBIDDEN",
+                    "Approval requires a governance role or an announcement of your own section");
+        }
+    }
+
     /** Governance roles read every announcement's history; lecturers only their own. */
     private static boolean isGovernanceRole(List<String> roles) {
         return roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
@@ -596,6 +681,14 @@ public class AnnouncementWriteService {
         return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
+    /** The publication interval must be non-empty: a later publishAt never becomes visible. */
+    private static void requirePublicationWindow(Instant publishAt, Instant expiresAt) {
+        if (publishAt != null && expiresAt != null && !expiresAt.isAfter(publishAt)) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ANNOUNCEMENT_WINDOW_INVALID",
+                    "expiresAt must be after publishAt");
+        }
+    }
+
     private void appendAudit(
             String action,
             String actorId,
@@ -638,10 +731,24 @@ public class AnnouncementWriteService {
 
     private static String requireReason(String value) {
         String reason = requireText(value, "reason").trim();
-        if (reason.codePointCount(0, reason.length()) > 500) {
-            throw new IllegalArgumentException("reason must contain at most 500 characters");
+        if (reason.codePointCount(0, reason.length()) > MAX_AUDIT_REASON_LENGTH) {
+            throw new IllegalArgumentException(
+                    "reason must contain at most " + MAX_AUDIT_REASON_LENGTH + " characters");
         }
         return reason;
+    }
+
+    private static String sanitizedAuditReason(String reason, int removedElements) {
+        String suffix = " (sanitizer removed " + removedElements + " element(s))";
+        int suffixLength = suffix.codePointCount(0, suffix.length());
+        int reasonLimit = MAX_AUDIT_REASON_LENGTH - suffixLength;
+        if (reason.codePointCount(0, reason.length()) <= reasonLimit) {
+            return reason + suffix;
+        }
+
+        int prefixLength = reasonLimit - 1;
+        int prefixEnd = reason.offsetByCodePoints(0, prefixLength);
+        return reason.substring(0, prefixEnd) + "…" + suffix;
     }
 
     private static String requireActorLabel(String value, String name) {

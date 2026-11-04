@@ -3,8 +3,8 @@ package io.campuscore.restfulapi.audit;
 import io.campuscore.restfulapi.common.LikePattern;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -87,10 +87,10 @@ public class AdminAuditReadRepository {
         appendFilter(where, parameters, "\"entityId\" = :entityId", "entityId", entityId);
         appendFilter(where, parameters, "\"actorId\" = :actorId", "actorId", actorId);
         if (search != null && !search.isBlank()) {
-            String[] tokens = search.trim().split("\\s+");
+            List<String> tokens = boundedTokens(search);
             parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
             parameters.addValue("foldTo", LikePattern.FOLD_TO);
-            for (int i = 0; i < tokens.length; i++) {
+            for (int i = 0; i < tokens.size(); i++) {
                 String param = "searchToken" + i;
                 if (where.length() > 0) {
                     where.append(" AND ");
@@ -100,7 +100,7 @@ public class AdminAuditReadRepository {
                         .map(field -> "TRANSLATE(LOWER(COALESCE(" + field + ", '')), :foldFrom, :foldTo) LIKE :"
                                 + param + " ESCAPE '\\'")
                         .toList())).append(")");
-                parameters.addValue(param, "%" + escapeLike(LikePattern.fold(tokens[i].toLowerCase(Locale.ROOT))) + "%");
+                parameters.addValue(param, tokens.get(i));
             }
         }
         String clause = where.length() == 0 ? "" : " WHERE " + where;
@@ -128,6 +128,35 @@ public class AdminAuditReadRepository {
         long totalValue = total == null ? 0L : total;
         long totalPages = totalValue == 0 ? 0 : ((totalValue - 1) / effectiveLimit) + 1;
         return new AuditPage(List.copyOf(rows), totalValue, effectivePage, effectiveLimit, totalPages);
+    }
+
+    /**
+     * The shared admin-search budget: a 64-character term and at most eight
+     * words. Every accepted word becomes five {@code LIKE} predicates in both
+     * the count and the page statement, so an unbounded word list would let one
+     * request multiply the work of an audit scan.
+     *
+     * <p>Unlike {@link LikePattern#tokens(String)} this keeps every word:
+     * audit terms such as "CN" are course-code prefixes, not the academic
+     * honorifics that search drops for a person's name.
+     */
+    private static List<String> boundedTokens(String search) {
+        String trimmed = search.trim();
+        String bounded = trimmed.length() > LikePattern.MAX_TERM_LENGTH
+                ? trimmed.substring(0, LikePattern.MAX_TERM_LENGTH)
+                : trimmed;
+        String[] words = bounded.split("\\s+");
+        List<String> tokens = new ArrayList<>(Math.min(words.length, LikePattern.MAX_TOKENS));
+        for (String word : words) {
+            if (tokens.size() >= LikePattern.MAX_TOKENS) {
+                break;
+            }
+            String pattern = LikePattern.contains(word);
+            if (pattern != null) {
+                tokens.add(pattern);
+            }
+        }
+        return tokens;
     }
 
     private static void appendFilter(

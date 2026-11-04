@@ -9,6 +9,10 @@ import {
   resolveMarkdownHeading,
 } from '@/components/ui/rich-content-renderer';
 import type { Locale } from '@/i18n/config';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface TocItem {
   id: string;
@@ -71,7 +75,7 @@ export function TableOfContents({
   // scroll frame, and a fresh array here would re-observe the whole document.
   const headings = useMemo(() => extractTocHeadings(content), [content]);
   const [activeId, setActiveId] = useState<string>('');
-  const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.toc;
 
   useEffect(() => {
     if (headings.length === 0) return;
@@ -111,14 +115,15 @@ export function TableOfContents({
       // with the reading position moved out from under them.
       element.tabIndex = -1;
       element.focus({ preventScroll: true });
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
       setActiveId(id);
     }
   };
 
   return (
     <nav
-      aria-label={isVi ? 'Mục lục bài viết' : 'Table of contents'}
+      aria-label={copy.ariaLabel}
       className={cn(
         'rounded-xl border border-border/70 bg-secondary/30 p-4 print:hidden transition-all',
         className,
@@ -126,9 +131,9 @@ export function TableOfContents({
     >
       <div className="flex items-center gap-2 border-b border-border/60 pb-2.5 text-xs font-bold uppercase tracking-wider text-foreground">
         <List className="h-4 w-4 text-primary" />
-        <span>{isVi ? 'Mục lục bài viết' : 'Table of Contents'}</span>
+        <span>{copy.heading}</span>
         <span className="ml-auto rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-          {headings.length} {isVi ? 'phần' : 'sections'}
+          {headings.length} {copy.countSuffix}
         </span>
       </div>
 

@@ -12,7 +12,11 @@ function load(relativePath) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const moduleRecord = { exports: {} };
-  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const resolve = (specifier) =>
+    specifier === '@/i18n/messages-student-pages'
+      ? load('src/i18n/messages-student-pages.ts')
+      : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
   return moduleRecord.exports;
 }
 

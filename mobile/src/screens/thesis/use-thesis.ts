@@ -19,6 +19,7 @@ import {
   THESIS_ROUND_PAGE_SIZE,
   THESIS_TOPIC_PAGE_SIZE,
   buildAdvisorDirectory,
+  filterTopics,
   isAbortLike,
   isGroupLeader,
   mapWithConcurrency,
@@ -33,6 +34,7 @@ import {
   type ThesisSupervisor,
   type ThesisTopic,
 } from './thesis-model';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { thesisPreview, type ThesisPreview } from './thesis-preview';
 import { selectThesisRound, useSelectedThesisRoundId } from './thesis-selection';
 
@@ -114,6 +116,12 @@ function appendUnique(base: readonly ThesisTopic[], more: readonly ThesisTopic[]
   return [...base, ...more.filter((topic) => !seen.has(topic.id))];
 }
 
+function topicPageOptions(page: number, search: string) {
+  return search
+    ? { page, limit: THESIS_TOPIC_PAGE_SIZE, search }
+    : { page, limit: THESIS_TOPIC_PAGE_SIZE };
+}
+
 export interface ThesisTopicList extends ThesisQueryState {
   items: ThesisTopic[];
   total?: number;
@@ -123,56 +131,89 @@ export interface ThesisTopicList extends ThesisQueryState {
   loadMore: () => void;
 }
 
-export function useThesisTopics(roundId: string | null): ThesisTopicList {
+export function useThesisTopics(roundId: string | null, search = ''): ThesisTopicList {
   const { copy, locale } = useThesisCopy();
   const preview = isPreview();
   const sample = usePreviewData(locale);
   const key = roundId ?? 'none';
+  const term = search.trim();
+  // The search term is part of the page identity: a page fetched for another
+  // term must never be read as this term's first page.
+  const pageKey = term ? `${key}:${term}` : key;
   const query = useScreenQuery<TopicPage>(
-    `thesis:topics:${key}`,
+    `thesis:topics:${pageKey}`,
     async () => {
-      const result = await thesisApi.topics(key, { page: 0, limit: THESIS_TOPIC_PAGE_SIZE });
-      return { key, items: result.items, total: result.total, hasMore: result.hasMore };
+      const result = await thesisApi.topics(key, topicPageOptions(0, term));
+      return { key: pageKey, items: result.items, total: result.total, hasMore: result.hasMore };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
-  const first = query.data && query.data.key === key ? query.data : undefined;
+  const first = query.data && query.data.key === pageKey ? query.data : undefined;
 
   const [extra, setExtra] = useState<ExtraPages | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const busy = useRef(false);
+  // A next-page read belongs to one first-page snapshot. Its token fences the
+  // success, error and finally writes so an abandoned read cannot touch the
+  // snapshot that replaced it, and the lock is keyed by the snapshot owner so
+  // a round switch or refresh never waits for the previous snapshot's read.
+  const request = useRef<{ owner: TopicPage; token: number } | null>(null);
+  const token = useRef(0);
   const mounted = useRef(true);
+  const firstRef = useRef<TopicPage | undefined>(first);
+  firstRef.current = first;
   useEffect(() => () => { mounted.current = false; }, []);
 
   // Extra pages belong to one first-page snapshot; a refresh drops them.
   const owned = extra && first && extra.owner === first ? extra : null;
   const hasMore = preview ? false : owned ? owned.hasMore : first?.hasMore ?? false;
 
+  // A new snapshot orphans every read launched for the previous one: release
+  // its lock at once, drop its pages and error, and fence its callbacks.
+  useEffect(() => {
+    if (request.current && request.current.owner !== first) {
+      request.current = null;
+      token.current += 1;
+      setLoadingMore(false);
+    }
+    setExtra((previous) => (previous && previous.owner !== first ? null : previous));
+  }, [first]);
+
   const loadMore = useCallback(() => {
-    if (preview || !first || busy.current || !hasMore || roundId === null) return;
-    busy.current = true;
+    // The lock is per snapshot: a request owned by a previous first page must
+    // not delay the new snapshot even before the reset effect has run.
+    if (preview || !first || request.current?.owner === first || !hasMore || roundId === null) return;
+    const owner = first;
+    const requestToken = token.current + 1;
+    token.current = requestToken;
+    request.current = { owner, token: requestToken };
+    const current = () => request.current?.token === requestToken && firstRef.current === owner;
     setLoadingMore(true);
+    // A retry clears the previous failure, like the content paged-list lifecycle.
+    setExtra((previous) => (previous?.owner === owner ? { ...previous, error: null } : previous));
     const page = (owned?.page ?? 0) + 1;
-    thesisApi.topics(roundId, { page, limit: THESIS_TOPIC_PAGE_SIZE })
+    thesisApi.topics(roundId, topicPageOptions(page, term))
       .then((result) => {
-        if (!mounted.current) return;
-        setExtra({ owner: first, items: appendUnique(owned?.items ?? [], result.items), page, hasMore: result.hasMore, error: null });
+        if (!mounted.current || !current()) return;
+        setExtra({ owner, items: appendUnique(owned?.items ?? [], result.items), page, hasMore: result.hasMore, error: null });
       })
       .catch((error: unknown) => {
-        if (!mounted.current || isAbortLike(error)) return;
+        if (!mounted.current || isAbortLike(error) || !current()) return;
         const message = thesisErrorMessage(copy, error);
-        setExtra({ owner: first, items: owned?.items ?? [], page: owned?.page ?? 0, hasMore: true, error: message });
+        setExtra({ owner, items: owned?.items ?? [], page: owned?.page ?? 0, hasMore: true, error: message });
       })
       .finally(() => {
-        busy.current = false;
+        if (!current()) return;
+        request.current = null;
         if (mounted.current) setLoadingMore(false);
       });
-  }, [preview, first, hasMore, roundId, owned, copy]);
+  }, [preview, first, hasMore, roundId, term, owned, copy]);
 
   const items = useMemo(() => {
-    if (preview) return sample.topics.filter((topic) => topic.roundId === (roundId ?? topic.roundId));
+    if (preview) {
+      return filterTopics(sample.topics.filter((topic) => topic.roundId === (roundId ?? topic.roundId)), term);
+    }
     return appendUnique(first?.items ?? [], owned?.items ?? []);
-  }, [preview, sample.topics, roundId, first, owned]);
+  }, [preview, sample.topics, roundId, term, first, owned]);
 
   return {
     items,
@@ -242,6 +283,8 @@ interface GroupSnapshot {
   studentId: string | null;
   group: ThesisGroup | null;
   progress: ThesisProgress | null;
+  /** The derived progress read failed; the group itself is still known. */
+  progressFailed: boolean;
 }
 
 const MY_GROUP_PAGE = 100;
@@ -261,6 +304,8 @@ export interface ThesisGroupState extends ThesisQueryState {
   studentId: string | null;
   group: ThesisGroup | null;
   progress: ThesisProgress | null;
+  /** Unknown progress is never reported as 0%. */
+  progressFailed: boolean;
   isLeader: boolean;
   /** Applies a mutation response locally, then revalidates the progress read. */
   applyGroup: (group: ThesisGroup) => void;
@@ -274,18 +319,20 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
   const query = useScreenQuery<GroupSnapshot>(
     `thesis:group:${key}`,
     async () => {
+      let progressFailed = false;
       const [me, groups, progress] = await Promise.all([
         campusApi.profile(),
         loadMyGroups(),
         // Progress is a derived read; a group still shows when it is unavailable.
         thesisApi.progress(key).catch((error: unknown) => {
-          if (thesisErrorInfo(error).kind === 'session') throw error;
+          if (isResourceUnauthorizedError(error)) throw error;
+          progressFailed = true;
           return null;
         }),
       ]);
       const inRound = groups.filter((group) => group.roundId === key);
       const group = inRound.find((item) => item.status !== 'CANCELLED') ?? inRound[0] ?? null;
-      return { key, studentId: me.studentId ?? null, group, progress };
+      return { key, studentId: me.studentId ?? null, group, progress, progressFailed };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
@@ -294,17 +341,21 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
 
   const applyGroup = useCallback((next: ThesisGroup) => {
     if (preview) return;
-    setData({ key, studentId: live?.studentId ?? null, group: next, progress: live?.progress ?? null });
+    setData({
+      key, studentId: live?.studentId ?? null, group: next,
+      progress: live?.progress ?? null, progressFailed: live?.progressFailed ?? false,
+    });
     void reload();
   }, [preview, setData, reload, key, live]);
 
   const snapshot: GroupSnapshot | undefined = preview
-    ? { key, studentId: 'preview-student-1', group: sample.group, progress: sample.progress }
+    ? { key, studentId: 'preview-student-1', group: sample.group, progress: sample.progress, progressFailed: false }
     : live;
   return {
     studentId: snapshot?.studentId ?? null,
     group: snapshot?.group ?? null,
     progress: snapshot?.progress ?? null,
+    progressFailed: snapshot?.progressFailed ?? false,
     isLeader: isGroupLeader(snapshot?.group, snapshot?.studentId),
     applyGroup,
     loading: !preview && roundId !== null && query.isLoading && !live,
@@ -390,7 +441,7 @@ export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
         try {
           return { topic, supervisors: await thesisApi.supervisors(topic.id) };
         } catch (error) {
-          if (thesisErrorInfo(error).kind === 'session') throw error;
+          if (isResourceUnauthorizedError(error)) throw error;
           failed += 1;
           return { topic, supervisors: [] as ThesisSupervisor[] };
         }

@@ -12,12 +12,13 @@ import io.campuscore.restfulapi.academic.registration.RegistrationService;
 import io.campuscore.restfulapi.academic.service.AcademicEnrollmentReadService;
 import io.campuscore.restfulapi.academic.service.AcademicMutationService;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,14 +26,18 @@ import org.springframework.web.server.ResponseStatusException;
 class EnrollmentExportCompletenessTest {
 
     @Test
-    void reportsOverflowWhenBoundedQueryFindsOneRowPastTheExportLimit() {
+    void reportsOverflowWhenBoundedQueryFindsOneRowPastTheExportLimit() throws Exception {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
-        List<Map<String, Object>> availableRows = Collections.nCopies(50_001, Map.of());
-        when(jdbc.queryForList(anyString(), any(SqlParameterSource.class))).thenAnswer(invocation -> {
-            SqlParameterSource parameters = invocation.getArgument(1);
-            int limit = (Integer) parameters.getValue("exportLimit");
-            return availableRows.subList(0, Math.min(limit, availableRows.size()));
-        });
+        when(jdbc.execute(anyString(), any(SqlParameterSource.class), any(PreparedStatementCallback.class)))
+                .thenAnswer(invocation -> {
+                    PreparedStatementCallback<?> callback = invocation.getArgument(2);
+                    PreparedStatement statement = mock(PreparedStatement.class);
+                    ResultSet rows = mock(ResultSet.class);
+                    when(statement.executeQuery()).thenReturn(rows);
+                    AtomicInteger remaining = new AtomicInteger(50_001);
+                    when(rows.next()).thenAnswer(next -> remaining.getAndDecrement() > 0);
+                    return callback.doInPreparedStatement(statement);
+                });
 
         AcademicMutationService service = new AcademicMutationService(
                 jdbc,
@@ -45,7 +50,7 @@ class EnrollmentExportCompletenessTest {
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE));
 
         ArgumentCaptor<SqlParameterSource> parameters = ArgumentCaptor.forClass(SqlParameterSource.class);
-        verify(jdbc).queryForList(anyString(), parameters.capture());
+        verify(jdbc).execute(anyString(), parameters.capture(), any(PreparedStatementCallback.class));
         assertThat(parameters.getValue().getValue("exportLimit")).isEqualTo(50_001);
     }
 }

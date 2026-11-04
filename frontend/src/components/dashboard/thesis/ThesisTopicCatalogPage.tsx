@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowUpRight, FileStack, Loader2, Search } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -16,10 +17,19 @@ import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import { TopicCardGridSkeleton } from '@/components/ui/skeleton';
-import { normalizeVietnameseText } from '@/lib/registration-browse';
+import { ListPager } from '@/components/ui/list-pager';
 import { plainTextThesisDescription as plainTextDescription } from '@/lib/thesis-text';
+import { catalogEmptyState } from '@/lib/thesis-page-list';
+import {
+  isTopicSearchWithinBudget,
+  TOPIC_SEARCH_MAX_LENGTH,
+} from '@/lib/thesis-topic-search';
 import { cn } from '@/lib/utils';
 import { useThesisWorkspace } from './useThesisWorkspace';
+import { thesisApi, type ThesisTopic } from '@/lib/thesis-api';
+import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
+
+const CATALOG_PAGE_SIZE = 20;
 
 export default function ThesisTopicCatalogPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
@@ -27,49 +37,48 @@ export default function ThesisTopicCatalogPage() {
   const searchParams = useSearchParams();
   const explicitRoundId = searchParams.get('roundId') || '';
   const [searchInput, setSearchInput] = useState('');
+  const [searchError, setSearchError] = useState('');
   const [showAll, setShowAll] = useState(false);
   // Course requirement: the topic catalog only appears after a search, so no
   // topic is fetched or rendered until the query is submitted.
   const [submittedQuery, setSubmittedQuery] = useState('');
   const searchActive = showAll || submittedQuery.trim().length > 0;
-  const workspace = useThesisWorkspace(explicitRoundId, { topicsEnabled: searchActive, groupsEnabled: false });
-
-  const normalizedQuery = submittedQuery.trim().toLowerCase();
-  const matchingTopics = useMemo(() => {
-    if (!searchActive) return [];
-    if (showAll || !normalizedQuery || normalizedQuery === 'all') {
-      return workspace.topics;
-    }
-    const topicBilingualKeywords: Record<string, string[]> = {
-      'artificial intelligence': ['artificial intelligence', 'ai', 'trí tuệ nhân tạo'],
-      'software & web': ['software', 'web', 'phần mềm'],
-      'robotics & mechatronics': ['robotics', 'mechatronics', 'cơ điện tử', 'robot'],
-      'information systems': ['information systems', 'hệ thống thông tin'],
-      'iot & telecom': ['iot', 'telecom', 'viễn thông'],
-      'automotive': ['automotive', 'ô tô'],
-      'civil engineering': ['civil engineering', 'xây dựng'],
+  const workspace = useThesisWorkspace(explicitRoundId, { topicsEnabled: false, groupsEnabled: false });
+  const accountId = user?.id ?? '';
+  const authorizationScope = JSON.stringify([
+    [...(user?.roles ?? [])].sort(),
+    user?.studentId ?? null,
+    user?.lecturerId ?? null,
+  ]);
+  const authSignature = JSON.stringify([accountId, authLoading]);
+  const authSessionRef = useRef({ signature: authSignature, epoch: 0 });
+  if (authSessionRef.current.signature !== authSignature) {
+    authSessionRef.current = {
+      signature: authSignature,
+      epoch: authSessionRef.current.epoch + 1,
     };
-
-    const searchTerms = [normalizedQuery];
-    for (const [key, synonyms] of Object.entries(topicBilingualKeywords)) {
-      if (normalizedQuery.includes(key) || key.includes(normalizedQuery)) {
-        searchTerms.push(...synonyms.map((s) => s.toLowerCase()));
-      }
-    }
-
-    return workspace.topics.filter((topic) => {
-      const fullText = normalizeVietnameseText(
-        [topic.title, plainTextDescription(topic.description)].filter(Boolean).join(' '),
-      );
-      return searchTerms.some((term) => {
-        const foldedTerm = normalizeVietnameseText(term);
-        if (!foldedTerm) return true;
-        if (fullText.includes(foldedTerm)) return true;
-        const tokens = foldedTerm.split(/\s+/).filter(Boolean);
-        return tokens.length > 0 && tokens.every((tok) => fullText.includes(tok));
-      });
-    });
-  }, [normalizedQuery, searchActive, showAll, workspace.topics]);
+  }
+  const authSessionEpoch = authSessionRef.current.epoch;
+  const loadTopicsPage = useCallback(
+    (page: number, signal: AbortSignal) => thesisApi.listTopicsPage(
+      workspace.selectedRoundId,
+      { status: 'PUBLISHED', search: submittedQuery, page, limit: CATALOG_PAGE_SIZE },
+      signal,
+    ),
+    [submittedQuery, workspace.selectedRoundId],
+  );
+  const topicsPage = useThesisPagedList<ThesisTopic>({
+    accountId,
+    authSessionEpoch,
+    authorizationScope,
+    roundId: workspace.selectedRoundId,
+    listKind: 'catalog',
+    status: 'PUBLISHED',
+    search: submittedQuery,
+    limit: CATALOG_PAGE_SIZE,
+    enabled: searchActive && Boolean(workspace.selectedRoundId) && !authLoading && hasAccess,
+    load: loadTopicsPage,
+  });
 
   if (authLoading) {
     return <LoadingState label={messages.thesis.loading} />;
@@ -95,51 +104,19 @@ export default function ThesisTopicCatalogPage() {
   }
 
   const searchCopy = locale === 'vi'
-    ? {
-        label: 'Tìm kiếm đề tài',
-        placeholder: 'Nhập tên đề tài, chuyên ngành hoặc từ khóa…',
-        action: 'Tìm kiếm',
-        viewAll: 'Xem tất cả đề tài đợt này',
-        quickSuggest: 'Gợi ý chuyên ngành:',
-        requiredTitle: 'Tìm kiếm để xem danh mục đề tài',
-        requiredDescription:
-          'Bạn có thể nhập từ khóa, chọn chuyên ngành gợi ý hoặc bấm "Xem tất cả đề tài đợt này".',
-        noMatch: 'Không có đề tài nào khớp từ khóa.',
-      }
-    : {
-        label: 'Search topics',
-        placeholder: 'Enter topic title, specialization, or keyword…',
-        action: 'Search',
-        viewAll: 'Browse all topics in this round',
-        quickSuggest: 'Suggested topics:',
-        requiredTitle: 'Search to view the topic catalog',
-        requiredDescription:
-          'Enter a keyword, click a quick suggestion, or click "Browse all topics in this round".',
-        noMatch: 'No topic matches your search.',
-      };
-
-  const quickPills = locale === 'vi'
-    ? [
-        'Trí tuệ nhân tạo (AI)',
-        'Phần mềm & Web',
-        'Cơ điện tử & Robot',
-        'Hệ thống thông tin',
-        'IoT & Viễn thông',
-        'Kỹ thuật Ô tô',
-        'Xây dựng',
-      ]
-    : [
-        'Artificial Intelligence',
-        'Software & Web',
-        'Robotics & Mechatronics',
-        'Information Systems',
-        'IoT & Telecom',
-        'Automotive',
-        'Civil Engineering',
-      ];
+    ? thesisWorkflowVi.topicCatalog
+    : thesisWorkflowEn.topicCatalog;
+  const pagerCopy = locale === 'vi' ? thesisWorkflowVi.listPager : thesisWorkflowEn.listPager;
+  const quickPills = searchCopy.quickPills;
+  const emptyState = catalogEmptyState(topicsPage.catalogTotal, topicsPage.total);
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!isTopicSearchWithinBudget(searchInput)) {
+      setSearchError(searchCopy.searchLimitError);
+      return;
+    }
+    setSearchError('');
     if (!searchInput.trim()) {
       setShowAll(true);
       setSubmittedQuery('all');
@@ -151,6 +128,11 @@ export default function ThesisTopicCatalogPage() {
 
   const handleSelectPill = (pill: string) => {
     const query = pill.split('(')[0].trim();
+    if (!isTopicSearchWithinBudget(query)) {
+      setSearchError(searchCopy.searchLimitError);
+      return;
+    }
+    setSearchError('');
     setSearchInput(query);
     setShowAll(false);
     setSubmittedQuery(query);
@@ -237,24 +219,30 @@ export default function ThesisTopicCatalogPage() {
 
       <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="flex min-w-0 flex-1 flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {searchCopy.label}
+          {searchCopy.searchLabel}
           <Input
             type="search"
             value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder={searchCopy.placeholder}
+            maxLength={TOPIC_SEARCH_MAX_LENGTH}
+            aria-invalid={Boolean(searchError)}
+            onChange={(event) => {
+              setSearchError('');
+              setSearchInput(event.target.value);
+            }}
+            placeholder={searchCopy.searchPlaceholder}
             className="h-11 normal-case tracking-normal"
           />
         </label>
         <Button type="submit" disabled={workspace.workspaceLoading} className="h-11 sm:w-32">
-          {workspace.workspaceLoading ? (
+          {workspace.workspaceLoading || (searchActive && topicsPage.loading) ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
             <Search className="mr-2 h-4 w-4" aria-hidden="true" />
           )}
-          {searchCopy.action}
+          {searchCopy.searchAction}
         </Button>
       </form>
+      {searchError ? <p role="alert" className="text-sm text-destructive">{searchError}</p> : null}
 
       {workspace.error ? (
         <ErrorState
@@ -262,23 +250,6 @@ export default function ThesisTopicCatalogPage() {
           description={workspace.error}
           onRetry={() => void workspace.reload()}
         />
-      ) : workspace.workspaceLoading && workspace.topics.length === 0 ? (
-        <Card variant="muted">
-          <CardHeader>
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>{messages.thesis.topicsTitle}</CardTitle>
-                <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
-              </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {messages.thesis.loading}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <TopicCardGridSkeleton count={6} />
-          </CardContent>
-        </Card>
       ) : !searchActive ? (
         <div className="space-y-6">
           <EmptyState
@@ -316,11 +287,43 @@ export default function ThesisTopicCatalogPage() {
             </div>
           </div>
         </div>
-      ) : matchingTopics.length === 0 ? (
+      ) : topicsPage.loading ? (
+        <Card variant="muted">
+          <CardHeader>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>{messages.thesis.topicsTitle}</CardTitle>
+                <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {messages.thesis.loading}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TopicCardGridSkeleton count={6} />
+          </CardContent>
+        </Card>
+      ) : topicsPage.failed ? (
+        <ErrorState
+          title={searchCopy.loadErrorTitle}
+          description={searchCopy.loadErrorDescription}
+          retryLabel={messages.thesis.retry}
+          onRetry={topicsPage.retry}
+        />
+      ) : topicsPage.items.length === 0 ? (
         <EmptyState
           icon={FileStack}
-          title={workspace.topics.length === 0 ? messages.thesis.noTopics : searchCopy.noMatch}
-          description={messages.thesis.noTopicsDescription}
+          title={emptyState === 'empty'
+            ? messages.thesis.noTopics
+            : emptyState === 'no-match'
+              ? searchCopy.noMatch
+              : searchCopy.unknownCountTitle}
+          description={emptyState === 'empty'
+            ? messages.thesis.noTopicsDescription
+            : emptyState === 'no-match'
+              ? searchCopy.noMatch
+              : searchCopy.unknownCountDescription}
         />
       ) : (
         <Card variant="muted">
@@ -331,12 +334,12 @@ export default function ThesisTopicCatalogPage() {
                 <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
               </div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {matchingTopics.length} {messages.thesis.topicCountLabel}
+                {topicsPage.total ?? '—'} {messages.thesis.topicCountLabel}
               </span>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {matchingTopics.map((topic) => (
+            {topicsPage.items.map((topic) => (
               <LocalizedLink
                 key={topic.id}
                 href={`/dashboard/thesis/topics/${topic.id}`}
@@ -372,6 +375,19 @@ export default function ThesisTopicCatalogPage() {
           </CardContent>
         </Card>
       )}
+      {searchActive && !workspace.error && !topicsPage.loading && !topicsPage.failed ? (
+        <ListPager
+          testId="thesis-topic-catalog-pager"
+          navLabel={pagerCopy.topicsNav}
+          page={topicsPage.page}
+          limit={topicsPage.limit}
+          total={topicsPage.total}
+          itemCount={topicsPage.items.length}
+          pending={topicsPage.loading}
+          copy={pagerCopy}
+          onPage={topicsPage.goToPage}
+        />
+      ) : null}
     </div>
   );
 }

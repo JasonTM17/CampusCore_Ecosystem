@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.thesis.web;
 import io.campuscore.restfulapi.thesis.domain.ThesisTopic;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 public final class ThesisTopicDtos {
@@ -21,6 +22,8 @@ public final class ThesisTopicDtos {
             String createdBy,
             BigDecimal finalScore,
             String resultStatus,
+            String resultReason,
+            Instant resultResolvedAt,
             String gvpbLecturerId) {
 
         public static TopicResponse from(ThesisTopic topic) {
@@ -35,6 +38,8 @@ public final class ThesisTopicDtos {
                     topic.getCreatedBy(),
                     topic.getFinalScore(),
                     topic.getResultStatus(),
+                    topic.getResultReason(),
+                    topic.getResultResolvedAt(),
                     topic.getGvpbLecturerId());
         }
     }

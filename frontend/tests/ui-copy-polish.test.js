@@ -2,11 +2,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function loadTsModule(relativePath, stubs = {}) {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  const resolve = (specifier) =>
+    Object.prototype.hasOwnProperty.call(stubs, specifier)
+      ? stubs[specifier]
+      : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
+  return moduleRecord.exports;
 }
 
 test('student status badges use localized labels instead of raw service enums', () => {
@@ -124,8 +142,12 @@ test('student enrollments use complete mobile cards and a separate desktop table
   assert.match(mobileCards, /messages\.common\.statuses\.UNKNOWN/);
   assert.match(mobileCards, /isDroppableEnrollment\(enrollment\.status\)/);
   assert.match(mobileCards, /onClick=\{\(\) => void handleDrop\(enrollment\.id, courseLabel\)\}/);
-  assert.match(page, /title: 'Môn học của tôi'/);
-  assert.match(page, /title: 'My courses'/);
+  // The page title moved to the studentPortal fragment, so the oracle
+  // follows the copy instead of pinning it inside the page module.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
+  assert.match(studentPortal, /title: 'My courses'/);
+  assert.match(studentPortal, /title: 'Môn học của tôi'/);
+  assert.doesNotMatch(page, /title: 'Môn học của tôi'|title: 'My courses'/);
   assert.doesNotMatch(mobileCards, /<details/);
   assert.doesNotMatch(
     page,
@@ -135,8 +157,12 @@ test('student enrollments use complete mobile cards and a separate desktop table
 
 test('enrollment and thesis status fallbacks stay human-readable', () => {
   const enrollmentPage = read('src/app/admin/enrollments/page.tsx');
-  assert.match(enrollmentPage, /ENROLLED: 'Đã đăng ký'/);
-  assert.match(enrollmentPage, /ENROLLED: 'Registered'/);
+  // The status vocabulary lives in the adminAcademics fragment; the page
+  // still resolves unknown service enums through it before the shared fallback.
+  const enrollmentCatalogue = read('src/i18n/messages-admin-academics.ts');
+  assert.match(enrollmentCatalogue, /ENROLLED: 'Đã đăng ký'/);
+  assert.match(enrollmentCatalogue, /ENROLLED: 'Registered'/);
+  assert.match(enrollmentPage, /copy\.statusOptions\[status as keyof typeof copy\.statusOptions\]/);
   assert.match(enrollmentPage, /messages\.common\.statuses\.UNKNOWN/);
   assert.doesNotMatch(enrollmentPage, /\?\?\s*(?:enrollment|selectedEnrollment)\.status/);
 
@@ -288,6 +314,9 @@ test('milestone 2: meta.defaults.keywords array length parity between en and vi'
     'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
     'messages-content': 'src/i18n/messages-content.ts',
     'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
+    'messages-teaching-pages': 'src/i18n/messages-teaching-pages.ts',
+    'messages-admin-pages': 'src/i18n/messages-admin-pages.ts',
+    'messages-student-pages': 'src/i18n/messages-student-pages.ts',
   };
   const customRequire = (id) => {
     const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));
@@ -335,20 +364,23 @@ test('milestone 2: component i18n localization in admin and announcements', () =
   assert.equal(rawPdt, null, 'all PĐT avatar badges must be localized');
 
   const editModal = read('src/components/announcements/AnnouncementEditModal.tsx');
-  assert.match(editModal, /isVi\s*\?\s*'Chỉnh sửa nhanh qua giao diện quản trị Bảng tin'\s*:\s*'Quick edit via Admin Announcements'/);
-  assert.match(editModal, /publishedBy \|\| \(isVi \? 'Phòng Đào tạo' : 'Office of Academic Affairs'\)/);
+  // The quick-edit copy moved to the announcement workspace catalogue; the
+  // component resolves it by locale instead of owning the two strings.
+  assert.match(editModal, /@\/i18n\/messages-announcements/);
+  assert.match(editModal, /copy\.quickEditReason/);
+  assert.match(editModal, /copy\.defaultPublisher/);
 
   const createModal = read('src/components/announcements/LecturerAnnouncementCreateModal.tsx');
-  assert.match(createModal, /defaultContentVi:/);
-  assert.match(createModal, /defaultContentEn:/);
-  assert.match(createModal, /isVi \? PRESETS\[0\]\.defaultContentVi : PRESETS\[0\]\.defaultContentEn/);
-  assert.match(createModal, /setContent\(isVi \? preset\.defaultContentVi : preset\.defaultContentEn\)/);
+  assert.match(createModal, /@\/i18n\/messages-announcements/);
+  assert.match(createModal, /const templateBodies = workspaceCopy\.templates\.body;/);
+  assert.match(createModal, /setContent\(templateBodies\[preset\.key\]\)/);
+  assert.doesNotMatch(createModal, /defaultContentVi|defaultContentEn/);
 
   const notFound = read('src/app/not-found.tsx');
   assert.match(notFound, /useI18n/);
   assert.match(notFound, /LocalizedLink/);
-  assert.match(notFound, /isVi \? 'Trang không tồn tại' : 'Page Not Found'/);
-  assert.match(notFound, /isVi \? 'Quay lại trang chủ' : 'Back to Home'/);
+  assert.match(notFound, /messages\.common\.notFound\.title/);
+  assert.match(notFound, /messages\.common\.notFound\.backHome/);
 });
 
 test('milestone 2: a11y keyboard focus indicators and accessible names', () => {
@@ -359,14 +391,8 @@ test('milestone 2: a11y keyboard focus indicators and accessible names', () => {
   );
 
   const editor = read('src/components/ui/rich-text-editor.tsx');
-  assert.match(
-    editor,
-    /aria-label=\{isVi \? 'Hoàn tác \(Ctrl\+Z\)' : 'Undo \(Ctrl\+Z\)'\}/,
-  );
-  assert.match(
-    editor,
-    /aria-label=\{isVi \? 'Chèn liên kết \(Ctrl\+K\)' : 'Insert Link \(Ctrl\+K\)'\}/,
-  );
+  assert.match(editor, /aria-label=\{copy\.undo\}/);
+  assert.match(editor, /aria-label=\{copy\.insertLink\}/);
 
   const feedCard = read('src/components/announcements/feed/AnnouncementFeedCard.tsx');
   const matches = feedCard.match(
@@ -490,6 +516,9 @@ test('the schedule message group carries both locales with the audited strings',
     'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
     'messages-content': 'src/i18n/messages-content.ts',
     'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
+    'messages-teaching-pages': 'src/i18n/messages-teaching-pages.ts',
+    'messages-admin-pages': 'src/i18n/messages-admin-pages.ts',
+    'messages-student-pages': 'src/i18n/messages-student-pages.ts',
   };
   const customRequire = (id) => {
     const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));
@@ -538,4 +567,135 @@ test('the schedule message group carries both locales with the audited strings',
   for (const key of ['catalogBannerBadge', 'topicDetailBannerBadge']) {
     assert.ok(VI.test(vi.thesis[key]), `vi.thesis.${key} must be Vietnamese, got: ${vi.thesis[key]}`);
   }
+});
+
+test('new page fragments are mounted by identity with recursive locale key parity', () => {
+  const ts = require('typescript');
+  const fragmentPaths = [
+    ['@/i18n/messages-thesis-workflow', 'src/i18n/messages-thesis-workflow.ts'],
+    ['@/i18n/messages-dean-overview', 'src/i18n/messages-dean-overview.ts'],
+    ['@/i18n/messages-content', 'src/i18n/messages-content.ts'],
+    ['@/i18n/messages-attendance-geofence', 'src/i18n/messages-attendance-geofence.ts'],
+    ['@/i18n/messages-teaching-pages', 'src/i18n/messages-teaching-pages.ts'],
+    ['@/i18n/messages-admin-pages', 'src/i18n/messages-admin-pages.ts'],
+    ['@/i18n/messages-student-pages', 'src/i18n/messages-student-pages.ts'],
+  ];
+  const fragments = new Map(fragmentPaths.map(([specifier, relativePath]) => {
+    const output = ts.transpileModule(read(relativePath), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+    const moduleRecord = { exports: {} };
+    Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+    return [specifier, moduleRecord.exports];
+  }));
+  const aliases = { '@/i18n/config': {} };
+  for (const [specifier, fragment] of fragments) aliases[specifier] = fragment;
+  const output = ts.transpileModule(read('src/i18n/messages.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const rootModule = { exports: {} };
+  const resolve = (specifier) =>
+    Object.hasOwn(aliases, specifier) ? aliases[specifier] : require(specifier);
+  Function('module', 'exports', 'require', output)(rootModule, rootModule.exports, resolve);
+  const { en, vi } = rootModule.exports;
+
+  const keyPaths = (value, prefix = '') => {
+    if (Array.isArray(value)) {
+      return value.flatMap((item, index) => keyPaths(item, `${prefix}[${index}]`)).sort();
+    }
+    if (value !== null && typeof value === 'object') {
+      return Object.entries(value)
+        .flatMap(([key, child]) => keyPaths(child, prefix ? `${prefix}.${key}` : key))
+        .sort();
+    }
+    return prefix ? [prefix] : [];
+  };
+  for (const [namespace, fragmentSpecifier] of [
+    ['teachingPages', '@/i18n/messages-teaching-pages'],
+    ['adminPages', '@/i18n/messages-admin-pages'],
+    ['studentPages', '@/i18n/messages-student-pages'],
+  ]) {
+    const fragment = fragments.get(fragmentSpecifier);
+    assert.equal(Object.hasOwn(en, namespace), true, `en must expose ${namespace}`);
+    assert.equal(Object.hasOwn(vi, namespace), true, `vi must expose ${namespace}`);
+    assert.deepEqual(
+      keyPaths(en[namespace]),
+      keyPaths(vi[namespace]),
+      `${namespace} en/vi key paths must match`,
+    );
+    assert.strictEqual(
+      en[namespace],
+      fragment[`${namespace}En`],
+      `en.${namespace} must mount its fragment object`,
+    );
+    assert.strictEqual(
+      vi[namespace],
+      fragment[`${namespace}Vi`],
+      `vi.${namespace} must mount its fragment object`,
+    );
+  }
+});
+
+test('thesis workflow stepper exposes its disclosure and stage tabs to assistive tech', () => {
+  const stepper = read('src/components/thesis/ThesisWorkflowStepper.tsx');
+
+  assert.match(stepper, /aria-expanded=\{isDetailExpanded\}/);
+  assert.match(stepper, /const STAGE_PANEL_ID = 'thesis-stage-panel'/);
+  assert.match(stepper, /aria-controls=\{STAGE_PANEL_ID\}/);
+  assert.match(stepper, /id=\{STAGE_PANEL_ID\}/);
+  assert.match(stepper, /role="tablist"/);
+  assert.match(stepper, /role="tab"/);
+  assert.match(stepper, /aria-selected=\{isSelected\}/);
+  assert.match(stepper, /tabIndex=\{stageTabs\.tabIndex\(String\(stage\.step\)\)\}/);
+  assert.match(stepper, /onKeyDown=\{\(event\) => stageTabs\.onKeyDown\(event, stage\.step - 1\)\}/);
+  assert.match(stepper, /role="tabpanel"/);
+  assert.match(stepper, /animate-ping[^"]*motion-reduce:animate-none/);
+});
+
+test('root error-boundary copy lives in one locale-keyed module instead of an inline dictionary', () => {
+  const globalError = read('src/app/global-error.tsx');
+
+  // The boundary imports the shared module and no longer defines its own dict.
+  assert.match(globalError, /import \{ ERROR_BOUNDARY_COPY \} from '@\/lib\/error-boundary-copy';/);
+  assert.doesNotMatch(globalError, /const COPY = \{/);
+  assert.match(globalError, /const copy = ERROR_BOUNDARY_COPY\[readLocale\(\)\];/);
+
+  const { ERROR_BOUNDARY_COPY } = loadTsModule('src/lib/error-boundary-copy.ts', {
+    '@/i18n/config': {},
+  });
+
+  assert.deepEqual(Object.keys(ERROR_BOUNDARY_COPY).sort(), ['en', 'vi']);
+  for (const locale of ['en', 'vi']) {
+    assert.deepEqual(
+      Object.keys(ERROR_BOUNDARY_COPY[locale]).sort(),
+      ['body', 'home', 'retry', 'title'],
+      `${locale} carries the four keys the boundary renders`,
+    );
+    for (const [key, value] of Object.entries(ERROR_BOUNDARY_COPY[locale])) {
+      assert.ok(
+        typeof value === 'string' && value.trim().length > 0,
+        `${locale}.${key} must be real copy`,
+      );
+    }
+  }
+
+  // Wording is unchanged from the inline dictionary this replaced.
+  assert.equal(ERROR_BOUNDARY_COPY.vi.title, 'Đã xảy ra sự cố không mong muốn');
+  assert.equal(
+    ERROR_BOUNDARY_COPY.vi.body,
+    'Cổng học vụ đã ghi nhận lỗi nghiêm trọng. Bạn có thể thử tải lại ứng dụng.',
+  );
+  assert.equal(ERROR_BOUNDARY_COPY.vi.retry, 'Thử lại');
+  assert.equal(ERROR_BOUNDARY_COPY.vi.home, 'Về trang chủ');
+  assert.equal(ERROR_BOUNDARY_COPY.en.title, 'Something went wrong');
+  assert.equal(
+    ERROR_BOUNDARY_COPY.en.body,
+    'The academic portal logged a critical error. You can try reloading the application.',
+  );
+  assert.equal(ERROR_BOUNDARY_COPY.en.retry, 'Try again');
+  assert.equal(ERROR_BOUNDARY_COPY.en.home, 'Back to home');
+
+  // The copy stays out of the main dictionary for a reason: that provider is
+  // one of the things global-error has to survive.
+  assert.doesNotMatch(read('src/i18n/messages.ts'), /title: 'Something went wrong'/);
 });

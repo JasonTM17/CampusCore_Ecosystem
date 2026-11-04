@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.academic;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,6 +11,8 @@ import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import io.campuscore.restfulapi.academic.repository.AcademicEnrollmentReadRepository;
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +22,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -39,6 +44,9 @@ class AcademicEnrollmentReadPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AcademicEnrollmentReadRepository repository;
 
     @BeforeEach
     void prepareReadOnlyFixture() {
@@ -321,6 +329,100 @@ class AcademicEnrollmentReadPersistenceTest {
     }
 
     @Test
+    void publishedGradeTotalsUseRegistrationCreditsSnapshotAfterCatalogueChange() throws Exception {
+        // enrollment-2 is a 3-credit SE401 registration; publish it with B (3.0).
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"status\" = 'COMPLETED',"
+                + " \"gradeStatus\" = 'PUBLISHED', \"finalGrade\" = 75.00, \"letterGrade\" = 'B'"
+                + " WHERE \"id\" = 'enrollment-2'");
+
+        assertThat(snapshotCredits("enrollment-2")).isEqualTo(3);
+
+        // CS101 (4cr, A = 4.0) + SE401 (3cr, B = 3.0): (16 + 9) / 7 = 3.57.
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].id").value("enrollment-2"))
+                .andExpect(jsonPath("$[1].credits").value(3))
+                .andExpect(jsonPath("$[1].letterGrade").value("B"));
+
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(3.57))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(7))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(7))
+                .andExpect(jsonPath("$.semesters[0].gpa").value(3.57))
+                .andExpect(jsonPath("$.semesters[0].creditsEarned").value(7))
+                .andExpect(jsonPath("$.semesters[0].creditsAttempted").value(7));
+
+        // Catalogue maintenance changes the live course to 4 credits. The
+        // published record was registered at 3 and must not be repriced.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 4 WHERE \"id\" = 'course-2'");
+
+        assertThat(snapshotCredits("enrollment-2")).isEqualTo(3);
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[1].credits").value(3));
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(3.57))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(7))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(7));
+
+        // A registration made after the catalogue edit snapshots the new 4.
+        insertEnrollment("enrollment-4", "student-1", "section-2", "ENROLLED", "DRAFT", null, null, 40);
+        assertThat(snapshotCredits("enrollment-4")).isEqualTo(4);
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[1].credits").value(3));
+    }
+
+    @Test
+    void differentCreditRetakesAndAppealedRowsKeepTheirOwnSnapshot() throws Exception {
+        insertCourse("course-retake", "CS105", "Discrete Math", "Discrete Math", "Toan roi rac", 3);
+        insertSection("section-retake-f", "R1", "course-retake");
+        // Attempt 1 registered at 3 credits and failed.
+        insertEnrollment("enrollment-retake-f", "student-1", "section-retake-f",
+                "COMPLETED", "PUBLISHED", "40.00", "F", 20);
+
+        // The catalogue grows to 4 before the pass-only retake registers.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 4 WHERE \"id\" = 'course-retake'");
+        insertSection("section-retake-p", "R2", "course-retake");
+        insertEnrollment("enrollment-retake-p", "student-1", "section-retake-p",
+                "COMPLETED", "PUBLISHED", null, null, 21);
+
+        // A later catalogue edit must not rewrite either historical attempt.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 5 WHERE \"id\" = 'course-retake'");
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"gradeStatus\" = 'APPEALED'"
+                + " WHERE \"id\" = 'enrollment-1'");
+
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-1')].gradeStatus", contains("APPEALED")))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-1')].credits", contains(4)))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-f')].credits", contains(3)))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-f')].letterGrade", contains("F")))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-p')].credits", contains(4)));
+
+        // Per-semester totals count every attempt by its own snapshot; the
+        // cumulative summary keeps the best attempt (the 4-credit pass).
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(4.0))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(8))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(8))
+                .andExpect(jsonPath("$.semesters[0].creditsEarned").value(8))
+                .andExpect(jsonPath("$.semesters[0].creditsAttempted").value(11));
+    }
+
+    private Integer snapshotCredits(String enrollmentId) {
+        return jdbc.queryForObject(
+                "SELECT \"creditsSnapshot\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                Integer.class,
+                enrollmentId);
+    }
+
+    @Test
     void adminCanReadSectionGradesAndItemsWithoutLecturerProfileClaim() throws Exception {
         mvc.perform(get("/api/v1/grades/items/section/section-1").with(adminJwt()))
                 .andExpect(status().isOk())
@@ -460,6 +562,79 @@ class AcademicEnrollmentReadPersistenceTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void countJoinTrimmingMatchesLegacyJoinedQueryForEnrollmentCourseAndSearchFilters() {
+        assertThat(repository.countEnrollments(null, null, null, null, null))
+                .isEqualTo(legacyCount(null, null, null, null, null, null));
+        assertThat(repository.countEnrollments("COMPLETED", "semester-1", "student-1", null, "section-1"))
+                .isEqualTo(legacyCount("COMPLETED", "semester-1", "student-1", null, "section-1", null));
+        assertThat(repository.countEnrollments(null, null, null, "course-1", null))
+                .isEqualTo(legacyCount(null, null, null, "course-1", null, null));
+        assertThat(repository.countEnrollments(null, null, null, null, null, "SE401"))
+                .isEqualTo(legacyCount(null, null, null, null, null, "SE401"));
+    }
+
+    private long legacyCount(
+            String status,
+            String semesterId,
+            String studentId,
+            String courseId,
+            String sectionId,
+            String search) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        List<String> filters = new java.util.ArrayList<>();
+        addLegacyFilter(filters, parameters, "status", status, "e.\"status\" = :status");
+        addLegacyFilter(filters, parameters, "semesterId", semesterId, "e.\"semesterId\" = :semesterId");
+        addLegacyFilter(filters, parameters, "studentId", studentId, "e.\"studentId\" = :studentId");
+        addLegacyFilter(filters, parameters, "courseId", courseId, "section.\"courseId\" = :courseId");
+        addLegacyFilter(filters, parameters, "sectionId", sectionId, "e.\"sectionId\" = :sectionId");
+        List<String> tokens = LikePattern.tokens(search);
+        if (!tokens.isEmpty()) {
+            parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
+            parameters.addValue("foldTo", LikePattern.FOLD_TO);
+            for (int i = 0; i < tokens.size(); i++) {
+                String name = "searchToken" + i;
+                parameters.addValue(name, tokens.get(i));
+                filters.add("(TRANSLATE(LOWER(student.\"studentId\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"firstName\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"lastName\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"email\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(section.\"sectionNumber\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(course.\"code\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(course.\"name\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(COALESCE(lecturer_user.\"firstName\", '')), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(COALESCE(lecturer_user.\"lastName\", '')), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\')");
+            }
+        }
+        String where = filters.isEmpty() ? "" : " WHERE " + String.join(" AND ", filters);
+        Long count = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc)
+                .queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Enrollment\" e"
+                                + " JOIN \"academic\".\"Section\" section ON section.\"id\" = e.\"sectionId\""
+                                + " JOIN \"academic\".\"Course\" course ON course.\"id\" = section.\"courseId\""
+                                + " JOIN \"academic\".\"Semester\" semester ON semester.\"id\" = e.\"semesterId\""
+                                + " JOIN \"academic\".\"Student\" student ON student.\"id\" = e.\"studentId\""
+                                + " JOIN \"campuscore_auth\".\"User\" student_user ON student_user.\"id\" = student.\"userId\""
+                                + " LEFT JOIN \"academic\".\"Lecturer\" lecturer ON lecturer.\"id\" = section.\"lecturerId\""
+                                + " LEFT JOIN \"campuscore_auth\".\"User\" lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\""
+                                + where,
+                        parameters,
+                        Long.class);
+        return count == null ? 0L : count;
+    }
+
+    private static void addLegacyFilter(
+            List<String> filters,
+            MapSqlParameterSource parameters,
+            String name,
+            String value,
+            String expression) {
+        if (value != null) {
+            filters.add(expression);
+            parameters.addValue(name, value);
+        }
     }
 
     private RequestPostProcessor studentJwt(String subject, String studentId) {
@@ -619,6 +794,8 @@ class AcademicEnrollmentReadPersistenceTest {
                     "gradeStatus" VARCHAR(40) NOT NULL,
                     "finalGrade" DECIMAL(5, 2),
                     "letterGrade" VARCHAR(10),
+                    "creditsSnapshot" INTEGER NOT NULL,
+                    "version" INTEGER NOT NULL DEFAULT 0,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
                 )
@@ -826,12 +1003,27 @@ class AcademicEnrollmentReadPersistenceTest {
             String finalGrade,
             String letterGrade,
             long days) {
+        insertEnrollment(id, studentId, sectionId, status, gradeStatus, finalGrade, letterGrade, days,
+                registrationCredits(sectionId));
+    }
+
+    private void insertEnrollment(
+            String id,
+            String studentId,
+            String sectionId,
+            String status,
+            String gradeStatus,
+            String finalGrade,
+            String letterGrade,
+            long days,
+            int creditsSnapshot) {
         jdbc.execute((ConnectionCallback<Void>) connection -> {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO "academic"."Enrollment" (
                         "id", "studentId", "sectionId", "semesterId", "status", "enrolledAt",
-                        "droppedAt", "gradeStatus", "finalGrade", "letterGrade", "createdAt", "updatedAt"
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        "droppedAt", "gradeStatus", "finalGrade", "letterGrade", "createdAt", "updatedAt",
+                        "creditsSnapshot", "version"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     """)) {
                 statement.setString(1, id);
                 statement.setString(2, studentId);
@@ -849,10 +1041,26 @@ class AcademicEnrollmentReadPersistenceTest {
                 statement.setString(10, letterGrade);
                 statement.setObject(11, localDateTime(BASE_TIME), Types.TIMESTAMP);
                 statement.setObject(12, localDateTime(BASE_TIME), Types.TIMESTAMP);
+                statement.setInt(13, creditsSnapshot);
                 statement.executeUpdate();
             }
             return null;
         });
+    }
+
+    /**
+     * Registration snapshots the catalogue credits at the time of enrollment.
+     * Resolve them here so a fixture enrollment behaves like one created by the
+     * registration service instead of backfilling from the live catalogue.
+     */
+    private int registrationCredits(String sectionId) {
+        Integer credits = jdbc.queryForObject(
+                "SELECT course.\"credits\" FROM \"academic\".\"Section\" section"
+                        + " JOIN \"academic\".\"Course\" course ON course.\"id\" = section.\"courseId\""
+                        + " WHERE section.\"id\" = ?",
+                Integer.class,
+                sectionId);
+        return credits == null ? 0 : credits;
     }
 
     private void insertGradeItem(

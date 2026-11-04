@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,7 +29,10 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
 
@@ -51,10 +54,23 @@ interface Department {
   nameVi?: string;
 }
 
+function buildLecturerUpdatePayload(
+  baseline: Lecturer,
+  formData: { departmentId: string; specialization: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.departmentId !== baseline.departmentId) payload.departmentId = formData.departmentId;
+  if (formData.specialization !== (baseline.specialization || '')) {
+    payload.specialization = formData.specialization;
+  }
+  return payload;
+}
+
 export default function AdminLecturersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.lecturers, vi: adminAcademicsVi.lecturers }[locale];
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +82,10 @@ export default function AdminLecturersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLecturer, setEditingLecturer] = useState<Lecturer | null>(null);
+  const lecturersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingLecturerId, setDeletingLecturerId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     employeeId: '',
     userId: '',
@@ -75,6 +94,10 @@ export default function AdminLecturersPage() {
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (employeeId: string) =>
+    copy.editLabel.replace('{employeeId}', () => employeeId);
+  const deleteLabel = (employeeId: string) =>
+    copy.deleteLabel.replace('{employeeId}', () => employeeId);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -82,7 +105,7 @@ export default function AdminLecturersPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -97,15 +120,12 @@ export default function AdminLecturersPage() {
       const response = await departmentsApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT });
       setDepartments(response.data || []);
     } catch {
-      setReferenceError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu khoa cho biểu mẫu giảng viên.'
-          : 'Department options could not be loaded.',
-      );
+      setReferenceError(copy.referenceLoadFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   const fetchLecturers = useCallback(async () => {
+    const epoch = lecturersEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -115,136 +135,21 @@ export default function AdminLecturersPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await lecturersApi.getAll(query);
 
+      if (!lecturersEpoch.isCurrent(epoch)) return;
       setLecturers(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách giảng viên.'
-          : 'Lecturers could not be loaded.',
-      );
+      if (!lecturersEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!lecturersEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search]);
+  }, [copy, lecturersEpoch, page, search]);
 
-  const copy = useMemo(
-    () =>
-      locale === 'vi'
-        ? {
-          loading: 'Đang tải giảng viên',
-          title: 'Giảng viên',
-          description:
-            'Giữ hồ sơ giảng dạy gắn đúng người, đúng khoa và đủ thông tin chuyên môn.',
-          create: 'Tạo giảng viên',
-          searchLabel: 'Tìm giảng viên',
-          searchPlaceholder: 'Tìm theo tên, email hoặc mã nhân sự',
-          pageSummaryEmpty: 'Không có bản ghi phù hợp',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          selectDepartment: 'Chọn khoa',
-          unavailableTitle: 'Giảng viên chưa sẵn sàng',
-          emptyTitle: 'Không có giảng viên phù hợp',
-          emptyDescription:
-            'Hãy tạo hồ sơ giảng viên để lớp học phần, lịch dạy và phân công chấm điểm luôn khớp nhau.',
-          tableTitle: 'Bản ghi giảng viên',
-          headers: {
-            employeeId: 'Mã nhân sự',
-            lecturer: 'Giảng viên',
-            email: 'Email',
-            department: 'Khoa',
-            specialization: 'Chuyên môn',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          unlinkedAccount: 'Chưa liên kết tài khoản',
-          noEmail: 'Chưa có email',
-          unassigned: 'Chưa gán',
-          notProvided: 'Chưa cập nhật',
-          active: 'Đang hoạt động',
-          inactive: 'Ngừng hoạt động',
-          deleteTitle: 'Xóa giảng viên',
-          deleteMessage: (employeeId: string) =>
-            `Xóa ${employeeId}? Hành động này sẽ gỡ giảng viên khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa giảng viên',
-          deleted: 'Đã xóa giảng viên',
-          deleteFailed: 'Hiện chưa thể xóa giảng viên này.',
-          updated: 'Đã cập nhật giảng viên',
-          created: 'Đã tạo giảng viên',
-          saveFailed: 'Hiện chưa thể lưu hồ sơ giảng viên.',
-          editTitle: 'Chỉnh sửa giảng viên',
-          createTitle: 'Tạo giảng viên',
-          fields: {
-            employeeId: 'Mã nhân sự',
-            userId: 'ID tài khoản liên kết',
-            userIdPlaceholder: 'ID tài khoản người dùng hiện có',
-            department: 'Khoa',
-            specialization: 'Chuyên môn',
-            specializationPlaceholder: 'Tùy chọn: môn hoặc lĩnh vực phụ trách',
-          },
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (employeeId: string) => `Chỉnh sửa giảng viên ${employeeId}`,
-          deleteLabel: (employeeId: string) => `Xóa giảng viên ${employeeId}`,
-        }
-        : {
-          loading: 'Loading lecturers',
-          title: 'Lecturers',
-          description:
-            'Keep teaching assignments tied to the right people, departments, and profile details.',
-          create: 'Create lecturer',
-          searchLabel: 'Search lecturers',
-          searchPlaceholder: 'Search by name, email, or employee ID',
-          pageSummaryEmpty: 'No matching records',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          selectDepartment: 'Select department',
-          unavailableTitle: 'Lecturers unavailable',
-          emptyTitle: 'No matching lecturers',
-          emptyDescription:
-            'Create a lecturer profile to keep schedules, classes, and grading responsibilities aligned.',
-          tableTitle: 'Lecturer records',
-          headers: {
-            employeeId: 'Employee ID',
-            lecturer: 'Lecturer',
-            email: 'Email',
-            department: 'Department',
-            specialization: 'Specialization',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          unlinkedAccount: 'Unlinked account',
-          noEmail: 'No email',
-          unassigned: 'Unassigned',
-          notProvided: 'Not provided',
-          active: 'Active',
-          inactive: 'Inactive',
-          deleteTitle: 'Delete lecturer',
-          deleteMessage: (employeeId: string) =>
-            `Delete ${employeeId}? This removes the lecturer from the current admin view.`,
-          deleteConfirm: 'Delete lecturer',
-          deleted: 'Lecturer deleted',
-          deleteFailed: 'We could not delete that lecturer.',
-          updated: 'Lecturer updated',
-          created: 'Lecturer created',
-          saveFailed: 'The lecturer profile could not be saved.',
-          editTitle: 'Edit lecturer',
-          createTitle: 'Create lecturer',
-          fields: {
-            employeeId: 'Employee ID',
-            userId: 'Linked user ID',
-            userIdPlaceholder: 'Existing user account ID',
-            department: 'Department',
-            specialization: 'Specialization',
-            specializationPlaceholder: 'Optional subject or field focus',
-          },
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (employeeId: string) => `Edit lecturer ${employeeId}`,
-          deleteLabel: (employeeId: string) => `Delete lecturer ${employeeId}`,
-        },
-    [locale, messages.common.actions.saveChanges],
-  );
+  useEffect(() => () => {
+    lecturersEpoch.invalidate();
+  }, [lecturersEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -275,7 +180,9 @@ export default function AdminLecturersPage() {
       return copy.pageSummaryEmpty;
     }
 
-    return copy.pageSummary(page, totalPages);
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
   }, [copy, lecturers.length, page, totalPages]);
 
   const departmentOptions = useMemo(
@@ -334,19 +241,27 @@ export default function AdminLecturersPage() {
   };
 
   const handleDelete = async (lecturer: Lecturer) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(lecturer.employeeId),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingLecturerId(lecturer.id);
 
     try {
-      await lecturersApi.delete(lecturer.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{employeeId}', () => lecturer.employeeId),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await lecturersApi.delete(lecturer.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (lecturers.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -355,6 +270,9 @@ export default function AdminLecturersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingLecturerId(null);
     }
   };
 
@@ -364,7 +282,10 @@ export default function AdminLecturersPage() {
 
     try {
       if (editingLecturer) {
-        await lecturersApi.update(editingLecturer.id, formData);
+        const payload = buildLecturerUpdatePayload(editingLecturer, formData);
+        if (Object.keys(payload).length > 0) {
+          await lecturersApi.update(editingLecturer.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await lecturersApi.create(formData);
@@ -515,8 +436,8 @@ export default function AdminLecturersPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openEdit(lecturer)}
-                          aria-label={copy.editLabel(lecturer.employeeId)}
-                          title={copy.editLabel(lecturer.employeeId)}
+                          aria-label={editLabel(lecturer.employeeId)}
+                          title={editLabel(lecturer.employeeId)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -525,8 +446,9 @@ export default function AdminLecturersPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(lecturer)}
-                          aria-label={copy.deleteLabel(lecturer.employeeId)}
-                          title={copy.deleteLabel(lecturer.employeeId)}
+                          disabled={deletingLecturerId !== null}
+                          aria-label={deleteLabel(lecturer.employeeId)}
+                          title={deleteLabel(lecturer.employeeId)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -583,8 +505,8 @@ export default function AdminLecturersPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(lecturer)}
-                              aria-label={copy.editLabel(lecturer.employeeId)}
-                              title={copy.editLabel(lecturer.employeeId)}
+                              aria-label={editLabel(lecturer.employeeId)}
+                              title={editLabel(lecturer.employeeId)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -593,8 +515,9 @@ export default function AdminLecturersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(lecturer)}
-                              aria-label={copy.deleteLabel(lecturer.employeeId)}
-                              title={copy.deleteLabel(lecturer.employeeId)}
+                              disabled={deletingLecturerId !== null}
+                              aria-label={deleteLabel(lecturer.employeeId)}
+                              title={deleteLabel(lecturer.employeeId)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -682,7 +605,7 @@ export default function AdminLecturersPage() {
               {isSaving
                 ? copy.saving
                 : editingLecturer
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : copy.create}
             </Button>
           </AdminDialogFooter>

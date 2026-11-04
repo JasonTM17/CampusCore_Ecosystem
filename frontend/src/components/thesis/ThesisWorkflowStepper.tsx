@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 import type { ThesisRound } from '@/lib/thesis-api';
 
 interface ThesisWorkflowStepperProps {
@@ -25,6 +26,8 @@ interface ThesisWorkflowStepperProps {
 
 /** Icons are positional, matching the stage order in the i18n copy. */
 const STAGE_ICONS = [BookOpen, FileSpreadsheet, Users, FileCheck, GraduationCap];
+const STAGE_TAB_VALUES = ['1', '2', '3', '4', '5'] as const;
+const STAGE_PANEL_ID = 'thesis-stage-panel';
 
 /** Fills `{name}` placeholders in a copy template. */
 function fill(template: string, values: Record<string, string | number>): string {
@@ -59,6 +62,10 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
 
   const [selectedStage, setSelectedStage] = useState<number>(activeStage);
   const [isDetailExpanded, setIsDetailExpanded] = useState<boolean>(true);
+  const stageTabs = useRovingTabs(STAGE_TAB_VALUES, String(selectedStage), (value) => {
+    setSelectedStage(Number(value));
+    setIsDetailExpanded(true);
+  });
 
   const stages = useMemo(() => {
     return copy.stages.map((stage, index) => {
@@ -128,6 +135,8 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
         <button
           type="button"
           onClick={() => setIsDetailExpanded(!isDetailExpanded)}
+          aria-expanded={isDetailExpanded}
+          aria-controls={STAGE_PANEL_ID}
           className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/80 bg-background/80 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
         >
           {isDetailExpanded ? (
@@ -145,7 +154,7 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
       </div>
 
       {/* Stepper Timeline Bar */}
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-5">
+      <div role="tablist" aria-label={copy.title} className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-5">
         {stages.map((stage) => {
           const isCurrentActive = stage.step === activeStage;
           const isSelected = stage.step === selectedStage;
@@ -156,6 +165,13 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
             <button
               key={stage.step}
               type="button"
+              id={`thesis-stage-tab-${stage.step}`}
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls={STAGE_PANEL_ID}
+              tabIndex={stageTabs.tabIndex(String(stage.step))}
+              ref={stageTabs.tabRef(String(stage.step))}
+              onKeyDown={(event) => stageTabs.onKeyDown(event, stage.step - 1)}
               onClick={() => {
                 setSelectedStage(stage.step);
                 setIsDetailExpanded(true);
@@ -194,7 +210,7 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
                 ) : isCurrentActive ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                     <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
                     {copy.stageProgress.current}
@@ -226,8 +242,14 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
       </div>
 
       {/* Expanded Stage Detail Card */}
-      {isDetailExpanded && (
-        <div className="mt-5 rounded-xl border border-primary/20 bg-card p-4 sm:p-5 shadow-2xs transition-all">
+      <div
+        id={STAGE_PANEL_ID}
+        role="tabpanel"
+        aria-labelledby={`thesis-stage-tab-${selectedStage}`}
+        tabIndex={0}
+        hidden={!isDetailExpanded}
+        className="mt-5 rounded-xl border border-primary/20 bg-card p-4 sm:p-5 shadow-2xs transition-all"
+      >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-3">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -269,8 +291,7 @@ export function ThesisWorkflowStepper({ round, formatDateTime }: ThesisWorkflowS
               </span>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

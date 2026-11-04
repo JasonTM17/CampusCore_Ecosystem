@@ -133,8 +133,11 @@ test('the authenticated portal assistant is a complete bottom-right RAG surface'
   assert.match(assistant, /pb-\[env\(safe-area-inset-bottom\)\]/);
   assert.match(assistant, /md:max-h-\[min\(42rem,calc\(100dvh-2rem\)\)\]/);
   assert.match(assistant, /role="log"/);
-  // Streaming deltas must not flood screen readers; announcements resume on settle.
-  assert.match(assistant, /aria-live=\{isSending \? 'off' : 'polite'\}/);
+  // The log stays a polite, busy log; a dedicated polite region reports stream
+  // progress instead of switching the log's aria-live off for the whole turn.
+  assert.match(assistant, /aria-live="polite"/);
+  assert.match(assistant, /<AssistantStreamProgress\s+active=\{isSending\}/);
+  assert.doesNotMatch(assistant, /aria-live=\{isSending \? 'off' : 'polite'\}/);
   assert.match(assistant, /event\.key !== 'Escape'/);
   assert.match(assistant, /aria-modal=\{isMobile\}/);
   // Focus returns to the opening trigger while it is still connected; a

@@ -57,7 +57,7 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
   assert.match(client, /EXPO_PUBLIC_API_MODE === 'preview'/);
   assert.match(client, /MOBILE_API_PREVIEW/);
   assert.match(client, /mode: ApiMode/);
-  assert.match(client, /refreshSession\?: \(\) => Promise<boolean>/);
+  assert.match(client, /refreshSession\?: \(\) => Promise<boolean \| SessionRefreshOutcome>/);
   assert.match(client, /function shouldRefreshAfterUnauthorized\(_?path: string, status: number\)/);
   // OIDC lane: every 401 on the API host is a refresh candidate — the
   // legacy /auth/login|refresh|logout excludes are gone with those routes
@@ -153,14 +153,17 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   // OIDC PKCE sign-in (mobile-policy §3): the system browser owns credentials;
   // the screen stores the refresh via session-store and completes through the
   // navigation adapter. Preview keeps the local pseudo-session entry (KM-9).
+  const accountCopy = fs.readFileSync(path.join(mobileRoot, 'src/i18n/account-messages.ts'), 'utf8');
   assert.match(signIn, /const isPreview = apiClient\.mode === 'preview'/);
-  assert.match(signIn, /Explore preview/);
-  assert.match(signIn, /Sign in with CampusUTE ID/);
+  assert.match(accountCopy, /explore: 'Explore preview'/);
+  assert.match(accountCopy, /signIn: 'Sign in with CampusUTE ID'/);
+  assert.match(signIn, /copy\.signIn\.explore/);
+  assert.match(signIn, /copy\.signIn\.signIn/);
   assert.match(signIn, /navigation\.enterPreview\(\)/);
   assert.match(signIn, /signInWithOidc\(/);
   assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
   assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
-  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(copy\.invalid\)/);
+  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(outcome\.code === 'no_mobile_surface' \? copy\.signIn\.noMobileSurface : copy\.signIn\.invalid\)/);
   assert.doesNotMatch(signIn, /campusApi\.login|password|setSessionTokens/);
   assert.doesNotMatch(signIn, /navigation\.navigate\('dashboard\.student'\)/);
   assert.match(readme, /role-specific bottom bar/);

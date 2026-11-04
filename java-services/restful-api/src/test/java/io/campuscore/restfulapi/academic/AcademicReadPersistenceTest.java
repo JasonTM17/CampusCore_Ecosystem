@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -133,12 +134,12 @@ class AcademicReadPersistenceTest {
                     "nameVi" VARCHAR(200),
                     "type" VARCHAR(40) NOT NULL,
                     "academicYearId" VARCHAR(120) NOT NULL,
-                    "startDate" TIMESTAMP NOT NULL,
-                    "endDate" TIMESTAMP NOT NULL,
-                    "registrationStart" TIMESTAMP,
-                    "registrationEnd" TIMESTAMP,
-                    "addDropStart" TIMESTAMP,
-                    "addDropEnd" TIMESTAMP,
+                    "startDate" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "endDate" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "registrationStart" TIMESTAMP WITH TIME ZONE,
+                    "registrationEnd" TIMESTAMP WITH TIME ZONE,
+                    "addDropStart" TIMESTAMP WITH TIME ZONE,
+                    "addDropEnd" TIMESTAMP WITH TIME ZONE,
                     "status" VARCHAR(40) NOT NULL,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
@@ -428,6 +429,44 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.lecturers[0].id").value("lecturer-1"))
                 .andExpect(jsonPath("$.lecturers[0].employeeId").value("EMP-01"))
                 .andExpect(jsonPath("$.lecturers[1].id").value("lecturer-2"));
+    }
+
+    @Test
+    void departmentLecturerPrivateContactIsVisibleToAdminsOnly() throws Exception {
+        insertFaculty("faculty-cs", "Computer Science", null, null, "FCS", null, null, null);
+        insertDepartment(
+                "department-se",
+                "Software Engineering",
+                null,
+                null,
+                "SE",
+                null,
+                null,
+                null,
+                "faculty-cs",
+                "Dr. SE");
+        insertLecturer("lecturer-1", "user-1", "department-se", "EMP-01", "Lecturer");
+
+        mvc.perform(get("/api/v1/departments/department-se")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lecturers[0].userId").value("user-1"))
+                .andExpect(jsonPath("$.lecturers[0].phone").value("0123456789"));
+
+        mvc.perform(get("/api/v1/departments/department-se")
+                        .with(studentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lecturers[0].userId").value(nullValue()))
+                .andExpect(jsonPath("$.lecturers[0].phone").value(nullValue()))
+                .andExpect(jsonPath("$.lecturers[0].employeeId").value("EMP-01"))
+                .andExpect(jsonPath("$.lecturers[0].title").value("Lecturer"))
+                .andExpect(jsonPath("$.lecturers[0].office").value("A-101"));
+
+        mvc.perform(get("/api/v1/departments")
+                        .with(studentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].lecturers[0].userId").value(nullValue()))
+                .andExpect(jsonPath("$.data[0].lecturers[0].phone").value(nullValue()));
     }
 
     @Test
@@ -1045,12 +1084,12 @@ class AcademicReadPersistenceTest {
                 statement.setString(4, nameVi);
                 statement.setString(5, type);
                 statement.setString(6, academicYearId);
-                timestamp(statement, 7, Instant.parse(startDate));
-                timestamp(statement, 8, Instant.parse(startDate).plusSeconds(7_776_000));
-                statement.setNull(9, Types.TIMESTAMP);
-                statement.setNull(10, Types.TIMESTAMP);
-                statement.setNull(11, Types.TIMESTAMP);
-                statement.setNull(12, Types.TIMESTAMP);
+                zonedTimestamp(statement, 7, Instant.parse(startDate));
+                zonedTimestamp(statement, 8, Instant.parse(startDate).plusSeconds(7_776_000));
+                statement.setNull(9, Types.TIMESTAMP_WITH_TIMEZONE);
+                statement.setNull(10, Types.TIMESTAMP_WITH_TIMEZONE);
+                statement.setNull(11, Types.TIMESTAMP_WITH_TIMEZONE);
+                statement.setNull(12, Types.TIMESTAMP_WITH_TIMEZONE);
                 statement.setString(13, "ACTIVE");
                 timestamp(statement, 14, BASE_TIME);
                 timestamp(statement, 15, BASE_TIME);
@@ -1293,6 +1332,16 @@ class AcademicReadPersistenceTest {
     private static void timestamp(PreparedStatement statement, int index, Instant value)
             throws java.sql.SQLException {
         statement.setObject(index, localDateTime(value), Types.TIMESTAMP);
+    }
+
+    /**
+     * Production stores semester dates as TIMESTAMPTZ; writing an explicit UTC
+     * offset keeps the instant stable when the JVM default zone changes.
+     */
+    private static void zonedTimestamp(PreparedStatement statement, int index, Instant value)
+            throws java.sql.SQLException {
+        statement.setObject(index, java.time.OffsetDateTime.ofInstant(value, java.time.ZoneOffset.UTC),
+                Types.TIMESTAMP_WITH_TIMEZONE);
     }
 
     private static java.time.LocalDateTime localDateTime(Instant value) {

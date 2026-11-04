@@ -9,7 +9,7 @@ const rules = await loadTs('src/screens/content/content-rules.ts');
 const rich = await loadTs('src/screens/content/rich-text.ts');
 const locale = await loadTs('src/i18n/locale.ts');
 
-const { newsHighlights, isUrgentPriority, newsCategoryLabel, newsTargetOf } = rules;
+const { newsHighlights, isUrgentPriority, newsCategoryLabel, newsTargetOf, publisherName } = rules;
 const { summaryOrExcerpt, excerptOf } = rich;
 const { formatDate } = locale;
 
@@ -51,6 +51,21 @@ test('newsTargetOf prefers the permalink slug and falls back to the id', () => {
   assert.equal(newsTargetOf({ id: '42', slug: null }), '42');
 });
 
+test('publisherName never surfaces an internal subject id as the byline', () => {
+  const uuid = '3f2a9c1e-0000-4000-8000-000000000000';
+  // Display name first, then a human publisher label.
+  assert.equal(publisherName('Phòng Đào tạo', uuid), 'Phòng Đào tạo');
+  assert.equal(publisherName(null, 'Academic Affairs'), 'Academic Affairs');
+  // Internal identities and placeholders are not names.
+  assert.equal(publisherName(null, uuid), null);
+  assert.equal(publisherName('', uuid), null);
+  assert.equal(publisherName(null, 'admin-1'), null);
+  assert.equal(publisherName('super_admin', null), null);
+  assert.equal(publisherName('system'), null);
+  assert.equal(publisherName('user'), null);
+  assert.equal(publisherName(undefined, null), null);
+});
+
 test('summaryOrExcerpt prefers the authored summary and falls back to the body', () => {
   assert.equal(summaryOrExcerpt({ summary: 'Sapo ngắn', content: '<p>Dài hơn</p>' }), 'Sapo ngắn');
   assert.equal(summaryOrExcerpt({ summary: '  ', content: '<p>Đoạn đầu</p><p>Đoạn hai</p>' }), 'Đoạn đầu');
@@ -65,7 +80,7 @@ test('summaryOrExcerpt prefers the authored summary and falls back to the body',
 
 test('formatDate localizes publish dates and degrades invalid input quietly', () => {
   assert.equal(formatDate('2026-10-20', 'vi'), '20/10/2026');
-  assert.equal(formatDate('2026-10-20', 'en'), '10/20/2026');
+  assert.equal(formatDate('2026-10-20', 'en'), 'Oct 20, 2026');
   assert.equal(formatDate('not-a-date', 'vi'), '—');
   assert.equal(formatDate(undefined, 'vi'), '—');
 });
@@ -93,7 +108,10 @@ function signinHarness(overrides = {}) {
     sessionStore: { bumpEpoch() {}, saveRefresh: async () => {}, setAccessToken() {}, sessionEpoch: () => 1 },
     session: { markBlocked: (value) => blocked.push(value) },
     navigation: { completeSignIn: (...args) => completed.push(args) },
-    copy: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+    copy: {
+      signIn: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+      errors: { issuerNotConfigured: 'issuer' },
+    },
     signInFlight: { current: false },
     ...overrides,
   };

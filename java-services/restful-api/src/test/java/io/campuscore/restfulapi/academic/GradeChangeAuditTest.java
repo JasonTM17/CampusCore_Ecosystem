@@ -42,19 +42,24 @@ class GradeChangeAuditTest {
     void seed() {
         named.failAuditAt = 0;
         named.auditWrites = 0;
+        named.auditStatements = 0;
         named.batchReads = 0;
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS academic");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_audit");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Section\" (\"id\" VARCHAR PRIMARY KEY, \"semesterId\" VARCHAR, \"lecturerId\" VARCHAR, \"capacity\" INT, \"enrolledCount\" INT, \"status\" VARCHAR)");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2), \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Student\" (\"id\" VARCHAR PRIMARY KEY, \"userId\" VARCHAR)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"semesterId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2), \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP, \"version\" INTEGER NOT NULL DEFAULT 0)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"GradeItem\" (\"id\" VARCHAR PRIMARY KEY, \"type\" VARCHAR, \"sectionId\" VARCHAR, \"name\" VARCHAR, \"maxScore\" DECIMAL, \"weight\" DECIMAL, \"gradedAt\" TIMESTAMP)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"StudentGrade\" (\"id\" VARCHAR PRIMARY KEY, \"enrollmentId\" VARCHAR, \"gradeItemId\" VARCHAR, \"score\" NUMERIC(5,2), UNIQUE (\"enrollmentId\", \"gradeItemId\"))");
         jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_audit.\"AdminAudit\" (\"id\" VARCHAR PRIMARY KEY, \"actorId\" VARCHAR, \"actorLabel\" VARCHAR(240), \"action\" VARCHAR, \"entityType\" VARCHAR, \"entityId\" VARCHAR, \"summary\" VARCHAR(500), \"beforeState\" VARCHAR, \"afterState\" VARCHAR)");
-        for (String table : List.of("StudentGrade", "GradeItem", "Enrollment", "Section")) {
+        for (String table : List.of("StudentGrade", "GradeItem", "Enrollment", "Student", "Section")) {
             jdbc.execute("DELETE FROM academic.\"" + table + "\"");
         }
         jdbc.execute("DELETE FROM campuscore_audit.\"AdminAudit\"");
         jdbc.execute("INSERT INTO academic.\"Section\" VALUES ('section', 'semester', 'lecturer', 100, 1, 'ACTIVE')");
+        // The publish audience query joins Enrollment to Student; an incomplete
+        // fixture must not be hidden by a production exception bypass.
+        jdbc.execute("INSERT INTO academic.\"Student\" VALUES ('student', 'student-user')");
         jdbc.execute("INSERT INTO academic.\"GradeItem\" (\"id\", \"type\", \"sectionId\") VALUES ('section-process-50', 'PROCESS', 'section'), ('section-final-50', 'FINAL', 'section')");
         enrollment("enrollment");
     }
@@ -166,7 +171,7 @@ class GradeChangeAuditTest {
     @ValueSource(booleans = {false, true})
     void secondAuditWriteFailureRollsBackAllGradesAndEarlierAudit(boolean publish) {
         enrollment("second");
-        named.failAuditAt = 2;
+        named.failAuditAt = publish ? 1 : 2;
         assertThatThrownBy(() -> {
             if (publish) service.publishGrades("section", "lecturer", true, "actor");
             else service.updateGrades("section", "lecturer", true, "actor", List.of(
@@ -206,8 +211,29 @@ class GradeChangeAuditTest {
         assertThat(auditCount()).isEqualTo(50);
     }
 
+    @Test
+    void publicationAuditWritesStayConstantAsTheSectionGrows() {
+        service.publishGrades("section", "lecturer", true, "actor");
+        assertThat(auditCount()).isEqualTo(1);
+
+        for (int i = 0; i < 200; i++) enrollment("bulk-" + i);
+        named.auditStatements = 0;
+        service.publishGrades("section", "lecturer", true, "actor");
+
+        assertThat(named.auditStatements).isEqualTo(1);
+        assertThat(auditCount()).isEqualTo(201);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                        + "WHERE \"action\" = 'GRADE_PUBLISH_BY_ADMIN' "
+                        + "AND \"afterState\" LIKE '%gradeStatus=PUBLISHED%'",
+                Integer.class)).isEqualTo(201);
+    }
+
     private void enrollment(String id) {
-        jdbc.update("INSERT INTO academic.\"Enrollment\" VALUES (?, 'student', 'section', 'ENROLLED', 'DRAFT', 7, 'B', CURRENT_TIMESTAMP)", id);
+        jdbc.update("INSERT INTO academic.\"Enrollment\""
+                + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\","
+                + " \"finalGrade\", \"letterGrade\", \"updatedAt\", \"version\")"
+                + " VALUES (?, 'student', 'section', 'semester', 'ENROLLED', 'DRAFT', 7, 'B', CURRENT_TIMESTAMP, 0)", id);
         jdbc.update("INSERT INTO academic.\"StudentGrade\" VALUES (?, ?, 'section-process-50', 6), (?, ?, 'section-final-50', 8)", id + "-p", id, id + "-f", id);
     }
 
@@ -232,6 +258,7 @@ class GradeChangeAuditTest {
     static class TrackingJdbc extends NamedParameterJdbcTemplate {
         int batchReads;
         int auditWrites;
+        int auditStatements;
         int failAuditAt;
         TrackingJdbc(JdbcTemplate jdbc) { super(jdbc); }
         @Override public List<Map<String, Object>> queryForList(String sql, SqlParameterSource params) {
@@ -251,10 +278,22 @@ class GradeChangeAuditTest {
             return super.queryForObject(sql, params, type);
         }
         @Override public int update(String sql, SqlParameterSource params) {
-            if (sql.startsWith("INSERT INTO campuscore_audit.") && ++auditWrites == failAuditAt) {
-                throw new IllegalStateException("audit unavailable");
+            if (sql.startsWith("INSERT INTO campuscore_audit.")) {
+                auditStatements++;
+                if (++auditWrites == failAuditAt) {
+                    throw new IllegalStateException("audit unavailable");
+                }
             }
             return super.update(sql, params);
+        }
+        @Override public int[] batchUpdate(String sql, SqlParameterSource[] batch) {
+            if (sql.startsWith("INSERT INTO campuscore_audit.")) {
+                auditStatements++;
+                if (++auditWrites == failAuditAt) {
+                    throw new IllegalStateException("audit unavailable");
+                }
+            }
+            return super.batchUpdate(sql, batch);
         }
     }
 

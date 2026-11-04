@@ -2,6 +2,10 @@ package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,10 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.academic.service.AdminCatalogMutationService;
+import io.campuscore.restfulapi.web.DomainException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +31,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -44,6 +55,9 @@ class AdminCatalogMutationPersistenceTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @MockitoSpyBean
+    private NamedParameterJdbcTemplate namedJdbc;
 
     @Autowired
     private MockMvc mvc;
@@ -150,6 +164,23 @@ class AdminCatalogMutationPersistenceTest {
     }
 
     @Test
+    void sectionCreateRejectsIdsThatCannotFitDerivedGradeItems() throws Exception {
+        String id = "s".repeat(110);
+
+        mvc.perform(post("/api/v1/sections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":\"" + id + "\",\"sectionNumber\":\"12\","
+                                + "\"courseId\":\"course-old\",\"semesterId\":\"semester-old\",\"capacity\":30}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SECTION_ID"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"Section\" WHERE \"id\" = ?",
+                Integer.class, id)).isZero();
+    }
+
+    @Test
     void sectionUpdateRejectsInvalidStatus() throws Exception {
         mvc.perform(put("/api/v1/sections/section-existing")
                         .with(adminJwt())
@@ -193,6 +224,83 @@ class AdminCatalogMutationPersistenceTest {
                         "dayOfWeek", 6,
                         "startTime", "09:00",
                         "endTime", "11:00"));
+    }
+
+    @Test
+    void sectionPlacementChangesAreRejectedWhenEnrollmentsExist() throws Exception {
+        jdbc.update("INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"sectionId\", \"courseId\", \"semesterId\", \"creditsSnapshot\")"
+                        + " VALUES ('enrollment-placement', 'section-existing', 'course-old', 'semester-old', 3)");
+
+        mvc.perform(put("/api/v1/sections/section-existing")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"course-new\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SECTION_HAS_ENROLLMENTS"));
+        mvc.perform(put("/api/v1/sections/section-existing")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"semesterId\":\"semester-new\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SECTION_HAS_ENROLLMENTS"));
+
+        assertThat(jdbc.queryForMap(
+                "SELECT \"courseId\", \"semesterId\" FROM \"academic\".\"Section\" WHERE \"id\" = ?",
+                "section-existing"))
+                .containsEntry("courseId", "course-old")
+                .containsEntry("semesterId", "semester-old");
+        assertThat(jdbc.queryForMap(
+                "SELECT \"courseId\", \"semesterId\", \"creditsSnapshot\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                "enrollment-placement"))
+                .containsEntry("courseId", "course-old")
+                .containsEntry("semesterId", "semester-old")
+                .containsEntry("creditsSnapshot", 3);
+
+        mvc.perform(put("/api/v1/sections/section-existing")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sectionNumber\":\"02\"}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "SELECT \"sectionNumber\" FROM \"academic\".\"Section\" WHERE \"id\" = ?",
+                String.class, "section-existing")).isEqualTo("02");
+    }
+
+    @Test
+    void sectionCapacityUpdateRechecksConcurrentEnrolledCount() {
+        jdbc.update("UPDATE \"academic\".\"Section\" SET \"enrolledCount\" = 20 WHERE \"id\" = 'section-existing'");
+        DriverManagerDataSource competingDataSource = new DriverManagerDataSource(
+                "jdbc:h2:mem:admin_catalog_mutation;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa", "");
+        JdbcTemplate competingJdbc = new JdbcTemplate(competingDataSource);
+        AtomicBoolean interleaved = new AtomicBoolean();
+        // The guard holds the Section row FOR UPDATE while it reads the seat
+        // count, so a concurrent bump cannot slip into the check-to-write gap;
+        // it lands as a committed write before the guarded read instead.
+        doAnswer(invocation -> {
+            if (interleaved.compareAndSet(false, true)) {
+                competingJdbc.update("UPDATE \"academic\".\"Section\""
+                        + " SET \"enrolledCount\" = 22 WHERE \"id\" = 'section-existing'");
+            }
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForMap(
+                argThat(sql -> sql.contains("\"academic\".\"Section\"") && sql.contains("FOR UPDATE")),
+                any(SqlParameterSource.class));
+
+        assertThatThrownBy(() -> catalog.update(
+                "\"academic\".\"Section\"", "section-existing", Map.of("capacity", 21)))
+                .isInstanceOfSatisfying(DomainException.class, failure -> {
+                    assertThat(failure.getStatus().value()).isEqualTo(409);
+                    assertThat(failure.code()).isEqualTo("CAPACITY_BELOW_ENROLLED");
+                });
+
+        assertThat(interleaved).isTrue();
+        assertThat(jdbc.queryForMap(
+                "SELECT \"capacity\", \"enrolledCount\" FROM \"academic\".\"Section\" WHERE \"id\" = ?",
+                "section-existing"))
+                .containsEntry("capacity", 30)
+                .containsEntry("enrolledCount", 22);
     }
 
     @Test
@@ -470,6 +578,35 @@ class AdminCatalogMutationPersistenceTest {
                 "SELECT COUNT(*) FROM \"academic\".\"Section\" WHERE \"id\" = ?",
                 Integer.class, "section-overlap")).isZero();
         assertThat(scheduleRows("section-overlap")).isEmpty();
+    }
+
+    @Test
+    void sectionSchedulesIgnoreCancelledSectionsInTheSameRoomAndSlot() throws Exception {
+        insertLecturer("lecturer-1");
+        insertSection("section-cancelled-room", "semester-old", null, "room-2");
+        insertSchedule("schedule-cancelled-room", "section-cancelled-room", "room-2", 1, "08:00", "10:00");
+        insertSection("section-cancelled-lecturer", "semester-old", "lecturer-1", "room-2");
+        insertSchedule("schedule-cancelled-lecturer", "section-cancelled-lecturer", "room-2", 1, "11:00", "13:00");
+        jdbc.update("UPDATE \"academic\".\"Section\" SET \"status\" = 'CANCELLED' WHERE \"id\" LIKE 'section-cancelled-%'");
+
+        mvc.perform(post("/api/v1/sections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"id":"section-new-room", "courseId":"course-old", "semesterId":"semester-old", "capacity":30,
+                                 "schedules":[{"dayOfWeek":1, "startTime":"08:00", "endTime":"10:00", "classroomId":"room-2"}]}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/sections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"id":"section-new-lecturer", "courseId":"course-old", "semesterId":"semester-old",
+                                 "lecturerId":"lecturer-1", "capacity":30,
+                                 "schedules":[{"dayOfWeek":1, "startTime":"11:00", "endTime":"13:00", "classroomId":"room-1"}]}
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -814,6 +951,116 @@ class AdminCatalogMutationPersistenceTest {
                 .andExpect(jsonPath("$.code").value("INVALID_CAPACITY"));
     }
 
+    @Test
+    void classroomCapacityCannotDropBelowAnAssignedSection() throws Exception {
+        mvc.perform(put("/api/v1/classrooms/room-1")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capacity\":20}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROOM_BELOW_SECTION_CAPACITY"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"capacity\" FROM \"academic\".\"Classroom\" WHERE \"id\" = ?",
+                Integer.class, "room-1")).isEqualTo(40);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"capacity\" FROM \"academic\".\"Section\" WHERE \"id\" = ?",
+                Integer.class, "section-existing")).isEqualTo(30);
+    }
+
+    @Test
+    void sectionPlacementUpdateLocksTheSectionRowBeforeTheEnrollmentCount() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.update("\"academic\".\"Section\"", "section-existing", Map.of("courseId", "course-new"));
+
+        int sectionLock = indexOfStatement(statements, "\"academic\".\"Section\"", "FOR UPDATE");
+        int enrollmentCount = indexOfStatement(statements, "\"academic\".\"Enrollment\"", "COUNT");
+        assertThat(sectionLock)
+                .as("the placement guard must hold the Section row while it counts enrollments")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(enrollmentCount).isGreaterThan(sectionLock);
+    }
+
+    @Test
+    void sectionScheduleWriteLocksTheBookedClassroomRowsBeforeWriting() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.update(
+                "\"academic\".\"Section\"",
+                "section-existing",
+                Map.of("schedules", List.of(
+                        Map.of("dayOfWeek", 2, "startTime", "09:00", "endTime", "11:00", "classroomId", "room-2"))));
+
+        int roomLock = indexOfStatement(statements, "\"academic\".\"Classroom\"", "FOR UPDATE");
+        int scheduleWrite = indexOfStatement(statements, "\"academic\".\"SectionSchedule\"", "DELETE");
+        assertThat(roomLock)
+                .as("a schedule writer must serialize on the booked Classroom rows before writing")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(scheduleWrite).isGreaterThan(roomLock);
+    }
+
+    @Test
+    void lecturerReassignmentLocksTheLecturerRowBeforeTheConflictCheck() {
+        insertLecturer("lecturer-9");
+        List<String> statements = captureSqlStatements();
+
+        catalog.update("\"academic\".\"Section\"", "section-existing", Map.of("lecturerId", "lecturer-9"));
+
+        assertThat(indexOfStatement(statements, "\"academic\".\"Lecturer\"", "FOR UPDATE"))
+                .as("assigning a lecturer must serialize on the Lecturer row before the conflict check")
+                .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void semesterWriteLocksTheAcademicYearRowBeforeTheOverlapCheck() {
+        List<String> statements = captureSqlStatements();
+
+        catalog.createSemester(Map.of(
+                "name", "Serialized Term",
+                "academicYearId", "year-new",
+                "startDate", "2027-02-01",
+                "endDate", "2027-06-30"));
+
+        int yearLock = indexOfStatement(statements, "\"academic\".\"AcademicYear\"", "FOR UPDATE");
+        int overlapCount = indexOfStatement(statements, "\"academic\".\"Semester\"", "COUNT");
+        assertThat(yearLock)
+                .as("the overlap check must serialize on the AcademicYear row")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(overlapCount).isGreaterThan(yearLock);
+    }
+
+    private List<String> captureSqlStatements() {
+        List<String> statements = new ArrayList<>();
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForMap(anyString(), any(SqlParameterSource.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForObject(anyString(), any(SqlParameterSource.class), any(Class.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForList(anyString(), any(SqlParameterSource.class), any(Class.class));
+        doAnswer(invocation -> {
+            statements.add(invocation.getArgument(0));
+            return invocation.callRealMethod();
+        }).when(namedJdbc).update(anyString(), any(SqlParameterSource.class));
+        return statements;
+    }
+
+    private static int indexOfStatement(List<String> statements, String table, String marker) {
+        for (int index = 0; index < statements.size(); index++) {
+            String sql = statements.get(index);
+            if (sql.contains(table) && sql.contains(marker)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     private void createTables() {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"campuscore_audit\"");
         jdbc.execute("""
@@ -918,10 +1165,20 @@ class AdminCatalogMutationPersistenceTest {
                     "endTime" VARCHAR(10) NOT NULL
                 )
                 """);
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "academic"."Enrollment" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "sectionId" VARCHAR(120) NOT NULL,
+                    "courseId" VARCHAR(120) NOT NULL,
+                    "semesterId" VARCHAR(120) NOT NULL,
+                    "creditsSnapshot" INTEGER
+                )
+                """);
     }
 
     private void clearTables() {
         jdbc.update("DELETE FROM \"campuscore_audit\".\"AdminAudit\"");
+        jdbc.update("DELETE FROM \"academic\".\"Enrollment\"");
         jdbc.update("DELETE FROM \"academic\".\"SectionSchedule\"");
         jdbc.update("DELETE FROM \"academic\".\"Section\"");
         jdbc.update("DELETE FROM \"academic\".\"Lecturer\"");

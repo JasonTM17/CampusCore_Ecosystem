@@ -4,21 +4,13 @@ import * as React from 'react';
 import { BrandMark } from '@/components/BrandMark';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { SectionEyebrow } from '@/components/ui/page-header';
 import { useI18n } from '@/i18n';
 import type { LoginPortal } from '@/lib/login-portal';
 import { cn } from '@/lib/utils';
 
-interface AuthShellFeature {
-  label: string;
-  description: string;
-}
-
 interface AuthShellProps {
-  eyebrow: string;
   title: string;
   description: string;
-  features: AuthShellFeature[];
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
@@ -26,10 +18,8 @@ interface AuthShellProps {
 }
 
 export function AuthShell({
-  eyebrow,
   title,
   description,
-  features,
   children,
   footer,
   className,
@@ -81,7 +71,6 @@ export function AuthShell({
                 subtitleClassName="text-portal-sidebar-muted"
               />
               <div className="space-y-4 border-l-4 border-portal-chrome-accent pl-6">
-                <SectionEyebrow className="portal-menu-label-accent">{eyebrow}</SectionEyebrow>
                 <h1 className="max-w-lg text-4xl font-semibold leading-[1.18] text-portal-sidebar-text xl:text-[2.75rem]">
                   {title}
                 </h1>
@@ -89,70 +78,6 @@ export function AuthShell({
                   {description}
                 </p>
               </div>
-              {isLecturer ? (
-                <div className="divide-y divide-white/10 border-y border-white/10">
-                  {features.map((feature) => (
-                    <div
-                      key={feature.label}
-                      className="grid grid-cols-[5.5rem_1fr] items-baseline gap-4 py-4"
-                    >
-                      <span className="text-sm font-semibold tabular-nums text-portal-chrome-accent">
-                        {feature.label}
-                      </span>
-                      <p className="text-sm leading-6 text-portal-sidebar-muted">
-                        {feature.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : isAdmin ? (
-                <div className="border border-white/15">
-                  {features.map((feature, index) => (
-                    <div
-                      key={feature.label}
-                      className={cn(
-                        'grid grid-cols-[1fr_auto] gap-4 px-4 py-3',
-                        index < features.length - 1 && 'border-b border-white/10',
-                      )}
-                    >
-                      <div className="space-y-1">
-                        <h2 className="text-sm font-semibold text-portal-sidebar-text">
-                          {feature.label}
-                        </h2>
-                        <p className="text-sm leading-6 text-portal-sidebar-muted">
-                          {feature.description}
-                        </p>
-                      </div>
-                      <span className="text-xs font-semibold uppercase tracking-wide text-portal-chrome-accent">
-                        {messages.login.portals.admin.opsMark}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="divide-y divide-white/10 border-y border-white/10">
-                  {features.map((feature, index) => (
-                    <div
-                      key={feature.label}
-                      className="grid grid-cols-[2rem_1fr] gap-4 py-4"
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 text-portal-chrome-accent">
-                        <span className="text-xs font-semibold">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <h2 className="text-sm font-semibold text-portal-sidebar-text">
-                          {feature.label}
-                        </h2>
-                        <p className="text-sm leading-6 text-portal-sidebar-muted">
-                          {feature.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </section>
@@ -184,6 +109,7 @@ export function AuthShell({
                 }
               />
             </div>
+            <h1 className="sr-only lg:hidden">{title}</h1>
             {children}
             {footer ? <div>{footer}</div> : null}
           </div>

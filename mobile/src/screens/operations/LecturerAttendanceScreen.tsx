@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -6,6 +6,7 @@ import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/
 import { DateField } from '../../components/ui/date-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { campusIsoDate, countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { AttendanceRosterRow } from './AttendanceRosterRow';
 import { StaleAttendanceError, lecturerApi, type AttendanceSheet } from './lecturer-api';
@@ -20,7 +21,6 @@ import {
   courseTitle,
   filterRoster,
   isStaleAttendance,
-  localIsoDate,
   savedBaseline,
   setAllStatus,
   setRowStatus,
@@ -35,7 +35,7 @@ import { previewRoster, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
 const PAGE_SIZE = 30;
-const EMPTY_BASELINE: AttendanceBaseline = { roster: [], marks: {} };
+const EMPTY_BASELINE: AttendanceBaseline = { roster: [], marks: {}, notes: {} };
 
 type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved'; count: number } | { kind: 'error'; message: string };
 
@@ -50,9 +50,11 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
   const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
   const section = sections.find((item) => item.sectionId === sectionId);
-  const today = localIsoDate();
+  const today = campusIsoDate();
   const [date, setDate] = useState(today);
   const sheetKey = `${sectionId}:${date}`;
+  const currentSheetKey = useRef(sheetKey);
+  currentSheetKey.current = sheetKey;
 
   const sheetQuery = useOpsQuery(
     `lecturer:sheet:${sheetKey}`,
@@ -74,8 +76,14 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+  const editRevisionByKey = useRef<Record<string, number>>({});
+  // A dirty sheet stays keyed to its own (section, date) while the lecturer
+  // looks at another one, so switching never silently discards marks.
+  const draftsRef = useRef<Record<string, { rows: RosterRow[]; baseline: AttendanceBaseline }>>({});
 
   const applySheet = (next: AttendanceSheet) => {
+    delete draftsRef.current[`${next.sectionId}:${next.date}`];
     setRows(buildRosterRows(next.roster, next.marks));
     setBaseline(baselineOf(next.roster, next.marks));
     setLoadedKey(`${next.sectionId}:${next.date}`);
@@ -85,6 +93,16 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   useEffect(() => {
     if (!sheet) return;
     if (loadedKey !== sheetKey) {
+      const draft = draftsRef.current[sheetKey];
+      if (draft) {
+        setRows(draft.rows);
+        setBaseline(draft.baseline);
+        setLoadedKey(sheetKey);
+        setRemoteChanged(isStaleAttendance(draft.baseline, sheet.roster, sheet.marks));
+        setSave({ kind: 'idle' });
+        setPages(1);
+        return;
+      }
       applySheet(sheet);
       setSave({ kind: 'idle' });
       setPages(1);
@@ -104,12 +122,26 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const ready = loadedKey === sheetKey;
   const busy = save.kind === 'saving';
 
+  const switchSheet = (nextSectionId: string, nextDate: string) => {
+    if (nextSectionId === sectionId && nextDate === date) return;
+    if (loadedKey === sheetKey && changes > 0) {
+      draftsRef.current[sheetKey] = { rows, baseline };
+    }
+    if (nextSectionId !== sectionId) {
+      setPicked(nextSectionId);
+      setSearch('');
+    }
+    if (nextDate !== date) setDate(nextDate);
+  };
+
   const change = (studentId: string, status: MarkStatus | null) => {
+    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
     setRows((current) => setRowStatus(current, studentId, status));
     setSave({ kind: 'idle' });
   };
 
   const markAll = () => {
+    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
     setRows((current) => setAllStatus(current, 'PRESENT', new Set(visible.map((row) => row.studentId))));
     setSave({ kind: 'idle' });
   };
@@ -119,6 +151,14 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     if (sheet) applySheet(sheet);
     void sheetQuery.reload();
   };
+  // The pull refreshes the two live reads this screen shows: the section list and
+  // the active sheet. The spinner tracks exactly those two reloads, so it never
+  // spins for a background revalidation the user did not ask for.
+  const refreshAll = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.all([sectionsQuery.reload(), sheetQuery.reload()]).finally(() => setRefreshing(false));
+  };
 
   const saveAttendance = async () => {
     const records = buildAttendanceRecords(rows);
@@ -126,15 +166,23 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       setSave({ kind: 'error', message: copy.nothingToSave });
       return;
     }
+    const savingKey = sheetKey;
+    const savingRevision = editRevisionByKey.current[savingKey] ?? 0;
     setSave({ kind: 'saving' });
     try {
       const count = await lecturerApi.saveAttendance(sectionId, date, records, baseline);
+      const unchanged = (editRevisionByKey.current[savingKey] ?? 0) === savingRevision;
+      if (unchanged) delete draftsRef.current[savingKey];
+      if (currentSheetKey.current !== savingKey) return;
       setSave({ kind: 'saved', count });
-      setRows((current) => commitRows(current));
-      setBaseline(savedBaseline(rows));
-      setRemoteChanged(false);
+      if (unchanged) {
+        setRows(commitRows(rows));
+        setBaseline(savedBaseline(rows));
+        setRemoteChanged(false);
+      }
       void sheetQuery.reload();
     } catch (error) {
+      if (currentSheetKey.current !== savingKey) return;
       if (error instanceof StaleAttendanceError) {
         setRemoteChanged(true);
         setSave({ kind: 'idle' });
@@ -168,6 +216,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
       onRetry={() => { void sectionsQuery.reload(); void sheetQuery.reload(); }}
+      onRefresh={preview ? undefined : refreshAll}
+      refreshing={!preview && refreshing}
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.studentId),
         renderItem: ({ item: row }) => (
@@ -179,10 +229,10 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
               <View style={styles.saveBar}>
                 {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
-                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
+                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(countForm(save.count, copy.savedOne, copy.saved), { n: save.count })} /> : null}
                 {changes > 0 ? (
                   <UiText variant="bodySmall" tone="muted">
-                    {fillCopy(copy.unsaved, { n: changes })}
+                    {fillCopy(countForm(changes, copy.unsavedOne, copy.unsaved), { n: changes })}
                   </UiText>
                 ) : null}
                 <Button
@@ -202,8 +252,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (<View>
-          <SectionPicker sections={sections} value={sectionId} onChange={(next) => { setPicked(next); setSearch(''); }} />
-          <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && setDate(next)} />
+          <SectionPicker sections={sections} value={sectionId} onChange={(next) => switchSheet(next, date)} />
+          <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && switchSheet(sectionId, next)} />
           {rows.length === 0 ? (
             <StatePanel kind="empty" title={copy.rosterEmpty} />
           ) : (<View>
@@ -216,7 +266,14 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
                   { icon: 'percent-outline', label: copy.rateLabel, value: `${metrics.rate.toFixed(0)}%` },
                 ]}
               />
-              {remoteChanged ? <Notice tone="warning" message={copy.stale} actionLabel={copy.reload} onAction={reloadSheet} /> : null}
+              {remoteChanged ? (
+                <Notice
+                  tone="warning"
+                  message={copy.stale}
+                  actionLabel={busy ? undefined : copy.reload}
+                  onAction={busy ? undefined : reloadSheet}
+                />
+              ) : null}
               <SearchBar
                 value={search}
                 onChangeText={(value) => { setSearch(value); setPages(1); }}

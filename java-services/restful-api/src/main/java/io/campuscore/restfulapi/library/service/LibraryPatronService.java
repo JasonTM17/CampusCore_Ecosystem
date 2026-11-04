@@ -1,17 +1,21 @@
 package io.campuscore.restfulapi.library.service;
 
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.web.LibraryDtos.BorrowRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.LoanRequestResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.TitleResponse;
 import io.campuscore.restfulapi.web.DomainException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -81,10 +85,18 @@ public class LibraryPatronService {
                         + " \"publishedYear\", \"description\", \"version\" FROM " + TITLE);
         MapSqlParameterSource params = new MapSqlParameterSource();
         String filter = "";
-        if (query != null && !query.isBlank()) {
-            filter = " WHERE LOWER(\"title\") LIKE :q OR LOWER(\"author\") LIKE :q"
-                    + " OR LOWER(\"isbn\") LIKE :q OR LOWER(\"category\") LIKE :q";
-            params.addValue("q", "%" + query.trim().toLowerCase(Locale.ROOT) + "%");
+        String pattern = LikePattern.contains(query);
+        if (pattern != null) {
+            params.addValue("foldFrom", LikePattern.FOLD_FROM)
+                    .addValue("foldTo", LikePattern.FOLD_TO)
+                    .addValue("q", pattern);
+            filter = " WHERE TRANSLATE(LOWER(\"title\"), :foldFrom, :foldTo) LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"author\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"isbn\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"category\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'";
         }
         sql.append(filter);
         long total = window == null ? 0 : jdbc.queryForObject(
@@ -113,12 +125,27 @@ public class LibraryPatronService {
     /** Own requests/loans newest-first — foreign ids never appear here. */
     @Transactional(readOnly = true)
     public List<LoanRequestResponse> myLoans(String borrowerId) {
-        List<Map<String, Object>> rows = jdbc.query(
-                LibraryService.requestSelect() + " WHERE r.\"borrowerUserId\" = :owner"
-                        + " ORDER BY r.\"createdAt\" DESC",
-                new MapSqlParameterSource("owner", borrowerId),
+        return myLoans(borrowerId, null).items();
+    }
+
+    /** Own requests/loans newest-first; a missing window uses the shared maximum. */
+    @Transactional(readOnly = true)
+    public ListPaging.Result<LoanRequestResponse> myLoans(
+            String borrowerId, ListPaging.Window window) {
+        if (window == null) {
+            window = new ListPaging.Window(0, ListPaging.MAX_LIMIT);
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("owner", borrowerId);
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + LOAN_REQUEST + " r WHERE r.\"borrowerUserId\" = :owner",
+                params, Long.class);
+        String sql = LibraryService.requestSelect() + " WHERE r.\"borrowerUserId\" = :owner"
+                + " ORDER BY r.\"createdAt\" DESC, r.\"id\" ASC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        List<Map<String, Object>> rows = jdbc.query(sql, params,
                 (row, index) -> rowToMap(row));
-        return rows.stream().map(staff::mapRequest).toList();
+        List<LoanRequestResponse> items = rows.stream().map(staff::mapRequest).toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Owner-only detail — a foreign id is indistinguishable 404. */
@@ -202,12 +229,17 @@ public class LibraryPatronService {
     public LoanRequestResponse cancel(String borrowerId, String requestId,
             Integer expectedVersion, String reason, String idempotencyKey) {
         // Canonicalize once before hashing: an omitted reason and the explicit
-        // default hash alike; a changed reason — or a key claimed before the
-        // reason bound the fingerprint — conflicts instead of replaying.
+        // default hash alike; a changed reason - or a key claimed before the
+        // reason bound the fingerprint - conflicts instead of replaying.
         String normalizedReason = reason == null || reason.isBlank()
                 ? "BORROWER_CANCELLED" : reason;
-        Map<String, Object> claimed = claimIdempotency(borrowerId, idempotencyKey,
-                "cancel:" + requestId + ":" + expectedVersion + ":" + normalizedReason);
+        String fingerprint = "cancel:" + requestId + ":" + expectedVersion + ":" + normalizedReason;
+        // The reason is free text up to its column cap; keep the stored
+        // request hash inside requestHash VARCHAR(128) when it is long.
+        if (fingerprint.length() > 128) {
+            fingerprint = sha256(fingerprint);
+        }
+        Map<String, Object> claimed = claimIdempotency(borrowerId, idempotencyKey, fingerprint);
         if (claimed != null) {
             return replayResponse(claimed);
         }
@@ -392,6 +424,15 @@ public class LibraryPatronService {
                     "The original response is unavailable; refresh the current request state");
         }
         return objectMapper.readValue(json, LoanRequestResponse.class);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required", exception);
+        }
     }
 
     private static Map<String, Object> rowToMap(ResultSet row) throws SQLException {

@@ -56,7 +56,7 @@ public class AttendanceStore {
     }
     private static GeofenceResponse geofence(ResultSet rs) throws SQLException {
         return new GeofenceResponse(rs.getString("id"),rs.getString("name"),rs.getString("campusCode"),
-                rs.getDouble("centerLat"),rs.getDouble("centerLng"),rs.getInt("radiusMeters"),rs.getBoolean("isActive"),rs.getString("note"));
+                rs.getDouble("centerLat"),rs.getDouble("centerLng"),rs.getInt("radiusMeters"),rs.getBoolean("isActive"),rs.getString("note"),rs.getLong("version"));
     }
     public List<GeofenceResponse> geofences() {
         return jdbc.query("SELECT * FROM academic.\"AttendanceGeofence\" ORDER BY \"name\",\"id\"", (rs,n) -> geofence(rs));
@@ -72,9 +72,11 @@ public class AttendanceStore {
         if (create) jdbc.update("""
                 INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","note","createdBy","createdAt","updatedAt")
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                """, id,r.name(),r.campusCode(),r.centerLat(),r.centerLng(),r.radiusMeters(),r.isActive(),r.note(),actor,ts(now),ts(now));
+                """, id,r.name(),r.campusCode(),r.centerLat(),r.centerLng(),r.radiusMeters(),
+                Boolean.TRUE.equals(r.isActive()),r.note(),actor,ts(now),ts(now));
         else jdbc.update("""
-                UPDATE academic."AttendanceGeofence" SET "name"=?,"campusCode"=?,"centerLat"=?,"centerLng"=?,"radiusMeters"=?,"isActive"=?,"note"=?,"updatedAt"=? WHERE "id"=?
+                UPDATE academic."AttendanceGeofence" SET "name"=?,"campusCode"=?,"centerLat"=?,"centerLng"=?,"radiusMeters"=?,
+                "isActive"=COALESCE(CAST(? AS BOOLEAN),"isActive"),"note"=?,"updatedAt"=?,"version"="version"+1 WHERE "id"=?
                 """,r.name(),r.campusCode(),r.centerLat(),r.centerLng(),r.radiusMeters(),r.isActive(),r.note(),ts(now),id);
     }
     public void createSession(Session s, String actor, Instant now) {

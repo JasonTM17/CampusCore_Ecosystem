@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CreateCopyRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CreateTitleRequest;
@@ -65,6 +66,8 @@ public class LibraryService {
     static final List<String> TERMINAL_REQUEST_STATUSES = List.of("RETURNED", "CANCELLED");
     /** Reservation holds that the server-clock expiry sweep can end. */
     static final List<String> EXPIRABLE_STATUSES = List.of("REQUESTED", "APPROVED");
+    /** Longest staff-selected loan period; the configured default is used when dueDays is omitted. */
+    static final int MAX_LOAN_DAYS = 365;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -112,7 +115,7 @@ public class LibraryService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !roles.contains("ADMIN")) {
+        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
             throw problem(HttpStatus.FORBIDDEN, "LIBRARY_ADMIN_REQUIRED",
                     "Grant administration requires the ADMIN role");
         }
@@ -124,10 +127,12 @@ public class LibraryService {
 
     public List<StaffGrantResponse> listGrants(String actorId) {
         requireStaffGrant(actorId);
+        // Self-view over the grant table: a staffer sees only its own grant.
         return jdbc.query(
                 "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                        + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",
-                new MapSqlParameterSource("scope", SCOPE),
+                        + " FROM " + STAFF_GRANT
+                        + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"",
+                new MapSqlParameterSource("scope", SCOPE).addValue("actor", actorId),
                 (row, index) -> mapGrant(row));
     }
 
@@ -363,17 +368,36 @@ public class LibraryService {
 
     /** Request queue — materializes at most one expiry batch before reading persisted state. */
     @Transactional
-    public List<LoanRequestResponse> queue(String actorId, String status) {
+    public ListPaging.Result<LoanRequestResponse> queue(String actorId, String status,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
         expireOverdue(actorId);
         MapSqlParameterSource params = new MapSqlParameterSource();
-        StringBuilder sql = new StringBuilder(requestSelect());
+        StringBuilder where = new StringBuilder();
         if (status != null && !status.isBlank()) {
-            sql.append(" WHERE r.\"status\" = :status");
+            where.append(" WHERE r.\"status\" = :status");
             params.addValue("status", status);
         }
-        sql.append(" ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\"");
-        return jdbc.query(sql.toString(), params, (row, index) -> mapRequest(row));
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + LOAN_REQUEST + " r" + where, params, Long.class);
+        }
+        StringBuilder sql = new StringBuilder(requestSelect())
+                .append(where)
+                .append(" ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\"");
+        if (window != null) {
+            sql.append(", r.\"id\" LIMIT :limit OFFSET :offset");
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql.toString(), params, (row, index) -> mapRequest(row)), total);
+    }
+
+    /** Legacy array-returning queue read; no paging, no count, original order. */
+    @Transactional
+    public List<LoanRequestResponse> queue(String actorId, String status) {
+        return queue(actorId, status, null).items();
     }
 
     public LoanRequestResponse staffRequest(String actorId, String requestId) {
@@ -435,6 +459,11 @@ public class LibraryService {
         // Same server-clock window rule as approve: an expired-but-unswept
         // hold can never be issued, no matter when the last read swept.
         requireWithinHoldWindow(loan);
+        Integer requestedDays = request == null ? null : request.dueDays();
+        if (requestedDays != null && (requestedDays < 1 || requestedDays > MAX_LOAN_DAYS)) {
+            throw problem(HttpStatus.BAD_REQUEST, "LOAN_PERIOD_INVALID",
+                    "dueDays must be between 1 and " + MAX_LOAN_DAYS);
+        }
         String copyId = String.valueOf(loan.get("copyId"));
         lockCopy(copyId);
         // Waiting for the copy lock can consume the remaining hold window.
@@ -448,8 +477,7 @@ public class LibraryService {
             throw problem(HttpStatus.CONFLICT, "COPY_STATE_INVALID",
                     "The reserved copy is no longer available for issue");
         }
-        int days = request != null && request.dueDays() != null && request.dueDays() > 0
-                ? request.dueDays() : loanDays;
+        int days = requestedDays == null ? loanDays : requestedDays;
         Instant dueAt = Instant.now().plus(days, ChronoUnit.DAYS);
         int updated = jdbc.update(
                 "UPDATE " + LOAN_REQUEST + " SET \"status\" = 'ISSUED',"

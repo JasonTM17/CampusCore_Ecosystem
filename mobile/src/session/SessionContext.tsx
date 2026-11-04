@@ -26,6 +26,7 @@ import { LANE_FLAGS } from '../config/lane-flags';
 import { clearQueryCache, queryCacheIdentity, syncQueryCacheIdentity } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
+import { selectThesisRound } from '../screens/thesis/thesis-selection';
 
 /**
  * Session authority for the router world (mobile-policy §3). Owns the
@@ -51,7 +52,7 @@ export interface SessionState {
   capabilities?: CapabilitySet;
 }
 
-type BootStatus = 'checking' | 'ready' | 'unavailable';
+type BootStatus = 'checking' | 'ready' | 'unavailable' | 'reauthRequired';
 
 interface SessionActions {
   retryBoot?(): Promise<void>;
@@ -68,7 +69,7 @@ export interface SessionValue extends SessionState, SessionActions {
   epoch: number;
   /** KM-17: false until marker-check + bootstrap + optional silent refresh. */
   booted: boolean;
-  /** Unavailable retains credentials without granting an app session. */
+  /** Unavailable is retryable before dispatch; reauthRequired needs fresh OIDC sign-in. */
   bootStatus?: BootStatus;
 }
 
@@ -147,8 +148,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setBootStatus(status);
   }, []);
 
-  // One attempt per boot, manual retry or foreground transition. No timers or
-  // API mutation replay; unavailable credentials remain locally recoverable.
+  const expireSession = useCallback(() => {
+    foregroundRetrySafe.current = false;
+    // Capture the token before the wipe so a session that ends in place still
+    // drops this device's push registration, as sign-out does.
+    let accessTokenSnapshot: string | null = null;
+    try {
+      accessTokenSnapshot = sessionStore.getAccessToken();
+    } catch {
+      accessTokenSnapshot = null;
+    }
+    scheduleDevicePushUnregister(accessTokenSnapshot);
+    sessionStore.bumpEpoch();
+    sessionStore.setAccessToken(null);
+    clearQueryCache();
+    selectThesisRound(null);
+    stateRef.current = initialState;
+    setEpoch((current) => current + 1);
+    setState(initialState);
+    updateBootStatus('reauthRequired');
+  }, [updateBootStatus]);
+
+  // One attempt per boot or explicit retry. Dispatched ambiguity is quarantined
+  // and can only continue through a new OIDC sign-in.
   const runBoot = useCallback((): Promise<void> => {
     if (bootFlight.current) return bootFlight.current;
     const epoch = sessionStore.sessionEpoch();
@@ -168,14 +190,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
         if (!current()) return;
         if (!refreshToken) {
+          const hadAccessToken = sessionStore.getAccessToken() !== null;
+          sessionStore.setAccessToken(null);
+          if (hadAccessToken) {
+            sessionStore.bumpEpoch();
+            setEpoch((currentEpoch) => currentEpoch + 1);
+          }
+          clearQueryCache();
+          stateRef.current = initialState;
+          setState(initialState);
           updateBootStatus('ready');
           return;
         }
         const result = await sessionStore.refreshAccessToken();
         if (!current()) return;
-        if (result.kind === 'unavailable') {
-          // A lost response or malformed success may already have rotated the
-          // grant. Only an explicit issuer outage response permits auto retry.
+        if (result.kind === 'reauthRequired') {
+          expireSession();
+        } else if (result.kind === 'unavailable') {
           foregroundRetrySafe.current = result.reason === 'issuer';
           updateBootStatus('unavailable');
         } else if (result.kind === 'refreshed') {
@@ -215,7 +246,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })().finally(() => { if (bootFlight.current === pending) bootFlight.current = null; });
     bootFlight.current = pending;
     return pending;
-  }, [updateBootStatus]);
+  }, [expireSession, updateBootStatus]);
 
   const retryBoot = useCallback(() => {
     if (apiClient.mode !== 'live' || stateRef.current.kind !== 'signedOut') return Promise.resolve();
@@ -235,18 +266,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [runBoot, retryBoot]);
 
-  // A failed refresh clears the client tokens; without this bridge every
-  // screen keeps retry states that can never succeed. Epoch-gated so a late
-  // callback from a previous session cannot kill the new one (KM-6).
+  // Terminal refresh outcomes clear account data and fence the old request
+  // epoch before the sign-in screen can accept another session.
   useEffect(() => {
-    apiClient.setOnSessionExpired(() => {
-      clearQueryCache();
-      setEpoch((e) => e + 1);
-      setState((current) =>
-        current.kind === 'authenticated' ? { ...initialState } : current);
-    });
+    apiClient.setOnSessionExpired(expireSession);
     return () => apiClient.setOnSessionExpired(undefined);
-  }, []);
+  }, [expireSession]);
 
   const enterPreview = useCallback(() => {
     if (stateRef.current.kind !== 'signedOut' || apiClient.mode !== 'preview') {
@@ -291,6 +316,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     updateBootStatus('ready');
+    // Local session state includes the module-level thesis round selection.
+    selectThesisRound(null);
     // Preview never touches the credential store.
     if (stateRef.current.kind === 'preview') {
       setEpoch((e) => e + 1);

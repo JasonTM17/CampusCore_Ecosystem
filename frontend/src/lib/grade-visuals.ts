@@ -60,18 +60,22 @@ export interface SemesterProgressCard {
 
 /**
  * One compact card per transcript semester, in transcript order (the API
- * already returns semesters chronologically). A GPA of 0 with zero earned
- * credits is "no result yet", not a real 0.00 average, so it maps to null —
- * the strip then renders a dash instead of a fake GPA.
+ * already returns semesters chronologically). A semester with attempted
+ * credits or graded records carries a real GPA — including 0.00 after an
+ * all-F term; only an untouched semester maps to null so the strip renders a
+ * dash instead of inventing a result.
  */
 export function semesterProgressCards(
   semesters: StudentTranscriptSemester[] | null | undefined,
 ): SemesterProgressCard[] {
   return (semesters ?? []).map((semester) => {
+    const hasGradedWork =
+      (typeof semester.creditsAttempted === 'number' && semester.creditsAttempted > 0)
+      || (Array.isArray(semester.records) && semester.records.length > 0);
     const gpa =
       typeof semester.gpa === 'number'
       && Number.isFinite(semester.gpa)
-      && semester.gpa > 0
+      && hasGradedWork
         ? semester.gpa
         : null;
     const creditsEarned =

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,7 +30,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedDescription,
   getLocalizedName,
@@ -52,6 +55,56 @@ interface Course {
   isActive: boolean;
 }
 
+function hasCourseSnapshotChanged(baseline: Course, current: Course): boolean {
+  return baseline.code !== current.code
+    || baseline.name !== current.name
+    || (baseline.nameEn || baseline.name) !== (current.nameEn || current.name)
+    || (baseline.nameVi || '') !== (current.nameVi || '')
+    || baseline.description !== current.description
+    || (baseline.descriptionEn || baseline.description || '')
+      !== (current.descriptionEn || current.description || '')
+    || (baseline.descriptionVi || '') !== (current.descriptionVi || '')
+    || baseline.credits !== current.credits
+    || baseline.departmentId !== current.departmentId
+    || baseline.isActive !== current.isActive;
+}
+
+function buildCourseUpdatePayload(
+  baseline: Course,
+  formData: {
+    code: string;
+    nameEn: string;
+    nameVi: string;
+    credits: number;
+    departmentId: string;
+    descriptionEn: string;
+    descriptionVi: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+  const descriptionEnChanged = formData.descriptionEn
+    !== (baseline.descriptionEn || baseline.description || '');
+  const descriptionViChanged = formData.descriptionVi !== (baseline.descriptionVi || '');
+
+  if (formData.code !== baseline.code) payload.code = formData.code;
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (formData.credits !== baseline.credits) payload.credits = formData.credits;
+  if (formData.departmentId !== baseline.departmentId) payload.departmentId = formData.departmentId;
+  if (descriptionEnChanged) payload.descriptionEn = formData.descriptionEn;
+  if (descriptionViChanged) payload.descriptionVi = formData.descriptionVi;
+  const description = formData.descriptionEn || formData.descriptionVi;
+  if ((descriptionEnChanged || descriptionViChanged)
+      && description !== (baseline.description || '')) {
+    payload.description = description;
+  }
+  return payload;
+}
+
 interface Department {
   id: string;
   name: string;
@@ -63,6 +116,7 @@ export default function AdminCoursesPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatNumber, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.courses, vi: adminAcademicsVi.courses }[locale];
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,7 +129,10 @@ export default function AdminCoursesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const coursesEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     code: '',
     nameEn: '',
@@ -87,6 +144,10 @@ export default function AdminCoursesPage() {
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (label: string) =>
+    copy.editLabel.replace('{code}', () => label);
+  const deleteLabel = (label: string) =>
+    copy.deleteLabel.replace('{code}', () => label);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -94,7 +155,7 @@ export default function AdminCoursesPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -109,15 +170,12 @@ export default function AdminCoursesPage() {
       const response = await departmentsApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT });
       setDepartments(response.data || []);
     } catch {
-      setReferenceError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu khoa cho bộ lọc và biểu mẫu.'
-          : 'Department options could not be loaded.',
-      );
+      setReferenceError(copy.referenceLoadFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   const fetchCourses = useCallback(async () => {
+    const epoch = coursesEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -134,16 +192,21 @@ export default function AdminCoursesPage() {
       };
       const response = await coursesApi.getAll(query);
 
+      if (!coursesEpoch.isCurrent(epoch)) return;
       setCourses(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi' ? 'Hiện chưa thể tải môn học.' : 'Courses could not be loaded.',
-      );
+      if (!coursesEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!coursesEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [departmentFilter, locale, page, search]);
+  }, [copy, coursesEpoch, departmentFilter, page, search]);
+
+  useEffect(() => () => {
+    coursesEpoch.invalidate();
+  }, [coursesEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -171,130 +234,35 @@ export default function AdminCoursesPage() {
 
   const pageSummary = useMemo(() => {
     if (courses.length === 0) {
-      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
+      return copy.pageSummaryEmpty;
     }
 
-    return locale === 'vi'
-      ? `Trang ${page} / ${totalPages}`
-      : `Page ${page} of ${totalPages}`;
-  }, [courses.length, locale, page, totalPages]);
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
+  }, [copy, courses.length, page, totalPages]);
 
   const departmentOptions = useMemo(
     () => [
-      { value: '', label: locale === 'vi' ? 'Tất cả khoa' : 'All departments' },
+      { value: '', label: copy.allDepartments },
       ...departments.map((department) => ({
         value: department.id,
           label: getLocalizedName(locale, department, department.name),
       })),
     ],
-    [departments, locale],
+    [copy.allDepartments, departments, locale],
   );
 
   const formDepartmentOptions = useMemo(
     () => [
-      { value: '', label: locale === 'vi' ? 'Chọn khoa' : 'Select department' },
+      { value: '', label: copy.selectDepartment },
       ...departments.map((department) => ({
         value: department.id,
           label: getLocalizedName(locale, department, department.name),
       })),
     ],
-    [departments, locale],
+    [copy.selectDepartment, departments, locale],
   );
-
-  const copy =
-    locale === 'vi'
-      ? {
-          loading: 'Đang tải môn học',
-          title: 'Môn học',
-          description:
-            'Quản lý danh sách môn học với người phụ trách rõ ràng, số tín chỉ nhất quán và cấu trúc ổn định.',
-          create: 'Tạo môn học',
-          searchLabel: 'Tìm môn học',
-          searchPlaceholder: 'Tìm theo mã hoặc tên môn',
-          department: 'Khoa',
-          unavailableTitle: 'Môn học chưa sẵn sàng',
-          emptyTitle: 'Không có môn học phù hợp',
-          emptyDescription:
-            'Hãy tạo môn học để lớp học phần và đăng ký cùng dùng một thông tin môn học rõ ràng.',
-          tableTitle: 'Bản ghi môn học',
-          headers: {
-            code: 'Mã',
-            name: 'Tên môn',
-            credits: 'Tín chỉ',
-            department: 'Khoa',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          unassigned: 'Chưa gán',
-          active: 'Đang hoạt động',
-          inactive: 'Ngừng hoạt động',
-          deleteTitle: 'Xóa môn học',
-          deleteMessage: (code: string) =>
-            `Xóa ${code}? Hành động này sẽ gỡ môn học khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa môn học',
-          deleted: 'Đã xóa môn học',
-          deleteFailed: 'Hiện chưa thể xóa môn học này.',
-          updated: 'Đã cập nhật môn học',
-          created: 'Đã tạo môn học',
-          saveFailed: 'Hiện chưa thể lưu môn học.',
-          editTitle: 'Chỉnh sửa môn học',
-          createTitle: 'Tạo môn học',
-          courseCode: 'Mã môn học',
-          creditsLabel: 'Tín chỉ',
-          courseName: 'Tên môn học',
-          descriptionLabel: 'Mô tả',
-          descriptionPlaceholder: 'Ghi chú thêm về môn học (không bắt buộc)',
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (code: string) => `Chỉnh sửa môn học ${code}`,
-          deleteLabel: (code: string) => `Xóa môn học ${code}`,
-        }
-      : {
-          loading: 'Loading courses',
-          title: 'Courses',
-          description:
-            'Maintain the course catalogue with clear responsibilities, credit values, and a consistent academic structure.',
-          create: 'Create course',
-          searchLabel: 'Search courses',
-          searchPlaceholder: 'Search by code or name',
-          department: 'Department',
-          unavailableTitle: 'Courses unavailable',
-          emptyTitle: 'No matching courses',
-          emptyDescription:
-            'Create a course so classes and registration share the same course information.',
-          tableTitle: 'Course records',
-          headers: {
-            code: 'Code',
-            name: 'Name',
-            credits: 'Credits',
-            department: 'Department',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          unassigned: 'Unassigned',
-          active: 'Active',
-          inactive: 'Inactive',
-          deleteTitle: 'Delete course',
-          deleteMessage: (code: string) =>
-            `Delete ${code}? This removes the course from the current admin view.`,
-          deleteConfirm: 'Delete course',
-          deleted: 'Course deleted',
-          deleteFailed: 'We could not delete that course.',
-          updated: 'Course updated',
-          created: 'Course created',
-          saveFailed: 'The course could not be saved.',
-          editTitle: 'Edit course',
-          createTitle: 'Create course',
-          courseCode: 'Course code',
-          creditsLabel: 'Credits',
-          courseName: 'Course name',
-          descriptionLabel: 'Description',
-          descriptionPlaceholder: 'Optional course notes',
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (code: string) => `Edit course ${code}`,
-          deleteLabel: (code: string) => `Delete course ${code}`,
-        };
 
   if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
@@ -347,19 +315,27 @@ export default function AdminCoursesPage() {
   };
 
   const handleDelete = async (course: Course) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(course.code),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingCourseId(course.id);
 
     try {
-      await coursesApi.delete(course.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{code}', () => course.code),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await coursesApi.delete(course.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (courses.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -368,6 +344,9 @@ export default function AdminCoursesPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingCourseId(null);
     }
   };
 
@@ -376,17 +355,23 @@ export default function AdminCoursesPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-        description: formData.descriptionEn || formData.descriptionVi,
-        descriptionEn: formData.descriptionEn,
-        descriptionVi: formData.descriptionVi,
-      };
       if (editingCourse) {
+        const currentCourse = await coursesApi.getById(editingCourse.id);
+        if (hasCourseSnapshotChanged(editingCourse, currentCourse)) {
+          toast.error(copy.staleEdit);
+          return;
+        }
+        const payload = buildCourseUpdatePayload(editingCourse, formData);
         await coursesApi.update(editingCourse.id, payload);
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+          description: formData.descriptionEn || formData.descriptionVi,
+          descriptionEn: formData.descriptionEn,
+          descriptionVi: formData.descriptionVi,
+        };
         await coursesApi.create(payload);
         toast.success(copy.created);
       }
@@ -543,8 +528,8 @@ export default function AdminCoursesPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openEdit(course)}
-                          aria-label={copy.editLabel(courseLabel)}
-                          title={copy.editLabel(courseLabel)}
+                          aria-label={editLabel(courseLabel)}
+                          title={editLabel(courseLabel)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -553,8 +538,9 @@ export default function AdminCoursesPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(course)}
-                          aria-label={copy.deleteLabel(courseLabel)}
-                          title={copy.deleteLabel(courseLabel)}
+                          disabled={deletingCourseId !== null}
+                          aria-label={deleteLabel(courseLabel)}
+                          title={deleteLabel(courseLabel)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -623,8 +609,8 @@ export default function AdminCoursesPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(course)}
-                              aria-label={copy.editLabel(courseLabel)}
-                              title={copy.editLabel(courseLabel)}
+                              aria-label={editLabel(courseLabel)}
+                              title={editLabel(courseLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -633,8 +619,9 @@ export default function AdminCoursesPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(course)}
-                              aria-label={copy.deleteLabel(courseLabel)}
-                              title={copy.deleteLabel(courseLabel)}
+                              disabled={deletingCourseId !== null}
+                              aria-label={deleteLabel(courseLabel)}
+                              title={deleteLabel(courseLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -689,7 +676,7 @@ export default function AdminCoursesPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}>
+            <AdminFormField label={copy.fields.englishName}>
               <Input
                 type="text"
                 value={formData.nameEn}
@@ -702,7 +689,7 @@ export default function AdminCoursesPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}>
+            <AdminFormField label={copy.fields.vietnameseName}>
               <Input
                 type="text"
                 value={formData.nameVi}
@@ -732,7 +719,7 @@ export default function AdminCoursesPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <AdminFormField
-              label={locale === 'vi' ? 'Mô tả tiếng Anh' : 'English description'}
+              label={copy.fields.englishDescription}
             >
               <Textarea
                 value={formData.descriptionEn}
@@ -747,7 +734,7 @@ export default function AdminCoursesPage() {
               />
             </AdminFormField>
             <AdminFormField
-              label={locale === 'vi' ? 'Mô tả tiếng Việt' : 'Vietnamese description'}
+              label={copy.fields.vietnameseDescription}
             >
               <Textarea
                 value={formData.descriptionVi}
@@ -768,7 +755,7 @@ export default function AdminCoursesPage() {
               {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? copy.saving : editingCourse ? copy.editAction : copy.create}
+              {isSaving ? copy.saving : editingCourse ? messages.common.actions.saveChanges : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

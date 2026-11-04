@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -132,6 +133,7 @@ public final class ThesisAssistantDtos {
                     message = "reason is not supported")
             String reason) { }
 
+    @Schema(name = "ThesisAssistantFeedbackResponse")
     public record FeedbackResponse(UUID messageId, String rating, String reason, boolean removed) { }
 
     public record CursorPage<T>(List<T> data, String nextCursor) { }

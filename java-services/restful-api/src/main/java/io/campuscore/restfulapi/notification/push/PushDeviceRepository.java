@@ -48,8 +48,11 @@ public class PushDeviceRepository {
         RegistrationRow foreignInstallation = findForeignInstallation(userId, installationId).orElse(null);
         if (foreignInstallation != null
                 && (tokenOwner == null || !foreignInstallation.id().equals(tokenOwner.id()))) {
-            throw new io.campuscore.restfulapi.exception.AppException(
-                    org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "Device not found");
+            if (tokenOwner != null) {
+                throw new io.campuscore.restfulapi.exception.AppException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "Device not found");
+            }
+            installation = foreignInstallation;
         }
 
         if (tokenOwner != null) {
@@ -87,11 +90,13 @@ public class PushDeviceRepository {
         }
 
         if (installation != null) {
+            String previousOwner = installation.userId().equals(userId) ? null : installation.userId();
             jdbc.update("UPDATE " + TABLE
-                            + " SET provider=:provider, platform=:platform, token_ciphertext=:ciphertext,"
+                            + " SET user_id=:userId, provider=:provider, platform=:platform, token_ciphertext=:ciphertext,"
                             + " token_fingerprint=:fingerprint, credential_version=:credentialVersion,"
                             + " status='ACTIVE', revoked_at=NULL, updated_at=:now WHERE id=:id",
                     new MapSqlParameterSource()
+                            .addValue("userId", userId)
                             .addValue("provider", provider)
                             .addValue("platform", platform)
                             .addValue("ciphertext", ciphertext)
@@ -100,7 +105,7 @@ public class PushDeviceRepository {
                             .addValue("now", Timestamp.from(now))
                             .addValue("id", installation.id()));
             return new RegistrationMutation(
-                    installation.id(), provider, platform, "ACTIVE", now, null);
+                    installation.id(), provider, platform, "ACTIVE", now, previousOwner);
         }
 
         String id = java.util.UUID.randomUUID().toString();

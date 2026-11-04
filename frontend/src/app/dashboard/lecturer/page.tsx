@@ -58,6 +58,7 @@ export default function LecturerDashboardPage() {
   const [scheduleSections, setScheduleSections] = useState<LecturerSection[]>([]);
   const [gradingSections, setGradingSections] = useState<GradingSection[]>([]);
   const [announcements, setAnnouncements] = useState<LecturerAnnouncement[]>([]);
+  const [announcementsTotal, setAnnouncementsTotal] = useState(0);
   const orderedAnnouncements = useOrderedPosts(announcements);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -75,7 +76,9 @@ export default function LecturerDashboardPage() {
 
       setScheduleSections(scheduleData);
       setGradingSections(gradingData);
-      setAnnouncements(announcementsData.data ?? []);
+      const announcementsPage = announcementsData.data ?? [];
+      setAnnouncements(announcementsPage);
+      setAnnouncementsTotal(announcementsData.meta?.total ?? announcementsPage.length);
     } catch {
       setError(messages.lecturerDashboard.errors.loadFailed);
     } finally {
@@ -153,7 +156,7 @@ export default function LecturerDashboardPage() {
             />
             <WorkspaceMetricCard
               label={messages.lecturerDashboard.metrics.labels[3]}
-              value={formatNumber(announcements.length)}
+              value={formatNumber(announcementsTotal)}
               icon={<Bell className="h-5 w-5" />}
               detail={messages.lecturerDashboard.metrics.details[3]}
               toneClassName={metricToneClass('warning')}

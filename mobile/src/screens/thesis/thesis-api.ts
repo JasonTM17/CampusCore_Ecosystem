@@ -3,7 +3,7 @@
 // the student role may call. No payload is invented client-side.
 
 import { apiClient, type ApiClient, type ApiDownload } from '../../api/client';
-import { createParityApi, type ListOptions } from '../../api/parity-api';
+import { createParityApi, type ListOptions, type ThesisTopicListOptions } from '../../api/parity-api';
 import type { PagedResult } from '../../api/paging';
 import type {
   StudentSearchHit,
@@ -52,7 +52,7 @@ export function createThesisApi(client: ApiClient = apiClient) {
   return {
     rounds: (options: ListOptions = {}) =>
       parity.thesisRounds(options) as Promise<PagedResult<ThesisRound>>,
-    topics: (roundId: string, options: ListOptions = {}) =>
+    topics: (roundId: string, options: ThesisTopicListOptions = {}) =>
       parity.thesisTopics(roundId, options) as Promise<PagedResult<ThesisTopic>>,
     topic: (topicId: string, options: Transfer = {}) =>
       client.get<ThesisTopic>(`${base}/topics/${id(topicId)}`, { signal: options.signal }),
@@ -92,7 +92,7 @@ export function createThesisApi(client: ApiClient = apiClient) {
     removeReportFile: (groupId: string) =>
       client.delete<ThesisReport>(`${base}/groups/${id(groupId)}/report/file`),
     downloadReportFile: (groupId: string, options: Transfer = {}): Promise<ApiDownload> =>
-      client.download(`${base}/groups/${id(groupId)}/report/file`, { signal: options.signal }),
+      client.download(`${base}/groups/${id(groupId)}/report/file`, { signal: options.signal, nativeFile: true }),
   };
 }
 

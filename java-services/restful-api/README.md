@@ -30,14 +30,18 @@ From the repository root:
 
 ```powershell
 mvn -q -f java-services/pom.xml verify
-docker compose up --build postgres restful-api
+# Once per clone: docker-compose.yml has no default for the owner-assertion key.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
+docker compose up -d --build postgres assistant-db-provisioner rag-service restful-api
 ```
 
 The API listens on `http://localhost:4010` by default. Useful checks:
 
 ```powershell
 curl.exe http://localhost:4010/api/v1/health/liveness
-curl.exe -H "X-Health-Key: local-course-health-key" http://localhost:4010/api/v1/health/readiness
+$env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
+curl.exe -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://localhost:4010/api/v1/health/readiness
 curl.exe http://localhost:4010/v3/api-docs
 ```
 
@@ -46,9 +50,10 @@ for the reproducible student demo. Configure non-empty values for
 `JWT_SECRET`, `JWT_REFRESH_SECRET`, `SPRING_DATASOURCE_PASSWORD` and
 `HEALTH_READINESS_KEY`; never commit real secrets.
 
-Flyway is the only schema owner. The `persistence` profile is enabled by the
-Compose service and starts from an empty PostgreSQL database with deterministic
-course seed data.
+Flyway is the only schema owner. In Docker Compose, Flyway migrations are executed by
+`rag-service` (`FLYWAY_ENABLED: "false"` on `restful-api` to prevent startup migration race
+conditions). The `persistence` profile is enabled by the Compose service and starts from an empty
+PostgreSQL database with deterministic course seed data.
 
 ## Explicit authorization policy
 

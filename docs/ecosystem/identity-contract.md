@@ -1,5 +1,9 @@
 # Identity contract — một session authority (P04)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Issuer `id.campusute.io.vn` dưới đây là **host go-live tương lai**; local demo dùng
+> `http://127.0.0.1:4010`. Local quick start: [README.md](../../README.md#quick-start-local).
+
 Pha: P04 step 1–3 · Owner: controller · Review: Kongming R1 PASS_WITH_CONDITIONS
 (findings 1–15 đã vá vào bản này), Wukong falsification sau implementation.
 Liên quan: `selected-design.md` §ADR-B (dòng 67–77), `domain-contracts.md`,
@@ -18,7 +22,8 @@ flags. Browser BFF + host isolation + sibling queue là **P05**; native client
 | # | Hành vi hiện tại | Nơi | Oracle |
 | --- | --- | --- | --- |
 | C1 | Login: bcrypt + DUMMY_HASH burn cho unknown email, lock 5 lần/30', bypass lock nếu IP giữ session live của account | `AuthLoginService:45-119` | tests + gate pgit |
-| C2 | Refresh: JWT `tokenType=refresh`+`jti`, SHA-256 vào `Session.refreshToken`, rotate in-place (stable `Session.id`); token hợp lệ nhưng hash không còn active = replay → `deleteAllRefreshSessions` + warn + 401 | `AuthLoginService:172-221` | replay tests |
+| C2 | Refresh: JWT `tokenType=refresh`+`jti`, SHA-256 vào `Session.refreshToken`, rotate in-place (stable `Session.id`); token thiếu/rỗng → 401 ngay, không revoke, không warn (không có subject để thu hồi) | `AuthLoginService:183-189` | auth refresh tests |
+| C2a | Refresh replay: token hợp lệ nhưng hash không còn active → `revokeAllLanes`/`deleteAllRefreshSessions` + warn `REFRESH_TOKEN_REUSE` + 401 | `AuthLoginService:191-214` | replay tests |
 | C3 | Lock order: **User → Session** (`lockUserRow` trước mọi session op; `FOR UPDATE OF se` sau) | repository | `*LockOrder*PostgresIT` |
 | C4 | Logout: pin `Session.id` trước User lock; session rõ → xóa row; mơ hồ → xóa hết + `bumpCredentialVersion` + `clearUserRefreshToken` | `AuthLoginService:315-335` | logout tests |
 | C5 | `credentialVersion` + status + roles/permissions/student/lecturer so DB **mỗi request** qua `AccountStateFilter`, chỉ trên URI `/api/v1/*`, fail-closed 503 | `AccountStateFilter:41-60` | account-state tests |
@@ -39,14 +44,14 @@ endpoint trực tiếp của business chain, không trở thành ROPC grant.
 | Contract | Implementation | Ghi chú |
 | --- | --- | --- |
 | Authorization server | `spring-security-oauth2-authorization-server:7.1.1` + Boot module `4.1.1` (pom đã có, compile PASS) | không SAS 1.5/EOL |
-| Issuer | `AuthorizationServerSettings.issuer = ${identity.issuer-uri}`; local demo `http://127.0.0.1:4010`, prod `https://id.campusute.io.vn` | §2.6 proxy constraint |
+| Issuer | `AuthorizationServerSettings.issuer = ${identity.issuer-uri}`; local demo `http://127.0.0.1:4010`, future go-live host `https://id.campusute.io.vn` (deferred) | §2.6 proxy constraint |
 | Registered clients | `RegisteredClientRepository` custom đọc `identity.clients[]` config: exact `redirectUris`/`postLogoutRedirectUris`, no wildcard. **Browser surface = confidential** (secret hash qua env); **native = public + PKCE S256 bắt buộc** (KM finding 10 — native không giữ secret được) | config-driven, không DB |
 | Ký bất đối xứng | `identity.keys[]` RSA PEM qua env (không vào repo/DB): `kid`, `active`, key material. `JWKSource` public toàn ring qua `/oauth2/jwks`; rollover = add key + flip active, key cũ verify trong overlap | dev/test sinh RSA in-memory khi `identity.dev-keygen=true` |
 | Auth-code + PKCE + nonce | SAS `OAuth2AuthorizationService`: code one-time, `code_challenge_method=S256` required trên mọi client, state/nonce do client gửi — server embed nonce vào id_token | SAS-native |
 | Authorization persistence | `JdbcOAuth2AuthorizationService` trên `campuscore_identity.oauth2_authorization` tham gia **cùng transaction trên DataSource chính** qua `TransactionAwareDataSourceProxy` và dynamic schema qualification (`identityJdbcOperations`) — không dùng pool Hikari thứ hai | không InMemory |
 | **Token at-rest encryption** | `LockingIdentityAuthorizationService` rebuild mọi token object trước persist: tất cả cột `*_token_value` là AES-256-GCM deterministic (`identity.token-encryption-key` env) — ADR-B "token mã hóa ở PostgreSQL" đúng chữ. Cột `attributes` KHÔNG encrypt (chứa metadata, không token); principal attribute được sanitize sang `UsernamePasswordAuthenticationToken` (không nhúng JWT raw) (KM finding 5) | stock SAS lưu raw — đây là lớp bọc bắt buộc |
 | OIDC scopes | `openid profile email` + `offline_access` trên clients cần refresh | first-party |
-| Claims trong OIDC access token | `OAuth2TokenCustomizer<JwtEncodingContext>` nhét `credentialVersion`, `roles`, `permissions`, `studentId`, `lecturerId`, `student.year` — cùng shape claims legacy để `AccountStateFilter.matchesCurrentAuthorization` chạy không đổi (KM finding 1) | gate bằng DB mỗi request giữ nguyên |
+| Claims trong OIDC access token | `OAuth2TokenCustomizer<JwtEncodingContext>` nhét `credentialVersion`, `roles`, `permissions`, `email`, `status`, `firstName`, `lastName`, `studentId`, `lecturerId`, `student.year` — cùng shape claims legacy để `AccountStateFilter.matchesCurrentAuthorization` chạy không đổi (KM finding 1) | gate bằng DB mỗi request giữ nguyên |
 | Login/2FA qua authority | `/oauth2/authorize` yêu cầu authenticated: `cc_*` cookie → `CookieOrBearerTokenResolver` → `JwtAuthenticationToken`; `principal_name = User.id` (**join key invariant** của mọi lookup/revoke); unauthenticated → entry point redirect `identity.login-page` (default `/login?return=`), silent-refresh là việc của login UI (P05) | mustChangePassword/status gate trên authorize — §2.4 |
 | Refresh OIDC | Opaque (SAS default) — `LockingRefreshTokenAuthenticationProvider` chạy trong transaction chính dưới khoá User row (`lockUserRow`), đảm bảo tiêu thụ nguyên tử đúng một rotation cho mỗi generation presented; reuse detection của SAS → bridge §2.3 | |
 | Resource server | `IdentityJwtDecoder` dispatch trên raw `iss` claim (string compare — `campuscore-restful-api` không phải URL nên `JwtIssuerAuthenticationManagerResolver`/trusted-issuer không dùng được, KM finding 9): legacy iss → HS256 decoder + `tokenType=access` shape; issuer-uri → `NimbusJwtDecoder` JWKSource nội bộ + aud ∈ registered clientIds | hai validator tường minh, không fallback |
@@ -228,11 +233,24 @@ commit sau thắng deterministic. Phân biệt hai trường hợp authorize đa
   "logout giết những gì đã tồn tại". Test: `secondStageSaveCannotResurrect
   AfterPerClientLogout`, `codeStageSaveAfterCommittedRevokeIsRejected`,
   `grantMintedAfterRevokeStillDiesOnExchange`.
-- **Authorize save code-stage SAU revoke commit**: đây là một login MỚI hợp
-  lệ — user thực sự re-authenticate sau logout, session mới được phép sống.
-  Logout không thể veto một login diễn ra sau nó (UX contract: tab authorize
-  treo sẵn từ trước logout vẫn hoàn tất được **như một phiên mới**, không
-  phải hồi sinh phiên cũ).
+- **BFF local logout đang chờ SAS end-session**: dưới User lock, BFF tăng
+  epoch per-client và đánh dấu pending bằng một reserved row trong
+  `bff_transaction`; `nonce` chỉ giữ digest của user+client. Cùng transaction,
+  BFF xóa mọi session của client và trả ID-token hint. Callback vẫn đọc lại
+  grant dưới lock và từ chối khi pending. Grant save lấy epoch trước User lock,
+  rồi so sánh lại dưới lock; save đang chờ từ trước logout bị từ chối kể cả
+  khi end-session đã xóa pending bit.
+- **Fence tồn tại qua grant revoke và retention**: OAuth2 `/revoke` chỉ xóa
+  grant; retention bỏ qua reserved row. Khi SAS chấp nhận end-session, giao
+  dịch xóa grant/session mirror sẽ chỉ clear pending bit và giữ epoch. Nếu
+  revoke không có BFF hint, authority tăng epoch và ghi trạng thái cleared
+  ngay trong giao dịch revoke.
+- **Authorize save code-stage SAU revoke commit**: save bắt đầu sau logout sẽ
+  đọc epoch hiện tại; nếu pending đã clear thì login mới được phép. Một save
+  đã lấy epoch cũ trước logout vẫn bị từ chối sau khi marker clear. Nếu local
+  transaction lỗi, marker và thay đổi BFF session cùng rollback, controller
+  không phát cookie xóa. Nhánh không có hint thực hiện revoke grant trong cùng
+  transaction đó.
 - **Per-client vs account-wide**: `revokeClientGrants` chỉ xóa grants +
   `bff_session` của client đó — session legacy và surface khác sống tiếp
   (`perClientLogoutKeepsOtherLanesAlive`); `revokeAccount` xóa mọi lane +
@@ -293,7 +311,7 @@ they do not certify the stricter AUD-06 acceptance criteria.
 | Legacy cleanup paths | Login, two-factor verification, forgot/reset-password, refresh and logout bypass the current credential-state gate. Repeated legacy logout may return 200 with a stale access token; protected reads still reject it. Double-submit is cookie/header equality, not session binding; Referer alone is not checked. |
 | Public identity MVC handlers | `/login`, `/session/login`, `/session/callback`, `/session/logged-out`, `/session/state`, `/session/logout`, `/bff/api/**` are filter-permitted. Callback state/transaction-cookie/PKCE/nonce, opaque sessions, proxy credentials and handler CSRF remain the authority. The landing page itself does not revoke anything. |
 | Dead/no-cookie BFF logout | Origin-only idempotence intentionally skips the token check after session deletion/revocation. It returns 200 and expires both BFF cookies; stale business mutations return 403. Requiring stale logout itself to reject conflicts with this policy. |
-| BFF-to-SAS logout bridge gap | BFF deletes the hint's grant before returning `logoutUrl`; SAS rejects that now-unresolvable hint with 400. Retry omits the hint, which SAS 7.1 also rejects with 400. The host-policy §3 claim that hint-null end-session succeeds needs owner reconciliation; BFF cookie deletion alone does not prove central end-session completion. |
+| BFF-to-SAS logout bridge | Under the User lock, BFF increments a per-client epoch in a reserved `bff_transaction` row keyed by the user/client digest, marks it pending, deletes that client's BFF sessions and returns the ID-token hint in one transaction. Same-client grant saves fail while pending or when their pre-lock epoch snapshot is stale. OAuth2 revoke and retention preserve the row. Accepted end-session revokes the grant/session mirror and clears only pending, retaining epoch; a central revoke failure rolls back grant/session-mirror/fence changes and retains central cookies, although the existing handler still redirects. Local failure rolls back marker/session changes and emits no cookie clears. Dead/unknown-session retries still omit the hint and SAS 7.1 rejects that URL with 400; no hint is recovered from a revoked BFF session. |
 | BFF Origin fallback | A live mutation without Origin requires `Sec-Fetch-Site: same-origin` plus session-bound CSRF. Reads/dead-session logout allow absent Origin. Referer is currently ignored; foreign Origin and cross-site metadata are rejected. |
 | BFF anonymous reads | No-cookie GET/HEAD only: default prefixes `/api/v1/announcements/public`, `/api/v1/public/docs`, `/api/v1/article-taxonomy/v2/categories`, `/api/v1/site-appearance`. Upstream public policy still applies; an invalid present cookie cannot downgrade to anonymous. |
 | BFF return/redirect inputs | Configured `/` return prefix allows local relative paths; absolute/protocol-relative/backslash/reserved paths fall back to `/`. Logout ignores `returnTo` and caller `post_logout_redirect_uri`, including duplicates, and builds the fixed registered landing URL. Runtime registry configuration is external authority, not verified by the source inventory. |

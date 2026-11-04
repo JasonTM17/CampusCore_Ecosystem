@@ -14,8 +14,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 // Render the real module under test with its imports replaced by stubs; the
 // same TypeScript transpile harness the thesis council tests use.
-function loadModule(relative, aliases = {}) {
-  const output = ts.transpileModule(read(relative), {
+function loadModule(relative, aliases = {}, sourceRoot = root) {
+  const output = ts.transpileModule(fs.readFileSync(path.join(sourceRoot, relative), 'utf8'), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
@@ -50,6 +50,40 @@ function pageFunction(file, name, dependencies) {
     ...Object.values(dependencies), (fn) => fn,
   );
 }
+
+// Extract a module-scope `function` declaration (pure helpers such as
+// createGradeDrafts / buildGradeSaveRows) the same way pageFunction extracts
+// const callbacks — the real production implementation is evaluated, not a stub.
+function pageHelper(file, name, dependencies) {
+  const source = read('src/' + file);
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name && node.name.getText(tree) === name) {
+      declaration = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(declaration, `page helper ${name} exists`);
+  const output = ts.transpileModule(declaration.getText(tree), {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return Function(...Object.keys(dependencies), `${output}; return ${name};`)(
+    ...Object.values(dependencies),
+  );
+}
+
+const gradeHelpers = (extra = {}) => ({
+  hasCompletedGrade: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'hasCompletedGrade', {}),
+  createGradeDrafts: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'createGradeDrafts', {}),
+  preserveGradeDraftRows: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'preserveGradeDraftRows', {}),
+  isStaleVersionError: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'isStaleVersionError', {}),
+  buildGradeSaveRows: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'buildGradeSaveRows', {
+    hasCompletedGrade: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'hasCompletedGrade', {}),
+  }),
+  ...extra,
+});
 
 // Extract an actual useEffect body (matched by a marker inside the call) and
 // return its setup function — the returned cleanup is then invoked directly.
@@ -114,6 +148,7 @@ function loadEnrollmentsApi(getImpl) {
     },
     '@/i18n/paths': { addLocalePrefix: (p) => p, stripLocaleFromPathname: (p) => p },
     '@/lib/public-api-url': { resolvePublicApiBaseUrl: () => '/api/v1' },
+    '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
     '@/lib/session-hint': { CSRF_COOKIE_NAME: 'cc_csrf', isLogoutInProgress: () => false },
     '@/lib/session-sync': { publishSessionChange: noop },
     '@/lib/surfaces': { surfaceFromHost: () => null },
@@ -182,6 +217,7 @@ function enrollmentDeps(api, calls, overrides = {}) {
     page: 1,
     search: '',
     locale: 'en',
+    copy: { loadFailed: 'LOAD_FAILED' },
     enrollmentsApi: api,
     setEnrollments: record('enrollments'),
     setTotalPages: record('totalPages'),
@@ -241,6 +277,7 @@ test('course sections clear immediately for an empty selection and invalidate a 
   const pending = deferred();
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: { getAll: () => pending.promise },
     fetchAllPages: async (fn) => (await fn(1, 50)).data,
     setSections: record('sections'),
@@ -266,6 +303,7 @@ test('a pending load for the new course clears the previous options midflight', 
   let call = 0;
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: {
       getAll: ({ courseId }) => {
         call += 1;
@@ -297,6 +335,7 @@ test('a stale section-options completion cannot overwrite the newer course', asy
   let call = 0;
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: {
       getAll: ({ courseId }) => {
         call += 1;
@@ -324,6 +363,7 @@ test('a stale users completion cannot overwrite the newer filtered list', async 
   const first = deferred();
   let call = 0;
   const fetchUsers = pageFunction('app/admin/users/page.tsx', 'fetchUsers', {
+    copy: { forbidden: 'forbidden', loadFailed: 'failed' },
     locale: 'en',
     page: 1,
     search: '',
@@ -352,13 +392,18 @@ test('a stale users completion cannot overwrite the newer filtered list', async 
 
 // ---------- lecturer grading section-scoped guards ----------
 
-const gradesCopy = { loadFailed: 'LOAD_FAILED', missingSection: 'MISSING', saved: 'SAVED' };
+const { teachingPagesEn } = loadModule(
+  'src/i18n/messages-teaching-pages.ts',
+  {},
+  path.resolve(__dirname, '..'),
+);
+const gradesCopy = teachingPagesEn.gradeEntry;
 
 function gradingDeps(overrides, sharedCalls) {
   const calls = sharedCalls || recorder();
   const deps = {
     sectionId: 'section-a',
-    copy: gradesCopy,
+    gradeEntry: gradesCopy,
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_err, _dict, fallback) => fallback,
     publishGuard: { current: { sectionId: '', ready: false } },
@@ -376,6 +421,9 @@ function gradingDeps(overrides, sharedCalls) {
     setIsRefreshing: calls.record('isRefreshing'),
     setIsSaving: calls.record('isSaving'),
     setIsPublishing: calls.record('isPublishing'),
+    setStaleVersionConflict: calls.record('staleVersionConflict'),
+    setRemoteChangedRows: calls.record('remoteChangedRows'),
+    ...gradeHelpers(),
     ...overrides,
   };
   return { deps, calls };
@@ -497,13 +545,18 @@ test('a save completing after navigation cannot refetch or touch the new sheet',
     isSaving: false,
     isPublishing: false,
     isRefreshing: false,
+    staleVersionConflict: false,
+    remoteChangedRows: null,
+    ...gradeHelpers(),
+    setStaleVersionConflict: () => {},
+    setRemoteChangedRows: () => {},
     editedIds: new Set(['enr-1']),
     grades: new Map([['enr-1', { enrollmentId: 'enr-1', processScore: 9, finalExamScore: 9 }]]),
     scoreErrors: new Map(),
     sectionsApi: { updateSectionGrades: async () => { await new Promise((r) => setImmediate(r)); } },
     fetchSectionGrades: async (...args) => { refetch.push(args); },
     toast: { success: () => {}, warning: () => {}, error: () => {} },
-    copy: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
+    gradeEntry: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
     formatNumber: (n) => String(n),
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_e, _d, f) => f,
@@ -535,13 +588,15 @@ function saveDeps(shared, overrides = {}) {
     isSaving: false,
     isPublishing: false,
     isRefreshing: false,
+    staleVersionConflict: false,
+    remoteChangedRows: null,
     editedIds: new Set(['enr-1']),
     grades: new Map([['enr-1', { enrollmentId: 'enr-1', processScore: 9, finalExamScore: 9 }]]),
     scoreErrors: new Map(),
     sectionsApi: { updateSectionGrades: async () => {} },
     fetchSectionGrades: async () => {},
     toast: { success: () => {}, warning: () => {}, error: () => {} },
-    copy: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
+    gradeEntry: { ...gradesCopy, saveFailed: 'SAVE_FAILED', partialRowsOnly: 'P {count}', partialRowsSkipped: 'S {count}' },
     formatNumber: (n) => String(n),
     messages: { common: { campusErrors: {} } },
     campusErrorMessage: (_e, _d, f) => f,
@@ -549,7 +604,9 @@ function saveDeps(shared, overrides = {}) {
     setIsSaving: shared.setIsSaving,
     currentSectionRef: shared.currentSectionRef,
     gradeMutationRef: shared.gradeMutationRef,
-    hasCompletedGrade: (u) => u != null && u.processScore != null && u.finalExamScore != null,
+    ...gradeHelpers(),
+    setStaleVersionConflict: () => {},
+    setRemoteChangedRows: () => {},
     focusFirstInvalidCell: () => {},
     focusFirstPartialCell: () => {},
     ...overrides,
@@ -717,7 +774,7 @@ test('a publish confirmed after navigation must not reach the API', async () => 
     currentSectionRef: shared.currentSectionRef,
     gradeMutationRef: shared.gradeMutationRef,
     confirm: () => confirmGate.promise,
-    copy: { ...gradesCopy, publishTitle: 'T', publishMessage: 'M', publishGrades: 'P', published: 'DONE', publishFailed: 'FAIL' },
+    gradeEntry: { ...gradesCopy, publishTitle: 'T', publishMessage: 'M', publishGrades: 'P', published: 'DONE', publishFailed: 'FAIL' },
     sectionsApi: { publishSectionGrades: async (id) => { publishes.push(id); } },
     fetchSectionGrades: async () => {},
     toast: { success: calls.record('success'), error: calls.record('toastError') },
@@ -735,4 +792,1004 @@ test('a publish confirmed after navigation must not reach the API', async () => 
   assert.equal(publishes.length, 0, 'a stale confirmation must never publish');
   assert.equal(calls.calls.filter(([n, v]) => n === 'isPublishing' && v === true).length, 0,
     'the stale publish must not even raise the busy flag');
+});
+
+// ---------- W13-DEEPSEEK-WEB-B: latest-request guards ----------
+
+const createEpoch = () => loadModule('src/lib/request-epoch.ts').createRequestEpoch();
+
+test('a stale admin announcement list cannot overwrite the newer filter result', async () => {
+  const calls = recorder();
+  const first = deferred();
+  let call = 0;
+  const fetchAnnouncements = pageFunction('app/admin/announcements/page.tsx', 'fetchAnnouncements', {
+    page: 1,
+    filters: { semesterId: '', priority: '', search: '', status: 'ACTIVE' },
+    announcementsApi: {
+      getAll: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 2 } });
+      },
+    },
+    setItems: calls.record('items'),
+    setTotalPages: calls.record('totalPages'),
+    setIsLoading: calls.record('isLoading'),
+    setError: calls.record('error'),
+    friendlyError: () => 'ERR',
+    announcementsEpoch: createEpoch(),
+  });
+  const pending = fetchAnnouncements();
+  await fetchAnnouncements();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 9 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('items'), [{ id: 'new' }],
+    'the older response must not overwrite the newer filter list');
+  assert.equal(calls.calls.filter(([n, v]) => n === 'isLoading' && v === false).length, 1,
+    'the stale finally must not clear the newer loading flag');
+});
+
+test('a stale review-queue status response cannot overwrite the newly selected status', async () => {
+  const calls = recorder();
+  const first = deferred();
+  const epoch = createEpoch();
+  let call = 0;
+  let queueItems = [];
+  const dependencies = (queueStatus) => ({
+    queueStatus,
+    queueEpoch: epoch,
+    announcementsApi: {
+      getAll: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 1 } });
+      },
+    },
+    setQueueItems: (update) => {
+      queueItems = typeof update === 'function' ? update(queueItems) : update;
+      calls.record('items')(queueItems);
+    },
+    setQueueTotalPages: calls.record('totalPages'),
+    setQueuePage: calls.record('page'),
+    setQueueLoading: calls.record('loading'),
+    setQueueError: calls.record('error'),
+    setQueueLoadingMore: calls.record('loadingMore'),
+    setQueueLoadMoreError: calls.record('loadMoreError'),
+  });
+  const oldFetch = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', dependencies('DRAFT'));
+  const newFetch = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', dependencies('PUBLISHED'));
+  const pending = oldFetch();
+  await newFetch();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 1 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('items'), [{ id: 'new' }],
+    'the DRAFT response must not replace the PUBLISHED queue');
+});
+
+test('the review queue pages past item 50 and appends only unseen rows', async () => {
+  let params;
+  let queueItems = [{ id: 'a' }, { id: 'b' }];
+  const values = {};
+  const fetchQueue = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', {
+    queueStatus: 'ALL',
+    queueEpoch: createEpoch(),
+    announcementsApi: {
+      getAll: async (query) => {
+        params = query;
+        return { data: [{ id: 'b' }, { id: 'c' }], meta: { totalPages: 3, total: 120 } };
+      },
+    },
+    setQueueItems: (update) => {
+      queueItems = typeof update === 'function' ? update(queueItems) : update;
+    },
+    setQueueTotalPages: (value) => { values.totalPages = value; },
+    setQueuePage: (value) => { values.page = value; },
+    setQueueLoading: () => {},
+    setQueueError: () => {},
+    setQueueLoadingMore: () => {},
+    setQueueLoadMoreError: () => {},
+  });
+  await fetchQueue(2);
+  assert.equal(params.page, 2, 'page 2 is requested instead of re-reading page 1');
+  assert.equal(params.limit, 50);
+  assert.equal(params.status, 'ALL');
+  assert.deepEqual(queueItems.map((item) => item.id), ['a', 'b', 'c'],
+    'the next page appends without duplicating an item already on screen');
+  assert.equal(values.totalPages, 3);
+  assert.equal(values.page, 2);
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /fetchQueue\(queuePage \+ 1\)/, 'the load-more control requests the next page');
+  assert.match(source, /hasNextPage\(queuePage, queueTotalPages\)/, 'the control appears only while older pages exist');
+});
+
+test('a review-queue retry clears the error and reloads page 1', async () => {
+  const calls = recorder();
+  const retried = deferred();
+  let requests = 0;
+  const fetchQueue = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', {
+    queueStatus: 'ALL',
+    queueEpoch: createEpoch(),
+    announcementsApi: {
+      getAll: (query) => {
+        requests += 1;
+        assert.equal(query.page, 1, 'the retry reloads the first page');
+        return requests === 1
+          ? Promise.reject(new Error('offline'))
+          : retried.promise;
+      },
+    },
+    setQueueItems: () => {},
+    setQueueTotalPages: () => {},
+    setQueuePage: () => {},
+    setQueueLoading: calls.record('loading'),
+    setQueueError: calls.record('error'),
+    setQueueLoadingMore: () => {},
+    setQueueLoadMoreError: () => {},
+  });
+
+  await fetchQueue();
+  assert.equal(new Map(calls.calls).get('error'), true, 'the first failure surfaces');
+
+  const retry = fetchQueue();
+  assert.equal(new Map(calls.calls).get('error'), false, 'the retry clears the error before refetching');
+  retried.resolve({ data: [{ id: 'visible' }], meta: { totalPages: 1 } });
+  await retry;
+
+  assert.equal(requests, 2, 'the retry issues a fresh queue request');
+});
+
+test('a slower lecturer feed response cannot replace the newest feed request', async () => {
+  const requests = [deferred(), deferred()];
+  let requestIndex = 0;
+  let items = [];
+  let currentEpoch = 0;
+  const feedEpoch = {
+    begin() { currentEpoch += 1; return currentEpoch; },
+    isCurrent(epoch) { return epoch === currentEpoch; },
+    invalidate() { currentEpoch += 1; },
+  };
+  const fetchFeed = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchFeed', {
+    announcementsApi: { getMy: () => requests[requestIndex++].promise },
+    copy: { loadFailed: 'failed' },
+    feedEpoch,
+    feedAccountId: 'lecturer-a',
+    feedAccountIdRef: { current: 'lecturer-a' },
+    setIsLoading: () => {},
+    setError: () => {},
+    setIsLoadingMore: () => {},
+    setLoadMoreError: () => {},
+    setItems: (update) => { items = update(items); },
+    setTotalPages: () => {},
+    setPage: () => {},
+  });
+
+  const olderRequest = fetchFeed();
+  const newerRequest = fetchFeed();
+  requests[1].resolve({ data: [{ id: 'new' }], meta: { totalPages: 1 } });
+  await newerRequest;
+  requests[0].resolve({ data: [{ id: 'old' }], meta: { totalPages: 1 } });
+  await olderRequest;
+
+  assert.deepEqual(items, [{ id: 'new' }],
+    'an older announcement response must not overwrite the latest feed');
+});
+
+test('the lecturer feed epoch retires when the page unmounts', () => {
+  let invalidations = 0;
+  const setup = pageEffect(
+    'app/dashboard/lecturer/announcements/page.tsx',
+    'feedEpoch.invalidate()',
+    { feedEpoch: { invalidate: () => { invalidations += 1; } } },
+  );
+  const cleanup = setup();
+  assert.equal(typeof cleanup, 'function');
+  cleanup();
+  assert.equal(invalidations, 1);
+});
+
+test('lecturer announcement page-local state is keyed to the authenticated user', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /<LecturerAnnouncementsWorkspace key=\{auth\.user\?\.id \?\? 'anonymous'\} auth=\{auth\} \/>/);
+});
+
+test('editor publish ignores a re-entrant invocation while a publish is in flight', async () => {
+  let creates = 0;
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: true,
+    publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    announcementsApi: { create: async () => { creates += 1; } },
+    audienceFor: () => ({}),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: () => {}, error: () => {} },
+  });
+  await publish();
+  assert.equal(creates, 0, 'a publish already flagged in flight must not create a duplicate');
+});
+
+test('editor publish submits a new notice for review instead of claiming publication', async () => {
+  const calls = [];
+  const toasts = [];
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: {
+      notifications: {
+        announcementPublished: 'Announcement successfully published to campus feed!',
+        announcementSubmitFailed: 'Could not submit the announcement for review.',
+        titleRequired: 'Title required',
+      },
+    },
+    messages: {
+      content: {
+        lifecycle: {
+          submitted: 'Draft submitted for review.',
+          approved: 'Announcement published.',
+        },
+      },
+    },
+    announcementsApi: {
+      create: async (payload) => {
+        calls.push(['create', payload]);
+        return { id: 'notice-1', status: 'DRAFT' };
+      },
+      submit: async (id) => {
+        calls.push(['submit', id]);
+        return { id, status: 'IN_REVIEW' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT', 'LECTURER', 'ADMIN'] }),
+    clearPersistedDraft: () => calls.push(['clear']),
+    fetchPublishedNotices: () => calls.push(['refresh']),
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+
+  assert.deepEqual(calls.map(([kind]) => kind), ['create', 'submit', 'clear', 'refresh']);
+  assert.equal(calls[1][1], 'notice-1', 'the draft the server created is the one submitted');
+  assert.deepEqual(
+    toasts,
+    ['Draft submitted for review.'],
+    'a new draft is authored by the caller, so the server can only have queued it for review',
+  );
+});
+
+test('editor publish reports publication only after the server confirms PUBLISHED', async () => {
+  const toasts = [];
+  let submitted = 0;
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    pendingSubmitRef: { current: null },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: {
+      notifications: {
+        announcementPublished: 'Announcement successfully published to campus feed!',
+        announcementSubmitFailed: 'Could not submit the announcement for review.',
+        titleRequired: 'Title required',
+      },
+    },
+    messages: {
+      content: {
+        lifecycle: {
+          submitted: 'Draft submitted for review.',
+          approved: 'Announcement published.',
+        },
+      },
+    },
+    announcementsApi: {
+      create: async () => ({ id: 'notice-2', status: 'DRAFT' }),
+      submit: async (id) => {
+        submitted += 1;
+        return { id, status: 'PUBLISHED' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT', 'LECTURER', 'ADMIN'] }),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+
+  assert.equal(submitted, 1, 'the draft is sent to the workflow');
+  assert.deepEqual(
+    toasts,
+    ['Announcement successfully published to campus feed!'],
+    'the published copy is allowed only after the server state says PUBLISHED',
+  );
+});
+
+test('a failed review submission is retried on the same draft instead of creating another', async () => {
+  const calls = [];
+  const toasts = [];
+  let failSubmit = true;
+  const pendingSubmitRef = { current: null };
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: false },
+    pendingSubmitRef,
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    copy: { notifications: { announcementPublished: 'Published', announcementSubmitFailed: 'Submit failed', titleRequired: 'Title' } },
+    messages: { content: { lifecycle: { submitted: 'Submitted', approved: 'Approved' } } },
+    announcementsApi: {
+      create: async () => {
+        calls.push('create');
+        return { id: 'notice-3', status: 'DRAFT' };
+      },
+      submit: async (id) => {
+        calls.push('submit');
+        if (failSubmit) throw new Error('offline');
+        return { id, status: 'IN_REVIEW' };
+      },
+    },
+    audienceFor: () => ({ isGlobal: true, targetRoles: ['STUDENT'] }),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: (message) => toasts.push(message), error: (message) => toasts.push(message) },
+  });
+
+  await publish();
+  failSubmit = false;
+  await publish();
+
+  assert.deepEqual(calls, ['create', 'submit', 'submit'], 'the retry submits the draft that already exists');
+  assert.deepEqual(toasts, ['Submit failed', 'Submitted']);
+  assert.equal(pendingSubmitRef.current, null, 'a submitted draft is not remembered');
+});
+test('the editor live list reads only published notices', async () => {
+  const requests = [];
+  let notices = [];
+  const fetchNotices = pageFunction('app/dashboard/editor/page.tsx', 'fetchPublishedNotices', {
+    announcementsApi: {
+      getAll: async (params) => {
+        requests.push(params);
+        return { data: [{ id: 'published-1' }] };
+      },
+    },
+    siteAppearance: { postOrder: [] },
+    orderByIds: (items) => items,
+    setLoadingNotices: () => {},
+    setPublishedNotices: (value) => {
+      notices = value;
+    },
+    setHasUnsavedNoticeOrder: () => {},
+    setNoticesLoadError: () => {},
+  });
+
+  await fetchNotices();
+
+  assert.deepEqual(requests, [{ page: 1, limit: 15, status: 'PUBLISHED' }]);
+  assert.deepEqual(notices, [{ id: 'published-1' }]);
+});
+
+test('editor update ignores a re-entrant invocation while an update is in flight', async () => {
+  let updates = 0;
+  const update = pageFunction('app/dashboard/editor/page.tsx', 'handleUpdateAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: true },
+    editingId: 'notice-1',
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priorityKnown: true,
+    priority: 'NORMAL',
+    audienceKnown: true,
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    editingVersion: 1,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    announcementsApi: { update: async () => { updates += 1; } },
+    audienceFor: () => ({}),
+    setEditingVersion: () => {},
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: () => {}, error: () => {} },
+  });
+  await update();
+  assert.equal(updates, 0, 'an update already in flight must not be sent twice');
+});
+
+test('admin section delete ignores a second trigger while the first is pending', async () => {
+  let deletes = 0;
+  const handleDelete = pageFunction('app/admin/sections/page.tsx', 'handleDelete', {
+    copy: {
+      deleteTitle: 'Delete',
+      deleteMessage: () => 'Confirm',
+      deleteConfirm: 'Delete',
+      deleted: 'Deleted',
+      deleteFailed: 'Failed',
+      unknownCourse: 'Unknown',
+    },
+    confirm: async () => true,
+    deletingRef: { current: true },
+    setDeletingSectionId: () => {},
+    adminSectionsApi: { delete: async () => { deletes += 1; } },
+    toast: { success: () => {}, error: () => {} },
+    sections: [],
+    page: 1,
+    setPage: () => {},
+    fetchSections: async () => {},
+  });
+  await handleDelete({ id: 'section-1', sectionNumber: '01', course: { code: 'CS101' } });
+  assert.equal(deletes, 0, 'the pending delete guard must block the second call');
+});
+
+test('a stale grading-section response cannot replace the newly selected semester', async () => {
+  const calls = recorder();
+  const first = deferred();
+  const epoch = createEpoch();
+  let call = 0;
+  const dependencies = (selectedSemester) => ({
+    selectedSemester,
+    sectionsEpoch: epoch,
+    sectionsApi: {
+      getMyGradingSections: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve([{ id: 'new-section' }]);
+      },
+    },
+    messages: { lecturerGrades: { errors: { loadFailed: 'FAILED' } } },
+    setSections: calls.record('sections'),
+    setIsLoading: calls.record('isLoading'),
+    setError: calls.record('error'),
+  });
+  const oldFetch = pageFunction('app/dashboard/lecturer/grades/page.tsx', 'fetchSections', dependencies('term-a'));
+  const newFetch = pageFunction('app/dashboard/lecturer/grades/page.tsx', 'fetchSections', dependencies('term-b'));
+  const pending = oldFetch();
+  await newFetch();
+  first.resolve([{ id: 'old-section' }]);
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('sections'), [{ id: 'new-section' }],
+    'term A sections must not land after term B was selected');
+});
+
+test('a stale audit page cannot overwrite the newer filter result', async () => {
+  const calls = recorder();
+  const first = deferred();
+  let call = 0;
+  const load = pageFunction('app/admin/audit/page.tsx', 'load', {
+    page: 1,
+    PAGE_SIZE: 20,
+    applied: { search: 'new' },
+    auditEpoch: createEpoch(),
+    adminAuditApi: {
+      list: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 2, total: 25 } });
+      },
+    },
+    setRows: calls.record('rows'),
+    setTotalPages: calls.record('totalPages'),
+    setTotal: calls.record('total'),
+    setLoading: calls.record('loading'),
+    setError: calls.record('error'),
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    copy: { loadFailed: 'FAILED' },
+  });
+  const pending = load();
+  await load();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 9, total: 99 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('rows'), [{ id: 'new' }],
+    'the older audit response must not overwrite the newer page');
+});
+
+test('section edits omit unchanged fields and detect a changed schedule snapshot', () => {
+  const scheduleListsEqual = pageHelper('app/admin/sections/page.tsx', 'sectionScheduleListsEqual', {});
+  const buildPayload = pageHelper('app/admin/sections/page.tsx', 'buildSectionUpdatePayload', {
+    sectionScheduleListsEqual: scheduleListsEqual,
+  });
+  const hasChanged = pageHelper('app/admin/sections/page.tsx', 'hasSectionSnapshotChanged', {
+    sectionScheduleListsEqual: scheduleListsEqual,
+  });
+  const baseline = {
+    id: 'section-1',
+    courseId: 'course-1',
+    semesterId: 'semester-1',
+    sectionNumber: '01',
+    lecturerId: 'lecturer-1',
+    capacity: 30,
+    status: 'OPEN',
+    schedules: [{
+      id: 'monday', dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroom: { id: 'room-1' },
+    }],
+  };
+  const form = {
+    courseId: 'course-1', semesterId: 'semester-1', sectionNumber: '01',
+    lecturerId: 'lecturer-1', capacity: 40, status: 'OPEN',
+  };
+  const meetings = [{
+    rowId: 'monday', dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroomId: 'room-1',
+  }];
+  assert.deepEqual(buildPayload(baseline, form, meetings, true), { capacity: 40 },
+    'a capacity-only edit must not resend unchanged relations or the schedule list');
+
+  const anotherAdminSchedule = [...baseline.schedules, {
+    id: 'wednesday', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroom: { id: 'room-2' },
+  }];
+  assert.equal(hasChanged(baseline, { ...baseline, schedules: anotherAdminSchedule }), true,
+    'a pre-save read must detect a meeting added after the modal opened');
+  assert.deepEqual(buildPayload(baseline, form, [
+    ...meetings,
+    { rowId: 'new', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroomId: 'room-2' },
+  ], true).schedules, [
+    { dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroomId: 'room-1' },
+    { dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroomId: 'room-2' },
+  ], 'an explicitly changed schedule remains part of the update');
+});
+
+test('course edits send only changed catalogue fields and detect a stale credit value', () => {
+  const buildPayload = pageHelper('app/admin/courses/page.tsx', 'buildCourseUpdatePayload', {});
+  const hasChanged = pageHelper('app/admin/courses/page.tsx', 'hasCourseSnapshotChanged', {});
+  const baseline = {
+    id: 'course-1', code: 'CS101', name: 'Intro', nameEn: 'Intro', nameVi: 'Nhập môn',
+    description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ',
+    credits: 3, departmentId: 'department-1', isActive: true,
+  };
+  const form = {
+    code: 'CS101', nameEn: 'Intro', nameVi: 'Nhập môn', credits: 4,
+    departmentId: 'department-1', descriptionEn: 'Old', descriptionVi: 'Cũ',
+  };
+  assert.deepEqual(buildPayload(baseline, form), { credits: 4 },
+    'a credit edit must not resend unchanged department or text fields');
+  assert.equal(hasChanged(baseline, { ...baseline, credits: 5 }), true,
+    'a pre-save read must detect a credit value changed after the form loaded');
+});
+
+test('an unchanged admin user status is omitted from profile updates', () => {
+  const hasChanged = pageHelper('app/admin/users/page.tsx', 'hasUserStatusChanged', {});
+  assert.equal(hasChanged('ACTIVE', 'ACTIVE'), false,
+    'an unchanged loaded status must not become a write that can revive a suspended account');
+  assert.equal(hasChanged('ACTIVE', 'SUSPENDED'), true,
+    'an explicit status change must still be sent');
+});
+
+test('admin catalog and credit-limit lists ignore late responses from older filters', async (t) => {
+  const cases = [
+    {
+      label: 'sections', file: 'app/admin/sections/page.tsx', callback: 'fetchSections',
+      epochName: 'sectionsEpoch', apiName: 'adminSectionsApi', method: 'getAll',
+      setter: 'setSections', oldParams: { page: 2, semesterFilter: 'term-a', search: 'first' },
+      newParams: { page: 1, semesterFilter: 'term-b', search: 'second' },
+    },
+    {
+      label: 'courses', file: 'app/admin/courses/page.tsx', callback: 'fetchCourses',
+      epochName: 'coursesEpoch', apiName: 'coursesApi', method: 'getAll',
+      setter: 'setCourses', oldParams: { page: 2, departmentFilter: 'department-a', search: 'first' },
+      newParams: { page: 1, departmentFilter: 'department-b', search: 'second' },
+    },
+    {
+      label: 'semesters', file: 'app/admin/semesters/page.tsx', callback: 'fetchSemesters',
+      epochName: 'semestersEpoch', apiName: 'adminSemestersApi', method: 'getAll',
+      setter: 'setSemesters', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'credit-limit applications', file: 'app/admin/credit-limit-applications/page.tsx', callback: 'load',
+      epochName: 'applicationsEpoch', apiName: 'adminRegistrationApi', method: 'creditLimitApplications',
+      setter: 'setApplications', oldParams: { filter: 'PENDING' }, newParams: { filter: 'APPROVED' },
+    },
+    {
+      label: 'departments', file: 'app/admin/departments/page.tsx', callback: 'fetchDepartments',
+      epochName: 'departmentsEpoch', apiName: 'departmentsApi', method: 'getAll',
+      setter: 'setDepartments', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'classrooms', file: 'app/admin/classrooms/page.tsx', callback: 'fetchClassrooms',
+      epochName: 'classroomsEpoch', apiName: 'classroomsApi', method: 'getAll',
+      setter: 'setClassrooms', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'academic years', file: 'app/admin/academic-years/page.tsx', callback: 'fetchAcademicYears',
+      epochName: 'academicYearsEpoch', apiName: 'academicYearsApi', method: 'getAll',
+      setter: 'setAcademicYears', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'lecturers', file: 'app/admin/lecturers/page.tsx', callback: 'fetchLecturers',
+      epochName: 'lecturersEpoch', apiName: 'lecturersApi', method: 'getAll',
+      setter: 'setLecturers', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'attendance', file: 'app/admin/attendance/page.tsx', callback: 'fetchRecords',
+      epochName: 'attendanceEpoch', apiName: 'attendanceApi', method: 'adminList',
+      setter: 'setRecords', oldParams: { page: 2, sectionFilter: 'sec-a', dateFilter: '2026-11-01' },
+      newParams: { page: 1, sectionFilter: 'sec-b', dateFilter: '2026-11-02' },
+    },
+  ];
+
+  for (const entry of cases) {
+    await t.test(entry.label, async () => {
+      const calls = recorder();
+      const first = deferred();
+      let request = 0;
+      const epoch = createEpoch();
+      const api = {
+        [entry.method]: () => {
+          request += 1;
+          return request === 1 ? first.promise : Promise.resolve(
+            entry.label === 'credit-limit applications'
+              ? [{ id: 'new' }]
+              : { data: [{ id: 'new' }], meta: { totalPages: 2, total: 5 } },
+          );
+        },
+      };
+      const base = {
+        [entry.epochName]: epoch,
+        [entry.apiName]: api,
+        [entry.setter]: calls.record('rows'),
+        setTotalItems: calls.record('totalItems'),
+        setError: calls.record('error'),
+        setTotalPages: calls.record('totalPages'),
+        setTotal: calls.record('total'),
+        setIsLoading: calls.record('loading'),
+        setLoading: calls.record('loading'),
+        page: 1,
+        search: '',
+        departmentFilter: '',
+        semesterFilter: '',
+        sectionFilter: '',
+        dateFilter: '',
+        PAGE_LIMIT: 20,
+        filter: 'PENDING',
+        copy: { loadFailed: 'FAILED', errorDescription: 'FAILED' },
+        messages: { common: { campusErrors: {} } },
+        campusErrorMessage: () => 'ERROR',
+      };
+      const oldLoad = pageFunction(entry.file, entry.callback, { ...base, ...entry.oldParams });
+      const newLoad = pageFunction(entry.file, entry.callback, { ...base, ...entry.newParams });
+      const pending = oldLoad();
+      await newLoad();
+      first.resolve(entry.label === 'credit-limit applications'
+        ? [{ id: 'old' }]
+        : { data: [{ id: 'old' }], meta: { totalPages: 9, total: 99 } });
+      await pending;
+      assert.deepEqual(new Map(calls.calls).get('rows'), [{ id: 'new' }],
+        'the earlier filter or page must not replace the latest result');
+      assert.equal(calls.calls.filter(([name, value]) => name === 'loading' && value === false).length, 1,
+        'a stale finally block must not clear the current loading state');
+    });
+  }
+});
+
+test('an already-reviewed credit-limit request gets specific copy and reloads the list', async () => {
+  const calls = recorder();
+  let reloads = 0;
+  const submitReview = pageFunction('app/admin/credit-limit-applications/page.tsx', 'submitReview', {
+    selected: { id: 'application-1' },
+    note: '',
+    decision: 'APPROVED',
+    setReviewError: calls.record('reviewError'),
+    setSaving: calls.record('saving'),
+    adminRegistrationApi: {
+      reviewCreditLimitApplication: async () => {
+        throw { response: { status: 409, data: { code: 'CREDIT_LIMIT_APPLICATION_NOT_PENDING' } } };
+      },
+    },
+    setSelected: calls.record('selected'),
+    toast: { success: () => {}, error: () => {} },
+    copy: { alreadyReviewed: 'ALREADY_REVIEWED', loadFailed: 'LOAD_FAILED' },
+    messages: { common: { campusErrors: {
+      network: 'NETWORK', validation: 'VALIDATION', conflict: 'GENERIC_CONFLICT',
+      unauthorized: 'UNAUTHORIZED', forbidden: 'FORBIDDEN', notFound: 'NOT_FOUND',
+      server: 'SERVER', unknown: 'UNKNOWN',
+    } } },
+    campusErrorCode: (error) => loadModule('src/lib/campus-error.ts').campusErrorCode(error),
+    campusErrorMessage: (error, copy, fallback) => loadModule('src/lib/campus-error.ts')
+      .campusErrorMessage(error, copy, fallback),
+    campusCodeMessage: (error, copy, fallback) => loadModule('src/lib/campus-error.ts')
+      .campusCodeMessage(error, copy, fallback),
+    load: async () => { reloads += 1; },
+  });
+  await submitReview({ preventDefault() {} });
+  assert.equal(new Map(calls.calls).get('reviewError'), 'ALREADY_REVIEWED',
+    'a reviewed conflict must not be rendered as the generic 409 line');
+  assert.equal(reloads, 1, 'the changed application list must be reloaded');
+});
+
+test('academic-year edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/academic-years/page.tsx', 'buildAcademicYearUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/academic-years/page.tsx', 'handleSubmit', {
+    formData: { year: 2026, startDate: '2026-09-01', endDate: '2027-01-20' },
+    copy: { endDateBeforeStart: 'ORDER', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingYear: {
+      id: 'year-1', year: 2026,
+      startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+    },
+    academicYearsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchAcademicYears: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildAcademicYearUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'year-1', payload: { endDate: '2027-01-20' } },
+    'an end-date edit must not resend the unchanged year or start date');
+});
+
+test('semester edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/semesters/page.tsx', 'buildSemesterUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/semesters/page.tsx', 'handleSubmit', {
+    formData: {
+      nameEn: 'Fall 2026', nameVi: 'Học kỳ 1', type: 'FIRST',
+      academicYearId: 'year-1', startDate: '2026-09-01', endDate: '2027-01-20',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingSemester: {
+      id: 'semester-1', name: 'Fall 2026', nameEn: 'Fall 2026', nameVi: 'Học kỳ 1',
+      type: 'FIRST', academicYearId: 'year-1',
+      startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+      status: 'DRAFT',
+    },
+    adminSemestersApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchSemesters: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildSemesterUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'semester-1', payload: { endDate: '2027-01-20' } },
+    'an end-date edit must not resend the unchanged names, type, year, or start date');
+});
+
+test('classroom edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/classrooms/page.tsx', 'buildClassroomUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/classrooms/page.tsx', 'handleSubmit', {
+    formData: { building: 'A', roomNumber: '101', capacity: 40, type: 'LECTURE' },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingRoom: {
+      id: 'room-1', building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE', isActive: true,
+    },
+    classroomsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchClassrooms: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildClassroomUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'room-1', payload: { capacity: 40 } },
+    'a capacity edit must not resend the unchanged building, room, or type');
+});
+
+test('department edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/departments/page.tsx', 'buildDepartmentUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/departments/page.tsx', 'handleSubmit', {
+    formData: {
+      nameEn: 'Computing', nameVi: 'Khoa học máy tính', code: 'CS',
+      descriptionEn: 'Old', descriptionVi: 'Cũ',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingDepartment: {
+      id: 'department-1', name: 'Computing', nameEn: 'Computing', nameVi: 'Máy tính', code: 'CS',
+      description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ', isActive: true,
+    },
+    departmentsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchDepartments: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildDepartmentUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'department-1', payload: { nameVi: 'Khoa học máy tính' } },
+    'a Vietnamese-name edit must not resend the unchanged code, fallback name, or descriptions');
+});
+
+test('lecturer edits send only changed profile fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/lecturers/page.tsx', 'buildLecturerUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/lecturers/page.tsx', 'handleSubmit', {
+    formData: {
+      employeeId: 'E1', userId: 'user-1', departmentId: 'department-2', specialization: 'AI',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingLecturer: {
+      id: 'lecturer-1', employeeId: 'E1', userId: 'user-1', departmentId: 'department-1',
+      specialization: 'AI', isActive: true,
+    },
+    lecturersApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchLecturers: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildLecturerUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'lecturer-1', payload: { departmentId: 'department-2' } },
+    'a department edit must not resend the unchanged employee, user, or specialization');
+});
+
+test('catalogue edits with no changed fields do not call the update endpoint', async (t) => {
+  const cases = [
+    {
+      label: 'academic years', file: 'app/admin/academic-years/page.tsx',
+      helper: 'buildAcademicYearUpdatePayload', apiName: 'academicYearsApi',
+      editingName: 'editingYear',
+      baseline: {
+        id: 'year-1', year: 2026,
+        startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+      },
+      formData: { year: 2026, startDate: '2026-09-01', endDate: '2027-01-15' },
+      extraDeps: { fetchAcademicYears: async () => {} },
+    },
+    {
+      label: 'semesters', file: 'app/admin/semesters/page.tsx',
+      helper: 'buildSemesterUpdatePayload', apiName: 'adminSemestersApi',
+      editingName: 'editingSemester',
+      baseline: {
+        id: 'semester-1', name: 'Fall 2026', nameEn: 'Fall 2026', nameVi: 'Học kỳ 1',
+        type: 'FIRST', academicYearId: 'year-1',
+        startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+        status: 'DRAFT',
+      },
+      formData: {
+        nameEn: 'Fall 2026', nameVi: 'Học kỳ 1', type: 'FIRST',
+        academicYearId: 'year-1', startDate: '2026-09-01', endDate: '2027-01-15',
+      },
+      extraDeps: { fetchSemesters: async () => {} },
+    },
+    {
+      label: 'classrooms', file: 'app/admin/classrooms/page.tsx',
+      helper: 'buildClassroomUpdatePayload', apiName: 'classroomsApi',
+      editingName: 'editingRoom',
+      baseline: {
+        id: 'room-1', building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE',
+      },
+      formData: { building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE' },
+      extraDeps: { fetchClassrooms: async () => {} },
+    },
+    {
+      label: 'departments', file: 'app/admin/departments/page.tsx',
+      helper: 'buildDepartmentUpdatePayload', apiName: 'departmentsApi',
+      editingName: 'editingDepartment',
+      baseline: {
+        id: 'department-1', name: 'Computing', nameEn: 'Computing', nameVi: 'Máy tính',
+        code: 'CS', description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ',
+      },
+      formData: {
+        nameEn: 'Computing', nameVi: 'Máy tính', code: 'CS',
+        descriptionEn: 'Old', descriptionVi: 'Cũ',
+      },
+      extraDeps: { fetchDepartments: async () => {} },
+    },
+    {
+      label: 'lecturers', file: 'app/admin/lecturers/page.tsx',
+      helper: 'buildLecturerUpdatePayload', apiName: 'lecturersApi',
+      editingName: 'editingLecturer',
+      baseline: {
+        id: 'lecturer-1', employeeId: 'E1', userId: 'user-1',
+        departmentId: 'department-1', specialization: 'AI',
+      },
+      formData: {
+        employeeId: 'E1', userId: 'user-1', departmentId: 'department-1', specialization: 'AI',
+      },
+      extraDeps: { fetchLecturers: async () => {} },
+    },
+  ];
+
+  for (const entry of cases) {
+    await t.test(entry.label, async () => {
+      const buildPayload = pageHelper(entry.file, entry.helper, {});
+      let updates = 0;
+      let success = '';
+      const handleSubmit = pageFunction(entry.file, 'handleSubmit', {
+        formData: entry.formData,
+        copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+        setIsSaving: () => {},
+        [entry.editingName]: entry.baseline,
+        [entry.apiName]: {
+          update: async () => { updates += 1; },
+        },
+        toast: { success: (message) => { success = message; }, error: () => {} },
+        closeModal: () => {},
+        campusErrorMessage: () => 'ERR',
+        messages: { common: { campusErrors: {} } },
+        [entry.helper]: buildPayload,
+        ...entry.extraDeps,
+      });
+      await handleSubmit({ preventDefault() {} });
+      assert.equal(updates, 0, 'no field changed means there is nothing to write');
+      assert.equal(success, 'UPDATED', 'the no-op save still reports success');
+    });
+  }
+});
+
+test('a campus-wide announcement save never carries a section scope', () => {
+  const adminPage = read('src/app/admin/announcements/page.tsx');
+  assert.match(adminPage, /sectionId: draft\.isGlobal \? null : draft\.sectionId \|\| null/);
+  const quickEdit = read('src/components/announcements/AnnouncementEditModal.tsx');
+  assert.match(quickEdit, /sectionId: isGlobal \? null : announcement\.sectionId/);
+  assert.match(adminPage, /lecturerId: draft\.isGlobal \? null : draft\.lecturerId \|\| null/);
+  assert.match(quickEdit, /lecturerId: isGlobal \? null : announcement\.lecturerId/);
+});
+
+test('choosing a section or lecturer in the admin editor turns the notice into a targeted one', () => {
+  const adminPage = read('src/app/admin/announcements/page.tsx');
+  assert.match(adminPage, /isGlobal: event\.target\.value \? false : current\.isGlobal, sectionId: event\.target\.value/);
+  assert.match(adminPage, /isGlobal: event\.target\.value \? false : current\.isGlobal, lecturerId: event\.target\.value/);
 });

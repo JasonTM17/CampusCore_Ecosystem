@@ -6,6 +6,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/campuscore
+Environment=COMPOSE_PROJECT_NAME=campusute
 ExecStart=/opt/campuscore/ops/backup/backup-postgres.sh
 User=campuscore
 Group=campuscore

@@ -1,4 +1,10 @@
 import type { AssistantCitation } from '@/lib/thesis-api';
+import {
+  ASSISTANT_HISTORY_WINDOW_SIZE,
+  admitLiveExchange,
+  fitHistoryWindow,
+  prependHistoryPage,
+} from '@/lib/assistant-history-window';
 
 export interface ChatMessage {
   id: string;
@@ -70,6 +76,13 @@ export interface AssistantState {
   error?: AssistantError;
   /** Server-supplied Retry-After hint for the rate-limited error state. */
   retryAfterSeconds?: number;
+  /**
+   * Monotonic count of messages dropped by the live display window. The panel
+   * watches this to invalidate its older-page cursor and rebase from the latest
+   * server page; a discarded cursor can otherwise skip evicted messages.
+   * Reset actions start a new conversation context and clear it.
+   */
+  windowEvictionCount?: number;
 }
 
 export type AssistantReplyPatch = {
@@ -142,28 +155,50 @@ export function assistantReducer(
   action: AssistantAction,
 ): AssistantState {
   switch (action.type) {
-    case 'reset':
+    case 'reset': {
+      // A replay/selection may exceed the display bound; fit it with the same
+      // exchange-aware policy instead of rendering an unbounded transcript.
+      const fitted = fitHistoryWindow(action.messages ?? []);
       return {
-        messages: action.messages ?? [],
+        messages: fitted.messages,
         conversationId: action.conversationId,
+        windowEvictionCount: 0,
       };
-    case 'prepend':
+    }
+    case 'prepend': {
+      // Older-history paging prepends the requested page and evicts from the
+      // newest end when the window is already full.
+      const page = prependHistoryPage(state.messages, action.messages);
       return {
         ...state,
-        messages: [...action.messages, ...state.messages],
+        messages: page.messages,
       };
-    case 'user':
+    }
+    case 'user': {
+      // Reserve the user + assistant slots before the exchange is admitted.
+      const admitted = admitLiveExchange(state.messages);
       return {
         ...state,
         error: undefined,
-        messages: [...state.messages, action.message],
+        messages: [...admitted.messages, action.message],
+        windowEvictionCount:
+          (state.windowEvictionCount ?? 0) + admitted.evicted.length,
       };
-    case 'assistant-start':
+    }
+    case 'assistant-start': {
+      // The user turn already reserved two slots; keep the reply inside the
+      // bound even if a caller dispatches this action against a full state.
+      const fitted = fitHistoryWindow(state.messages, {
+        limit: ASSISTANT_HISTORY_WINDOW_SIZE - 1,
+      });
       return {
         ...state,
         error: undefined,
-        messages: [...state.messages, action.message],
+        messages: [...fitted.messages, action.message],
+        windowEvictionCount:
+          (state.windowEvictionCount ?? 0) + fitted.evicted.length,
       };
+    }
     case 'retry-start': {
       const messages = [...state.messages];
       const last = messages[messages.length - 1];
@@ -185,7 +220,14 @@ export function assistantReducer(
           pending: true,
         });
       }
-      return { ...state, error: undefined, messages };
+      const fitted = fitHistoryWindow(messages);
+      return {
+        ...state,
+        error: undefined,
+        messages: fitted.messages,
+        windowEvictionCount:
+          (state.windowEvictionCount ?? 0) + fitted.evicted.length,
+      };
     }
     case 'delta': {
       const index = state.messages.length - 1;
@@ -328,7 +370,10 @@ export function assistantReducer(
   }
 }
 
-export const initialState: AssistantState = { messages: [] };
+export const initialState: AssistantState = {
+  messages: [],
+  windowEvictionCount: 0,
+};
 
 export function fromHistoryMessage(message: {
   id: string;

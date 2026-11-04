@@ -150,3 +150,24 @@ test('student, lecturer and dashboard timetable views read the campus day', () =
       `${page} must not freeze Today in a mount-only memo`);
   }
 });
+
+// W13 audit A11Y-02: the day pills behave as a real tab set for screen readers
+// and keyboard users instead of unlabelled clickable buttons.
+test('the student day selector exposes tab semantics with roving focus', () => {
+  const page = read('src/app/dashboard/schedule/page.tsx');
+  const code = codeOnly(page);
+
+  assert.match(code, /const DAY_TAB_VALUES = ORDERED_DAYS\.map\(String\)/);
+  assert.match(code, /useRovingTabs\(\s*DAY_TAB_VALUES,\s*String\(selectedDayTab\)/);
+  assert.match(code, /role="tablist"/);
+  assert.match(code, /aria-label=\{scheduleMessages\.viewDay\}/);
+  assert.match(read('src/i18n/messages-student-pages.ts'), /viewDay: 'Theo ngày'/);
+  assert.match(code, /role="tab"/);
+  assert.match(code, /aria-selected=\{isSelected\}/);
+  assert.match(code, /id={`schedule-day-tab-\$\{dayNum\}`}/);
+  assert.match(code, /aria-controls="schedule-day-panel"/);
+  assert.match(code, /tabIndex=\{dayTabs\.tabIndex\(String\(dayNum\)\)\}/);
+  assert.match(code, /onKeyDown=\{\(event\) => dayTabs\.onKeyDown\(event, ORDERED_DAYS\.indexOf\(dayNum\)\)\}/);
+  assert.match(code, /role="tabpanel"/);
+  assert.match(code, /aria-labelledby={`schedule-day-tab-\$\{selectedDayTab\}`}/);
+});

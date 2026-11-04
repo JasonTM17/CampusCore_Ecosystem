@@ -128,6 +128,18 @@ class PublicDocumentPersistenceTest {
                     "reviewedAt" TIMESTAMP WITH TIME ZONE,
                     "reviewNote" VARCHAR(500),
                     "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "foldedTitleVi" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("titleVi", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedTitleEn" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("titleEn", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSummaryVi" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("summaryVi", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSummaryEn" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("summaryEn", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedBodyVi" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("bodyVi", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedBodyEn" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("bodyEn", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
                     PRIMARY KEY ("documentId", "revision"),
                     CONSTRAINT public_doc_revision_state_ck
                         CHECK ("state" IN ('DRAFT', 'IN_REVIEW', 'PUBLISHED', 'SUPERSEDED'))
@@ -813,4 +825,20 @@ class PublicDocumentPersistenceTest {
                 String.class);
         org.assertj.core.api.Assertions.assertThat(stored).doesNotContain("script");
     }
+    @Test
+    void lecturerCannotReviewPublicDocumentsOnlyGovernanceCan() throws Exception {
+        String id = createDoc("scope-doc", "lecturer-1", "Tai lieu", "Doc", "Noi dung", "Body");
+        submit(id, "lecturer-1");
+
+        mvc.perform(post("/api/v1/docs/" + id + "/approve")
+                        .with(lecturer("lecturer-2")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_APPROVAL_FORBIDDEN"));
+        mvc.perform(post("/api/v1/docs/" + id + "/return")
+                        .with(lecturer("lecturer-2"))
+                        .contentType("application/json").content("{\"reason\":\"needs rework\"}"))
+                .andExpect(status().isForbidden());
+        approve(id, "admin-1");
+    }
+
 }

@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { SearchBar, SegmentedControl } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { ThesisAdvisorsView } from './ThesisAdvisorsView';
 import { ThesisRoundPicker } from './ThesisRoundPicker';
-import { filterTopics } from './thesis-model';
 import { QueryNotices, RoundCard, TopicCard, useThesisUi } from './thesis-ui';
 import { useActiveThesisRound, useThesisTopics } from './use-thesis';
 
@@ -23,17 +23,36 @@ function NoRounds({ copy }: { copy: ThesisCopy }) {
   return <StatePanel kind="empty" title={copy.noRounds} description={copy.noRoundsBody} />;
 }
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** Topic search is a server read, so the term is sent once typing settles. */
+function useSearchTerm(query: string): string {
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const next = query.trim();
+    if (!next) {
+      setTerm('');
+      return undefined;
+    }
+    const timer = setTimeout(() => setTerm(next), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+  return term;
+}
+
 /** Published topics of the selected round, with the round and advisor views one tap away. */
 export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useThesisUi();
   const active = useActiveThesisRound();
   const roundId = active.round?.id ?? null;
-  const topics = useThesisTopics(roundId);
   const [view, setView] = useState<ThesisView>('topics');
   const [query, setQuery] = useState('');
-  const visible = useMemo(() => filterTopics(topics.items, query), [topics.items, query]);
-  const searching = query.trim().length > 0;
+  const term = useSearchTerm(query);
+  const topics = useThesisTopics(roundId, term);
+  const visible = topics.items;
+  const searching = term.length > 0;
   const topicsIdle = !topics.loading && !topics.error;
+  const topicCount = topics.total ?? topics.items.length;
 
   return (
     <ScreenShell
@@ -97,7 +116,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
               <QueryNotices state={{ ...topics, preview: false }} copy={copy} />
               {topicsIdle ? (
                 <UiText variant="meta" tone="muted" style={styles.count}>
-                  {fillThesisCopy(copy.topicCount, { count: searching ? visible.length : topics.total ?? topics.items.length })}
+                  {fillThesisCopy(countForm(topicCount, copy.topicCountOne, copy.topicCount), { count: topicCount })}
                 </UiText>
               ) : null}
               {topicsIdle && visible.length === 0 ? (

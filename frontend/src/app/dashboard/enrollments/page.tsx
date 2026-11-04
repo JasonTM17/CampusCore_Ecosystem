@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 import { campusErrorMessage } from '@/lib/campus-error';
 import { formatOptionalDate } from '@/lib/format-display';
 import { dayLabel } from '@/components/schedule/weekly-grid';
@@ -80,130 +81,7 @@ export default function EnrollmentsPage() {
   const [downloadingSlip, setDownloadingSlip] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Sinh viên',
-          title: 'Môn học của tôi',
-          description:
-            'Theo dõi chương trình đào tạo và các lớp đã đăng ký.',
-          browseSections: 'Xem lớp học phần',
-          loading: 'Đang tải thông tin môn học & CTĐT',
-          unavailableTitle: 'Thông tin môn học chưa sẵn sàng',
-          emptyTitle: 'Chưa có môn học',
-          emptyDescription:
-            'Khi bạn đăng ký một lớp học phần, lịch học và thông tin lớp sẽ xuất hiện ở đây.',
-          tabCurriculum: 'Chương trình đào tạo (CTĐT)',
-          tabCurriculumShort: 'CTĐT',
-          tabEnrollments: 'Hồ sơ đăng ký học phần',
-          tabEnrollmentsShort: 'Đăng ký',
-          statCurriculumTotal: 'Tổng môn học CTĐT',
-          statCompleted: 'Đã hoàn tất',
-          statInProgress: 'Đang học',
-          statRemaining: 'Chưa hoàn tất',
-          curriculumProgressLabel: 'Tiến độ tín chỉ',
-          statusSummaryLabel: 'Tóm tắt trạng thái CTĐT',
-          courseWord: 'môn',
-          coursesWord: 'môn',
-          filterAll: 'Tất cả môn',
-          filterCompleted: 'Đã hoàn tất',
-          filterInProgress: 'Đang học',
-          filterNotStarted: 'Chưa hoàn tất',
-          yearPrefix: 'Năm học',
-          semesterPrefix: 'Học kỳ',
-          mandatory: 'Bắt buộc',
-          elective: 'Tự chọn',
-          prerequisiteChip: 'Tiên quyết:',
-          prerequisiteHint: 'Phải hoàn thành và đạt trước khi đăng ký môn này',
-          creditsLabel: 'tín chỉ',
-          gradeScore: 'Điểm',
-          noCurriculumCourses: 'Không có môn học nào thuộc nhóm trạng thái này.',
-          sectionPrefix: 'Lớp học phần',
-          enrolledOn: 'Đăng ký ngày',
-          unknownCourse: 'Môn học',
-          unavailableCourseName: 'Chưa có tên môn',
-          unknownSection: 'Chưa rõ lớp học phần',
-          unknownSemester: 'Chưa rõ học kỳ',
-          colCourse: 'Môn học',
-          colSection: 'Lớp HP',
-          colSchedule: 'Lịch học',
-          colStatus: 'Trạng thái',
-          dropCourse: 'Hủy môn học',
-          droppingCourse: 'Đang hủy môn',
-          confirmTitle: 'Hủy môn học',
-          confirmMessage: (courseLabel: string) =>
-            `Hủy ${courseLabel}? Hành động này giữ cho việc đổi lịch học luôn rõ ràng và có chủ đích.`,
-          dropped: 'Đã hủy môn học',
-          dropFailed: 'Hiện chưa thể hủy môn học này.',
-          exportSlip: 'Xuất phiếu đăng ký (PDF)',
-          exportSlipDownloading: 'Đang tải phiếu...',
-          exportSlipSuccess: 'Đã tải phiếu đăng ký học phần (PDF).',
-          exportUnavailable: 'Phiếu đăng ký chưa sẵn sàng.',
-          studentProfileMissing:
-            'Không tìm thấy hồ sơ sinh viên trong phiên hiện tại.',
-          loadFailed: 'Hiện chưa thể tải danh sách môn học của bạn.',
-        }
-      : {
-          eyebrow: 'Student area',
-          title: 'My courses',
-          description:
-            'Track your curriculum and enrolled class sections.',
-          browseSections: 'Browse classes',
-          loading: 'Loading courses & study program',
-          unavailableTitle: 'Course information unavailable',
-          emptyTitle: 'No courses yet',
-          emptyDescription:
-            'Once you enroll in a class, its schedule and details will appear here.',
-          tabCurriculum: 'Curriculum Roadmap',
-          tabCurriculumShort: 'Curriculum',
-          tabEnrollments: 'Enrollment Records',
-          tabEnrollmentsShort: 'Enrolled',
-          statCurriculumTotal: 'Total Curriculum Courses',
-          statCompleted: 'Completed',
-          statInProgress: 'In Progress',
-          statRemaining: 'Not completed',
-          curriculumProgressLabel: 'Credit progress',
-          statusSummaryLabel: 'Curriculum status summary',
-          courseWord: 'course',
-          coursesWord: 'courses',
-          filterAll: 'All courses',
-          filterCompleted: 'Completed',
-          filterInProgress: 'In Progress',
-          filterNotStarted: 'Not completed',
-          yearPrefix: 'Year',
-          semesterPrefix: 'Semester',
-          mandatory: 'Mandatory',
-          elective: 'Elective',
-          prerequisiteChip: 'Prerequisites:',
-          prerequisiteHint: 'Must be completed with a passing grade before registering this course',
-          creditsLabel: 'credits',
-          gradeScore: 'Grade',
-          noCurriculumCourses: 'No courses found for the selected status filter.',
-          sectionPrefix: 'Class',
-          enrolledOn: 'Enrolled',
-          unknownCourse: 'Course',
-          unavailableCourseName: 'Unavailable',
-          unknownSection: 'Unknown class',
-          unknownSemester: 'Unknown semester',
-          colCourse: 'Course',
-          colSection: 'Class',
-          colSchedule: 'Schedule',
-          colStatus: 'Status',
-          dropCourse: 'Drop course',
-          droppingCourse: 'Dropping course',
-          confirmTitle: 'Drop course',
-          confirmMessage: (courseLabel: string) =>
-            `Drop ${courseLabel}? This keeps the action explicit and prevents accidental schedule changes.`,
-          dropped: 'Course dropped',
-          dropFailed: 'We could not drop this course.',
-          exportSlip: 'Download registration slip (PDF)',
-          exportSlipDownloading: 'Downloading slip...',
-          exportSlipSuccess: 'Registration slip downloaded.',
-          exportUnavailable: 'A registration slip is not available yet.',
-          studentProfileMissing:
-            'Your student profile is not available in this session.',
-          loadFailed: 'Your current enrollments could not be loaded.',
-        };
+  const copy = (locale === 'vi' ? studentPortalVi : studentPortalEn).enrollments;
 
   const fetchCurriculum = useCallback(async () => {
     setIsCurriculumLoading(true);
@@ -212,11 +90,11 @@ export default function EnrollmentsPage() {
       setCurriculumData(await curriculumApi.getMyCurriculum());
     } catch {
       setCurriculumData(null);
-      setCurriculumError(locale === 'vi' ? 'Không tải được chương trình đào tạo.' : 'Your curriculum could not be loaded.');
+      setCurriculumError(copy.curriculumLoadFailed);
     } finally {
       setIsCurriculumLoading(false);
     }
-  }, [locale]);
+  }, [copy.curriculumLoadFailed]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -254,7 +132,7 @@ export default function EnrollmentsPage() {
 
     const shouldContinue = await confirm({
       title: copy.confirmTitle,
-      message: copy.confirmMessage(courseLabel),
+      message: copy.confirmMessage.replace('{courseLabel}', () => courseLabel),
       confirmText: copy.dropCourse,
       variant: 'destructive',
     });
@@ -640,7 +518,7 @@ export default function EnrollmentsPage() {
           {activeTab === 'curriculum' && (
             <div id="enrollments-panel-curriculum" role="tabpanel" aria-labelledby="enrollments-tab-curriculum">
               {isCurriculumLoading ? (
-                <LoadingState label={locale === 'vi' ? 'Đang tải chương trình đào tạo' : 'Loading curriculum'} />
+                <LoadingState label={copy.curriculumLoading} />
               ) : curriculumError ? (
                 <ErrorState title={copy.unavailableTitle} description={curriculumError} onRetry={() => void fetchCurriculum()} />
               ) : (
@@ -875,7 +753,7 @@ export default function EnrollmentsPage() {
                                 <th className="px-3 py-2.5 font-semibold">{copy.colSection}</th>
                                 <th className="px-3 py-2.5 font-semibold">{copy.colSchedule}</th>
                                 <th className="px-3 py-2.5 font-semibold">{copy.colStatus}</th>
-                                <th className="px-3 py-2.5 text-right font-semibold" aria-label="actions" />
+                                <th className="px-3 py-2.5 text-right font-semibold" aria-label={copy.colActions} />
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border/60">
@@ -947,7 +825,7 @@ export default function EnrollmentsPage() {
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                          className="min-h-[44px] min-w-[44px] px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                           onClick={() => void handleDrop(enrollment.id, courseLabel)}
                                           disabled={isDropping === enrollment.id}
                                           aria-label={`${copy.dropCourse} ${courseLabel}`}
@@ -1030,7 +908,7 @@ export default function EnrollmentsPage() {
                                   {isDroppableEnrollment(enrollment.status) ? (
                                     <button
                                       type="button"
-                                      className="ml-auto inline-flex items-center gap-1 font-medium text-destructive"
+                                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 px-3 py-2.5 font-medium text-destructive"
                                       onClick={() => void handleDrop(enrollment.id, courseLabel)}
                                       disabled={isDropping === enrollment.id}
                                     >

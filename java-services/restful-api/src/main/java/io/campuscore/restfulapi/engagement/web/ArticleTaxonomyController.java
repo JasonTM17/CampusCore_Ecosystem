@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.math.BigInteger;
 import java.time.Instant;
@@ -221,6 +222,7 @@ public class ArticleTaxonomyController {
      *
      * @return every active category as a DTO, ascending by display order
      */
+    @SecurityRequirements
     @Operation(summary = "[v2] Lấy danh sách chuyên mục dạng DTO", description = "Truy xuất danh mục bài viết đang hoạt động dưới dạng bản ghi công khai, không kèm cột kiểm toán (createdAt/updatedAt) của entity")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy xuất danh mục thành công")

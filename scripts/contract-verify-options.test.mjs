@@ -33,6 +33,15 @@ test('omitting the overlay preserves the existing compose file and defaults', ()
   ]);
 });
 
+test('regeneration is opt-in and limited to the probe command', () => {
+  assert.equal(parseArgs(argv('--project', 'campuscore-contract-test'), fixture).regenerate, false);
+  assert.equal(parseArgs(argv('--regenerate'), fixture).regenerate, true);
+  assert.throws(
+    () => parseArgs(['node', 'contract-verify.mjs', 'pgit-real', '--regenerate'], fixture),
+    /only supported by contract-probes/,
+  );
+});
+
 test('a valid repo-relative overlay is appended after the base compose file', () => {
   const parsed = parseArgs(argv('--compose-overlay', 'overlay.yml'), fixture);
   assert.equal(parsed.composeOverlay, path.join(fixture, 'overlay.yml'));
@@ -88,7 +97,7 @@ childProcess.spawnSync = (command, args, options) => {
     E2E_API_HOST_PORT: options?.env?.E2E_API_HOST_PORT,
   } }) + '\\n');
   const invalid = args.includes('config') && process.env.CONTRACT_OPTIONS_TEST_INVALID === '1';
-  const stdout = args.includes('logs') ? 'synthetic container log' : (args.includes('ps') ? '' : '{}');
+  const stdout = args.includes('logs') ? 'synthetic container log' : (args.includes('ps') || args.includes('volume') ? '' : '{}');
   return { status: invalid ? 1 : 0, stdout, stderr: '' };
 };
 syncBuiltinESMExports();
@@ -132,7 +141,10 @@ test('up, logs and down use the same validated overlay and interpolation environ
   const overlay = path.join(repo, 'docker-compose.sso-preview.yml');
   const { result, calls, evidence } = runCli('overlay', ['--compose-overlay', 'docker-compose.sso-preview.yml']);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  const docker = calls.filter((call) => call.command === 'docker');
+  const docker = calls.filter((call) => call.command === 'docker' && call.args[0] === 'compose');
+  assert.ok(calls.some((call) => call.command === 'docker' && call.args.includes('volume')
+    && call.args.includes('label=com.docker.compose.project=campuscore-options-test')),
+  'the project volume preflight runs before the stack starts');
   const prefix = composeArgs('campuscore-options-test', overlay);
   assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['config', 'ps', 'up', 'logs', 'down']);
   for (const call of docker) {
@@ -155,7 +167,7 @@ test('a YAML/schema validation failure never starts or tears down the stack', ()
 test('the actual CLI without an overlay retains the single-file up/logs/down flow', () => {
   const { result, calls, evidence } = runCli('default', []);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  const docker = calls.filter((call) => call.command === 'docker');
+  const docker = calls.filter((call) => call.command === 'docker' && call.args[0] === 'compose');
   const prefix = composeArgs('campuscore-options-test');
   assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['ps', 'up', 'logs', 'down']);
   for (const call of docker) assert.deepEqual(call.args.slice(0, prefix.length), prefix);

@@ -464,17 +464,18 @@ public class PublicDocumentRepository {
         }
         List<String> tokens = LikePattern.tokens(search);
         if (!tokens.isEmpty()) {
-            parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
-            parameters.addValue("foldTo", LikePattern.FOLD_TO);
             for (int index = 0; index < tokens.size(); index++) {
                 String paramName = "search" + index;
                 parameters.addValue(paramName, tokens.get(index));
-                conditions.add("(TRANSLATE(LOWER(COALESCE(rev.\"titleVi\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(rev.\"titleEn\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(rev.\"summaryVi\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(rev.\"summaryEn\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(rev.\"bodyVi\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(rev.\"bodyEn\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\')");
+                // V147 stores the folded value on the revision row. The
+                // publishedRevision join, the OR across the six fields and the
+                // AND across tokens are unchanged.
+                conditions.add("(rev.\"foldedTitleVi\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR rev.\"foldedTitleEn\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR rev.\"foldedSummaryVi\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR rev.\"foldedSummaryEn\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR rev.\"foldedBodyVi\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR rev.\"foldedBodyEn\" LIKE :" + paramName + " ESCAPE '\\')");
             }
         }
         return new SqlWhere(" WHERE " + String.join(" AND ", conditions), parameters);

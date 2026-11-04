@@ -244,7 +244,8 @@ function loadTs(relativePath) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const moduleRecord = { exports: {} };
-  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const deps = { '@/i18n/messages-student-pages': relativePath === 'src/i18n/messages-student-pages.ts' ? {} : loadTs('src/i18n/messages-student-pages.ts') };
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, (id) => deps[id] ?? {});
   return moduleRecord.exports;
 }
 
