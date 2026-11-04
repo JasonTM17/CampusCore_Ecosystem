@@ -395,18 +395,28 @@ export async function caseStack(args, runner = {}) {
 /* ------------------------------------------------------------------ */
 export async function casePgit(args, runner = {}) {
   parseRequestedItSelectors(args.its);
-  const composeCase = runner.composeTry ?? composeTry;
+  const composeRunner = runner.composeTry ?? composeTry;
+  const composeCase = (composeArgs, argv) => composeRunner(composeArgs, argv, { env: { ...args_env } });
+  const runCommand = runner.tryRun ?? tryRun;
+  const waitHealthy = runner.waitServiceHealthy ?? waitServiceHealthy;
   const dir = ensureEvidenceDir(args);
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
     E2E_API_HOST_PORT: String(await allocPort()),
+    POSTGRES_DB: 'campuscore_restful_e2e',
+    POSTGRES_USER: 'campuscore',
+    POSTGRES_PASSWORD: 'campuscore_password',
+    ASSISTANT_DB_PASSWORD: 'dev-only-not-a-secret-16+',
   };
-  const result = { case: 'pgit', target: 'local', project: args.project, ports: { ...args_env } };
+  const result = {
+    case: 'pgit', target: 'local', project: args.project,
+    ports: { POSTGRES_HOST_PORT: args_env.POSTGRES_HOST_PORT, E2E_API_HOST_PORT: args_env.E2E_API_HOST_PORT },
+  };
   let stackStarted = false;
   let failed = false;
   let failure;
   try {
-    preflightComposeProject(args, runner.tryRun ?? tryRun);
+    preflightComposeProject(args, runCommand);
     // One IT pins the historical audit rig at 127.0.0.1:5452 — publish the same
     // disposable postgres on that fixed port too when it is free; if taken,
     // proceed without the override and that class stays skipped (honest).
@@ -435,7 +445,7 @@ export async function casePgit(args, runner = {}) {
     stackStarted = true;
     const up = composeCase(args, ['up', '-d', 'postgres']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
-    await waitServiceHealthy(args, /postgres/, 240000);
+    await waitHealthy(args, /postgres/, 240000);
     const pgPort = args_env.POSTGRES_HOST_PORT;
     // Each IT env-family gets its own disposable database — several ITs state
     // "the caller must supply a separate disposable database" and all of them
@@ -556,7 +566,7 @@ export async function casePgit(args, runner = {}) {
       ? args.its.split(',').map((name) => name.trim()).filter(Boolean)
       : [];
     const t0 = Date.now();
-    const res = tryRun('mvn', [
+    const res = runCommand('mvn', [
       '-f', 'java-services/pom.xml', '-pl', 'restful-api', 'verify',
       '-Passistant-postgres-it',
       `-Dit.test=${args.its || '*PostgresIT'}`, '-Dtest=__none__', '-Dsurefire.failIfNoSpecifiedTests=false',

@@ -284,6 +284,36 @@ function prepareLocalComposeEnvironment({ root, env = process.env, fs: fsImpl = 
   return result;
 }
 
+function previewComposeSecrets({ root, env, fs: fsImpl }) {
+  return ensureComposeSecrets({
+    root,
+    fs: {
+      existsSync: (target) => fsImpl.existsSync(target),
+      readFileSync: (target, encoding) => fsImpl.readFileSync(target, encoding),
+      writeFileSync: () => {},
+      chmodSync: () => {},
+    },
+    env: { ...env },
+    randomBytes: (size) => Buffer.alloc(size),
+  });
+}
+
+async function guardPostgresPasswordRotation(flags, deps) {
+  const preview = previewComposeSecrets({ root: deps.root, env: deps.env, fs: deps.fs });
+  if (!preview.generatedKeys.includes('POSTGRES_PASSWORD')) return;
+
+  const { project } = await resolveStack({ flags, deps });
+  const volumes = deps.run('docker', [
+    'volume', 'ls', '-q',
+    '--filter', `label=com.docker.compose.project=${project}`,
+    '--filter', 'label=com.docker.compose.volume=campuscore_restful_postgres_data',
+  ], { cwd: deps.root, timeout: 60_000 });
+  if (volumes.code !== 0) throw new Error('Could not check the PostgreSQL volume; .env was not changed.');
+  if (volumes.stdout.trim()) {
+    throw new Error(`POSTGRES_PASSWORD would be regenerated for a project with an existing PostgreSQL volume; follow docs/ecosystem/environment.md#existing-local-postgresql-volumes.`);
+  }
+}
+
 function generateOwnerAssertionSecret() {
   return crypto.randomBytes(48).toString('base64');
 }
@@ -945,7 +975,10 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   }
 
   try {
-    prepareLocalComposeEnvironment({ root: deps.root, env: deps.env, fs: deps.fs, log: deps.log });
+    if (parsed.command === 'up' || parsed.command === 'doctor') {
+      await guardPostgresPasswordRotation(parsed.flags, deps);
+      prepareLocalComposeEnvironment({ root: deps.root, env: deps.env, fs: deps.fs, log: deps.log });
+    }
     switch (parsed.command) {
       case 'doctor':
         return await doctor(deps);
