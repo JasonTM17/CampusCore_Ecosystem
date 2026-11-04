@@ -238,6 +238,8 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       try {
         await secure.setItemAsync(REFRESH_KEY, nextRefresh);
       } catch {
+        // A native write can commit even when its acknowledgement rejects.
+        await secure.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
         return reauthRequired(epoch);
       }
       if (epoch !== sessionEpoch) return stale();
@@ -313,7 +315,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
         await secure.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
         return stored;
       });
-      if (!credential) {
+      if (!credential || !issuer) {
         return;
       }
       // Best-effort revoke — NOT awaited: the contract ordering puts every

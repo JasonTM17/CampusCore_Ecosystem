@@ -17,7 +17,18 @@ declare const process: { env: Record<string, string | undefined> };
 function defaultIssuer(): string {
   const configured = process.env.EXPO_PUBLIC_ISSUER_URL?.trim();
   if (configured) {
-    return configured.replace(/\/+$/, '');
+    try {
+      const url = new URL(configured);
+      const localHost = ['localhost', '127.0.0.1', '10.0.2.2', '::1']
+        .includes(url.hostname.toLowerCase().replace(/^\[|\]$/g, ''));
+      const allowedHttp = url.protocol === 'http:' && (__DEV__
+        || (process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL === '1' && localHost));
+      if ((url.protocol !== 'https:' && !allowedHttp)
+        || url.username || url.password || url.search || url.hash) return '';
+      return configured.replace(/\/+$/, '');
+    } catch {
+      return '';
+    }
   }
   if (!__DEV__) {
     return '';

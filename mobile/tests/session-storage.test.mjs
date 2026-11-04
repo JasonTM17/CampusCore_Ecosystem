@@ -136,6 +136,30 @@ test('a failed refresh wipes the refresh token and clears memory', async () => {
   assert.equal(store.getAccessToken(), null);
 });
 
+test('a replacement credential write that commits before rejecting is wiped', async () => {
+  const secure = memoryKv();
+  secure.map.set('cu.refresh', 'rt-1');
+  const write = secure.setItemAsync;
+  secure.setItemAsync = async (key, value) => {
+    await write(key, value);
+    throw new Error('native write acknowledgement lost');
+  };
+  const { store } = makeStore({ secure });
+  store.setAccessToken('at-old');
+  assert.equal((await store.refreshAccessToken()).kind, 'reauthRequired');
+  assert.equal(store.getAccessToken(), null);
+  assert.equal(secure.map.has('cu.refresh'), false, 'failed replacement storage must not leave a restart credential');
+});
+
+test('sign-out without a configured issuer wipes locally without a revoke request', async () => {
+  const { store, secure, calls } = makeStore({ issuer: '' });
+  secure.map.set('cu.refresh', 'surviving');
+  await store.signOut();
+  await Promise.resolve();
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(calls.length, 0);
+});
+
 test('a malformed success quarantines the credential without granting access', async () => {
   const { store, secure } = makeStore({
     respond: async () => new Response('{"refresh_token":"rt-2"}', { status: 200 }),
