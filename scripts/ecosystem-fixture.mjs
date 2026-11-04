@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT_RE = /^campuscore-ecosystem-fixture-[a-z0-9-]+$/;
@@ -471,6 +472,7 @@ async function cmdAudit(args) {
 }
 
 const args = parseArgs(process.argv.slice(2));
+if (args.command === 'generate' || args.command === 'audit') ensureComposeSecrets({ root: REPO });
 if (args.command === 'generate') await cmdGenerate(args);
 else if (args.command === 'audit') await cmdAudit(args);
 else if (args.command === 'preflight') { preflight(args); console.log('PREFLIGHT_PASS'); }

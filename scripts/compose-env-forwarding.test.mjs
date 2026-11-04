@@ -135,8 +135,6 @@ test('every documented active .env.example knob reaches restful-api or is allowl
 // environment with the same default the application resolves today, so the
 // Compose default changes no behaviour.
 const FORWARDED_KNOBS = [
-  { name: 'SECURITY_JWT_REJECT_KNOWN_DEFAULTS', service: 'restful-api', expected: 'false' },
-  { name: 'SECURITY_JWT_REJECT_KNOWN_DEFAULTS', service: 'rag-service', expected: 'false' },
   { name: 'RATE_LIMIT_TRUST_PROXY_HEADERS', service: 'restful-api', expected: 'false' },
   { name: 'RATE_LIMIT_TRUST_REAL_IP', service: 'restful-api', expected: 'false' },
   { name: 'RATE_LIMIT_PROXY_TOKEN', service: 'restful-api', expected: '' },
@@ -174,6 +172,16 @@ test('documented operator knobs interpolate into their service with the applicat
     }
   }
   assert.deepEqual(failures, [], failures.join('\n'));
+});
+
+test('base Compose pins known-default rejection on for both Java services', () => {
+  for (const service of ['restful-api', 'rag-service']) {
+    assert.match(
+      serviceEnvironmentBlock(compose, service),
+      /SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"/,
+      `${service} must reject published JWT defaults`,
+    );
+  }
 });
 
 test('frontend Dockerfile declares every demo env key the login page reads', () => {
