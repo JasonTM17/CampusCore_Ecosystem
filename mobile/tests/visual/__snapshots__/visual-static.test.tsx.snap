@@ -12812,70 +12812,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "c": [
                             {
                               "c": [
-                                "3",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "fontSize": 26,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "󱗖",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 20,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "width": 32,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Lớp đang học",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 13,
-                          },
-                          "t": "Text",
-                        },
-                      ],
-                      "label": "Lớp đang học: 3",
-                      "s": {
-                        "flex": 1,
-                        "gap": 4,
-                        "padding": 12,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
                                 "2",
                               ],
                               "s": {
@@ -12928,7 +12864,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       ],
                       "label": "Buổi học mỗi tuần: 2",
                       "s": {
-                        "borderColor": "#33363D",
                         "flex": 1,
                         "gap": 4,
                         "padding": 12,
@@ -13633,70 +13568,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "c": [
                             {
                               "c": [
-                                "3",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "fontSize": 26,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "󱗖",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 20,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "width": 32,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Lớp đang học",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 13,
-                          },
-                          "t": "Text",
-                        },
-                      ],
-                      "label": "Lớp đang học: 3",
-                      "s": {
-                        "flex": 1,
-                        "gap": 4,
-                        "padding": 12,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
                                 "2",
                               ],
                               "s": {
@@ -13749,7 +13620,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       ],
                       "label": "Buổi học mỗi tuần: 2",
                       "s": {
-                        "borderColor": "#33363D",
                         "flex": 1,
                         "gap": 4,
                         "padding": 12,
@@ -14458,70 +14328,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "c": [
                             {
                               "c": [
-                                "3",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "fontSize": 26,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "󱗖",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 20,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "width": 32,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Lớp đang học",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 13,
-                          },
-                          "t": "Text",
-                        },
-                      ],
-                      "label": "Lớp đang học: 3",
-                      "s": {
-                        "flex": 1,
-                        "gap": 4,
-                        "padding": 12,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
                                 "2",
                               ],
                               "s": {
@@ -14574,7 +14380,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       ],
                       "label": "Buổi học mỗi tuần: 2",
                       "s": {
-                        "borderColor": "#C9D5E4",
                         "flex": 1,
                         "gap": 4,
                         "padding": 12,
@@ -15279,70 +15084,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "c": [
                             {
                               "c": [
-                                "3",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "fontSize": 26,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "󱗖",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 20,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "width": 32,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Lớp đang học",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 13,
-                          },
-                          "t": "Text",
-                        },
-                      ],
-                      "label": "Lớp đang học: 3",
-                      "s": {
-                        "flex": 1,
-                        "gap": 4,
-                        "padding": 12,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
                                 "2",
                               ],
                               "s": {
@@ -15395,7 +15136,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       ],
                       "label": "Buổi học mỗi tuần: 2",
                       "s": {
-                        "borderColor": "#C9D5E4",
                         "flex": 1,
                         "gap": 4,
                         "padding": 12,

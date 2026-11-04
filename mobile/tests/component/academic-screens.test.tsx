@@ -580,4 +580,16 @@ describe('registration', () => {
     expect(screen.queryByText('Distributed Systems')).toBeNull();
     expect(screen.queryByRole('button', { name: /Chọn lớp/ })).toBeNull();
   });
+
+  test('the screen title is not repeated as the basket hero eyebrow', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('M1')]) };
+    await render(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getAllByText('Đăng ký học phần')).toHaveLength(1);
+  });
+
+  test('the catalog search placeholder uses the standard course term', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('M2')]) };
+    await render(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getByLabelText('Tìm lớp học phần').props.placeholder).toBe('Tìm học phần, mã lớp, giảng viên, phòng');
+  });
 });

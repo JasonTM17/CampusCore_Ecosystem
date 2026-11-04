@@ -122,7 +122,6 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       ) : null}
 
       <StatStrip style={styles.stats} items={[
-        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? String(previewCourses.length) : String(activeEnrollments.length) },
         { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
       ]} />
 

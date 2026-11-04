@@ -113,15 +113,14 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
           </View>
-          <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.signIn.title}</UiText>
           <PreviewPill style={styles.previewPill} />
         </View>
         <View style={styles.body}>
           <Card style={styles.formCard}>
             <UiText accessibilityRole="header" variant="headlineLarge">{copy.signIn.heading}</UiText>
-            <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>
-              {isPreview ? copy.signIn.preview : copy.signIn.live}
-            </UiText>
+            {isPreview ? (
+              <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>{copy.signIn.preview}</UiText>
+            ) : null}
             {isPreview ? (
               <Button icon="arrow-right" label={copy.signIn.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
             ) : (
@@ -402,7 +401,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   brandRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.md },
   brandMark: { backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 56, width: 56 },
   brandCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
-  heroTitle: { marginTop: tokens.spacing.lg },
   previewPill: { alignSelf: 'flex-start', marginTop: tokens.spacing.sm },
   body: { alignSelf: 'center', flex: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
   formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },

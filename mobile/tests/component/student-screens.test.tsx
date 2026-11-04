@@ -76,6 +76,13 @@ describe('student screens (preview mode)', () => {
     expect(screen.getByRole('button', { name: 'Hỏi trợ lý' })).toBeOnTheScreen();
   });
 
+  test('dashboard shows the active-section metric once', async () => {
+    setWidth(360);
+    await renderThemed(<StudentDashboardScreen {...props} />);
+    expect(screen.getByText('3 lớp đang học')).toBeOnTheScreen();
+    expect(screen.queryByText('Lớp đang học')).toBeNull();
+  });
+
   test('dashboard background follows scheme', async () => {
     setWidth(360);
     await renderThemed(<StudentDashboardScreen {...props} />, 'light');
