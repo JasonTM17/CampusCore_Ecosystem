@@ -71,7 +71,8 @@ test('student screens key enrollment lists by semester and guard profile saves',
   assert.doesNotMatch(screens + workspace, /key=\{item\.code\}|key=\{course\.code\}|key=\{grade\.code\}/);
   // Dashboard and courses speak for active enrollments, not dropped history.
   assert.match(dashboard, /liveEnrollments\.filter\(\(item\) => isActiveEnrollment\(item\.status\)\)/);
-  assert.match(dashboard, /String\(activeEnrollments\.length\)/);
+  assert.match(dashboard, /activeSectionCount = apiClient\.mode === 'preview' \? previewCourses\.length : activeEnrollments\.length/);
+  assert.match(dashboard, /countForm\(activeSectionCount, c\.activeSectionsOne, c\.activeSections\)/);
   const academicModel = fs.readFileSync(path.join(mobileRoot, 'src/screens/academic/academic-model.ts'), 'utf8');
   assert.match(academicModel, /ACTIVE_STATUSES: readonly string\[\] = \['ENROLLED', 'PENDING', 'CONFIRMED'\]/);
   // Schedule times must build with the same separator the card parses.

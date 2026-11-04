@@ -107,7 +107,7 @@ const vi = {
   emptyAttendance: 'Chưa có dữ liệu điểm danh',
   attendanceStatus: { PRESENT: 'Có mặt', ABSENT: 'Vắng', LATE: 'Muộn', EXCUSED: 'Có phép' } as Record<string, string>,
   registrationTitle: 'Đăng ký học phần',
-  searchPlaceholder: 'Tìm môn, mã lớp, giảng viên, phòng',
+  searchPlaceholder: 'Tìm học phần, mã lớp, giảng viên, phòng',
   searchLabel: 'Tìm lớp học phần',
   sortLabel: 'Sắp xếp',
   sortCode: 'Mã môn',
