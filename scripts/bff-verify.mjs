@@ -144,8 +144,12 @@ async function casePgRace(args) {
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
     E2E_API_HOST_PORT: String(await allocPort()),
+    POSTGRES_PASSWORD: 'campuscore_password',
   };
-  const result = { case: 'pg-race', target: 'local', project: args.project, ports: { ...args_env } };
+  const result = {
+    case: 'pg-race', target: 'local', project: args.project,
+    ports: { POSTGRES_HOST_PORT: args_env.POSTGRES_HOST_PORT, E2E_API_HOST_PORT: args_env.E2E_API_HOST_PORT },
+  };
   let ownsStack = false;
   try {
     preflightComposeProject(args);

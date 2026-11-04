@@ -181,6 +181,46 @@ test('pgit provisions the knowledge-version database and records container remov
   assert.equal(result.containerGoneCheck, 'Compose ps -q is empty after compose down');
 });
 
+test('pgit uses the same bootstrap credentials for Compose and its Postgres ITs', async (t) => {
+  const evidence = mkdtempSync(join(tmpdir(), 'platform-verify-pgit-credentials-'));
+  t.after(() => rmSync(evidence, { recursive: true, force: true }));
+  const composeCalls = [];
+  let mavenEnv;
+  const runner = {
+    tryRun(command, _argv, options = {}) {
+      if (command === 'mvn') {
+        mavenEnv = options.env;
+        return { ok: false, out: 'stubbed Maven run', code: 1 };
+      }
+      return { ok: true, out: '' };
+    },
+    composeTry(_args, argv, options = {}) {
+      composeCalls.push({ argv, env: options.env });
+      if (argv[0] === 'up' && !options.env) return { ok: false, out: 'compose child environment missing' };
+      return { ok: true, out: '', code: 0 };
+    },
+    waitServiceHealthy: async () => {},
+  };
+
+  await assert.rejects(
+    casePgit({ project: 'campuscore-pgit-credentials', evidence, its: 'AssistantRlsPostgresIT' }, runner),
+    /compose up failed|pgit verdict FAIL/,
+  );
+
+  const result = JSON.parse(readFileSync(join(evidence, 'pgit.json'), 'utf8'));
+  const composeUp = composeCalls.find(({ argv }) => argv[0] === 'up');
+  assert.ok(composeUp?.env, 'Compose up must receive the environment used for this disposable database');
+  assert.ok(mavenEnv, 'the fake runner must observe the Maven IT environment');
+  assert.equal(composeUp.env.POSTGRES_DB, mavenEnv.CAMPUSCORE_E2E_POSTGRES_URL.split('/').at(-1));
+  assert.equal(composeUp.env.POSTGRES_USER, mavenEnv.CAMPUSCORE_E2E_POSTGRES_USER);
+  assert.equal(composeUp.env.POSTGRES_PASSWORD, mavenEnv.CAMPUSCORE_E2E_POSTGRES_PASSWORD);
+  assert.equal(composeUp.env.POSTGRES_PASSWORD, mavenEnv.CAMPUSCORE_COUNCIL_POSTGRES_PASSWORD);
+  assert.equal(composeUp.env.POSTGRES_PASSWORD, mavenEnv.ASSISTANT_RLS_PRIMARY_PASSWORD);
+  assert.equal(composeUp.env.ASSISTANT_DB_PASSWORD, mavenEnv.ASSISTANT_RLS_RUNTIME_PASSWORD);
+  assert.deepEqual(Object.keys(result.ports).sort(), ['E2E_API_HOST_PORT', 'POSTGRES_HOST_PORT']);
+  assert.doesNotMatch(JSON.stringify(result), /campuscore_password|dev-only-not-a-secret/);
+});
+
 test('a cleanup failure keeps the original case failure and still tears down', async (t) => {
   for (const [name, runCase] of [['stack', caseStack], ['pgit', casePgit]]) {
     const evidence = mkdtempSync(join(tmpdir(), `platform-verify-${name}-`));
