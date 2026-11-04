@@ -281,26 +281,29 @@ class LibraryReadBudgetTest {
 
     @Test
     void issueRechecksDeadlineAfterWaitingForTheCopyLock() {
-        var deadline = java.time.Instant.now().plusSeconds(2);
+        var deadline = java.time.Instant.now().plus(java.time.Duration.ofDays(1));
         jdbc.update("UPDATE library.\"LoanRequest\" SET \"status\" = 'APPROVED', \"expiresAt\" = ?"
                 + " WHERE \"id\" = 'hold-1'", java.sql.Timestamp.from(deadline));
+        // issue() reads the hold deadline before the copy lock; moving that
+        // captured value into the past simulates the clock crossing it while
+        // the lock is held, so the recheck is proven without a wall-clock sleep.
+        var lockedRequest = new java.util.concurrent.atomic.AtomicReference<Map<String, Object>>();
         doAnswer(invocation -> {
-            Object result = invocation.callRealMethod();
             String sql = invocation.getArgument(0);
-            if (sql.contains("FROM library.\"Copy\"") && sql.endsWith("FOR UPDATE")) {
-                assertThat(java.time.Instant.now()).isBefore(deadline);
-                long pollDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
-                while (!java.time.Instant.now().isAfter(deadline) && System.nanoTime() < pollDeadline) {
-                    Thread.sleep(20);
-                }
-                assertThat(java.time.Instant.now()).as("the test clock passes the hold deadline within 10 seconds")
-                        .isAfter(deadline);
+            Object result = invocation.callRealMethod();
+            if (sql.contains("FROM library.\"LoanRequest\"") && sql.endsWith("FOR UPDATE")) {
+                lockedRequest.set(rowMap(result));
+            } else if (sql.contains("FROM library.\"Copy\"") && sql.endsWith("FOR UPDATE")) {
+                assertThat(lockedRequest.get()).as("the request row is locked before the copy").isNotNull();
+                lockedRequest.get().put("expiresAt", java.sql.Timestamp.from(java.time.Instant.EPOCH));
             }
             return result;
         }).when(named).queryForMap(anyString(), any(SqlParameterSource.class));
         assertThatThrownBy(() -> staff.issue("desk", "hold-1", new IssueRequest(1, 14)))
                 .isInstanceOf(DomainException.class).hasMessageContaining("expired");
         assertThat(status("hold-1")).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT \"status\" FROM library.\"Copy\" WHERE \"id\" = 'copy-1'",
+                String.class)).isEqualTo("RESERVED");
     }
 
     private void queueRow(int i, String status) {
@@ -355,5 +358,10 @@ class LibraryReadBudgetTest {
         } catch (InvocationTargetException exception) {
             throw exception.getCause();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> rowMap(Object value) {
+        return (Map<String, Object>) value;
     }
 }

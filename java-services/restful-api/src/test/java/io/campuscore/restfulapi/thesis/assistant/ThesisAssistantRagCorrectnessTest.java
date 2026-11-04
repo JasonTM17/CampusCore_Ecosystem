@@ -117,7 +117,13 @@ class ThesisAssistantRagCorrectnessTest {
         // 07:00 ICT is exactly where the old UTC bucketing flipped.
         assertEquals(LocalDate.of(2026, 1, 16),
                 AssistantTimezone.bucketDateAt(Instant.parse("2026-01-16T00:00:00Z")));
-        assertEquals(LocalDate.now(AssistantTimezone.ZONE), AssistantTimezone.currentBucketDate());
+        // The current bucket must sit between the buckets observed around the
+        // call, so two independent reads never have to match across midnight.
+        Instant before = Instant.now();
+        LocalDate current = AssistantTimezone.currentBucketDate();
+        Instant after = Instant.now();
+        assertFalse(current.isBefore(AssistantTimezone.bucketDateAt(before)));
+        assertFalse(current.isAfter(AssistantTimezone.bucketDateAt(after)));
     }
 
     @Test

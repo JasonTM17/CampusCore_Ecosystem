@@ -511,13 +511,18 @@ test('logout during a download aborts the transfer and clears its timer', async 
   const { state, options } = makeSession();
   const client = createApiClient(options);
   let seenSignal;
+  let entered;
+  const fetchEntered = new Promise((resolve) => { entered = resolve; });
   const net = installFetch((call) => new Promise((_resolve, reject) => {
     seenSignal = call.signal;
     call.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    entered();
   }));
   try {
     const pending = client.download('/doc/file');
-    setTimeout(() => { state.epoch += 1; state.token = null; }, 10);
+    await fetchEntered;
+    state.epoch += 1;
+    state.token = null;
     await assert.rejects(
       pending,
       (error) => error instanceof ApiClientError && error.code === 'SESSION_CHANGED' && error.kind === 'aborted',
@@ -563,15 +568,19 @@ test('a transfer 401 from a stale lane never evicts or reuses the replacing sess
 test('the caller signal aborts a transfer', async () => {
   const { options } = makeSession();
   const client = createApiClient(options);
+  let entered;
+  const fetchEntered = new Promise((resolve) => { entered = resolve; });
   const net = installFetch((call) => new Promise((_resolve, reject) => {
     const abort = () => reject(new DOMException('aborted', 'AbortError'));
     if (call.signal.aborted) abort();
     else call.signal.addEventListener('abort', abort);
+    entered();
   }));
   try {
     const controller = new AbortController();
     const pending = client.download('/doc/file', { signal: controller.signal });
-    setTimeout(() => controller.abort(), 5);
+    await fetchEntered;
+    controller.abort();
     await assert.rejects(pending, (error) => error.code === 'REQUEST_ABORTED' && error.kind === 'aborted');
 
     const already = new AbortController();

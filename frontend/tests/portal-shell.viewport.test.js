@@ -122,6 +122,19 @@ async function assertNoHorizontalOverflow(page, label) {
   );
 }
 
+async function waitForDrawerAtLeftEdge(sidebar, label, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let box = null;
+  for (;;) {
+    box = await sidebar.boundingBox();
+    if (box && Math.abs(box.x) < 1) return box;
+    if (Date.now() > deadline) {
+      assert.fail(`${label}: drawer did not enter from the left edge (x=${box ? box.x : 'missing'})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 async function verifySidebar(page, sidebarId, openButtonName, viewport) {
   const sidebar = page.locator(sidebarId);
   // The mobile bottom-nav exposes the same accessible label, so the check is
@@ -141,7 +154,6 @@ async function verifySidebar(page, sidebarId, openButtonName, viewport) {
   assert.equal(await sidebar.getAttribute('aria-hidden'), 'true');
   assert.equal(await openButton.isVisible(), true);
   await openButton.click();
-  await page.waitForTimeout(250);
   assert.equal(await sidebar.getAttribute('aria-hidden'), 'false');
   assert.equal(await sidebar.getAttribute('role'), 'dialog');
   assert.equal(await sidebar.getAttribute('aria-modal'), 'true');
@@ -163,9 +175,8 @@ async function verifySidebar(page, sidebarId, openButtonName, viewport) {
     await sidebar.evaluate((element) => element.contains(document.activeElement)),
     true,
   );
-  const openBox = await sidebar.boundingBox();
-  assert.ok(openBox && Math.abs(openBox.x) < 1, `${viewport.name}: drawer did not enter from the left edge`);
-  assert.ok(openBox && openBox.width <= viewport.width - 48, `${viewport.name}: drawer exceeds its responsive width`);
+  const openBox = await waitForDrawerAtLeftEdge(sidebar, viewport.name);
+  assert.ok(openBox.width <= viewport.width - 48, `${viewport.name}: drawer exceeds its responsive width`);
 
   await page.keyboard.press('Escape');
   assert.equal(await sidebar.getAttribute('aria-hidden'), 'true');
