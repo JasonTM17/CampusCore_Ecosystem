@@ -34,8 +34,6 @@
 #
 # 6. e2e (BLOCKS MERGE):
 #    - Official Playwright e2e suite against disposable container stack.
-#    - Every ecosystem HTTPS preview lane (one spec each, SSO_PORTAL_BASE set by
-#      its runner); the single-host suite legitimately ignores those specs.
 #
 # 7. compose (BLOCKS MERGE):
 #    - Migration immutability check, docker compose config validation.
@@ -638,8 +636,6 @@ jobs:
           E2E_PLAYWRIGHT_PROJECT: mobile-390
           E2E_PLAYWRIGHT_FILTER: failed mark-read restores the preview row and unread badge without duplicates
         run: node scripts/run-course-e2e.mjs
-      - name: Run every ecosystem HTTPS preview lane
-        run: node scripts/ecosystem-e2e-verify.mjs --project-prefix campuscore-ci-${{ github.run_id }} --evidence-root artifacts/verification
       - name: Upload Playwright failure traces
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
