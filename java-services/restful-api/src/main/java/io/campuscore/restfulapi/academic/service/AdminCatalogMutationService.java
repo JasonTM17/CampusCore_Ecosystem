@@ -351,7 +351,17 @@ public class AdminCatalogMutationService {
 
     @Transactional
     public void delete(String table, String id) {
-        Map<String, Object> before = rowOrNull(table, id);
+        String sectionLockSql = sectionDeleteLockSql(table);
+        Map<String, Object> before;
+        if (sectionLockSql == null) {
+            before = rowOrNull(table, id);
+        } else {
+            // Lock referencing sections before the parent so this path follows
+            // the Section -> Classroom/Lecturer order used by section edits.
+            jdbc.query(sectionLockSql, new MapSqlParameterSource("id", id),
+                    (rs, row) -> rs.getString("id"));
+            before = requireRowForUpdate(table, id);
+        }
         try {
             int deleted = jdbc.update("DELETE FROM " + table + " WHERE \"id\" = :id", new MapSqlParameterSource("id", id));
             if (deleted == 0) {
@@ -361,6 +371,23 @@ public class AdminCatalogMutationService {
             throw problem(HttpStatus.CONFLICT, "RESOURCE_IN_USE", "Resource is still referenced by another record");
         }
         audit.recordDeletion(actor(), null, entityType(table), id, before);
+    }
+
+    private static String sectionDeleteLockSql(String table) {
+        if (CLASSROOM.equals(table)) {
+            return "SELECT section.\"id\" FROM " + SECTION + " section"
+                    + " WHERE section.\"classroomId\"=:id OR EXISTS (SELECT 1 FROM " + SECTION_SCHEDULE
+                    + " schedule WHERE schedule.\"sectionId\"=section.\"id\" AND schedule.\"classroomId\"=:id)"
+                    + " ORDER BY section.\"id\" FOR UPDATE OF section";
+        }
+        String column = switch (table) {
+            case COURSE -> "\"courseId\"";
+            case SEMESTER -> "\"semesterId\"";
+            case LECTURER -> "\"lecturerId\"";
+            default -> null;
+        };
+        if (column == null) return null;
+        return "SELECT \"id\" FROM " + SECTION + " WHERE " + column + "=:id ORDER BY \"id\" FOR UPDATE";
     }
 
     /** Returns the persisted row and records the create on the shared audit trail. */
