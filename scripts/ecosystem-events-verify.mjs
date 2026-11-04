@@ -18,6 +18,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installKillGuard, preflightProjectVolumes, stopChildrenTree } from './ecosystem-verify-shared.mjs';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -187,6 +188,7 @@ async function casePreview(args) {
       throw new Error(`compose project ${args.project} already exists — refusing collision`);
     }
     preflightProjectVolumes(args.project, tryRun);
+    ensureComposeSecrets({ root: REPO });
 
     ownsStack = true;
     signalTeardown = () => tryRun('docker', composeArgs(args,

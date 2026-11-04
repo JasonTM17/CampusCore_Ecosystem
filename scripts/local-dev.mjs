@@ -11,9 +11,8 @@
  * Design notes:
  * - Every decision is a pure exported function so node:test can cover it
  *   without Docker. Process spawning goes through one injected `run`.
- * - `.env` is created from `.env.example` only when absent; this script never
- *   prints environment-file contents. It appends a generated owner-assertion
- *   key when that key is absent because Compose refuses to start without one.
+ * - `.env` is created from `.env.example` only when absent; the shared
+ *   generator fills missing/published Compose secrets without printing values.
  * - Commands spawn `docker` directly (no shell) so PowerShell, Git Bash and
  *   POSIX shells get the same argv without hand-quoting.
  */
@@ -24,11 +23,13 @@ import net from 'node:net';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { ensureComposeSecrets } from './compose-secrets.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const DEFAULT_PROJECT_NAME = 'campusute';
 export const COMPOSE_BASE = 'docker-compose.yml';
+export const COMPOSE_LOCAL = 'docker-compose.local.yml';
 export const COMPOSE_MOBILE = 'docker-compose.mobile-local.yml';
 
 // Repo requirements: java-services/pom.xml pins Java 21; frontend/package.json
@@ -115,8 +116,8 @@ Host ports (override in .env):
   MAILPIT_UI_HOST_PORT=8025   MAILPIT_SMTP_HOST_PORT=1025
 
 Doctor treats Node >= ${REQUIRED_NODE_VERSION}, Java >= ${REQUIRED_JAVA_MAJOR}, the Docker CLI,
-Compose v2 and a reachable Docker engine as hard requirements. A missing .env
-and busy host ports are warnings with remedies; "up" never overwrites .env.`;
+Compose v2 and a reachable Docker engine as hard requirements. It prepares the
+ignored .env and validates the base and local overlays; custom values are kept.`;
 
 /* ------------------------------------------------------------------ */
 /* argument parsing and command shaping (pure)                        */
@@ -170,7 +171,7 @@ export function parseArgs(argv = []) {
 }
 
 export function selectComposeFiles({ mobile = false } = {}) {
-  return mobile ? [COMPOSE_BASE, COMPOSE_MOBILE] : [COMPOSE_BASE];
+  return mobile ? [COMPOSE_BASE, COMPOSE_LOCAL, COMPOSE_MOBILE] : [COMPOSE_BASE, COMPOSE_LOCAL];
 }
 
 export function composeNameFromSource(source) {
@@ -272,8 +273,45 @@ export function ensureEnvFile({ root, fs: fsImpl = fs, log = () => {} }) {
   const template = path.join(root, '.env.example');
   if (!fsImpl.existsSync(template)) throw new Error('.env is missing and .env.example is not available to copy');
   fsImpl.copyFileSync(template, target);
-  log('created .env from .env.example (template values; it is git-ignored)');
+  log('created .env from .env.example (it is git-ignored)');
   return { created: true, path: target };
+}
+
+function prepareLocalComposeEnvironment({ root, env = process.env, fs: fsImpl = fs, log = () => {} }) {
+  ensureEnvFile({ root, fs: fsImpl, log });
+  const result = ensureComposeSecrets({ root, fs: fsImpl, env });
+  if (result.generatedKeys.length > 0) log('generated missing Compose secrets in the git-ignored .env');
+  return result;
+}
+
+function previewComposeSecrets({ root, env, fs: fsImpl }) {
+  return ensureComposeSecrets({
+    root,
+    fs: {
+      existsSync: (target) => fsImpl.existsSync(target),
+      readFileSync: (target, encoding) => fsImpl.readFileSync(target, encoding),
+      writeFileSync: () => {},
+      chmodSync: () => {},
+    },
+    env: { ...env },
+    randomBytes: (size) => Buffer.alloc(size),
+  });
+}
+
+async function guardPostgresPasswordRotation(flags, deps) {
+  const preview = previewComposeSecrets({ root: deps.root, env: deps.env, fs: deps.fs });
+  if (!preview.generatedKeys.includes('POSTGRES_PASSWORD')) return;
+
+  const { project } = await resolveStack({ flags, deps });
+  const volumes = deps.run('docker', [
+    'volume', 'ls', '-q',
+    '--filter', `label=com.docker.compose.project=${project}`,
+    '--filter', 'label=com.docker.compose.volume=campuscore_restful_postgres_data',
+  ], { cwd: deps.root, timeout: 60_000 });
+  if (volumes.code !== 0) throw new Error('Could not check the PostgreSQL volume; .env was not changed.');
+  if (volumes.stdout.trim()) {
+    throw new Error(`POSTGRES_PASSWORD would be regenerated for a project with an existing PostgreSQL volume; follow docs/ecosystem/environment.md#existing-local-postgresql-volumes.`);
+  }
 }
 
 function generateOwnerAssertionSecret() {
@@ -652,6 +690,18 @@ export async function doctor(deps) {
     add({ label: 'Compose v2', status: 'FAIL', detail: 'skipped because the Docker CLI is unavailable', remedy: 'Install Docker Desktop or the Compose v2 plugin.' });
   }
 
+  if (composeOk) {
+    const files = selectComposeFiles();
+    const composeFiles = files.flatMap((file) => ['-f', file]);
+    const config = run('docker', ['compose', ...composeFiles, 'config', '--quiet'], { cwd: root, timeout: 60_000 });
+    add({
+      label: 'Compose config',
+      status: config.code === 0 ? 'PASS' : 'FAIL',
+      detail: config.code === 0 ? 'base and local overlay resolve' : 'base or local overlay is invalid',
+      remedy: config.code === 0 ? null : 'Run "node scripts/local-dev.mjs up" after correcting the Compose configuration.',
+    });
+  }
+
   let engineOk = false;
   if (cliOk) {
     // Docker Desktop often answers "engine unreachable" for a few seconds while
@@ -681,7 +731,7 @@ export async function doctor(deps) {
     label: '.env',
     status: envExists ? 'PASS' : 'WARN',
     detail: envExists ? '.env present' : '.env is missing',
-    remedy: envExists ? null : 'Run "node scripts/local-dev.mjs up" to copy .env.example to .env (it never overwrites an existing file).',
+    remedy: envExists ? null : 'Run "node scripts/local-dev.mjs up" to create the ignored .env and generate the required Compose secrets.',
   });
 
   let owners = new Map();
@@ -786,8 +836,6 @@ async function resolveStack({ flags, deps }) {
 
 async function up(flags, deps) {
   const { root, log, errorLog } = deps;
-  ensureEnvFile({ root, fs: deps.fs, log });
-  ensureOwnerAssertionSecret({ root, fs: deps.fs, log });
   const { files, project, prefix } = await resolveStack({ flags, deps });
   const mobileRecipe = flags.mobile ? readMobileRecipe({ root, fs: deps.fs }) : null;
 
@@ -927,6 +975,10 @@ export async function main(argv = process.argv.slice(2), overrides = {}) {
   }
 
   try {
+    if (parsed.command === 'up' || parsed.command === 'doctor') {
+      await guardPostgresPasswordRotation(parsed.flags, deps);
+      prepareLocalComposeEnvironment({ root: deps.root, env: deps.env, fs: deps.fs, log: deps.log });
+    }
     switch (parsed.command) {
       case 'doctor':
         return await doctor(deps);

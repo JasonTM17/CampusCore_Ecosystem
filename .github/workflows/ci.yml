@@ -135,6 +135,7 @@ jobs:
             scripts/ci-workflow-replay.test.mjs \
             scripts/compose-contract.test.mjs \
             scripts/compose-env-forwarding.test.mjs \
+            scripts/compose-secrets.test.mjs \
             scripts/contract-verify-options.test.mjs \
             scripts/contract-verify-teardown.test.mjs \
             scripts/dependency-baseline.test.mjs \
@@ -602,10 +603,6 @@ jobs:
       # under test must exercise the degraded lexical path, not a live model.
       DEEPSEEK_ENABLED: 'false'
       DEEPSEEK_API_KEY: ''
-      # Dev-only value for the disposable e2e stack: the assistant RLS runtime
-      # role needs a password (>= 16 chars) provisioned before the API boots.
-      # It never leaves this CI job and is not a secret.
-      ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
       E2E_PLAYWRIGHT_PROJECT: chromium
     steps:
       - name: Capture CI job start
@@ -669,14 +666,6 @@ jobs:
       # Keep the course stack deterministic and credential-free.
       DEEPSEEK_ENABLED: 'false'
       DEEPSEEK_API_KEY: ''
-      # Dev-only value for the fresh Compose volume: the assistant RLS runtime
-      # role needs a password (>= 16 chars) before the stack can boot. It is
-      # committed on purpose (CI-only, not a secret) and never used elsewhere.
-      ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
-      # docker-compose.yml has no default for the owner-assertion key because a
-      # deployed stack must generate its own; this job still needs a non-empty
-      # value to interpolate the model. CI-only placeholder, not a secret.
-      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: 'dev-ci-owner-assertion-not-a-secret'
     steps:
       - name: Capture CI job start
         id: ci_timing_start
@@ -689,8 +678,10 @@ jobs:
           fetch-depth: 0
       - name: Flyway migrations are immutable once merged
         run: node scripts/check-migration-immutability.mjs origin/main
-      - name: Validate Compose
-        run: docker compose config
+      - name: Generate disposable Compose secrets
+        run: node scripts/compose-secrets.mjs --ensure
+      - name: Validate fail-closed base Compose
+        run: docker compose -f docker-compose.yml config -q
       - name: Validate Caddyfile
         run: node scripts/caddy-validate.mjs
       - name: Supabase content tooling tests
@@ -709,26 +700,27 @@ jobs:
             console.log(`PASS: Verified ${m[1]} Supabase content tests executed.`);
           '
       - name: Build and start fresh course stack
-        run: docker compose up -d --build --wait
+        run: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build --wait
       - name: Verify database image boundary
         run: docker image inspect student-management-ute-database:local --format '{{.Config.Labels}}' | grep -q 'Flyway'
       - name: Verify Flyway, health, OpenAPI, login and RAG
         shell: bash
         run: |
-          version="$(docker compose exec -T postgres psql -U campuscore -d campuscore_restful -Atc 'SELECT version FROM thesis.flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1')"
+          readiness_key="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T restful-api sh -c 'printf %s "$HEALTH_READINESS_KEY"')"
+          version="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres psql -U campuscore -d campuscore_restful -Atc 'SELECT version FROM thesis.flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1')"
           # The schema boundary must equal the newest migration checked in, so a
           # migration that fails to apply (or a forgotten one) fails CI loudly.
           expected="$(ls java-services/restful-api/src/main/resources/db/migration | sed -E 's/^V([0-9]+)__[^.]*\.sql/\1/p' | sort -n | tail -1)"
           test "$version" = "$expected"
           curl --fail --silent --show-error http://127.0.0.1:4010/api/v1/health/liveness
-          curl --fail --silent --show-error -H 'X-Health-Key: local-course-health-key' http://127.0.0.1:4010/api/v1/health/readiness
+          curl --fail --silent --show-error -H "X-Health-Key: $readiness_key" http://127.0.0.1:4010/api/v1/health/readiness
           curl --fail --silent --show-error http://127.0.0.1:4010/v3/api-docs > openapi.json
           python3 -c 'import json; paths=json.load(open("openapi.json", encoding="utf-8"))["paths"]; required={"/api/v1/auth/login", "/api/v1/students", "/api/v1/lecturers", "/api/v1/sections", "/api/v1/enrollments", "/api/v1/enrollments/enroll", "/api/v1/me/enrollments", "/api/v1/registration/rounds", "/api/v1/me/registration/eligibility", "/api/v1/sections/{sectionId}/grades", "/api/v1/announcements", "/api/v1/notifications", "/api/v1/assistant/chat", "/api/v1/assistant/chat/stream", "/api/v1/assistant/conversations", "/api/v1/thesis/assistant/chat", "/api/v1/thesis/assistant/chat/stream", "/api/v1/thesis/assistant/conversations", "/api/v1/admin/assistant/knowledge", "/api/v1/admin/thesis/assistant/knowledge", "/api/v1/thesis/groups/{id}/report/file", "/api/v1/health/readiness"}; assert not required.difference(paths), sorted(required.difference(paths)); assert "/api/v1/auth/register" not in paths, "public self-registration must stay removed"'
           # V48 locks the whole .demo population; V82 then activates exactly the
           # runbook-documented set and DemoAccountGate (gate enabled in this
           # stack) keeps it ACTIVE. Prove the Four-Eyes second approver can
           # sign in with the single published demo password:
-          approver_status="$(docker compose exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT \"status\" FROM campuscore_auth.\"User\" WHERE \"email\" = 'admin002@campuscore.demo'")"
+          approver_status="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT \"status\" FROM campuscore_auth.\"User\" WHERE \"email\" = 'admin002@campuscore.demo'")"
           test "$approver_status" = "ACTIVE"
           demo_login="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -d '{"email":"admin002@campuscore.demo","password":"password123"}' http://127.0.0.1:4010/api/v1/auth/login)"
           DEMO_LOGIN="$demo_login" python3 -c 'import json, os; assert json.loads(os.environ["DEMO_LOGIN"])["accessToken"]'
@@ -736,18 +728,18 @@ jobs:
           DEAN_LOGIN="$dean_login" python3 -c 'import json, os; body=json.loads(os.environ["DEAN_LOGIN"]); assert body["accessToken"]; assert "TRUONG_KHOA" in body["user"]["roles"] and "LECTURER" in body["user"]["roles"]'
           tbm_login="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -d '{"email":"truongbomon@campuscore.demo","password":"password123"}' http://127.0.0.1:4010/api/v1/auth/login)"
           TBM_LOGIN="$tbm_login" python3 -c 'import json, os; body=json.loads(os.environ["TBM_LOGIN"]); assert body["accessToken"]; assert "TRUONG_BO_MON" in body["user"]["roles"] and "LECTURER" in body["user"]["roles"]'
-          admin_dean_roles="$(docker compose exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT COUNT(*) FROM campuscore_auth.\"UserRole\" ur JOIN campuscore_auth.\"Role\" r ON r.\"id\" = ur.\"roleId\" WHERE ur.\"userId\" = 'admin-user' AND r.\"name\" = 'TRUONG_KHOA'")"
+          admin_dean_roles="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT COUNT(*) FROM campuscore_auth.\"UserRole\" ur JOIN campuscore_auth.\"Role\" r ON r.\"id\" = ur.\"roleId\" WHERE ur.\"userId\" = 'admin-user' AND r.\"name\" = 'TRUONG_KHOA'")"
           test "$admin_dean_roles" = "0"
           # V82 is exact-address, not a pattern unlock: a seeded persona outside
           # the runbook set stays LOCKED even with the gate enabled.
-          persona_status="$(docker compose exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT \"status\" FROM campuscore_auth.\"User\" WHERE \"email\" = 'an.hnt@campuscore.demo'")"
+          persona_status="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres psql -U campuscore -d campuscore_restful -Atc "SELECT \"status\" FROM campuscore_auth.\"User\" WHERE \"email\" = 'an.hnt@campuscore.demo'")"
           test "$persona_status" = "LOCKED"
           persona_login_code="$(curl --max-time 8 --silent --output /dev/null --write-out '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"an.hnt@campuscore.demo","password":"password123"}' http://127.0.0.1:4010/api/v1/auth/login)"
           test "$persona_login_code" = "401"
           # V50 activates showcase demo student, lecturer, and admin; student login succeeds directly:
           login="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -d '{"email":"student@campuscore.edu","password":"password123"}' http://127.0.0.1:4010/api/v1/auth/login)"
           token="$(LOGIN="$login" python3 -c 'import json, os; print(json.loads(os.environ["LOGIN"])["accessToken"])')"
-          docker compose exec -T postgres psql -U campuscore -d campuscore_restful -v ON_ERROR_STOP=1 -c "UPDATE academic.\"RegistrationRound\" SET \"windowStart\" = CURRENT_TIMESTAMP - INTERVAL '1 day', \"windowEnd\" = CURRENT_TIMESTAMP + INTERVAL '1 day' WHERE \"id\" = 'round-registration-demo'"
+          docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres psql -U campuscore -d campuscore_restful -v ON_ERROR_STOP=1 -c "UPDATE academic.\"RegistrationRound\" SET \"windowStart\" = CURRENT_TIMESTAMP - INTERVAL '1 day', \"windowEnd\" = CURRENT_TIMESTAMP + INTERVAL '1 day' WHERE \"id\" = 'round-registration-demo'"
           # Use an unoccupied generated section so the replay probe tests idempotency,
           # rather than colliding with the demo student's seeded timetable.
           first_enrollment="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -H "Authorization: Bearer $token" -H 'Idempotency-Key: ci-postgres-replay-0001' -d '{"sectionId":"section-auto-019"}' http://127.0.0.1:4010/api/v1/me/enrollments)"
@@ -757,17 +749,17 @@ jobs:
           # PROVIDER_DISABLED is the degraded grounded path; ANSWERED is the
           # curated lexical fast path — both must still carry live citations.
           ASSISTANT="$assistant" python3 -c 'import json, os; data=json.loads(os.environ["ASSISTANT"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
-          rag_rejection="$(docker compose exec -T rag-service wget --server-response --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: wrong-token' --header='X-Assistant-Owner: ci-rag-probe' --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O /dev/null http://localhost:4011/internal/rag/assistant/chat 2>&1 || true)"
+          rag_rejection="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T rag-service wget --server-response --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: wrong-token' --header='X-Assistant-Owner: ci-rag-probe' --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O /dev/null http://localhost:4011/internal/rag/assistant/chat 2>&1 || true)"
           printf '%s\n' "$rag_rejection" | grep -Eq 'HTTP/[0-9.]+ 403'
-          rag_owner_assertion="$(python3 -c 'import base64, hashlib, hmac, json, os, time; b64=lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode(); now=int(time.time()); head=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode()); body=b64(json.dumps({"iss":"https://campuscore.invalid/restful-api","sub":"ci-rag-probe","aud":["campuscore-internal-rag"],"capability":"assistant","iat":now,"exp":now+30},separators=(",",":")).encode()); sig=b64(hmac.new(os.environ["ASSISTANT_RAG_OWNER_ASSERTION_SECRET"].encode(),(head+"."+body).encode(),hashlib.sha256).digest()); print(head+"."+body+"."+sig)')"
-          rag_internal="$(docker compose exec -T rag-service wget --no-verbose --tries=1 --header='Content-Type: application/json' --header='X-Rag-Service-Token: dev-rag-service-token-rotate-before-exposing' --header='X-Assistant-Owner: ci-rag-probe' --header="X-Assistant-Owner-Assertion: $rag_owner_assertion" --post-data='{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000003"}' -O- http://localhost:4011/internal/rag/assistant/chat)"
+          rag_owner_assertion="$(set -a; . ./.env; set +a; python3 -c 'import base64, hashlib, hmac, json, os, time; b64=lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode(); now=int(time.time()); head=b64(json.dumps({"alg":"HS256","typ":"JWT"},separators=(",",":")).encode()); body=b64(json.dumps({"iss":"https://campuscore.invalid/restful-api","sub":"ci-rag-probe","aud":["campuscore-internal-rag"],"capability":"assistant","iat":now,"exp":now+30},separators=(",",":")).encode()); sig=b64(hmac.new(os.environ["ASSISTANT_RAG_OWNER_ASSERTION_SECRET"].encode(),(head+"."+body).encode(),hashlib.sha256).digest()); print(head+"."+body+"."+sig)')"
+          rag_internal="$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T rag-service sh -c 'wget --no-verbose --tries=1 --header="Content-Type: application/json" --header="X-Rag-Service-Token: $ASSISTANT_RAG_SERVICE_TOKEN" --header="X-Assistant-Owner: ci-rag-probe" --header="X-Assistant-Owner-Assertion: '"$rag_owner_assertion"'" --post-data="{\"message\":\"Điều kiện đăng ký đề tài là gì?\",\"locale\":\"vi\",\"clientRequestId\":\"00000000-0000-0000-0000-000000000003\"}" -O- http://localhost:4011/internal/rag/assistant/chat')"
           RAG_INTERNAL="$rag_internal" python3 -c 'import json, os; data=json.loads(os.environ["RAG_INTERNAL"]); assert data["reasonCode"] in ("PROVIDER_DISABLED", "ANSWERED"), data; assert data["reasonCode"] == "ANSWERED" or data["degraded"] is True, data; assert len(data["citations"]) > 0, data'
-          docker compose stop postgres
+          docker compose -f docker-compose.yml -f docker-compose.local.yml stop postgres
           # With the database stopped, Hikari must evict its dead pooled
           # connections (validation timeout each) before the probe can answer;
           # allow up to 30s for the expected 503 instead of the 8s that raced
           # connection eviction on slower runners.
-          readiness_code="$(curl --max-time 30 --silent --output /dev/null --write-out '%{http_code}' -H 'X-Health-Key: local-course-health-key' http://127.0.0.1:4010/api/v1/health/readiness)"
+          readiness_code="$(curl --max-time 30 --silent --output /dev/null --write-out '%{http_code}' -H "X-Health-Key: $readiness_key" http://127.0.0.1:4010/api/v1/health/readiness)"
           test "$readiness_code" = "503"
           # Authenticated requests fail closed while the account store is down: the
           # session cannot be re-verified, so even the assistant answers 503.
@@ -775,15 +767,15 @@ jobs:
           outage_code="$(curl --max-time 30 --silent --output "$outage_body" --write-out '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer $token" -d '{"message":"Điều kiện đăng ký đề tài là gì?","locale":"vi","clientRequestId":"00000000-0000-0000-0000-000000000002"}' http://127.0.0.1:4010/api/v1/assistant/chat)"
           test "$outage_code" = "503"
           grep -q DATABASE_UNAVAILABLE "$outage_body"
-          docker compose start postgres
-          docker compose up -d --wait
-          curl --fail --silent --show-error -H 'X-Health-Key: local-course-health-key' http://127.0.0.1:4010/api/v1/health/readiness
+          docker compose -f docker-compose.yml -f docker-compose.local.yml start postgres
+          docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait
+          curl --fail --silent --show-error -H "X-Health-Key: $readiness_key" http://127.0.0.1:4010/api/v1/health/readiness
       - name: Show runtime logs after failure
         if: failure()
-        run: docker compose logs --no-color
+        run: docker compose -f docker-compose.yml -f docker-compose.local.yml logs --no-color
       - name: Stop course stack
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.local.yml down
       - name: Write and validate CI timing summary
         if: always()
         continue-on-error: true

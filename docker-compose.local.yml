@@ -1,0 +1,18 @@
+services:
+  restful-api:
+    environment:
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
+
+  rag-service:
+    environment:
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS: "true"
+        NEXT_PUBLIC_DEMO_STUDENT_PASSWORD: password123
+        NEXT_PUBLIC_DEMO_LECTURER_PASSWORD: password123
+        NEXT_PUBLIC_DEMO_DEAN_PASSWORD: password123

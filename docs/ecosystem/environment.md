@@ -58,11 +58,11 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `JWT_SECRET` | HMAC key for access tokens | secret | all | required, no safe default |
 | `JWT_REFRESH_SECRET` | HMAC key for refresh tokens | secret | all | required, no safe default |
 | `JWT_ACCESS_TOKEN_TTL_SECONDS`, `JWT_REFRESH_TOKEN_TTL_SECONDS` | Token lifetimes | config | optional | safe default |
-| `SECURITY_JWT_REJECT_KNOWN_DEFAULTS` | Fail-fast if demo JWT secrets leak to prod | config | prod | safe default `false` (set `true` in prod) |
+| `SECURITY_JWT_REJECT_KNOWN_DEFAULTS` | Fail-fast if demo JWT secrets leak | config | prod, compose | base Compose pins `true`; application default outside Compose is `false` |
 | `ACCESS_TOKEN_COOKIE`, `REFRESH_TOKEN_COOKIE` | Cookie names for web session tokens | config | optional | safe default |
 | `CSRF_COOKIE`, `CSRF_HEADER` | CSRF cookie/header names | config | optional | safe default |
 | `COOKIE_SECURE` | `Secure` flag on cookies | config | all | safe default dev; must be `true` behind HTTPS |
-| `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required; local Compose and `.env.example` ship the dev-only constant `local-course-health-key` (replace it anywhere shared) |
+| `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required by base Compose; generated per checkout by `local-dev` |
 | `METRICS_SCRAPE_KEY` | Bearer key for `X-Metrics-Key` header on `GET /actuator/prometheus` | secret | when metrics scraping is enabled | safe default `""` (endpoint fails closed with 403 when unset; boots cleanly) |
 | `INTERNAL_SERVICE_TOKEN` | Reserved name set by `docker-compose.e2e.yml`; no service reads it (the internal lane authenticates with `ASSISTANT_RAG_SERVICE_TOKEN`) | secret | — | unused; setting it has no effect |
 
@@ -71,13 +71,29 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
 | `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Main JDBC connection (local DB or Neon) | secret (URL+password) | local, render | required outside compose |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Postgres container bootstrap credentials | secret | compose, prod, e2e | required by compose |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Postgres container bootstrap credentials | secret | compose, prod, e2e | `POSTGRES_PASSWORD` required by base Compose; `local-dev` generates it and keeps custom volume credentials |
 | `POSTGRES_HOST_PORT` | Host port published to postgres | config | compose, e2e | safe default `5432` (`docker-compose.yml`); `5433` in `docker-compose.e2e.yml` and `scripts/run-course-e2e.mjs`; `scripts/platform-verify.mjs` allocates a free port |
 | `FLYWAY_ENABLED` | Run Flyway migrations on boot | config | all | safe default `true` |
 | `DB_POOL_MAX`, `DB_POOL_MIN`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_KEEPALIVE_MS` | Hikari pool sizing/idle | config | tuning | safe default |
 | `DB_CONNECTION_TIMEOUT_MS`, `DB_VALIDATION_TIMEOUT_MS` | Hikari acquire/validate timeouts | config | tuning | safe default |
 | `ASSISTANT_DB_URL`, `ASSISTANT_DB_USERNAME`, `ASSISTANT_DB_PASSWORD` | Separate assistant (RAG) datasource, prod (`ASSISTANT_DB_PASSWORD` >= 16 characters) | secret | prod | required when sidecar DB split; Compose provisions `campuscore_assistant_runtime` once via `scripts/provision-assistant-runtime.mjs`, run that script manually before boot outside Compose; a non-loopback target negotiates TLS (`PGSSLMODE` or JDBC `?sslmode=`, default `require`, loopback `prefer`) and the Compose stacks set `PGSSLMODE=disable` on their private network |
 | `ASSISTANT_DB_POOL_MAX`, `ASSISTANT_DB_CONNECTION_TIMEOUT_MS`, `ASSISTANT_DB_IDLE_TIMEOUT_MS`, `ASSISTANT_DB_KEEPALIVE_TIME_MS` | Assistant pool tuning | config | tuning | safe default |
+
+### Existing local PostgreSQL volumes
+
+The generator preserves custom database passwords already stored in `.env`. If a
+volume was initialized with the old published `campuscore_password` fallback,
+run `node scripts/compose-secrets.mjs --ensure` while PostgreSQL is still running.
+Then connect with the same Compose project:
+
+```sh
+docker compose -p <existing-project> -f docker-compose.yml -f docker-compose.local.yml exec postgres psql -U campuscore -d postgres
+```
+
+At the `psql` prompt, run `\password campuscore` and enter the new
+`POSTGRES_PASSWORD` from `.env` twice. Start with
+`node scripts/local-dev.mjs up --project <existing-project>`; keep the volume.
+The assistant runtime provisioner applies its generated password during startup.
 
 ## 4. Mail (SMTP)
 
@@ -97,7 +113,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `RATE_LIMIT_TRUST_PROXY_HEADERS`, `RATE_LIMIT_TRUST_REAL_IP` | Trust `X-Forwarded-For`/real IP from proxy | config | prod behind proxy | forbidden unless proxy strips spoofed headers |
 | `RATE_LIMIT_PROXY_TOKEN` | Shared token proving request came via trusted edge | secret | prod (with trusted proxy) | required only with trusted-proxy mode |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_WINDOW_SECONDS` | Bucket sizes + window | config | tuning | safe default |
-| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | Default `false`; local compose/`.env.example` opt in (`true`) so a fresh clone demo works |
+| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | Base Compose pins `false`; `docker-compose.local.yml` opts in when selected by `local-dev up` |
 | `DEMO_ACCOUNTS_ROLES` | Restrict which demo roles unlock | config | local demo | safe default all demo roles |
 | `REGISTRATION_CREDIT_LIMIT_OVERRIDE` | Override credit cap for enrollment (0 = rule-driven) | config | optional | safe default `0` |
 | `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |

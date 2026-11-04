@@ -14,15 +14,11 @@
 
 ### A. Khởi động cụm dịch vụ và xác nhận trạng thái
 ```powershell
-# 0. Bắt buộc một lần cho mỗi bản clone: compose không có giá trị mặc định cho khóa này.
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
-
-# 1. Khởi động toàn bộ cụm (compose tự chạy assistant-db-provisioner một lần rồi thoát)
-docker compose up -d --build
+# 1. Khởi động demo; runner tạo các secret còn thiếu, gồm ASSISTANT_RAG_OWNER_ASSERTION_SECRET.
+node scripts/local-dev.mjs up
 
 # 2. Kiểm tra trạng thái
-docker compose ps
+node scripts/local-dev.mjs status
 ```
 
 *Kết quả mong đợi (cổng mặc định):*
@@ -41,7 +37,7 @@ docker compose ps
 curl.exe -s http://127.0.0.1:4010/api/v1/health/liveness
 
 # Readiness Probe (kiểm tra kết nối PostgreSQL; Flyway do rag-service chạy trước khi API healthy)
-# Khóa mặc định của cụm local khớp HEALTH_READINESS_KEY trong .env.example; đổi key thì sửa cả hai nơi.
+# Khóa readiness riêng cho checkout được tạo trong .env.
 $env:HEALTH_READINESS_KEY = ((Get-Content .env | Select-String '^HEALTH_READINESS_KEY=').Line -split '=', 2)[1]
 curl.exe -s -H "X-Health-Key: $env:HEALTH_READINESS_KEY" http://127.0.0.1:4010/api/v1/health/readiness
 
@@ -74,10 +70,9 @@ node scripts/demo-rehearsal.mjs
 > `admin002`, `truongkhoa`, `truongbomon` và bật lại hồ sơ giảng viên của hai tài khoản trưởng khoa.
 > Vì vậy một công tắc duy nhất là **đủ** cho toàn bộ bảng tài khoản.
 >
-> - Cụm demo cục bộ phải có `DEMO_ACCOUNTS_ENABLED=true` trong `.env` (đây cũng là giá trị mặc định
->   của `docker-compose.yml` và `.env.example`); nếu không, mọi tài khoản bên dưới sẽ trả 401.
-> - Nút **"Điền nhanh"** chỉ hiện khi `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true` **và** mật khẩu demo đã
->   được điền vào các biến `NEXT_PUBLIC_DEMO_*_PASSWORD`. Thiếu mật khẩu thì nút ẩn — hãy đăng nhập thủ công.
+> - `local-dev up` chọn `docker-compose.local.yml`, bật `DEMO_ACCOUNTS_ENABLED` và build quick-fill cho demo.
+>   Base `docker-compose.yml` giữ tài khoản demo khóa và không đóng gói mật khẩu quick-fill.
+> - Nút **"Điền nhanh"** chỉ có trong bản build local của overlay demo.
 > - Câu lệnh `UPDATE ... SET status='ACTIVE'` **không còn tác dụng qua một lần restart**; hãy dùng
 >   công tắc môi trường. Chi tiết ở mục "Tài khoản demo kiểm thử" trong `README.md`.
 > - Mật khẩu `password123` là **mật khẩu seed công khai** của bộ tài khoản demo (đã nằm trong lịch sử
@@ -263,8 +258,8 @@ công trừ khi đang làm một repair có bằng chứng riêng.
 
 | Tình huống sự cố | Nguyên nhân có thể | Hướng xử lý nhanh |
 | --- | --- | --- |
-| **Không truy cập được Web ở 3000** | Cổng bị chiếm dụng hoặc compose chưa lên | Chạy `docker compose port web 3000` để lấy cổng thực tế; chạy `docker compose restart web` |
-| **API trả về lỗi kết nối Database** | PostgreSQL chưa hoàn tất khởi động | Kiểm tra `docker compose logs postgres`; kiểm tra port `5432` |
+| **Không truy cập được Web ở 3000** | Cổng bị chiếm dụng hoặc compose chưa lên | Chạy `node scripts/local-dev.mjs status` để xem cổng và trạng thái; khởi động lại bằng `docker compose -f docker-compose.yml -f docker-compose.local.yml restart web` |
+| **API trả về lỗi kết nối Database** | PostgreSQL chưa hoàn tất khởi động | Kiểm tra `node scripts/local-dev.mjs logs postgres`; kiểm tra port `5432` |
 | **Trợ lý AI trả lời chậm** | Đang bật `DEEPSEEK_ENABLED=true` nhưng không có internet | Tắt `DEEPSEEK_ENABLED=false` trong `.env` để chuyển sang chế độ Lexical RAG cục bộ (< 50ms, không cần mạng) |
 | **Quên tài khoản đăng nhập** | Nhập sai mật khẩu | Sử dụng các tài khoản mặc định `student@campuscore.edu` / `password123` hoặc `admin@campuscore.edu` / `password123` |
 

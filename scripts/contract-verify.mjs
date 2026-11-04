@@ -27,6 +27,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { preflightProjectVolumes } from "./ecosystem-verify-shared.mjs";
+import { ensureComposeSecrets } from "./compose-secrets.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_HOST_PORT = 4100;
@@ -306,6 +307,7 @@ async function main() {
   const sub = process.argv[2];
   const args = parseArgs(process.argv);
   mkdirSync(args.evidence, { recursive: true });
+  if (sub === "contract-probes") ensureComposeSecrets({ root: REPO });
   const logLines = [];
   const log = (s) => { logLines.push(s); };
 

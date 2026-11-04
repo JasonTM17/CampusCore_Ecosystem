@@ -31,7 +31,7 @@ archive/verify/restore flow is for a local or otherwise reachable stack:
 ```sh
 # COMPOSE_PROJECT_NAME must name the running project:
 #   campusute            -> node scripts/local-dev.mjs up
-#   <checkout-directory> -> plain docker compose up
+#   <checkout-directory> -> node scripts/local-dev.mjs up --project <checkout-directory>
 export COMPOSE_PROJECT_NAME=campusute
 BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
 ./ops/backup/verify-backup.sh ops/backups/campuscore-<project>-<timestamp>.dump
@@ -47,10 +47,11 @@ to a new sibling directory named
 restore application at that directory when checking report downloads; do not
 mount it over the live volume.
 
-The default compose file requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`:
-`node scripts/local-dev.mjs up` generates it into the git-ignored `.env` on the
-first run, and a plain `docker compose up` needs the same key appended to `.env`
-before the stack starts.
+`node scripts/local-dev.mjs up` generates the required Compose secrets,
+including `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`, in the git-ignored `.env`.
+Direct Compose starts must first run `node scripts/compose-secrets.mjs --ensure`
+and supply all required base values. Existing custom database passwords in
+`.env` are kept so their volumes remain usable.
 
 `verify-backup.sh` and `restore-postgres.sh` also require the explicit project
 name and a running local Compose stack so they can inspect the PostgreSQL TOC
