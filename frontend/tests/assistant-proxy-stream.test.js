@@ -1,30 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const ts = require('typescript');
+const { loadApiStack } = require('./proxy-route-harness');
 
 function loadProxy(upstream, onFetch = () => {}, environment = {}) {
-  const source = fs.readFileSync(path.join(__dirname, '../src/app/api/v1/[...path]/route.ts'), 'utf8');
-  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-  const record = { exports: {} };
-  const env = { JAVA_API_ORIGIN: 'http://test-api', ...environment };
-  const context = vm.createContext({
-    Headers, Response,
-    process: { env },
-    fetch: async (url, options) => { onFetch(url, options); return upstream; },
-  });
-  vm.runInContext(`(function(require,module,exports){${output}\n})`, context)(
-    () => ({
-      buildApiProxyUrl: (origin, segments, query) => `${origin}/api/v1/${segments.join('/')}${query}`,
-      resolveJavaApiOrigin: () => env.JAVA_API_ORIGIN || env.BACKEND_INTERNAL_ORIGIN || 'http://127.0.0.1:4010',
-      // Test hosts are unmapped, so the proxy stays on the plain bearer lane.
-      surfaceFromHost: () => null,
-    }),
-    record, record.exports,
-  );
-  return record.exports.POST;
+  return loadApiStack(async (url, options) => {
+    onFetch(url, options);
+    return upstream;
+  }, environment).route.POST;
 }
 
 function request() {
