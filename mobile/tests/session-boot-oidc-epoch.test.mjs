@@ -55,10 +55,17 @@ function harness() {
   ]);
   const writes = [];
   let refreshReady = false;
+  let bootstrapUnavailableOnce = true;
   const sessionStore = createSessionStore({
     issuer: 'https://issuer.test',
     secure: {
-      getItemAsync: async (key) => secure.get(key) ?? null,
+      getItemAsync: async (key) => {
+        if (key === 'cu.install' && bootstrapUnavailableOnce) {
+          bootstrapUnavailableOnce = false;
+          throw new Error('storage unavailable');
+        }
+        return secure.get(key) ?? null;
+      },
       setItemAsync: async (key, value) => { writes.push([key, value]); secure.set(key, value); },
       deleteItemAsync: async (key) => { secure.delete(key); },
     },
@@ -84,6 +91,13 @@ function harness() {
     sessionStore, apiClient, setEpoch, setState, updateBootStatus,
     mounted: { current: true }, bootFlight: { current: null },
     foregroundRetrySafe: { current: false }, setBooted: () => {},
+    expireSession: () => {
+      sessionStore.bumpEpoch();
+      sessionStore.setAccessToken(null);
+      stateRef.current = { kind: 'signedOut', role: 'student', accountId: null };
+      setEpoch((current) => current + 1);
+      updateBootStatus('reauthRequired');
+    },
     decodeJwtPayload, roleFromClaims, capabilitiesOf,
     claimsOf: (access) => decodeJwtPayload(access)?.roles ?? [],
     hasApplicantSurface: () => false, APPLICANT_UI_ROLE: 'student',

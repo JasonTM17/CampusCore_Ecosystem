@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { createCheckinMachine } from '../../src/attendance-checkin/checkin-machine';
@@ -107,7 +108,20 @@ async function reachReady() {
   await byTestId('checkin-ready');
 }
 
-beforeEach(() => { mockParams = {}; mockRouter.back.mockReset(); });
+let foreground: ((state: AppStateStatus) => void) | undefined;
+let removeAppStateListener: ReturnType<typeof jest.fn>;
+
+beforeEach(() => {
+  mockParams = {};
+  mockRouter.back.mockReset();
+  foreground = undefined;
+  removeAppStateListener = jest.fn();
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: removeAppStateListener };
+  });
+});
+afterEach(() => { jest.restoreAllMocks(); });
 
 describe('check-in screen states', () => {
   test('unauthorized submission shows explicit recovery and retry only reloads reads', async () => {
@@ -186,6 +200,40 @@ describe('check-in screen states', () => {
     press(copy.permissionAction);
     await byTestId('checkin-state-servicesOff');
     expect(screen.getByText(copy.openLocationSettings)).toBeTruthy();
+  });
+
+  test('returning from settings re-checks a blocked permission', async () => {
+    const fixture = setup({ permission: 'denied-blocked' });
+    const view = await show(fixture.machine);
+    await byRole(copy.entryAction);
+    press(copy.entryAction);
+    await byRole(copy.permissionAction);
+    press(copy.permissionAction);
+    await byTestId('checkin-state-permissionBlocked');
+
+    fixture.location.ensurePermission.mockResolvedValue('granted');
+    await act(async () => { foreground?.('active'); });
+
+    await byTestId('checkin-ready');
+    expect(fixture.location.getFreshFix).toHaveBeenCalledTimes(1);
+    await act(async () => { view.unmount(); });
+    expect(removeAppStateListener).toHaveBeenCalledTimes(1);
+  });
+
+  test('returning from settings re-checks location services', async () => {
+    const fixture = setup({ services: false });
+    await show(fixture.machine);
+    await byRole(copy.entryAction);
+    press(copy.entryAction);
+    await byRole(copy.permissionAction);
+    press(copy.permissionAction);
+    await byTestId('checkin-state-servicesOff');
+
+    fixture.location.isServicesEnabled.mockResolvedValue(true);
+    await act(async () => { foreground?.('active'); });
+
+    await byTestId('checkin-ready');
+    expect(fixture.location.getFreshFix).toHaveBeenCalledTimes(1);
   });
 
   test('low accuracy shows tips and retry', async () => {

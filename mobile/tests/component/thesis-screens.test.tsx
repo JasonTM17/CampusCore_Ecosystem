@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -64,6 +64,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => {
 import { apiClient } from '../../src/api/client';
 import { peekAssistantEntryScope, consumeAssistantEntryScope } from '../../src/assistant/entry-scope';
 import { createUnavailableFileAdapter, setFileAdapter, type FileAdapter } from '../../src/files/file-adapter';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { thesisMessages } from '../../src/i18n/thesis-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { selectThesisRound } from '../../src/screens/thesis/thesis-selection';
@@ -82,15 +83,29 @@ const navigate = jest.fn();
 const navigation = { navigate, signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const baseProps = { navigation, role: 'student', selectedThesisTopicId: null } as MobileScreenProps;
 const renderThemed = (el: ReactElement) => render(<ThemeProvider forcedScheme="light">{el}</ThemeProvider>);
+const renderEnglish = (el: ReactElement) =>
+  render(
+    <LocaleProvider initialLocale="en">
+      <ThemeProvider forcedScheme="light">{el}</ThemeProvider>
+    </LocaleProvider>,
+  );
 function setWidth(w: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
 }
 
-const round = (id: string, name: string, status: string) => ({
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+const round = (id: string, name: string, status: string, over: Record<string, unknown> = {}) => ({
   id, name, status,
-  registrationStart: '2026-08-25T00:00:00Z',
-  registrationEnd: '2026-09-30T23:59:59Z',
+  registrationStart: new Date(Date.now() - 86_400_000).toISOString(),
+  registrationEnd: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   thesisType: 'KLTN',
+  ...over,
 });
 const ROUNDS = [round('r1', 'Đợt 1', 'RESULTS_PUBLISHED'), round('r2', 'Đợt 2', 'REGISTRATION_OPEN')];
 const topic = (id: string, title: string, over: Record<string, unknown> = {}) => ({
@@ -145,15 +160,33 @@ describe('topics, round and advisors', () => {
     expect(screen.getByText('Đợt 2')).toBeOnTheScreen();
   });
 
-  test('search ignores accents and narrows the loaded topics', async () => {
+  test('search asks the server and renders a match that is not on the first page', async () => {
     setWidth(360);
+    mockApi.topics.mockImplementation(async (_roundId: string, options: { page?: number; search?: string } = {}) => {
+      if (options.search !== 'tro ly') return page([TOPIC_B], true, 21);
+      return options.page ? page([topic('t9', 'Trợ lý học vụ nâng cao')], false, 2) : page([topic('t8', 'Trợ lý học vụ cơ bản')], true, 2);
+    });
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await screen.findByText('Thư viện di động');
+    await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'tro ly');
+    expect(await screen.findByText('Trợ lý học vụ cơ bản')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 0, limit: 20, search: 'tro ly' });
+    expect(screen.queryByText('Thư viện di động')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.loadMore }));
+    expect(await screen.findByText('Trợ lý học vụ nâng cao')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 1, limit: 20, search: 'tro ly' });
+  });
+
+  test('a search the server reports as empty shows the filtered empty state', async () => {
+    setWidth(360);
+    mockApi.topics.mockImplementation(async (_roundId: string, options: { search?: string } = {}) => (
+      options.search ? page([], false, 0) : page([TOPIC_A, TOPIC_B], false, 2)
+    ));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
     await screen.findByText('Trợ lý học vụ');
-    await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'thu vien');
-    expect(screen.queryByText('Trợ lý học vụ')).toBeNull();
-    expect(screen.getByText('Thư viện di động')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'khong co');
     expect(await screen.findByText(copy.emptyTopicsFiltered)).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 0, limit: 20, search: 'khong co' });
   });
 
   test('a long list pages in on request and appends without duplicates', async () => {
@@ -182,6 +215,19 @@ describe('topics, round and advisors', () => {
     expect(screen.queryByText('boom')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
     expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
+  });
+
+  test('a resource 401 stays a retryable read error and never claims an expired session', async () => {
+    setWidth(360);
+    mockApi.topics
+      .mockRejectedValueOnce(Object.assign(new Error('unauthorized'), { status: 401, code: 'HTTP_401' }))
+      .mockResolvedValueOnce(page([TOPIC_A]));
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText(copy.errors.generic)).toBeOnTheScreen();
+    expect(screen.queryByText(/Phiên đã hết hạn/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenCalledTimes(2);
   });
 
   test('no rounds shows the empty state', async () => {
@@ -223,6 +269,23 @@ describe('topics, round and advisors', () => {
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
     expect(screen.getByText('Võ Lan')).toBeOnTheScreen();
     expect(screen.getByText('2 đề tài')).toBeOnTheScreen();
+  });
+
+  test('a single topic and its group cap keep the singular English noun', async () => {
+    setWidth(360);
+    seed({ topics: [topic('t1', 'Solo topic', { maxGroups: 1 })] });
+    await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText('1 topic')).toBeOnTheScreen();
+    expect(screen.getByText('Up to 1 group')).toBeOnTheScreen();
+  });
+
+  test('a single advisor topic keeps the singular English noun', async () => {
+    setWidth(360);
+    seed({ topics: [TOPIC_A] });
+    await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
+    await screen.findByText('Trợ lý học vụ');
+    await fireEvent.press(screen.getByRole('tab', { name: thesisMessages.en.tabAdvisors }));
+    expect(await screen.findByText('1 topic')).toBeOnTheScreen();
   });
 
   test('the standalone round screen renders for a route registered later', async () => {
@@ -277,6 +340,24 @@ describe('topic detail', () => {
     expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
   });
 
+  test('registration is not offered once the open window has passed', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN', { registrationEnd: '2026-09-30T23:59:59Z' })] });
+    await renderThemed(detail());
+    await screen.findByText('Mô tả Trợ lý học vụ');
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+  });
+
+  test('a failed rounds read shows a retryable error where the register action would be', async () => {
+    setWidth(360);
+    mockApi.rounds.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
+    await renderThemed(detail());
+    expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByRole('button', { name: copy.register })).toBeOnTheScreen();
+  });
+
   test('a missing selection has a clear state', async () => {
     setWidth(360);
     await renderThemed(detail(null));
@@ -308,6 +389,17 @@ describe('registration', () => {
   test('a closed round disables creation and says why', async () => {
     setWidth(360);
     seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')] });
+    await renderThemed(screenUnderTest());
+    expect(await screen.findByText(copy.windowClosed)).toBeOnTheScreen();
+    const create = screen.getByRole('button', { name: copy.groupCreate });
+    expect(create.props.accessibilityState?.disabled).toBe(true);
+    await fireEvent.press(create);
+    expect(mockApi.createGroup).not.toHaveBeenCalled();
+  });
+
+  test('an open-status round past its window disables writes and says why', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN', { registrationEnd: '2026-09-30T23:59:59Z' })] });
     await renderThemed(screenUnderTest());
     expect(await screen.findByText(copy.windowClosed)).toBeOnTheScreen();
     const create = screen.getByRole('button', { name: copy.groupCreate });
@@ -377,6 +469,20 @@ describe('progress and report', () => {
     completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED'],
     topicTitle: 'Trợ lý học vụ',
   });
+  const notQualifiedProgress = progress({
+    roundStatus: 'RESULTS_PUBLISHED',
+    groupStatus: 'SUBMITTED',
+    approvalStatus: 'APPROVED',
+    currentMilestone: 'RESULTS_PUBLISHED',
+    completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'RESULTS_PUBLISHED'],
+    skippedMilestones: ['COUNCIL_ASSIGNED', 'SCORE_FINALIZED'],
+    attentionState: 'NOT_QUALIFIED',
+    topicTitle: 'Trợ lý học vụ',
+    resultStatus: 'NOT_QUALIFIED',
+    resultReason: 'GVPB_BELOW_THRESHOLD',
+    resultResolvedAt: '2026-10-20T08:00:00Z',
+    finalScore: null,
+  });
 
   test('without a group the student is invited to register', async () => {
     setWidth(360);
@@ -399,6 +505,134 @@ describe('progress and report', () => {
     await fireEvent.press(screen.getByRole('button', { name: copy.askAssistant }));
     expect(peekAssistantEntryScope()).toBe('specialized');
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
+  });
+
+  test('a rejected group never renders a stale final score', async () => {
+    setWidth(360);
+    seed({
+      group: group({ status: 'REJECTED', approvalStatus: 'REJECTED' }),
+      progress: progress({
+        attentionState: 'GROUP_REJECTED',
+        approvalStatus: 'REJECTED',
+        groupStatus: 'REJECTED',
+        finalScore: 8.25,
+      }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(copy.attention.GROUP_REJECTED)).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+  });
+
+  test('an approved group renders the published final score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: { ...approvedProgress, finalScore: 8.25 },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(new RegExp(`^${copy.finalScore}:`))).toBeOnTheScreen();
+  });
+
+  test('a not-qualified result shows the outcome, skipped steps and no score', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: notQualifiedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    const outcome = 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0';
+    const outcomeText = await screen.findByText(outcome);
+    expect(outcomeText).toBeOnTheScreen();
+    expect(outcomeText.props.accessibilityRole).toBe('alert');
+    expect(screen.getAllByText('Không áp dụng')).toHaveLength(2);
+    expect(screen.getByLabelText('Có hội đồng: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Có điểm: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+    expect(screen.queryByText(/^0([.,]0+)?$/)).toBeNull();
+    expect(screen.queryByText(copy.attention.RESULT_NOT_AVAILABLE)).toBeNull();
+    expect(screen.queryByText(copy.attention.PROGRESS_INCONSISTENT)).toBeNull();
+  });
+
+  test('the not-qualified outcome and skipped label are localised', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: notQualifiedProgress });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Not eligible for defense - counter-review score below 5.0')).toBeOnTheScreen();
+    expect(screen.getAllByText('Not applicable')).toHaveLength(2);
+  });
+
+  test('a graded result keeps every step and its score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: {
+        ...approvedProgress,
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'COUNCIL_ASSIGNED', 'SCORE_FINALIZED', 'RESULTS_PUBLISHED'],
+        skippedMilestones: [],
+        resultStatus: 'GRADED',
+        finalScore: 8.25,
+      },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(new RegExp(`^${copy.finalScore}:`))).toBeOnTheScreen();
+    expect(screen.queryByText('Không áp dụng')).toBeNull();
+  });
+
+  test('a null final score is never rendered as zero', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: progress({
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED'],
+        finalScore: null,
+      }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await screen.findByRole('progressbar');
+    expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+    expect(screen.queryByText(/^0([.,]0+)?$/)).toBeNull();
+  });
+
+  test('a graded zero is a real score', async () => {
+    setWidth(360);
+    seed({
+      group: approvedGroup(),
+      progress: {
+        ...approvedProgress,
+        roundStatus: 'RESULTS_PUBLISHED',
+        groupStatus: 'SUBMITTED',
+        approvalStatus: 'APPROVED',
+        currentMilestone: 'RESULTS_PUBLISHED',
+        completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'COUNCIL_ASSIGNED', 'SCORE_FINALIZED', 'RESULTS_PUBLISHED'],
+        skippedMilestones: [],
+        resultStatus: 'GRADED',
+        finalScore: 0,
+      },
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(`${copy.finalScore}: 0`)).toBeOnTheScreen();
+  });
+
+  test('the progress bar is announced with the Vietnamese progress label', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect((await screen.findByRole('progressbar')).props.accessibilityLabel).toBe('Tiến độ');
+  });
+
+  test('a single group member keeps the singular English noun', async () => {
+    setWidth(360);
+    seed({
+      group: group({ memberStudentIds: ['s1'], members: [member('s1', 'Nguyễn An', true)] }),
+      progress: progress({ groupId: 'g1' }),
+    });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('1 member')).toBeOnTheScreen();
   });
 
   test('the report is locked until the group is approved', async () => {
@@ -427,6 +661,20 @@ describe('progress and report', () => {
     await fireEvent.press(screen.getByRole('button', { name: copy.reportSubmit }));
     await waitFor(() => expect(mockApi.submitReportLink).toHaveBeenCalledWith('g1', { url: 'https://example.edu/r', title: 'Báo cáo', note: undefined }));
     expect(await screen.findByText(copy.reportSubmitted)).toBeOnTheScreen();
+  });
+
+  test('the report form waits for the first read before it can be edited', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const pending = deferred<unknown>();
+    mockApi.report.mockReset();
+    mockApi.report.mockImplementation(() => pending.promise);
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText(copy.report)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+    await act(async () => { pending.resolve({ groupId: 'g1', title: 'Báo cáo cũ' }); });
+    await waitFor(() => expect(screen.getByLabelText(copy.reportTitle)).toBeOnTheScreen());
+    expect(screen.getByLabelText(copy.reportTitle).props.value).toBe('Báo cáo cũ');
   });
 
   test('without a file adapter the picker is unavailable and the link path stays usable', async () => {
@@ -470,6 +718,39 @@ describe('progress and report', () => {
     expect(screen.queryByText(copy.errors.generic)).toBeNull();
   });
 
+  test('the picked file cache copy is released on replace, upload and unmount', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const released: string[] = [];
+    const pickedFile = (name: string) => ({
+      uri: `file:///a/${name}`, name, sizeBytes: 2048,
+      release: () => { released.push(name); },
+    });
+    const queue = [pickedFile('first.pdf'), pickedFile('second.pdf'), pickedFile('third.pdf')];
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: () => ({ available: true }),
+      pick: async () => ({ status: 'picked', file: queue.shift()! }),
+    });
+    mockApi.submitReportFile.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'second.pdf' });
+    const utils = await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/first\.pdf/);
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/second\.pdf/);
+    expect(released).toEqual(['first.pdf']);
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportSubmit }));
+    await waitFor(() => expect(mockApi.submitReportFile).toHaveBeenCalled());
+    await waitFor(() => expect(released).toEqual(['first.pdf', 'second.pdf']));
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportPick }));
+    await screen.findByText(/third\.pdf/);
+    utils.unmount();
+    await waitFor(() => expect(released).toEqual(['first.pdf', 'second.pdf', 'third.pdf']));
+  });
+
   test('a stored file can be downloaded through the save sheet and removed only after confirmation', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
@@ -505,6 +786,40 @@ describe('progress and report', () => {
     expect(await screen.findByText('Báo cáo nhóm')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: copy.reportSubmit })).toBeNull();
     expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+  });
+
+  test('a failed report save keeps the typed title, note and link', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    // A reload returns a new object carrying the unchanged stored values.
+    mockApi.report.mockImplementation(async () => ({ groupId: 'g1', title: 'Báo cáo cũ', url: 'https://example.edu/cu' }));
+    mockApi.updateReport.mockRejectedValue(Object.assign(new Error('boom'), { status: 503 }));
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await fireEvent.changeText(await screen.findByLabelText(copy.reportTitle), 'Tiêu đề mới');
+    await fireEvent.changeText(screen.getByLabelText(copy.reportNote), 'Ghi chú mới');
+    await fireEvent.changeText(screen.getByLabelText(copy.reportUrl), 'https://example.edu/moi');
+    await fireEvent.press(screen.getByRole('button', { name: copy.reportUpdate }));
+    expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
+    await waitFor(() => expect(mockApi.report).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText(copy.reportTitle).props.value).toBe('Tiêu đề mới');
+    expect(screen.getByLabelText(copy.reportNote).props.value).toBe('Ghi chú mới');
+    expect(screen.getByLabelText(copy.reportUrl).props.value).toBe('https://example.edu/moi');
+  });
+
+  test('a failed progress read shows a retryable error instead of a 0% progress card', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup() });
+    mockApi.progress.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Không tải được tiến độ.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: copy.retry })).toBeOnTheScreen();
+    expect(screen.queryByText('0%')).toBeNull();
+    // The group read is independent of the progress read and stays on screen.
+    expect(screen.getByText('Nguyễn An')).toBeOnTheScreen();
+    expect(mockApi.progress).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    await waitFor(() => expect(mockApi.progress).toHaveBeenCalledTimes(2));
   });
 });
 

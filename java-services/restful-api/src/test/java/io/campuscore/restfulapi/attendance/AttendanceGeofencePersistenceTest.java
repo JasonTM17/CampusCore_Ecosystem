@@ -48,6 +48,7 @@ class AttendanceGeofencePersistenceTest {
     @BeforeEach void fixture() {
         useClock(Clock.systemUTC());
         AttendanceTestSchema.create(jdbc,false);AttendanceTestSchema.clear(jdbc);
+        jdbc.update("UPDATE academic.\"AttendanceGeofence\" SET \"version\"=1 WHERE \"id\"='ute-main-placeholder'");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_auth");
         jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_auth.\"User\" (\"id\" VARCHAR(120) PRIMARY KEY,\"email\" VARCHAR(320),\"firstName\" VARCHAR(120),\"lastName\" VARCHAR(120),\"status\" VARCHAR(40) DEFAULT 'ACTIVE',\"mustChangePassword\" BOOLEAN DEFAULT FALSE)");
         AccountAuthorityFixture.prepare(jdbc);
@@ -146,6 +147,90 @@ class AttendanceGeofencePersistenceTest {
         assertThat(store.geofence("ute-main-placeholder",false).isActive()).isFalse();
         assertThat(store.session(id,false)).isNotNull();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" WHERE \"entityType\"='AttendanceGeofence'",Integer.class)).isGreaterThanOrEqualTo(2);
+    }
+    @Test void geofenceUpdatesRejectStaleVersionsAndKeepLegacyClientsCompatible() throws Exception {
+        String base="/api/v1/admin/attendance/geofences";
+        assertThat(jdbc.queryForObject("SELECT \"version\" FROM academic.\"AttendanceGeofence\" WHERE \"id\"='ute-main-placeholder'",Integer.class)).isEqualTo(1);
+        var loaded=mvc.perform(get(base).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("ute-main-placeholder"))
+                .andExpect(jsonPath("$[0].isActive").value(true))
+                .andReturn();
+
+        var deactivated=mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"verified campus","campusCode":"UTE","centerLat":10,"centerLng":106,
+                                 "radiusMeters":150,"isActive":false,"expectedVersion":1}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String staleV1Payload="""
+                {"name":"stale form","campusCode":"UTE","centerLat":11,"centerLng":107,
+                 "radiusMeters":300,"isActive":true,"expectedVersion":1}
+                """;
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON).content(staleV1Payload))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        assertThat(loaded.getResponse().getContentAsString()).contains("\"version\":1");
+        assertThat(deactivated.getResponse().getContentAsString()).contains("\"version\":2");
+        assertThat(store.geofence("ute-main-placeholder",false)).satisfies(g->{
+            assertThat(g.isActive()).isFalse();
+            assertThat(g.centerLat()).isEqualTo(10.0);
+            assertThat(g.centerLng()).isEqualTo(106.0);
+            assertThat(g.radiusMeters()).isEqualTo(150);
+        });
+        mvc.perform(get(base).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].version").value(2));
+
+        String beforeState=jdbc.queryForObject("""
+                SELECT "beforeState" FROM campuscore_audit."AdminAudit"
+                WHERE "entityType"='AttendanceGeofence' AND "entityId"='ute-main-placeholder' AND "action"='UPDATED'
+                ORDER BY "createdAt" ASC LIMIT 1
+                """,String.class);
+        String afterState=jdbc.queryForObject("""
+                SELECT "afterState" FROM campuscore_audit."AdminAudit"
+                WHERE "entityType"='AttendanceGeofence' AND "entityId"='ute-main-placeholder' AND "action"='UPDATED'
+                ORDER BY "createdAt" ASC LIMIT 1
+                """,String.class);
+        assertThat(beforeState).contains("version=1");
+        assertThat(afterState).contains("version=2");
+
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"legacy update","campusCode":"UTE","centerLat":10,"centerLng":106,"radiusMeters":180}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3))
+                .andExpect(jsonPath("$.isActive").value(false));
+
+        mvc.perform(post(base).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"new campus","campusCode":"NEW","centerLat":10,"centerLng":106,"radiusMeters":150}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.version").value(1));
+    }
+    @Test void metadataEditWithoutActiveFlagPreservesDeactivation() throws Exception {
+        String base="/api/v1/admin/attendance/geofences";
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"verified campus\",\"campusCode\":\"UTE\",\"centerLat\":10,\"centerLng\":106,\"radiusMeters\":150,\"isActive\":false}"))
+                .andExpect(status().isOk());
+        assertThat(store.geofence("ute-main-placeholder",false).isActive()).isFalse();
+
+        // A metadata-only edit that omits isActive must not re-enable the fence.
+        mvc.perform(put(base+"/ute-main-placeholder").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"renamed campus\",\"campusCode\":\"UTE\",\"centerLat\":10,\"centerLng\":106,\"radiusMeters\":180}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isActive").value(false))
+                .andExpect(jsonPath("$.radiusMeters").value(180));
+        assertThat(store.geofence("ute-main-placeholder",false)).satisfies(g->{
+            assertThat(g.isActive()).isFalse();
+            assertThat(g.name()).isEqualTo("renamed campus");
+            assertThat(g.radiusMeters()).isEqualTo(180);
+        });
     }
     @Test void otherLecturerCannotReadCodeCountsOrReviewAndAdminCanRead() throws Exception {
         for(String suffix:new String[]{"","/code","/checkins"})

@@ -49,6 +49,7 @@ for (const [name, file] of [
 const navMap = { '../auth/capabilities': url('capabilities'), './routes': url('routes') };
 transpile('routes', 'src/navigation/routes.ts', { map: navMap });
 transpile('route-map', 'src/navigation/route-map.ts', { map: navMap });
+transpile('thesis-selection', 'src/screens/thesis/thesis-selection.ts', { map: { react: url('stub-react') } });
 
 const laneFlags = await import(url('lane-flags'));
 const capabilities = await import(url('capabilities'));
@@ -368,7 +369,7 @@ const pkgJson = JSON.stringify(path.join(mobileRoot, 'package.json'));
 const stubs = {
   react: `import { createRequire } from 'node:module';
 const R = createRequire(${pkgJson})('react');
-export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } = R;
+export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } = R;
 export default R;`,
   'jsx-runtime': `import { createRequire } from 'node:module';
 const J = createRequire(${pkgJson})('react/jsx-runtime');
@@ -410,6 +411,7 @@ async function mountSession(laneEnv) {
         '../config/features': url('features'),
         '../config/lane-flags': url(`${tag}-lane-flags`),
         '../hooks/query-cache': url('query-cache'),
+        '../screens/thesis/thesis-selection': url('thesis-selection'),
       },
     });
     const module = await import(url(tag));
@@ -425,11 +427,15 @@ async function mountSession(laneEnv) {
 
 async function withSession(laneEnv, accessToken, signOut, body) {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  let token = accessToken;
+  let epoch = 0;
   globalThis.__sessionStoreStub = {
     loadBootstrap: async () => ({ refreshToken: null }),
     refreshAccessToken: async () => ({ accessToken: null }),
-    getAccessToken: () => accessToken,
-    sessionEpoch: () => 0,
+    getAccessToken: () => token,
+    setAccessToken: (next) => { token = next; },
+    sessionEpoch: () => epoch,
+    bumpEpoch: () => { epoch += 1; },
     signOut,
   };
   const { SessionProvider, useSession } = await mountSession(laneEnv);
@@ -446,6 +452,7 @@ async function withSession(laneEnv, accessToken, signOut, body) {
       React.createElement(SessionProvider, null, React.createElement(Probe)),
     );
   });
+  globalThis.__sessionStoreStub.setAccessToken(accessToken);
   try {
     await body(holder, (fn) => TestRenderer.act(fn));
   } finally {

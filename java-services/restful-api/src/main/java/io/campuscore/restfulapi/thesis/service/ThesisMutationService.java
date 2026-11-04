@@ -26,6 +26,11 @@ import io.campuscore.restfulapi.thesis.web.ThesisMutationDtos.GroupRejectionRequ
 import io.campuscore.restfulapi.thesis.web.ThesisRoundDtos.RoundResponse;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
 import io.campuscore.restfulapi.web.DomainException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -50,6 +56,9 @@ public class ThesisMutationService {
 
     private static final int MIN_GROUP_MEMBERS = 3;
     private static final int MAX_GROUP_MEMBERS = 5;
+    private static final String RESULTS_INBOX_FANOUT_FAILURES =
+            "campuscore.thesis.results.inbox.fanout.failures";
+    private static final java.math.BigDecimal GVPB_DEFENSE_THRESHOLD = new java.math.BigDecimal("5.00");
 
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(ThesisMutationService.class);
@@ -62,6 +71,8 @@ public class ThesisMutationService {
     private final ThesisRoundReadService roundReads;
     private final AdminAuditRecorder audit;
     private final ThesisNotificationService notifier;
+    private final Counter resultsInboxFanoutFailures;
+    private final Clock clock;
 
     /**
      * Wires the write boundary over the shared JDBC template and the thesis repositories.
@@ -81,7 +92,35 @@ public class ThesisMutationService {
             ThesisGroupReadRepository groups,
             ThesisRoundReadService roundReads,
             AdminAuditRecorder audit) {
-        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, null);
+        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, null,
+                new SimpleMeterRegistry(), Clock.systemUTC());
+    }
+
+    public ThesisMutationService(
+            NamedParameterJdbcTemplate jdbc,
+            ThesisRegistrationRoundRepository rounds,
+            ThesisRoundReadPort roundReadPort,
+            ThesisTopicRepository topics,
+            ThesisGroupReadRepository groups,
+            ThesisRoundReadService roundReads,
+            AdminAuditRecorder audit,
+            ThesisNotificationService notifier) {
+        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, notifier,
+                new SimpleMeterRegistry(), Clock.systemUTC());
+    }
+
+    public ThesisMutationService(
+            NamedParameterJdbcTemplate jdbc,
+            ThesisRegistrationRoundRepository rounds,
+            ThesisRoundReadPort roundReadPort,
+            ThesisTopicRepository topics,
+            ThesisGroupReadRepository groups,
+            ThesisRoundReadService roundReads,
+            AdminAuditRecorder audit,
+            ThesisNotificationService notifier,
+            MeterRegistry meterRegistry) {
+        this(jdbc, rounds, roundReadPort, topics, groups, roundReads, audit, notifier,
+                meterRegistry, Clock.systemUTC());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -93,7 +132,9 @@ public class ThesisMutationService {
             ThesisGroupReadRepository groups,
             ThesisRoundReadService roundReads,
             AdminAuditRecorder audit,
-            ThesisNotificationService notifier) {
+            ThesisNotificationService notifier,
+            MeterRegistry meterRegistry,
+            @Qualifier("attendanceClock") Clock clock) {
         this.jdbc = jdbc;
         this.rounds = rounds;
         this.roundReadPort = roundReadPort;
@@ -102,6 +143,8 @@ public class ThesisMutationService {
         this.roundReads = roundReads;
         this.audit = audit;
         this.notifier = notifier;
+        this.resultsInboxFanoutFailures = meterRegistry.counter(RESULTS_INBOX_FANOUT_FAILURES);
+        this.clock = clock;
     }
 
     /**
@@ -530,30 +573,46 @@ public class ThesisMutationService {
     @Transactional
     public RoundResponse publishResults(UUID id, Jwt actor) {
         roundReadPort.requireExisting(id);
-        // Lock the round row so a concurrent approveGroup cannot commit between
-        // the completeness check below and the guarded status transition.
-        jdbc.queryForObject(
-                "SELECT id FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
-                params().addValue("id", id), UUID.class);
+        // Writers take the round lock before topic locks. This serializes
+        // publication with reviewer replacement, chair finalization, and
+        // group approval while keeping the existing publication transition.
+        Map<String, Object> round = one(
+                "SELECT id, status, thesis_type, gvpb_deadline "
+                        + "FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
+                params().addValue("id", id), "ROUND_NOT_FOUND", "Thesis registration round not found");
+        if (!RoundStatus.REGISTRATION_CLOSED.name().equals(round.get("status"))) {
+            throw conflict("ROUND_STATE_CONFLICT", "Thesis results can only be published after registration closes");
+        }
+        Instant publicationTime = clock.instant();
+        resolveBelowThresholdResults(id, round, publicationTime, actor);
         Integer approved = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_group WHERE round_id = :id AND approval_status = 'APPROVED'",
                 params().addValue("id", id), Integer.class);
-        Integer graded = jdbc.queryForObject(
+        Integer resolved = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_group g JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "WHERE g.round_id = :id AND g.approval_status = 'APPROVED' AND t.final_score IS NOT NULL",
+                        + "WHERE g.round_id = :id AND t.round_id = :id "
+                        + "AND g.approval_status = 'APPROVED' AND ("
+                        + "(t.result_status = 'GRADED' AND t.final_score BETWEEN 0 AND 10 AND t.result_reason IS NULL) OR "
+                        + "(t.result_status = 'NOT_QUALIFIED' AND t.final_score IS NULL "
+                        + "AND t.result_reason = 'GVPB_BELOW_THRESHOLD' "
+                        + "AND t.result_resolved_by IS NOT NULL AND TRIM(t.result_resolved_by) <> '' "
+                        + "AND t.result_resolved_at IS NOT NULL "
+                        + "AND t.final_score_finalized_by IS NULL AND t.final_score_finalized_at IS NULL))",
                 params().addValue("id", id), Integer.class);
-        if (graded == null || graded == 0) {
-            throw conflict("RESULTS_NOT_READY", "No topic has been graded yet; the chair must finalize scores first");
+        if (resolved == null || resolved == 0) {
+            throw conflict("RESULTS_NOT_READY",
+                    "No approved result is resolved yet; qualifying scores must be finalized first");
         }
-        if (approved == null || graded < approved) {
+        if (approved == null || resolved < approved) {
             throw conflict("SCORES_INCOMPLETE",
-                    "Every approved group must have a finalized score before results are published");
+                    "Every approved group must have a resolved result before results are published");
         }
         // A group left PENDING at publication is permanently wedged — approval
         // requires a non-terminal round — so force the governance team to
-        // approve or reject every submission before publishing.
+        // approve or reject every submitted group with a topic before publishing.
         Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM thesis.thesis_group WHERE round_id = :id AND approval_status = 'PENDING' AND status <> 'CANCELLED'",
+                "SELECT COUNT(*) FROM thesis.thesis_group WHERE round_id = :id AND approval_status = 'PENDING' "
+                        + "AND status = 'SUBMITTED' AND topic_id IS NOT NULL",
                 params().addValue("id", id), Integer.class);
         if (pending != null && pending > 0) {
             throw conflict("GROUPS_PENDING_APPROVAL",
@@ -573,6 +632,97 @@ public class ThesisMutationService {
             }
         }
         return response;
+    }
+
+    private void resolveBelowThresholdResults(UUID roundId, Map<String, Object> round,
+            Instant resolvedAt, Jwt actor) {
+        RoundType roundType;
+        try {
+            roundType = RoundType.valueOf(String.valueOf(round.get("thesis_type")));
+        } catch (IllegalArgumentException exception) {
+            return;
+        }
+        Instant deadline = instantOf(round.get("gvpb_deadline"));
+        if ((roundType != RoundType.KLTN && roundType != RoundType.TLCN)
+                || deadline == null || resolvedAt.isBefore(deadline)) {
+            return;
+        }
+
+        List<UUID> topicIds = jdbc.query(
+                "SELECT DISTINCT t.id FROM thesis.thesis_topic t "
+                        + "JOIN thesis.thesis_group g ON g.topic_id = t.id "
+                        + "WHERE g.round_id = :roundId AND t.round_id = :roundId "
+                        + "AND g.approval_status = 'APPROVED' "
+                        + "AND t.result_status IS NULL AND t.final_score IS NULL ORDER BY t.id",
+                params().addValue("roundId", roundId),
+                (rs, rowNum) -> rs.getObject("id", UUID.class));
+
+        String publisher = subject(actor).isBlank() ? "SYSTEM" : subject(actor);
+        for (UUID topicId : topicIds) {
+            Map<String, Object> topic = one(
+                    "SELECT id, gvpb_lecturer_id FROM thesis.thesis_topic "
+                            + "WHERE id = :topicId AND round_id = :roundId FOR UPDATE",
+                    params().addValue("topicId", topicId).addValue("roundId", roundId),
+                    "TOPIC_NOT_FOUND", "Thesis topic not found");
+            String assignedReviewer = (String) topic.get("gvpb_lecturer_id");
+            if (assignedReviewer == null || assignedReviewer.isBlank()) {
+                continue;
+            }
+            var evidence = ThesisGvpbEvidenceValidator.findCanonicalScore(jdbc, topicId, assignedReviewer);
+            if (evidence.isEmpty()) {
+                continue;
+            }
+            ThesisGvpbEvidenceValidator.Evidence sourceScore = evidence.get();
+            BigDecimal scoreValue = sourceScore.score();
+            if (scoreValue.compareTo(GVPB_DEFENSE_THRESHOLD) >= 0) {
+                continue;
+            }
+
+            int changed = jdbc.update(
+                    "UPDATE thesis.thesis_topic SET result_status = 'NOT_QUALIFIED', "
+                            + "result_reason = 'GVPB_BELOW_THRESHOLD', result_resolved_by = :publisher, "
+                            + "result_resolved_at = :resolvedAt, updated_at = :resolvedAt, version = version + 1 "
+                            + "WHERE id = :topicId AND result_status IS NULL AND final_score IS NULL",
+                    params().addValue("publisher", publisher).addValue("resolvedAt", tsOf(resolvedAt))
+                            .addValue("topicId", topicId));
+            if (changed != 1) {
+                continue;
+            }
+            Map<String, Object> afterState = new LinkedHashMap<>();
+            afterState.put("result_status", "NOT_QUALIFIED");
+            afterState.put("result_reason", "GVPB_BELOW_THRESHOLD");
+            afterState.put("result_resolved_by", publisher);
+            afterState.put("result_resolved_at", resolvedAt);
+            afterState.put("source_score_id", sourceScore.id());
+            afterState.put("source_score_value", scoreValue);
+            afterState.put("reviewer_id", assignedReviewer);
+            afterState.put("gvpb_deadline", deadline);
+            afterState.put("threshold", GVPB_DEFENSE_THRESHOLD);
+            audit.record(subject(actor), null, "THESIS_RESULT_DISPOSITION_RESOLVED", "THESIS_TOPIC",
+                    topicId.toString(), "Non-qualifying thesis result resolved from counter-review evidence",
+                    null, afterState);
+        }
+    }
+
+    @Transactional
+    public void retryPublishedResultsNotifications(UUID id, Jwt actor) {
+        roundReadPort.requireExisting(id);
+        String status = jdbc.queryForObject(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id",
+                params().addValue("id", id), String.class);
+        if (!RoundStatus.RESULTS_PUBLISHED.name().equals(status)) {
+            throw conflict("ROUND_STATE_CONFLICT",
+                    "Round results must be published before inbox notifications can be retried");
+        }
+        try {
+            notifier.notifyResultsPublished(id);
+        } catch (RuntimeException exception) {
+            recordResultsInboxFanoutFailure(id, exception);
+            throw exception;
+        }
+        audit.record(subject(actor), null, "THESIS_RESULTS_NOTIFICATIONS_RETRIED", "THESIS_ROUND",
+                id.toString(), "Published thesis results inbox notifications retried", null,
+                Map.of("status", RoundStatus.RESULTS_PUBLISHED.name()));
     }
 
     /**
@@ -599,13 +749,19 @@ public class ThesisMutationService {
         try {
             notifier.notifyResultsPublished(roundId);
         } catch (RuntimeException exception) {
-            log.warn("Thesis results committed but inbox fan-out failed for round {}", roundId);
+            recordResultsInboxFanoutFailure(roundId, exception);
         }
         try {
             notifier.emailResultsPublished(roundId);
         } catch (RuntimeException exception) {
             log.warn("Thesis results committed but email fan-out failed for round {}", roundId);
         }
+    }
+
+    private void recordResultsInboxFanoutFailure(UUID roundId, RuntimeException exception) {
+        resultsInboxFanoutFailures.increment();
+        log.error("Thesis results committed but inbox fan-out failed for round {} exceptionType={}",
+                roundId, SensitiveLogRedactor.exceptionType(exception));
     }
 
     /**
@@ -1003,7 +1159,7 @@ public class ThesisMutationService {
             // first so the downgrade leaves a review trail.
             throw conflict("GROUP_STATE_CONFLICT", "An approved group cannot change its topic");
         }
-        Map<String, Object> topic = one("SELECT id, round_id, status, max_groups, department_id, final_score FROM thesis.thesis_topic WHERE id = :id FOR UPDATE", params().addValue("id", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        Map<String, Object> topic = one("SELECT id, round_id, status, max_groups, department_id, final_score, result_status FROM thesis.thesis_topic WHERE id = :id FOR UPDATE", params().addValue("id", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found");
         ThesisDeanScope.requireTopicAccess(jdbc, actor, topicId);
         if (!group.roundId().equals(topic.get("round_id"))) {
             throw conflict("TOPIC_ROUND_MISMATCH", "Topic belongs to another registration round");
@@ -1014,9 +1170,11 @@ public class ThesisMutationService {
         // A finalized topic must not absorb a new group: the publication gate
         // counts every approved group under it as graded, so a late assignee
         // would inherit a defense score it never earned.
-        if (topic.get("final_score") != null && !topicId.equals(group.topicId())) {
-            throw conflict("TOPIC_ALREADY_GRADED",
-                    "This topic's defense score is finalized; it cannot accept another group");
+        if ((topic.get("final_score") != null || topic.get("result_status") != null)
+                && (!topicId.equals(group.topicId()) || group.approvalStatus() != ApprovalStatus.APPROVED)) {
+            String code = "NOT_QUALIFIED".equals(topic.get("result_status"))
+                    ? "RESULT_ALREADY_RESOLVED" : "TOPIC_ALREADY_GRADED";
+            throw conflict(code, "This topic's result is resolved; it cannot accept another group");
         }
         int maxGroups = ((Number) topic.get("max_groups")).intValue();
         boolean alreadyOccupiesSlot = topicId.equals(group.topicId()) && group.approvalStatus() != ApprovalStatus.REJECTED;
@@ -1137,13 +1295,13 @@ public class ThesisMutationService {
         // Approving a group under a topic whose defense score is already
         // finalized lets that group inherit a grade it never defended for —
         // the same wedge assignTopic blocks upstream.
-        Object finalizedScore = one(
-                "SELECT final_score FROM thesis.thesis_topic WHERE id = :id",
-                params().addValue("id", group.topicId()), "TOPIC_NOT_FOUND", "Thesis topic not found")
-                .get("final_score");
-        if (finalizedScore != null) {
-            throw conflict("TOPIC_ALREADY_GRADED",
-                    "This topic's defense score is finalized; new groups can no longer be approved for it");
+        Map<String, Object> topicResult = one(
+                "SELECT final_score, result_status FROM thesis.thesis_topic WHERE id = :id",
+                params().addValue("id", group.topicId()), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        if (topicResult.get("final_score") != null || topicResult.get("result_status") != null) {
+            String code = "NOT_QUALIFIED".equals(topicResult.get("result_status"))
+                    ? "RESULT_ALREADY_RESOLVED" : "TOPIC_ALREADY_GRADED";
+            throw conflict(code, "This topic's result is resolved; new groups can no longer be approved for it");
         }
         Integer memberCount = count("SELECT COUNT(*) FROM thesis.thesis_group_member WHERE group_id = :groupId", "groupId", groupId);
         if (memberCount == null || memberCount < MIN_GROUP_MEMBERS) {
@@ -1190,23 +1348,30 @@ public class ThesisMutationService {
     }
 
     /**
-     * Rejects a submitted group and sends it back with a mandatory reason.
+     * Rejects a submitted group or a topicless group with a mandatory reason.
      *
      * @param groupId group to reject
      * @param request rejection reason, 1-500 characters
      * @param actor caller JWT; a supervisor or an admin
      * @return the rejected group
      * @throws DomainException with code GROUP_APPROVAL_STATE_CONFLICT unless the group is
-     *         submitted with a topic and still pending, or VALIDATION_ERROR for a blank or
-     *         over-long reason
+     *         submitted with a topic or topicless and still pending, or VALIDATION_ERROR
+     *         for a blank or over-long reason
      */
     @Transactional
     public GroupResponse rejectGroup(UUID groupId, GroupRejectionRequest request, Jwt actor) {
         GroupRow group = lockGroup(groupId);
         authorizeReviewer(group, actor);
         requireMutableRound(group.roundId());
-        if (group.status() != GroupStatus.SUBMITTED || group.topicId() == null) {
-            throw conflict("GROUP_APPROVAL_STATE_CONFLICT", "Only a submitted group with a topic can be rejected");
+        boolean submittedWithTopic = group.status() == GroupStatus.SUBMITTED && group.topicId() != null;
+        // A topicless group can never be approved — a progress update can park
+        // it in DRAFT or SUBMITTED — so rejection is its only review outcome.
+        boolean topiclessPending = group.topicId() == null
+                && group.status() != GroupStatus.CANCELLED
+                && group.status() != GroupStatus.COMPLETED;
+        if (!submittedWithTopic && !topiclessPending) {
+            throw conflict("GROUP_APPROVAL_STATE_CONFLICT",
+                    "Only a submitted group with a topic or a topicless group can be rejected");
         }
         String reason = normalize(request == null ? null : request.reason());
         if (reason.isBlank() || reason.length() > 500) throw invalid("reason is required and must contain at most 500 characters");

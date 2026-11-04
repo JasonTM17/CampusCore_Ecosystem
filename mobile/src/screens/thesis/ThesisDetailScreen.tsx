@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Divider, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
 import { IconChip } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { isRegistrationOpen, supervisorName } from './thesis-model';
@@ -42,7 +43,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
             <UiText variant="label" style={styles.line}>{copy.topicBrief}</UiText>
             <UiText variant="bodySmall" tone="muted" selectable>{topic.description}</UiText>
             <UiText variant="meta" tone="muted" style={styles.line}>
-              {fillThesisCopy(copy.topicGroupsMax, { count: topic.maxGroups })}
+              {fillThesisCopy(countForm(topic.maxGroups, copy.topicGroupsMaxOne, copy.topicGroupsMax), { count: topic.maxGroups })}
             </UiText>
           </Card>
 
@@ -63,6 +64,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
           {chosen ? (
             <UiText variant="bodySmall" tone="success" style={styles.line}>{copy.topicAssigned}</UiText>
           ) : null}
+          <QueryNotices state={{ ...rounds, preview: false }} copy={copy} />
           <View style={styles.actions}>
             {canRegister ? (
               <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />

@@ -16,10 +16,8 @@ export default function RegisterPage() {
   return (
     <AuthShell
       portal="student"
-      eyebrow={copy.eyebrow}
       title={copy.title}
       description={copy.description}
-      features={[]}
     >
       <div className="space-y-6">
         <div className="space-y-2">

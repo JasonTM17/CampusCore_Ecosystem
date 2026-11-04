@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
@@ -13,6 +13,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import { academicMessages, type AcademicCopy } from '../../i18n/academic-messages';
 import type { MobileNavigation } from '../../navigation/types';
 import type { ScreenName } from '../../navigation/routes';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { gradeScaleRows } from './gpa';
 
 /** Opens a route that the navigator registers (transcript, curriculum, enrollments); a no-op until it does. */
@@ -33,9 +34,10 @@ export const isPreviewMode = (): boolean => apiClient.mode === 'preview';
 
 /** Localised, student-safe message for a failed read; never the raw server text. */
 export function academicErrorMessage(copy: AcademicCopy, error: unknown, fallback: string): string {
+  // A screen-local 401 stays inline and retryable; the session lane owns sign-in.
+  if (isResourceUnauthorizedError(error)) return fallback;
   const status = (error as { status?: number } | null)?.status;
   if (status === 0 || error instanceof TypeError) return copy.offline;
-  if (status === 401) return copy.signIn;
   if (status === 403) return copy.denied;
   return fallback;
 }
@@ -57,14 +59,21 @@ export interface AcademicShellProps<T = unknown> {
   error?: string | null;
   warning?: string | null;
   onRetry?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   children: ReactNode;
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, children, list }: AcademicShellProps<T>) {
+export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
+  const { colors } = useTheme();
+  const refreshControl = onRefresh
+    ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+    : undefined;
+  const frameList = list ? { ...list, ...(refreshControl ? { refreshControl } : {}) } : undefined;
   return (
-    <ScreenShell title={title} eyebrow={eyebrow} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
+    <ScreenShell title={title} eyebrow={eyebrow} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
       {warning ? <DataNotice message={warning} /> : null}
       {loading ? (
         <StatePanel kind="loading" title={copy.loading} />

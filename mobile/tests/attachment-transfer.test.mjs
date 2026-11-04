@@ -68,6 +68,26 @@ test('pickForUpload returns a valid pick, flags an invalid one and passes cancel
   assert.equal(cancelled.status, 'cancelled');
 });
 
+test('pickForUpload releases the adapter cache copy when the pick fails the policy check', async () => {
+  let released = 0;
+  const outcome = await transfer.pickForUpload(
+    fakeAdapter({ pick: async () => ({ status: 'picked', file: { ...pdf, sizeBytes: 6 * MB, release: () => { released += 1; } } }) }),
+    transfer.DOCUMENT_POLICY,
+  );
+  assert.deepEqual(outcome, { status: 'invalid', problem: 'too_large' });
+  assert.equal(released, 1);
+});
+
+test('pickForUpload keeps a valid pick unreleased so the caller owns it', async () => {
+  let released = 0;
+  const outcome = await transfer.pickForUpload(
+    fakeAdapter({ pick: async () => ({ status: 'picked', file: { ...pdf, release: () => { released += 1; } } }) }),
+    transfer.DOCUMENT_POLICY,
+  );
+  assert.equal(outcome.status, 'picked');
+  assert.equal(released, 0);
+});
+
 test('toUploadPart builds the multipart descriptor with a safe default type', () => {
   assert.deepEqual(transfer.toUploadPart(pdf), { uri: pdf.uri, name: 'a.pdf', type: 'application/pdf' });
   assert.equal(transfer.toUploadPart({ uri: 'u', name: 'n' }).type, 'application/octet-stream');

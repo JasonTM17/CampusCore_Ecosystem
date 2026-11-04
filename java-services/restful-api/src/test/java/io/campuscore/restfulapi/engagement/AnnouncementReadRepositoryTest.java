@@ -82,4 +82,31 @@ class AnnouncementReadRepositoryTest {
         assertThat(response.publishAt()).isEqualTo(timestamp.toInstant());
         assertThat(response.createdAt()).isEqualTo(timestamp.toInstant());
     }
+
+    @Test
+    void pinOptionsSelectOnlyThePickerColumns() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of());
+
+        AnnouncementReadRepository repository = new AnnouncementReadRepository(jdbc);
+        repository.findPinOptions(
+                new AnnouncementReadRepository.PinOptionFilter("ACTIVE", "lich thi", List.of("pin-a")),
+                0,
+                50);
+
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+
+        String statement = sql.getValue();
+        String selectList = statement.substring(0, statement.indexOf(" FROM "));
+        assertThat(selectList).contains("\"id\"", "\"title\"", "\"status\"", "\"isGlobal\"");
+        // The picker never needs the body: none of the heavy columns may leave
+        // the database for this list.
+        assertThat(selectList)
+                .doesNotContain("\"content\"")
+                .doesNotContain("\"summary\"")
+                .doesNotContain("\"coverImageUrl\"")
+                .doesNotContain("foldedContent");
+    }
 }

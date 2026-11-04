@@ -60,12 +60,17 @@ public class AcademicConductService {
      * LEC-P1-5: a lecturer may read conduct only for students they actually teach.
      * The path parameter accepts either the profile id or the student code, so
      * both are matched against the Student table before looking at enrollments.
+     * Only a seat that took effect counts as teaching: dropped/cancelled
+     * enrollments and cancelled sections are excluded, matching the roster and
+     * analytics seat-revocation rule.
      */
     public boolean isStudentTaughtByLecturer(String studentId, String lecturerId) {
         Integer taught = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM academic.\"Enrollment\" e"
                         + " JOIN academic.\"Section\" sec ON sec.\"id\" = e.\"sectionId\""
                         + " WHERE sec.\"lecturerId\" = :lecturerId"
+                        + " AND sec.\"status\" <> 'CANCELLED'"
+                        + " AND e.\"status\" NOT IN ('DROPPED', 'CANCELLED')"
                         + " AND e.\"studentId\" IN ("
                         + "   SELECT s.\"id\" FROM academic.\"Student\" s"
                         + "   WHERE s.\"id\" = :studentId OR s.\"studentId\" = :studentId)",

@@ -1,7 +1,9 @@
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
+import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
@@ -28,9 +30,26 @@ interface MenuPanelProps {
 
 export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch }: MenuPanelProps) {
   const styles = useThemedStyles(makeStyles);
-  const { colors, scheme } = useTheme();
+  const { colors, scheme, window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const chrome = chromeFor(scheme);
   const { copy, screenTitle } = useShellCopy();
+  const previousRoute = useRef(activeRoute);
+
+  useEffect(() => {
+    if (previousRoute.current === activeRoute) return;
+    previousRoute.current = activeRoute;
+    onClose();
+  }, [activeRoute, onClose]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onClose]);
+
   return (
     <View style={styles.overlay}>
       <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={[styles.backdrop, { backgroundColor: chrome.scrim }]} />
@@ -50,14 +69,14 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
           <><UiText variant="label" tone="muted" style={styles.roleLabel}>
             {copy.previewRole}
           </UiText>
-          <View style={styles.roleRow}>
+          <View testID="menu-panel-role-row" style={[styles.roleRow, largeText ? styles.roleRowStacked : undefined]}>
             {(['student', 'lecturer', 'admin'] as const).map((candidate) => (
             <Pressable
               key={candidate}
               accessibilityRole="button"
               accessibilityState={{ selected: candidate === role }}
               onPress={() => onSwitchRole(candidate)}
-              style={[styles.roleButton, candidate === role ? styles.roleButtonActive : undefined]}
+              style={[styles.roleButton, largeText ? styles.roleButtonStacked : undefined, candidate === role ? styles.roleButtonActive : undefined]}
             >
               <UiText variant="label" tone={candidate === role ? 'onPrimary' : 'muted'} style={{ textAlign: 'center' }}>
                 {copy.roles[candidate]}
@@ -137,7 +156,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   headerCopy: { flex: 1 },
   roleLabel: { marginBottom: tokens.spacing.xs },
   roleRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
+  roleRowStacked: { flexDirection: 'column' },
   roleButton: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
+  roleButtonStacked: { flexBasis: 'auto', flexGrow: 0 },
   roleButtonActive: { backgroundColor: colors.primary },
   menuContent: { paddingBottom: tokens.spacing.xl },
   section: { marginBottom: tokens.spacing.lg },

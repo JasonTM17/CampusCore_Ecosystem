@@ -14,8 +14,10 @@ The CampusUTE ecosystem employs multiple database technologies and scripts for d
 │     java-services/restful-api/src/main/resources/db/migration          │
 │               Managed by Flyway at Application Startup                 │
 │                                                                        │
-│  Schemas: public, thesis, academic, engagement, assistant, site, auth, │
-│           notification, events, learning, admissions, library, careers │
+│  Schemas: public, thesis, academic, engagement, assistant, site,       │
+│           events, learning, admissions, library, careers,              │
+│           campuscore_auth, campuscore_identity, notifications,         │
+│           campuscore_audit                                             │
 └───────────────────▲────────────────────────────────────────────────────┘
                     │
                     │ Mirrors relational DDL up to V83
@@ -47,8 +49,10 @@ The Flyway migration chain under `java-services/restful-api/src/main/resources/d
 - `academic`: Courses, departments, faculties, student grades, GPA calculation, prerequisites, section enrollments.
 - `engagement`: Articles, categories, rich media galleries, reading metrics, campus announcements.
 - `assistant`: Local active release runtime projection (`knowledge_runtime_state`), conversation scopes, RLS policies.
-- `auth`: Accounts, user credentials, two-factor authentication challenges, password reset tokens, session revocations.
-- `notification`: In-app notifications, delivery markers, device push notification registrations.
+- `campuscore_auth`: Accounts, user credentials, two-factor authentication challenges, password reset tokens, session revocations.
+- `campuscore_identity`: OIDC authorization/consent grants, refresh lineage, BFF sessions and transactions, logout audit.
+- `campuscore_audit`: Admin audit trail.
+- `notifications`: In-app notifications, delivery markers, device push notification registrations.
 - `events`: Campus events, venue management, ticketing, attendance check-ins.
 - `learning`: LMS courses, assignment submissions, lesson modules.
 - `admissions`: Applications, admission quotas, applicant documents.
@@ -64,6 +68,7 @@ The files under `supabase/migrations/` serve a distinct role:
 - They are **content and authoring authority**, but NOT the relational schema authority for the Java RESTful API.
 - Live public chatbot queries never query Supabase directly; instead, published knowledge releases are synchronized to the local PostgreSQL `assistant` schema via `SupabaseKnowledgeSyncService`.
 - A dedicated parity migration (`supabase/migrations/20260924120000_schema_parity_v80_v81_v83.sql`) mirrors relational schema constraints up to V83 so local Supabase test environments match Flyway DDL. All schema modifications must originate in Flyway first.
+- The two families must not be applied to the same database; the known divergences are listed in [supabase-assistant.md](supabase-assistant.md#migration-authorities).
 
 ### 1.3 Manual and Scratch SQL Boundary
 The `.sql` files located directly in the root `database/` directory (e.g., `seed_big_data_campus_ecosystem_v43.sql`, `role_targeted_announcements.sql`, `update_all_old_university_names.sql`):
@@ -76,7 +81,7 @@ The `.sql` files located directly in the root `database/` directory (e.g., `seed
 
 ## 2. Migration Lineage & Version Census
 
-As of version V144, the canonical Flyway migration sequence contains **141 migration files**, spanning from `V1` to `V144`.
+As of version V152, the canonical Flyway migration sequence contains **149 migration files**, spanning from `V1` to `V152`.
 
 ### 2.1 Duplicates
 - **0 duplicate version numbers**. Every migration version number is strictly unique. Duplicate versions cause non-deterministic execution in Flyway and are prevented by CI validation.
@@ -101,7 +106,7 @@ Any gap outside this explicit set is treated as an unexpected missing migration 
 
 ## 3. H2 Test Fixture Chain Boundary
 
-A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (62 files).
+A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (66 files).
 
 - **Purpose**: A lightweight, trimmed-down schema definition designed solely for rapid in-memory execution during Maven unit test passes (`mvn test`).
 - **Structure**: Skips non-essential historical data seeds (jumps directly from V24 to V85, and V93 to V109).
@@ -114,9 +119,9 @@ A parallel test migration chain exists under `java-services/restful-api/src/test
 
 ### 4.1 Fresh Installation
 On a newly provisioned PostgreSQL instance:
-1. Ensure the target database exists and the application user has DDL permissions on the relevant schemas (`thesis`, `academic`, `engagement`, `assistant`, `site`, `auth`, `notification`, `events`, `learning`, `admissions`, `library`, `careers`, `public`).
-2. Boot the Java RESTful API service or run `mvn flyway:migrate`.
-3. Flyway replays all 141 migrations in numerical order (`V1` to `V144`), recording installed versions in `thesis.flyway_schema_history`.
+1. Ensure the target database exists and the application user has DDL permissions on the relevant schemas (`thesis`, `academic`, `engagement`, `assistant`, `site`, `events`, `learning`, `admissions`, `library`, `careers`, `campuscore_auth`, `campuscore_identity`, `notifications`, `campuscore_audit`, `public`).
+2. Boot the Java RESTful API service with `FLYWAY_ENABLED=true` (the default); Flyway migrates on startup. This repository declares no Flyway Maven plugin and has no root POM, so `mvn flyway:*` goals do not resolve.
+3. Flyway replays all 149 migrations in numerical order (`V1` to `V152`), recording installed versions in `thesis.flyway_schema_history`.
 4. All checksums match the committed repository files by construction.
 
 ### 4.2 Supported Upgrade from Long-Lived Databases (Stale Checksums)
@@ -141,33 +146,228 @@ Migration checksum mismatch for migration version X:
    ```
 
 2. **Validate Detected Drift**:
-   Run Flyway validate to determine the exact mismatched versions:
-   ```bash
-   mvn -f java-services/pom.xml flyway:validate -Dflyway.url="$DB_URL"
-   ```
+   Booting with Flyway enabled (the default outside Compose; in Compose,
+   `rag-service` runs Flyway) is the supported validation path:
+   `validate-on-migrate` is on by default, so startup fails with a
+   `FlywayValidateException` naming the mismatched version. This repository
+   declares no Flyway Maven plugin and has no root POM, so `mvn flyway:*` goals
+   cannot be resolved.
 
 3. **Realign Checksums with Repair**:
-   If—and **ONLY** if—the validation failures belong strictly to the known 12 early migrations listed above, execute:
-   ```bash
-   mvn -f java-services/pom.xml flyway:repair -Dflyway.url="$DB_URL"
-   ```
+   No repair command ships in this repository. If—and **ONLY** if—the validation
+   failures belong strictly to the known 12 early migrations listed above,
+   realign the stored checksums with a Flyway CLI installed outside this
+   repository (`flyway repair` with `-url`, `-user`, `-password` for the same
+   database), then boot the service again. On a disposable local database,
+   recreating the database is the supported alternative.
    > [!IMPORTANT]
-   > `flyway:repair` only realigns the `checksum` column in `flyway_schema_history` to match the current local files. It performs **no DDL changes** and **modifies no business data**.
+   > Repair only realigns the `checksum` column in `flyway_schema_history` to match the current local files. It performs **no DDL changes** and **modifies no business data**.
 
 4. **Confirm Clean Validation**:
-   Re-run validation to verify that stored checksums now match the local files:
-   ```bash
-   mvn -f java-services/pom.xml flyway:validate -Dflyway.url="$DB_URL"
-   ```
+   Boot the service again; a clean start proves the stored checksums now match
+   the local files.
 
 5. **Apply Forward Migrations**:
-   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V144`.
+   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V152`.
 
 ### 4.3 Operational Invariants & Anti-Patterns
-- **No Blind Repair**: Never run `flyway:repair` if checksum drift occurs on migrations outside the 12 known legacy versions. Unrecognized drift indicates unauthorized manual SQL edits or file corruption that must be investigated before proceeding.
+- **No Blind Repair**: Never run a Flyway repair if checksum drift occurs on migrations outside the 12 known legacy versions. Unrecognized drift indicates unauthorized manual SQL edits or file corruption that must be investigated before proceeding.
 - **Never Edit Merged Migrations**: Once a migration file has been merged into `main` or deployed to any environment, it is strictly immutable. All bug fixes, data corrections, and index adjustments must be authored as new forward migrations (`V<n+1>__fix_description.sql`).
 - **Never Disable `validateOnMigrate`**: Setting `validate-on-migrate=false` masks underlying schema divergence, resulting in unrepeatable deployments and hard-to-diagnose production defects.
-- **Never Run `flyway:clean` on Shared or Production Databases**: `clean` completely drops all database objects and schemas.
+- **Never Run `flyway clean` on Shared or Production Databases**: `clean` completely drops all database objects and schemas.
+
+### 4.4 Pre-Deployment Procedure for Populated Databases (Lock-Heavy Migrations: V146–V150)
+
+When deploying to a populated database, five migrations in the forward sequence introduce heavy table locks if executed inside the default startup Flyway transaction:
+
+- **`V146__w14_hot_read_indexes.sql`**: Contains 6 `CREATE INDEX IF NOT EXISTS` statements without `CONCURRENTLY`. Standard `CREATE INDEX` takes a `SHARE` lock on each target table (`academic."Enrollment"`, `academic."Attendance"`, `academic."AttendanceCheckin"`, `thesis.thesis_topic_supervisor`, `thesis.thesis_group_member`, `notifications.notification`). This blocks concurrent write operations (`INSERT`, `UPDATE`, `DELETE`) for the duration of the migration.
+- **`V147__engagement_folded_search_columns.sql`**: Contains 13 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ... GENERATED ALWAYS AS (...) STORED` statements across `engagement."Announcement"` (7 columns) and `engagement."PublicDocumentRevision"` (6 columns). PostgreSQL 11+ supports metadata-only column additions for constant defaults, but `GENERATED ALWAYS AS (...) STORED` columns evaluate an expression per row (`TRANSLATE(LOWER(...), ...)`) and rewrite the table heap to store computed values. This takes an `ACCESS EXCLUSIVE` lock on each table, blocking both reads (`SELECT`) and writes (`INSERT`, `UPDATE`, `DELETE`). PostgreSQL does not support a `CONCURRENTLY` modifier for `ALTER TABLE ADD COLUMN`.
+- **`V148__thesis_hot_read_indexes.sql`**, **`V149__enrollment_semester_index.sql`** and **`V150__admin_audit_created_index.sql`**: Contain 3, 1 and 1 `CREATE INDEX IF NOT EXISTS` statements without `CONCURRENTLY`. Each standard `CREATE INDEX` takes a `SHARE` lock on its target table (`thesis.thesis_group`, `thesis.thesis_group_report`, `thesis.thesis_council_topic`, `academic."Enrollment"`, `campuscore_audit."AdminAudit"`), blocking concurrent writes for the duration of the build.
+
+All five migrations specify `IF NOT EXISTS` for every index and column. Because applied migrations are immutable and must not be edited in place, the operational procedure is to pre-create the schema objects prior to application deployment so Flyway's startup statements encounter existing objects and execute as sub-millisecond no-ops.
+
+#### Execution Order
+
+1. **Step 1 (Online): Pre-create V146 and V148–V150 indexes concurrently**. Run outside any transaction block as the database owner role while the application remains online.
+2. **Step 2 (Maintenance Window): Pre-create V147 generated columns**. Because stored generated columns rewrite tables under `ACCESS EXCLUSIVE` locks without a concurrent alternative, run these statements during a planned maintenance window before booting the updated application image.
+3. **Step 3: Verify pre-created objects**. Execute verification queries against `pg_indexes`, `pg_index`, and `information_schema.columns`.
+4. **Step 4: Boot application service**. Flyway detects all indexes and columns via `IF NOT EXISTS` and skips creation without lock contention.
+
+#### Pre-Creation DDL Statements
+
+##### 1. V146 Concurrent Indexes
+Execute as the database owner role, strictly **outside a transaction block** (`psql` autocommit enabled):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_enrollment_enrolled_at_idx
+    ON academic."Enrollment" ("enrolledAt" DESC, "id" DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_attendance_date_id_idx
+    ON academic."Attendance" ("date" DESC, "id" ASC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS attendance_checkin_session_created_idx
+    ON academic."AttendanceCheckin" ("sessionId", "createdAt", "id");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_topic_supervisor_lecturer_idx
+    ON thesis.thesis_topic_supervisor (lecturer_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_member_student_idx
+    ON thesis.thesis_group_member (student_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS notification_user_created_id_idx
+    ON notifications.notification (user_id, created_at DESC, id DESC);
+```
+
+##### 2. V148–V150 Concurrent Indexes
+Execute as the database owner role, strictly **outside a transaction block** (`psql` autocommit enabled), while the application remains online:
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_topic_idx
+    ON thesis.thesis_group (topic_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_report_round_submitted_idx
+    ON thesis.thesis_group_report (round_id, submitted_at DESC, group_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_council_topic_council_idx
+    ON thesis.thesis_council_topic (council_id, topic_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_enrollment_semester_enrolled_idx
+    ON academic."Enrollment" ("semesterId", "enrolledAt" DESC, "id" DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS admin_audit_created_id_idx
+    ON campuscore_audit."AdminAudit" ("createdAt" DESC, "id" DESC);
+```
+
+##### 3. V147 Stored Generated Columns
+Execute during a scheduled maintenance window (the statements take an `ACCESS EXCLUSIVE` lock while the heap is rewritten). Run the migration file itself as the database owner instead of retyping its statements; every statement uses `ADD COLUMN IF NOT EXISTS`, so a later Flyway run finds the columns and skips them:
+
+```text
+psql -v ON_ERROR_STOP=1 -f java-services/restful-api/src/main/resources/db/migration/V147__engagement_folded_search_columns.sql
+```
+
+#### Verification
+
+##### Verify V146 and V148–V150 Indexes
+Confirm existence in `pg_indexes`:
+```sql
+SELECT schemaname, tablename, indexname
+FROM pg_indexes
+WHERE indexname IN (
+    'academic_enrollment_enrolled_at_idx',
+    'academic_attendance_date_id_idx',
+    'attendance_checkin_session_created_idx',
+    'thesis_topic_supervisor_lecturer_idx',
+    'thesis_group_member_student_idx',
+    'notification_user_created_id_idx',
+    'thesis_group_topic_idx',
+    'thesis_group_report_round_submitted_idx',
+    'thesis_council_topic_council_idx',
+    'academic_enrollment_semester_enrolled_idx',
+    'admin_audit_created_id_idx'
+)
+ORDER BY schemaname, tablename;
+```
+*Expected output:* Exactly 11 rows corresponding to the target indexes.
+
+Confirm index validity (`indisvalid = true` confirms concurrent builds succeeded without errors):
+```sql
+SELECT c.relname AS indexname, i.indisvalid
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname IN (
+    'academic_enrollment_enrolled_at_idx',
+    'academic_attendance_date_id_idx',
+    'attendance_checkin_session_created_idx',
+    'thesis_topic_supervisor_lecturer_idx',
+    'thesis_group_member_student_idx',
+    'notification_user_created_id_idx',
+    'thesis_group_topic_idx',
+    'thesis_group_report_round_submitted_idx',
+    'thesis_council_topic_council_idx',
+    'academic_enrollment_semester_enrolled_idx',
+    'admin_audit_created_id_idx'
+)
+ORDER BY c.relname;
+```
+*Expected output:* 11 rows, all with `indisvalid = true`.
+
+If any row reports `indisvalid = false`, the concurrent build failed and left an invalid remnant. Drop that remnant concurrently and re-run the same `CREATE INDEX CONCURRENTLY` statement:
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS <schema>.<indexname>;
+```
+
+Verify via `psql` schema inspection:
+```text
+\d academic."Enrollment"
+\d academic."Attendance"
+\d academic."AttendanceCheckin"
+\d thesis.thesis_topic_supervisor
+\d thesis.thesis_group_member
+\d notifications.notification
+\d thesis.thesis_group
+\d thesis.thesis_group_report
+\d thesis.thesis_council_topic
+\d campuscore_audit."AdminAudit"
+```
+*Expected output:* Each table's `Indexes:` block lists the pre-created index.
+
+##### Verify V147 Columns
+Confirm generated column registration:
+```sql
+SELECT table_schema, table_name, column_name, is_generated
+FROM information_schema.columns
+WHERE table_schema = 'engagement'
+  AND table_name IN ('Announcement', 'PublicDocumentRevision')
+  AND column_name LIKE 'folded%'
+ORDER BY table_name, ordinal_position;
+```
+*Expected output:* 7 rows for `Announcement` and 6 rows for `PublicDocumentRevision`, with `is_generated = 'ALWAYS'`.
+
+Verify via `psql` schema inspection:
+```text
+\d engagement."Announcement"
+\d engagement."PublicDocumentRevision"
+```
+*Expected output:* Columns display with type `text` and modifier `generated always as (translate(...)) stored`.
+
+#### Rollback Procedure
+
+##### Rollback V146 and V148–V150 Indexes
+If pre-created indexes need to be removed prior to application rollout, drop them concurrently without taking table write locks:
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS academic.academic_enrollment_enrolled_at_idx;
+DROP INDEX CONCURRENTLY IF EXISTS academic.academic_attendance_date_id_idx;
+DROP INDEX CONCURRENTLY IF EXISTS academic.attendance_checkin_session_created_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_topic_supervisor_lecturer_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_member_student_idx;
+DROP INDEX CONCURRENTLY IF EXISTS notifications.notification_user_created_id_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_topic_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_report_round_submitted_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_council_topic_council_idx;
+DROP INDEX CONCURRENTLY IF EXISTS academic.academic_enrollment_semester_enrolled_idx;
+DROP INDEX CONCURRENTLY IF EXISTS campuscore_audit.admin_audit_created_id_idx;
+```
+
+##### Rollback V147 Columns
+If the release is rolled back, drop the derived generated columns. Note that if the application was already deployed, the application service must be rolled back first because the application queries select these folded column names:
+```sql
+ALTER TABLE engagement."Announcement"
+    DROP COLUMN IF EXISTS "foldedTitle",
+    DROP COLUMN IF EXISTS "foldedContent",
+    DROP COLUMN IF EXISTS "foldedSlug",
+    DROP COLUMN IF EXISTS "foldedCourseCode",
+    DROP COLUMN IF EXISTS "foldedCourseName",
+    DROP COLUMN IF EXISTS "foldedSemesterName",
+    DROP COLUMN IF EXISTS "foldedLecturerDisplayName";
+
+ALTER TABLE engagement."PublicDocumentRevision"
+    DROP COLUMN IF EXISTS "foldedTitleVi",
+    DROP COLUMN IF EXISTS "foldedTitleEn",
+    DROP COLUMN IF EXISTS "foldedSummaryVi",
+    DROP COLUMN IF EXISTS "foldedSummaryEn",
+    DROP COLUMN IF EXISTS "foldedBodyVi",
+    DROP COLUMN IF EXISTS "foldedBodyEn";
+```
 
 ---
 
@@ -200,7 +400,7 @@ Uses the Node.js built-in test runner (`node:test`):
 node --test scripts/flyway-lineage-check.test.mjs
 ```
 The test suite verifies:
-- Production migration directory passes with 141 files, V1..V144, and gaps `[56, 91, 119]`.
+- Production migration directory passes with 149 files, V1..V152, and gaps `[56, 91, 119]`.
 - Duplicate version detection catches conflicts.
 - Gap detection identifies unapproved gaps outside the allow-list.
 - Filename and non-positive version syntax errors are reported.

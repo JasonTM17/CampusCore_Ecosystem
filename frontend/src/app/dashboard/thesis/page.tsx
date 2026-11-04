@@ -29,7 +29,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { classifyThesisScore } from '@/lib/grade-scale';
-import { pickPreferredThesisRound } from '@/lib/thesis-round';
+import { pickDefaultThesisRound, pickPreferredThesisRound, thesisRoundsForStudent } from '@/lib/thesis-round';
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { Input } from '@/components/ui/input';
@@ -40,12 +40,15 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
+import { ListPager } from '@/components/ui/list-pager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { useNow } from '@/lib/use-now';
 import { ThesisWorkflowStepper } from '@/components/thesis/ThesisWorkflowStepper';
 import { ThesisRegulationGuide } from '@/components/thesis/ThesisRegulationGuide';
@@ -65,8 +68,10 @@ import StudentGroupCard, {
 import SubmissionStatusTimeline from '@/features/thesis/components/SubmissionStatusTimeline';
 import SupervisedGroupList from '@/features/thesis/components/SupervisedGroupList';
 import ThesisRepositoryWorkspace from '@/features/thesis/components/ThesisRepositoryWorkspace';
+import ThesisResultOutcome from '@/features/thesis/components/ThesisResultOutcome';
 import { departmentsApi, fetchAllPages, lecturersApi } from '@/lib/api';
 import { getLocalizedName } from '@/lib/academic-content';
+import { isHttpUrl } from '@/lib/safe-url';
 import type { Department, Lecturer } from '@/types/api';
 import {
   getThesisTopicCapabilities,
@@ -84,6 +89,9 @@ import {
   type ThesisTopic,
   type ThesisTopicSupervisor,
 } from '@/lib/thesis-api';
+import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
+import { buildTopicHistoryIds } from '@/components/dashboard/thesis/topic-history';
+import { archiveEmptyState } from '@/lib/thesis-page-list';
 
 /** Shape of the API error envelope (`{ code, message }`) used for domain conflicts. */
 interface ThesisApiErrorShape {
@@ -109,6 +117,14 @@ type GradeBand =
 const THESIS_LECTURER_TABS = ['supervision', 'defense', 'repository'] as const;
 const THESIS_SUPERVISION_TAB_ONLY = ['supervision'] as const;
 
+// A round can hold thousands of groups; the workspace only needs one bounded
+// page for its review list, and the server total for the KPI.
+const GROUP_PAGE_LIMIT = 100;
+// Detail hydration fans out per group/topic. Keep the bursts small so one
+// screen cannot saturate the browser's connection pool.
+const SUPERVISED_REPORT_CONCURRENCY = 4;
+const COUNCIL_TOPIC_CONCURRENCY = 4;
+
 // Feedback item 2: one classification source. The 10-point bands live in
 // grade-scale.ts now, matching the official conversion table end to end.
 const GRADE_BADGE_CLASS: Record<GradeBand, string> = {
@@ -117,9 +133,9 @@ const GRADE_BADGE_CLASS: Record<GradeBand, string> = {
   FAIR: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
   UPPER_AVERAGE: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
   AVERAGE: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30',
-  BELOW_AVERAGE: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30',
+  BELOW_AVERAGE: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300 border-yellow-500/30',
   PASS: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30',
-  RETAKE: 'bg-destructive/15 text-destructive border-destructive/30',
+  RETAKE: 'bg-destructive/15 text-status-danger-foreground border-destructive/30',
 };
 
 function getGradeClassification(score: number): {
@@ -133,25 +149,51 @@ function getGradeClassification(score: number): {
 }
 
 export default function ThesisPage() {
-  const { user, isStudent, isLecturer, isAdmin: isAdminRole, isSuperAdmin, isFacultyHead } = useAuth();
+  const {
+    user,
+    isStudent,
+    isLecturer,
+    isAdmin: isAdminRole,
+    isSuperAdmin,
+    isFacultyHead,
+    isLoggingOut,
+  } = useAuth();
   const isAdmin = Boolean(isAdminRole || isSuperAdmin || isFacultyHead);
   const isDepartmentHead = Boolean(user?.roles?.includes('TRUONG_BO_MON'));
   const canLoadStaffRelations = Boolean(isLecturer || isDepartmentHead || isAdmin);
   const canProposeTopics = canLoadStaffRelations;
   const isTopicApprover = Boolean(isAdmin || isDepartmentHead);
   const isSupervisorOrAdmin = canLoadStaffRelations;
-  const { locale, formatDateTime, messages } = useI18n();
+  const accountId = user?.id ?? '';
+  const authorizationScope = JSON.stringify([
+    [...(user?.roles ?? [])].sort(),
+    user?.studentId ?? null,
+    user?.lecturerId ?? null,
+  ]);
+  const authSignature = JSON.stringify([accountId, isLoggingOut]);
+  const authSessionRef = useRef({ signature: authSignature, epoch: 0 });
+  if (authSessionRef.current.signature !== authSignature) {
+    authSessionRef.current = {
+      signature: authSignature,
+      epoch: authSessionRef.current.epoch + 1,
+    };
+  }
+  const authSessionEpoch = authSessionRef.current.epoch;
+  const { locale, formatDate, formatDateTime, messages } = useI18n();
   const pageCopy = messages.thesisWorkflow.page;
+  const isVi = locale === 'vi';
+  const workspaceCopy = isVi ? thesisWorkflowVi.workspace : thesisWorkflowEn.workspace;
   const searchParams = useSearchParams();
   const explicitRoundId = searchParams.get('roundId') || '';
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
   const [groups, setGroups] = useState<ThesisGroup[]>([]);
+  const [groupTotal, setGroupTotal] = useState(0);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const topicRequestRef = useRef(0);
   const councilRequestRef = useRef(0);
-  const repositoryRequestRef = useRef(0);
+  const councilDetailsRoundRef = useRef('');
   const selectedRoundRef = useRef(selectedRoundId);
   selectedRoundRef.current = selectedRoundId;
   const [viewingTopic, setViewingTopic] = useState<ThesisTopic | null>(null);
@@ -168,6 +210,7 @@ export default function ThesisPage() {
   // a failed fetch instead of silently rendering as empty.
   const [secondaryDataError, setSecondaryDataError] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+  const [topicRefreshFailed, setTopicRefreshFailed] = useState(false);
   // Bumping this token re-runs the workspace data effect, giving the mid-page
   // load-error state a retry that actually refetches topics/groups/councils.
   const [workspaceRetryToken, setWorkspaceRetryToken] = useState(0);
@@ -310,6 +353,9 @@ export default function ThesisPage() {
   const [gvpbDraftScores, setGvpbDraftScores] = useState<Record<string, string>>({});
   const [gvpbDraftComments, setGvpbDraftComments] = useState<Record<string, string>>({});
   const [supervisedReports, setSupervisedReports] = useState<Record<string, ThesisGroupReport | null>>({});
+  // The report effect must not depend on the map it writes: this ref answers
+  // "already loaded?" without re-running the effect per resolution.
+  const supervisedReportsRef = useRef<Record<string, ThesisGroupReport | null>>({});
   const [topicReports, setTopicReports] = useState<Record<string, ThesisGroupReport | null>>({});
   const [topicReportErrors, setTopicReportErrors] = useState<Record<string, boolean>>({});
 
@@ -323,13 +369,50 @@ export default function ThesisPage() {
     [],
   );
 
-  // Thesis Repository State (Faculty archive of submitted theses)
-  const [repositoryReports, setRepositoryReports] = useState<ThesisRepositoryReport[]>([]);
-  const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
-  // A failed archive load must never read as "no reports yet": this flag keeps
-  // an outage distinguishable from a genuinely empty repository.
-  const [repositoryError, setRepositoryError] = useState('');
+  // Archive rows are fetched independently from the complete topic/group
+  // projections that drive membership, workload and management actions.
   const [repositorySearch, setRepositorySearch] = useState('');
+  const [appliedRepositorySearch, setAppliedRepositorySearch] = useState('');
+  const [repositorySearchPending, setRepositorySearchPending] = useState(false);
+  const repositorySearchTimerRef = useRef<number | null>(null);
+  const loadRepositoryPage = useCallback(
+    (page: number, signal: AbortSignal) => thesisApi.listRoundRepositoryPage(
+      selectedRoundId,
+      { search: appliedRepositorySearch, page, limit: 20 },
+      signal,
+    ),
+    [appliedRepositorySearch, selectedRoundId],
+  );
+  const repositoryPage = useThesisPagedList({
+    accountId,
+    authSessionEpoch,
+    authorizationScope,
+    roundId: selectedRoundId,
+    listKind: 'repository',
+    search: appliedRepositorySearch,
+    limit: 20,
+    enabled: canLoadStaffRelations && Boolean(selectedRoundId) && !isLoggingOut && !repositorySearchPending,
+    load: loadRepositoryPage,
+  });
+  const invalidateRepositoryPage = repositoryPage.invalidate;
+  const handleRepositorySearchChange = useCallback((value: string) => {
+    invalidateRepositoryPage();
+    setRepositorySearch(value);
+    setRepositorySearchPending(true);
+    if (repositorySearchTimerRef.current !== null) {
+      window.clearTimeout(repositorySearchTimerRef.current);
+    }
+    repositorySearchTimerRef.current = window.setTimeout(() => {
+      setAppliedRepositorySearch(value);
+      setRepositorySearchPending(false);
+      repositorySearchTimerRef.current = null;
+    }, 250);
+  }, [invalidateRepositoryPage]);
+  useEffect(() => () => {
+    if (repositorySearchTimerRef.current !== null) {
+      window.clearTimeout(repositorySearchTimerRef.current);
+    }
+  }, []);
 
   // Supervisors for current student group's topic
   const [currentTopicSupervisors, setCurrentTopicSupervisors] = useState<ThesisTopicSupervisor[]>([]);
@@ -357,43 +440,95 @@ export default function ThesisPage() {
     for (const c of councilsList) {
       if (!isCurrent()) return;
       const isMemberOrAdmin = isAdmin || c.members?.some((m) => m.lecturerId === myLecturerId);
-      const tids = (c as unknown as { topicIds?: string[] }).topicIds || [];
-      for (const tid of tids) {
-        if (!isCurrent()) return;
-        const key = `${c.id}:${tid}`;
-        try {
-          const [scoresResult, sups, reportResult] = await Promise.all([
-            isMemberOrAdmin
-              ? thesisApi.listScores(c.id, tid).then(
-                  (scores) => ({ scores, failed: false }),
-                  () => ({ scores: [] as ThesisCouncilScore[], failed: true }),
-                )
-              : Promise.resolve({ scores: [] as ThesisCouncilScore[], failed: false }),
-            thesisApi.listSupervisors(tid).catch(() => []),
-            thesisApi.getTopicReport(tid).then(
-              (report) => ({ report, failed: false }),
-              () => ({ report: null, failed: true }),
-            ),
-          ]);
+      const tids = c.topicIds ?? [];
+      if (tids.length === 0) continue;
+
+      // Accumulate the whole council first so every map is committed in one
+      // synchronous block; resolving per topic re-rendered the page once per
+      // pair and made a defense board wait pair by pair.
+      const scoresPatch: Record<string, ThesisCouncilScore[]> = {};
+      const scoreErrorPatch: Record<string, boolean> = {};
+      const supervisorPatch: Record<string, string[]> = {};
+      const reportPatch: Record<string, ThesisGroupReport | null> = {};
+      const reportErrorPatch: Record<string, boolean> = {};
+      const draftScorePatch: Record<string, string> = {};
+      const draftCommentPatch: Record<string, string> = {};
+
+      let cursor = 0;
+      const loadTopic = async () => {
+        while (cursor < tids.length) {
           if (!isCurrent()) return;
-          setCouncilScores((prev) => ({ ...prev, [key]: scoresResult.scores }));
-          setCouncilScoreErrors((prev) => ({ ...prev, [key]: scoresResult.failed }));
-          setTopicSupervisors((prev) => ({ ...prev, [tid]: sups.map((s) => s.lecturerId) }));
-          setTopicReports((prev) => ({ ...prev, [tid]: reportResult.report }));
-          setTopicReportErrors((prev) => ({ ...prev, [tid]: reportResult.failed }));
-          const myScore = scoresResult.scores.find((s) => s.lecturerId === myLecturerId);
-          if (myScore != null) {
-            setDraftScores((prev) => ({ ...prev, [key]: String(myScore.score) }));
-            if (myScore.comment) {
-              setDraftComments((prev) => ({ ...prev, [key]: myScore.comment ?? '' }));
+          const tid = tids[cursor];
+          cursor += 1;
+          const key = `${c.id}:${tid}`;
+          try {
+            const [scoresResult, sups, reportResult] = await Promise.all([
+              isMemberOrAdmin
+                ? thesisApi.listScores(c.id, tid).then(
+                    (scores) => ({ scores, failed: false }),
+                    () => ({ scores: [] as ThesisCouncilScore[], failed: true }),
+                  )
+                : Promise.resolve({ scores: [] as ThesisCouncilScore[], failed: false }),
+              thesisApi.listSupervisors(tid).catch(() => []),
+              thesisApi.getTopicReport(tid).then(
+                (report) => ({ report, failed: false }),
+                () => ({ report: null, failed: true }),
+              ),
+            ]);
+            scoresPatch[key] = scoresResult.scores;
+            scoreErrorPatch[key] = scoresResult.failed;
+            supervisorPatch[tid] = sups.map((s) => s.lecturerId);
+            reportPatch[tid] = reportResult.report;
+            reportErrorPatch[tid] = reportResult.failed;
+            const myScore = scoresResult.scores.find((s) => s.lecturerId === myLecturerId);
+            if (myScore != null) {
+              draftScorePatch[key] = String(myScore.score);
+              if (myScore.comment) {
+                draftCommentPatch[key] = myScore.comment ?? '';
+              }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
-      }
+      };
+
+      await Promise.all(
+        Array.from(
+          { length: Math.min(COUNCIL_TOPIC_CONCURRENCY, tids.length) },
+          () => loadTopic(),
+        ),
+      );
+      if (!isCurrent()) return;
+      setCouncilScores((prev) => ({ ...prev, ...scoresPatch }));
+      setCouncilScoreErrors((prev) => ({ ...prev, ...scoreErrorPatch }));
+      setTopicSupervisors((prev) => ({ ...prev, ...supervisorPatch }));
+      setTopicReports((prev) => ({ ...prev, ...reportPatch }));
+      setTopicReportErrors((prev) => ({ ...prev, ...reportErrorPatch }));
+      setDraftScores((prev) => ({ ...prev, ...draftScorePatch }));
+      setDraftComments((prev) => ({ ...prev, ...draftCommentPatch }));
     }
   }, [isAdmin, myLecturerId]);
+
+  // Council details are only read by the defense tab, so the workspace sweep
+  // no longer pays for them. The round ref makes selection idempotent: a
+  // tab switch back, or the retry that loaded them, does not repeat the burst.
+  useEffect(() => {
+    if (!canLoadStaffRelations || lecturerTab !== 'defense' || visibleCouncils.length === 0) return;
+    if (councilDetailsRoundRef.current === selectedRoundId) return;
+    councilDetailsRoundRef.current = selectedRoundId;
+    const requestId = councilRequestRef.current;
+    const roundId = selectedRoundRef.current;
+    const isCurrent = () =>
+      requestId === councilRequestRef.current && roundId === selectedRoundRef.current;
+    void loadCouncilDetails(visibleCouncils, isCurrent);
+  }, [
+    canLoadStaffRelations,
+    lecturerTab,
+    loadCouncilDetails,
+    selectedRoundId,
+    visibleCouncils,
+  ]);
 
   const handleSubmitScore = async (councilId: string, topicId: string) => {
     const key = `${councilId}:${topicId}`;
@@ -443,6 +578,7 @@ export default function ThesisPage() {
     setIsActionPending(true);
     setActionError('');
     setActionSuccess('');
+    setTopicRefreshFailed(false);
     try {
       const res = await thesisApi.finalizeScores(councilId, topicId);
       const msg = fillCopy(pageCopy.scoreFinalised, { score: res.finalScore ?? '' });
@@ -456,7 +592,12 @@ export default function ThesisPage() {
       } else {
         setCouncilScoreErrors((prev) => ({ ...prev, [key]: true }));
       }
-      await refreshTopics(selectedRoundId);
+      try {
+        await refreshTopics(selectedRoundId);
+      } catch {
+        setTopicRefreshFailed(true);
+        setActionError(messages.thesis.loadFailed);
+      }
     } catch (err: unknown) {
       const code = getThesisErrorCode(err);
       if (code === 'SCORES_INCOMPLETE') {
@@ -558,7 +699,8 @@ export default function ThesisPage() {
     try {
       const nextRounds = await thesisApi.listRounds();
       if (signal.cancelled) return;
-      const sortedRounds = [...nextRounds].sort((a, b) => {
+      const visibleRounds = thesisRoundsForStudent(nextRounds, isStudent);
+      const sortedRounds = [...visibleRounds].sort((a, b) => {
         const isOpenA = a.status === 'REGISTRATION_OPEN' ? 0 : 1;
         const isOpenB = b.status === 'REGISTRATION_OPEN' ? 0 : 1;
         if (isOpenA !== isOpenB) return isOpenA - isOpenB;
@@ -573,18 +715,14 @@ export default function ThesisPage() {
           return explicitRoundId;
         }
         if (current) return current;
-        const preferred =
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN' && r.thesisType === 'KLTN') ||
-          sortedRounds.find((r) => r.status === 'REGISTRATION_OPEN') ||
-          sortedRounds[0];
-        return preferred?.id || '';
+        return pickDefaultThesisRound(sortedRounds)?.id || '';
       });
     } catch {
       if (!signal.cancelled) setError(messages.thesis.loadFailed);
     } finally {
       if (!signal.cancelled) setIsLoading(false);
     }
-  }, [explicitRoundId, messages.thesis.loadFailed]);
+  }, [explicitRoundId, isStudent, messages.thesis.loadFailed]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -751,14 +889,27 @@ export default function ThesisPage() {
     [isSupervisorOrAdmin],
   );
 
+  const retryTopicRefresh = async () => {
+    try {
+      await refreshTopics(selectedRoundId);
+      setTopicRefreshFailed(false);
+      setActionError('');
+    } catch {
+      setTopicRefreshFailed(true);
+      setActionError(messages.thesis.loadFailed);
+    }
+  };
+
   useEffect(() => {
     setTopics([]);
     setGroups([]);
+    setGroupTotal(0);
     // Round-scoped UI state must not leak across rounds: the topic detail
     // modal and action banners belonged to the previous round's objects.
     setViewingTopic(null);
     setActionError('');
     setActionSuccess('');
+    setTopicRefreshFailed(false);
     // Council defense state is equally round-scoped: score lists, score
     // drafts, supervisor and report maps from the previous round must not
     // render against the new selection (or linger when it is cleared).
@@ -770,6 +921,9 @@ export default function ThesisPage() {
     setTopicSupervisors({});
     setTopicReports({});
     setTopicReportErrors({});
+    setSupervisedReports({});
+    supervisedReportsRef.current = {};
+    councilDetailsRoundRef.current = '';
     setCouncilLoadError('');
     if (!selectedRoundId) {
       return;
@@ -777,35 +931,34 @@ export default function ThesisPage() {
 
     let cancelled = false;
     const councilRequestId = ++councilRequestRef.current;
-    const repositoryRequestId = ++repositoryRequestRef.current;
     const roundId = selectedRoundId;
     const isCouncilCurrent = () =>
       !cancelled
       && councilRequestId === councilRequestRef.current
-      && roundId === selectedRoundRef.current;
-    const isRepositoryCurrent = () =>
-      !cancelled
-      && repositoryRequestId === repositoryRequestRef.current
       && roundId === selectedRoundRef.current;
     const loadWorkspace = async () => {
       setError('');
       try {
         const promises: Promise<unknown>[] = [refreshTopics(selectedRoundId)];
         if (isStudent || canLoadStaffRelations) {
-          promises.push(thesisApi.listGroups(selectedRoundId).then((next) => {
-            if (!cancelled) setGroups(next);
-          }));
+          promises.push(
+            thesisApi.listGroupsPage(selectedRoundId, { page: 0, limit: GROUP_PAGE_LIMIT }).then((next) => {
+              if (!cancelled) {
+                setGroups(next.items);
+                setGroupTotal(next.total ?? next.items.length);
+              }
+            }),
+          );
         } else {
           setGroups([]);
+          setGroupTotal(0);
         }
         if (canLoadStaffRelations) {
-          setIsRepositoryLoading(true);
           promises.push(
             thesisApi.listCouncils(selectedRoundId).then((cList) => {
               if (isCouncilCurrent()) {
                 setCouncils(cList);
                 setCouncilLoadError('');
-                void loadCouncilDetails(cList, isCouncilCurrent);
               }
             }).catch(() => {
               if (isCouncilCurrent()) {
@@ -813,19 +966,6 @@ export default function ThesisPage() {
                 // yet"; keep the failure distinct and retryable instead.
                 setCouncils([]);
                 setCouncilLoadError(messages.thesis.loadFailed);
-              }
-            }),
-            thesisApi.listRoundRepository(selectedRoundId).then((rList) => {
-              if (isRepositoryCurrent()) {
-                setRepositoryReports(rList);
-                setRepositoryError('');
-                setIsRepositoryLoading(false);
-              }
-            }).catch(() => {
-              if (isRepositoryCurrent()) {
-                setRepositoryReports([]);
-                setRepositoryError(messages.thesis.loadFailed);
-                setIsRepositoryLoading(false);
               }
             }),
           );
@@ -845,7 +985,7 @@ export default function ThesisPage() {
       topicRequestRef.current += 1;
       councilRequestRef.current += 1;
     };
-  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
+  }, [canLoadStaffRelations, isStudent, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
 
   // Retry path for a failed council listing: the defense tab gets the real
   // failure with a way back, instead of a council workspace that silently
@@ -862,6 +1002,9 @@ export default function ThesisPage() {
       const cList = await thesisApi.listCouncils(roundId);
       if (!isCurrent()) return;
       setCouncils(cList);
+      // The retry loads details itself; the defense-tab effect must not repeat
+      // the same burst for this round.
+      councilDetailsRoundRef.current = roundId;
       await loadCouncilDetails(cList, isCurrent);
     } catch {
       if (isCurrent()) {
@@ -870,32 +1013,6 @@ export default function ThesisPage() {
       }
     }
   }, [canLoadStaffRelations, loadCouncilDetails, messages.thesis.loadFailed, selectedRoundId]);
-
-  // Retry path for a failed repository load: the reader gets the real failure
-  // with a way back, instead of an archive that silently reads as empty.
-  // The retry can resolve after the reader switched rounds, so — like the
-  // council retry above — every state write is gated on the round still being
-  // selected; a stale answer must not overwrite the new round's archive.
-  const reloadRepository = useCallback(async () => {
-    if (!selectedRoundId || !canLoadStaffRelations) return;
-    const requestId = ++repositoryRequestRef.current;
-    const roundId = selectedRoundId;
-    const isCurrent = () =>
-      requestId === repositoryRequestRef.current && roundId === selectedRoundRef.current;
-    setIsRepositoryLoading(true);
-    setRepositoryError('');
-    try {
-      const reports = await thesisApi.listRoundRepository(roundId);
-      if (!isCurrent()) return;
-      setRepositoryReports(reports);
-    } catch {
-      if (!isCurrent()) return;
-      setRepositoryReports([]);
-      setRepositoryError(messages.thesis.loadFailed);
-    } finally {
-      if (isCurrent()) setIsRepositoryLoading(false);
-    }
-  }, [canLoadStaffRelations, messages.thesis.loadFailed, selectedRoundId]);
 
   const selectedRound = rounds.find((round) => round.id === selectedRoundId);
   const roundGroups = useMemo(() => {
@@ -1047,6 +1164,12 @@ export default function ThesisPage() {
   );
   const myTopicIds = useMemo(() => new Set(myTopics.map((topic) => topic.id)), [myTopics]);
   const managedTopics = isTopicApprover ? topics : myTopics;
+  // One set per render: the capability mapper runs for every topic, so scanning
+  // the group list inside it made rendering quadratic in a faculty-scale round.
+  const topicHistoryIds = useMemo(
+    () => buildTopicHistoryIds(groups, councils),
+    [groups, councils],
+  );
   const topicCapabilities = (topic: ThesisTopic) => getThesisTopicCapabilities(topic, {
     roles: user?.roles ?? [],
     userId: user?.id,
@@ -1057,8 +1180,7 @@ export default function ThesisPage() {
     inDepartmentCatalog: topics.some((listed) =>
       listed.id === topic.id && listed.departmentId === topic.departmentId,
     ),
-    hasHistory: topic.finalScore != null || groups.some((group) => group.topicId === topic.id) ||
-      councils.some((council) => council.topicIds?.includes(topic.id)),
+    hasHistory: topic.finalScore != null || topic.resultStatus != null || topicHistoryIds.has(topic.id),
   });
 
   // "Supervised" is the R3 supervisor relationship (thesis_topic_supervisor),
@@ -1072,75 +1194,100 @@ export default function ThesisPage() {
   const supervisedGroups = useMemo(
     () =>
       isSupervisorOrAdmin
-        ? groups.filter(
-            (group) =>
-              group.topicId &&
-              (isAdmin || myTopicIds.has(group.topicId) || supervisedTopicIds.has(group.topicId)),
-          )
+        ? groups.filter((group) => {
+            if (!group.topicId) {
+              // A started-but-unused group has no topic to scope supervision by;
+              // governance must still see and reject it or publication stays wedged.
+              return isAdmin && group.approvalStatus === 'PENDING' && group.status !== 'CANCELLED';
+            }
+            return isAdmin || myTopicIds.has(group.topicId) || supervisedTopicIds.has(group.topicId);
+          })
         : [],
     [groups, isAdmin, isSupervisorOrAdmin, myTopicIds, supervisedTopicIds],
   );
 
 
+  const supervisedReportGroupIds = useMemo(
+    () => supervisedGroups
+      .filter((group) => group.approvalStatus === 'APPROVED')
+      .map((group) => group.id),
+    [supervisedGroups],
+  );
+
   useEffect(() => {
     if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;
-    for (const g of supervisedGroups) {
-      if (g.approvalStatus === 'APPROVED' && !supervisedReports[g.id]) {
-        void thesisApi.getReport(g.id)
-          .then((rep) => setSupervisedReports((prev) => ({ ...prev, [g.id]: rep })))
-          .catch((err: unknown) => {
-            // 404 REPORT_NOT_FOUND means the group has not submitted yet —
-            // an expected state, not a data error.
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status !== 404 && status !== 204) {
-              setSecondaryDataError(true);
-            }
-          });
+    // The report links only render on the supervision tab; a reader on the
+    // defense or archive tab must not pay for them.
+    if (lecturerTab !== 'supervision') return;
+    let active = true;
+    // The effect is keyed on the id list, never on the map it writes: keying
+    // on the map re-ran the whole scan once per resolution.
+    const pending = supervisedReportGroupIds.filter(
+      (id) => supervisedReportsRef.current[id] === undefined,
+    );
+    if (pending.length === 0) return;
+    const queue = [...pending];
+    const results: Record<string, ThesisGroupReport | null> = {};
+    let failed = false;
+    const loadNextReport = async () => {
+      while (queue.length > 0) {
+        if (!active) return;
+        const id = queue.shift();
+        if (id === undefined) return;
+        try {
+          const rep = await thesisApi.getReport(id);
+          if (!active) return;
+          results[id] = rep;
+        } catch (err: unknown) {
+          if (!active) return;
+          results[id] = null;
+          // 404 REPORT_NOT_FOUND means the group has not submitted yet —
+          // an expected state, not a data error.
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status !== 404 && status !== 204) {
+            failed = true;
+          }
+        }
       }
-    }
-  }, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);
-
-  const filteredRepositoryReports = useMemo(() => {
-    const raw = repositorySearch.trim();
-    if (!raw) return repositoryReports;
-    const fold = (value: string) =>
-      value
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'd')
-        .toLowerCase();
-    const foldedQuery = fold(raw);
-    const queryTokens = foldedQuery.split(/\s+/).filter(Boolean);
-    return repositoryReports.filter((report) => {
-      const haystack = fold(
-        [
-          report.topicTitle || report.title || '',
-          report.topicDescription || '',
-          report.note || '',
-          report.fileName || '',
-          report.departmentName || '',
-          report.submittedByDisplayName || '',
-          report.submittedByStudentNumber || '',
-          ...report.supervisors.map((s) => s.displayName || ''),
-          ...report.members.map((m) => `${m.displayName || ''} ${m.studentNumber || ''}`),
-        ].join(' '),
-      );
-      return queryTokens.every((token) => haystack.includes(token));
+    };
+    void Promise.all(
+      Array.from(
+        { length: Math.min(SUPERVISED_REPORT_CONCURRENCY, queue.length) },
+        () => loadNextReport(),
+      ),
+    ).then(() => {
+      if (!active) return;
+      // One commit for the whole page keeps the parent render count flat.
+      setSupervisedReports((prev) => {
+        const next = { ...prev, ...results };
+        supervisedReportsRef.current = next;
+        return next;
+      });
+      if (failed) {
+        setSecondaryDataError(true);
+      }
     });
-  }, [repositoryReports, repositorySearch]);
+    return () => {
+      active = false;
+    };
+  }, [
+    isSupervisorOrAdmin,
+    lecturerTab,
+    setSecondaryDataError,
+    setSupervisedReports,
+    supervisedGroups.length,
+    supervisedReportGroupIds,
+  ]);
 
   const handleDownloadRepositoryReport = async (report: ThesisRepositoryReport) => {
     try {
       await thesisApi.downloadRepositoryReportFile(report.reportId, report);
-      toast.success(locale === 'vi' ? 'Đã tải tài liệu báo cáo' : 'Downloaded report artifact');
+      toast.success(workspaceCopy.downloadedReport);
     } catch (caught) {
       toast.error(
         getThesisErrorCode(caught) === 'REPORT_STORAGE_UNAVAILABLE'
           ? messages.thesis.report.fileUnavailable
-          : locale === 'vi'
-            ? 'Không thể tải tài liệu báo cáo'
-            : 'Failed to download report artifact',
+          : workspaceCopy.downloadFailed,
       );
     }
   };
@@ -1265,47 +1412,31 @@ export default function ThesisPage() {
 
   const currentTopic = topics.find((t) => t.id === currentGroup?.topicId);
   const myResultItem = currentGroup ? roundResults.find((r) => r.groupId === currentGroup.id) : null;
-  const studentFinalScore = currentTopic?.finalScore ?? myResultItem?.finalScore ?? null;
+  // The server reveals a score only for an approved group; a rejected or pending
+  // group shares its topic row but must not see the topic's published score.
+  const studentFinalScore = currentGroup?.approvalStatus === 'APPROVED'
+    ? currentTopic?.finalScore ?? myResultItem?.finalScore ?? null
+    : null;
   const studentGradeInfo = studentFinalScore != null ? getGradeClassification(studentFinalScore) : null;
+  const studentResultNotQualified = currentGroup?.approvalStatus === 'APPROVED'
+    && (myResultItem?.resultStatus === 'NOT_QUALIFIED' || currentTopic?.resultStatus === 'NOT_QUALIFIED');
 
   const currentLeaderMember = groupMemberList.find((m) => m.isLeader);
   const currentLeaderName = currentLeaderMember
     ? (currentLeaderMember.displayName || currentLeaderMember.studentNumber || currentLeaderMember.studentId)
     : (currentGroup?.leaderStudentId || pageCopy.groupLeaderFallback);
 
-  const memberCopy =
-    locale === 'vi'
-      ? ({
-          searchLabel: 'Tìm sinh viên trong trường',
-          searchPlaceholder: 'Nhập tên, MSSV hoặc email...',
-          searchButton: 'Tìm',
-          searchHint: 'Nhập ít nhất 2 ký tự để tìm theo tên, MSSV hoặc email.',
-          searching: 'Đang tìm...',
-          searchNoResults: 'Không tìm thấy sinh viên phù hợp.',
-          addShort: 'Thêm',
-          addedShort: 'Đã trong nhóm',
-          curriculumLabel: 'CTĐT',
-          groupFull: messages.thesis.maxMembersReached,
-          studentAlreadyInGroup: 'Sinh viên này đã thuộc một nhóm trong đợt này.',
-        } as const)
-      : ({
-          searchLabel: 'Search internal students',
-          searchPlaceholder: 'Enter name, student ID or email...',
-          searchButton: 'Search',
-          searchHint: 'Type at least 2 characters to search by name, student ID or email.',
-          searching: 'Searching...',
-          searchNoResults: 'No matching students found.',
-          addShort: 'Add',
-          addedShort: 'Already in group',
-          curriculumLabel: 'Curriculum',
-          groupFull: messages.thesis.maxMembersReached,
-          studentAlreadyInGroup: 'This student already belongs to a group in this round.',
-        } as const);
+  const memberCopy = {
+    ...workspaceCopy.members,
+    groupFull: messages.thesis.maxMembersReached,
+  };
 
   const refreshGroups = async () => {
     if (!selectedRoundId) return;
     try {
-      setGroups(await thesisApi.listGroups(selectedRoundId));
+      const page = await thesisApi.listGroupsPage(selectedRoundId, { page: 0, limit: GROUP_PAGE_LIMIT });
+      setGroups(page.items);
+      setGroupTotal(page.total ?? page.items.length);
     } catch {
       // The preceding mutation already succeeded — a failed roster reload must
       // not be reported as "action failed" by the caller's catch block.
@@ -1849,6 +1980,8 @@ export default function ThesisPage() {
     setIsActionPending(true);
     setEditError('');
     setActionSuccess('');
+    setActionError('');
+    setTopicRefreshFailed(false);
     try {
       await thesisApi.updateTopic(editingTopicId, {
         title,
@@ -1856,10 +1989,15 @@ export default function ThesisPage() {
         departmentId,
         maxGroups: Math.min(20, Math.max(1, Number(editMaxGroups) || 1)),
       });
-      await refreshTopics(selectedRoundId);
       setIsEditModalOpen(false);
       setViewingTopic(null);
       setActionSuccess(messages.thesis.editTopicSuccess);
+      try {
+        await refreshTopics(selectedRoundId);
+      } catch {
+        setTopicRefreshFailed(true);
+        setActionError(messages.thesis.loadFailed);
+      }
     } catch (caught) {
       const code = getThesisErrorCode(caught);
       if (code === 'ROUND_NOT_ACCEPTING_PROPOSALS') {
@@ -2169,11 +2307,11 @@ export default function ThesisPage() {
                 </div>
               </div>
             ) : null}
-            {groupReport.url ? (
+            {groupReport.url && isHttpUrl(groupReport.url) ? (
               <a
                 href={groupReport.url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex min-h-8 items-center gap-1 text-sm text-primary underline-offset-2 hover:underline"
               >
                 {messages.thesis.report.view}
@@ -2190,7 +2328,7 @@ export default function ThesisPage() {
           </div>
         ) : groupReportLoadError ? (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-            <p className="flex items-start gap-2 text-xs text-destructive">
+            <p className="flex items-start gap-2 text-xs text-status-danger-foreground">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{groupReportLoadError}</span>
             </p>
@@ -2216,7 +2354,7 @@ export default function ThesisPage() {
             className="mt-4 space-y-3 border-t border-border/60 pt-4"
           >
             {reportError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive">
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-status-danger-foreground">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{reportError}</span>
               </div>
@@ -2293,7 +2431,7 @@ export default function ThesisPage() {
                     className={cn(
                       'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                       reportFileIssue
-                        ? 'bg-destructive/10 text-destructive'
+                        ? 'bg-destructive/10 text-status-danger-foreground'
                         : 'bg-status-success/15 text-status-success-foreground',
                     )}
                   >
@@ -2596,8 +2734,13 @@ export default function ThesisPage() {
             </div>
           ) : null}
           {actionError ? (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs">
-              {actionError}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground shadow-xs">
+              <span>{actionError}</span>
+              {topicRefreshFailed ? (
+                <Button size="sm" variant="outline" onClick={() => void retryTopicRefresh()}>
+                  {messages.common.actions.retry}
+                </Button>
+              ) : null}
             </div>
           ) : null}
           {actionSuccess ? (
@@ -2638,7 +2781,7 @@ export default function ThesisPage() {
             <WorkspaceMetricCard label={messages.thesis.roundStatus} value={statusLabel(selectedRound.status)} icon={<CalendarDays className="h-5 w-5" />} toneClassName={metricToneClass('warning')} />
             <WorkspaceMetricCard label={messages.thesis.topics} value={topics.length} icon={<FileStack className="h-5 w-5" />} toneClassName={metricToneClass('info')} />
             {canLoadStaffRelations || isStudent ? (
-              <WorkspaceMetricCard label={messages.thesis.groups} value={groups.length} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
+              <WorkspaceMetricCard label={messages.thesis.groups} value={groupTotal} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
             ) : null}
             {isStudent ? (
               <WorkspaceMetricCard label={messages.thesis.groupsTitle} value={currentGroup ? currentGroup.memberStudentIds.length : 0} icon={<Check className="h-5 w-5" />} toneClassName={metricToneClass('neutral')} />
@@ -2709,7 +2852,7 @@ export default function ThesisPage() {
                       )}
                     >
                       {canLoadStaffRelations
-                        ? fillCopy(pageCopy.groupsCount, { count: supervisedGroups.length })
+                        ? fillCopy(countLabel(supervisedGroups.length, pageCopy.groupsCountOne, pageCopy.groupsCount), { count: supervisedGroups.length })
                         : managedTopics.length}
                     </span>
                   </button>
@@ -2740,7 +2883,7 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.councilsCount, { count: visibleCouncils.length })}
+                      {fillCopy(countLabel(visibleCouncils.length, pageCopy.councilsCountOne, pageCopy.councilsCount), { count: visibleCouncils.length })}
                     </span>
                   </button>
                   <button
@@ -2768,7 +2911,7 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.reportsCount, { count: repositoryReports.length })}
+                      {fillCopy(countLabel(repositoryPage.summary?.total ?? 0, pageCopy.reportsCountOne, pageCopy.reportsCount), { count: repositoryPage.summary?.total ?? '—' })}
                     </span>
                   </button>
                   </>
@@ -2837,6 +2980,7 @@ export default function ThesisPage() {
                     reportsByGroup={supervisedReports}
                     isActionPending={isActionPending}
                     getTopicTitle={getTopicTitle}
+                    roundStatus={selectedRound?.status}
                     isRoundOpen={isRegistrationOpenFor}
                     canReviewGroup={(group) =>
                       isAdmin || (!!group.topicId && supervisedTopicIds.has(group.topicId))
@@ -2918,14 +3062,18 @@ export default function ThesisPage() {
                   messages={messages}
                   locale={locale}
                   formatDateTime={formatDateTime}
-                  reports={repositoryReports}
-                  filteredReports={filteredRepositoryReports}
+                  reports={repositoryPage.items}
+                  filteredTotal={repositoryPage.total}
+                  summary={repositoryPage.summary}
                   roundName={selectedRound?.name}
-                  isLoading={isRepositoryLoading}
-                  loadError={repositoryError}
-                  onRetry={() => void reloadRepository()}
+                  isLoading={repositoryPage.loading}
+                  loadError={repositoryPage.failed ? messages.thesis.loadFailed : undefined}
+                  onRetry={repositoryPage.retry}
                   search={repositorySearch}
-                  onSearchChange={setRepositorySearch}
+                  onSearchChange={handleRepositorySearchChange}
+                  page={repositoryPage.page}
+                  limit={repositoryPage.limit}
+                  onPage={repositoryPage.goToPage}
                   onDownloadReport={handleDownloadRepositoryReport}
                 />
               )}
@@ -3036,6 +3184,10 @@ export default function ThesisPage() {
             </div>
           )}
 
+              {studentResultNotQualified && (
+                <ThesisResultOutcome label={messages.thesis.results.notQualified} />
+              )}
+
               {/* 2-Column Grid for Student */}
               <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
                 <StudentGroupCard
@@ -3090,17 +3242,27 @@ export default function ThesisPage() {
                           <p className="truncate text-sm font-semibold text-foreground" title={result.topicTitle}>
                             {result.topicTitle}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {messages.thesis.results.council}: {result.councilName}
-                          </p>
+                          {result.councilName ? (
+                            <p className="text-xs text-muted-foreground">
+                              {messages.thesis.results.council}: {result.councilName}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="text-left sm:text-right">
-                          <p className="text-lg font-semibold text-foreground">
-                            {result.finalScore}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {messages.thesis.results.finalScore}
-                          </p>
+                          {result.resultStatus === 'NOT_QUALIFIED' ? (
+                            <p className="text-sm font-semibold text-foreground">
+                              {messages.thesis.results.notQualified}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-lg font-semibold text-foreground">
+                                {result.finalScore}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {messages.thesis.results.finalScore}
+                              </p>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -3152,7 +3314,7 @@ export default function ThesisPage() {
                   <div className="font-semibold">{messages.thesis.proposeRoundOpenNotice}</div>
                   {currentProposeRound?.lecturerSubmitStart && currentProposeRound?.lecturerSubmitEnd ? (
                     <div className="mt-1 text-xs opacity-90">
-                      {messages.thesis.registrationWindow}: {currentProposeRound.lecturerSubmitStart.slice(0, 10)} → {currentProposeRound.lecturerSubmitEnd.slice(0, 10)}
+                      {messages.thesis.registrationWindow}: {formatDate(currentProposeRound.lecturerSubmitStart)} → {formatDate(currentProposeRound.lecturerSubmitEnd)}
                     </div>
                   ) : null}
                 </div>
@@ -3165,7 +3327,7 @@ export default function ThesisPage() {
             );
           })()}
           {proposeError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {proposeError}
             </div>
           ) : null}
@@ -3232,7 +3394,7 @@ export default function ThesisPage() {
             // An outage must not read as "no supervisors exist": the reader
             // gets the real failure and a retry.
             <ErrorState
-              title={locale === 'vi' ? 'Không thể tải danh sách giảng viên' : 'Supervisor directory unavailable'}
+              title={workspaceCopy.supervisorsErrorTitle}
               description={lecturersError}
               onRetry={() => void loadLecturers()}
             />
@@ -3267,12 +3429,8 @@ export default function ThesisPage() {
             </div>
           ) : (
             <EmptyState
-              title={locale === 'vi' ? 'Chưa có giảng viên hướng dẫn' : 'No supervisors listed yet'}
-              description={
-                locale === 'vi'
-                  ? 'Nhà trường chưa công bố giảng viên nào trong danh sách hướng dẫn. Vui lòng liên hệ Khoa để được hỗ trợ.'
-                  : 'The faculty directory lists no supervisors yet. Contact your department office for assistance.'
-              }
+              title={workspaceCopy.noSupervisorsTitle}
+              description={workspaceCopy.noSupervisorsDescription}
             />
           )}
           <div>
@@ -3350,7 +3508,7 @@ export default function ThesisPage() {
             {messages.thesis.rejectModalDescription}
           </p>
           {rejectError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {rejectError}
             </div>
           ) : null}
@@ -3400,7 +3558,7 @@ export default function ThesisPage() {
       >
         <div className="space-y-4">
           {addMemberError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {addMemberError}
             </div>
           ) : null}
@@ -3497,7 +3655,7 @@ export default function ThesisPage() {
                         <div className="min-w-0 space-y-0.5">
                           <p className="truncate text-sm font-semibold text-foreground" title={fullName}>{fullName}</p>
                           <p className="truncate text-xs text-muted-foreground">
-                            MSSV: <span className="font-mono">{student.studentNumber}</span>
+                            {messages.thesis.studentIdLabel}: <span className="font-mono">{student.studentNumber}</span>
                           </p>
                           {curriculumLabel ? (
                             <p className="truncate text-xs text-muted-foreground" title={curriculumLabel}>
@@ -3567,9 +3725,7 @@ export default function ThesisPage() {
                   className="h-10"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {locale === 'vi'
-                    ? 'Áp dụng cho thành viên khác ngành hoặc đến từ trường đại học khác.'
-                    : 'For members from another major or a different university.'}
+                  {workspaceCopy.externalMemberHint}
                 </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -3603,7 +3759,7 @@ export default function ThesisPage() {
         >
           <div className="space-y-4">
             {topicActionError ? (
-              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
                 {topicActionError}
               </p>
             ) : null}
@@ -3616,7 +3772,7 @@ export default function ThesisPage() {
               <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
                 <Building2 className="h-4 w-4 shrink-0 text-primary" />
                 <span>
-                  <strong>{locale === 'vi' ? 'Đơn vị chuyên môn:' : 'Department:'}</strong>{' '}
+                  <strong>{workspaceCopy.departmentLabel}</strong>{' '}
                   {departments.find((d) => d.id === viewingTopic.departmentId)?.name || viewingTopic.departmentId}
                 </span>
               </div>
@@ -3624,7 +3780,7 @@ export default function ThesisPage() {
 
             <div className="rounded-lg border border-border/70 bg-card p-4 text-sm leading-relaxed text-foreground max-h-[50vh] overflow-y-auto">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {locale === 'vi' ? 'Mô tả & Yêu cầu học thuật' : 'Description & Academic Requirements'}
+                {workspaceCopy.descriptionHeading}
               </h4>
               <RichContentRenderer content={viewingTopic.description} />
             </div>
@@ -3636,7 +3792,7 @@ export default function ThesisPage() {
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                {locale === 'vi' ? 'Mở trang chuyên sâu' : 'Open dedicated topic page'}
+                {workspaceCopy.openTopicPage}
               </LocalizedLink>
               ) : null}
 
@@ -3648,7 +3804,7 @@ export default function ThesisPage() {
                   onClick={() => setViewingTopic(null)}
                   disabled={isActionPending}
                 >
-                  {locale === 'vi' ? 'Đóng' : 'Close'}
+                  {workspaceCopy.close}
                 </Button>
 
                 {/* Governance approves a draft; ownership alone permits editing.
@@ -3709,7 +3865,7 @@ export default function ThesisPage() {
             {messages.thesis.editTopicDescription}
           </p>
           {editError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {editError}
             </div>
           ) : null}

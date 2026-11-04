@@ -65,8 +65,8 @@ write also carries `status='DRAFT'` in its atomic predicate.
 | Transition | Endpoint | Actor rule | Effect |
 | --- | --- | --- | --- |
 | `DRAFT → IN_REVIEW` | `POST /{id}/submit` | `sub == authorId` **or** `ADMIN`/`SUPER_ADMIN` (KM-H4 admin adoption — a draft whose author is `legacy-unknown` or disabled is never stranded) | status only |
-| `IN_REVIEW → PUBLISHED` | `POST /{id}/approve` | writer set (`LECTURER`/`ADMIN`/`SUPER_ADMIN`) **and** `sub != authorId`; rejects `expiresAt` already past (KM-L9) | `reviewerId`, `reviewedAt`, `publishedRevision = version`; **notification fan-out fires here** (KM-H1) |
-| `IN_REVIEW → DRAFT` | `POST /{id}/return` | writer set, reason required | `reviewerId`, `reviewedAt`, `reviewNote` |
+| `IN_REVIEW → PUBLISHED` | `POST /{id}/approve` | governance (`ADMIN`/`SUPER_ADMIN`) **or** a non-author lecturer whose section the announcement targets (global/campus-wide posts are governance-only); `sub != authorId` always; rejects `expiresAt` already past (KM-L9) | `reviewerId`, `reviewedAt`, `publishedRevision = version`; **notification fan-out fires here** (KM-H1) |
+| `IN_REVIEW → DRAFT` | `POST /{id}/return` | same reviewer scope as approve; reason required | `reviewerId`, `reviewedAt`, `reviewNote` |
 | `* → ARCHIVED` | `POST /{id}/archive`, `DELETE /{id}` | writer set; lecturers own-only (existing `requireAnnouncementOwner`) | `archivedAt`, `archivedBy` |
 | `ARCHIVED → DRAFT` | `POST /{id}/restore` | writer set; lecturers own-only (KM-M9) | clears `archivedAt`/`archivedBy`; `status=DRAFT` |
 
@@ -82,9 +82,13 @@ and as matrix rows in `domain-contracts.md` — KM-M1):
   PUBLISHED without a fresh submit + reviewer ≠ author.
 
 Actor mapping (KM-M2, accepted): the contract's `STAFF:content` maps to
-the writer set `LECTURER ∪ ADMIN ∪ SUPER_ADMIN` — a LECTURER may approve
-an ADMIN-authored post. `TRUONG_KHOA`/`TRUONG_BO_MON` stay outside the
-writer/reviewer set (dean accounts participate through `LECTURER`).
+the writer set `LECTURER ∪ ADMIN ∪ SUPER_ADMIN` for authoring — but
+review (approve/return) is narrower: governance roles review anything,
+while a lecturer reviews only non-global announcements of sections they
+teach (`ANNOUNCEMENT_APPROVAL_FORBIDDEN` otherwise). Public documents
+are governance-only at review (`DOCUMENT_APPROVAL_FORBIDDEN`).
+`TRUONG_KHOA`/`TRUONG_BO_MON` stay outside the reviewer set except via
+the faculty/department tiers already used for student visibility.
 
 Forbidden writes (enforced):
 
@@ -122,10 +126,11 @@ both repositories' `SELECT_COLUMNS` gain `status`, `authorId`,
   conditions, 404 otherwise.
 - Authed feeds (`/my`, `/{id}` via `userWhere`): add
   `"status" = 'PUBLISHED'` — drafts never surface in audience feeds.
-- `get()` bypass extension: for `status != 'PUBLISHED'` rows the unscoped
-  bypass extends to the whole writer set (`LECTURER`/`ADMIN`/
-  `SUPER_ADMIN`) — reviewers and authors can open unpublished posts;
-  audience scoping still applies to PUBLISHED reads (KM-C1a).
+- `get()` bypass extension: for `status != 'PUBLISHED'` rows, authors can
+  open their own rows, `ADMIN`/`SUPER_ADMIN` can open any row, and any
+  writer-role account can open an `IN_REVIEW` review-queue row. A lecturer
+  cannot open another author's `DRAFT` or `ARCHIVED` detail (404); audience
+  scoping still applies to PUBLISHED reads (KM-C1a).
 - `GET /api/v1/announcements` gains `LECTURER`; lecturer results are
   scoped to `"authorId" = :sub OR "status" = 'IN_REVIEW'` (own posts +
   the review queue). `ADMIN`/`SUPER_ADMIN` keep the unscoped list

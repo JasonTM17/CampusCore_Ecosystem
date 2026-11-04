@@ -7,6 +7,23 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 
+function loadPureModule(relativePath) {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const record = { exports: {} };
+  Function('module', 'exports', output)(record, record.exports);
+  return record.exports;
+}
+
+const historyWindow = loadPureModule('src/lib/assistant-history-window.ts');
+const assistantWindowMessages = loadPureModule(
+  'src/components/assistant/assistant-messages.ts',
+);
+
 // The e2e stack serves `next dev`, where reactStrictMode replays every mount
 // effect (setup -> cleanup -> setup). This harness models just enough of that
 // scheduling to replay the assistant panel's mount on a given pathname: state
@@ -118,6 +135,8 @@ function loadAssistantPanel({ hooks, pathnameRef, stream }) {
       return { useConfirmationDialog: () => ({ confirm: async () => true, confirmationDialog: null }) };
     }
     if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
+    if (name === '@/lib/plural') return { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) };
+    if (name === '@/lib/login-portal') return { sessionExpiredLoginHref: () => '/login' };
     if (name === '@/i18n') {
       return {
         useI18n: () => ({
@@ -141,6 +160,11 @@ function loadAssistantPanel({ hooks, pathnameRef, stream }) {
           deleteConversation: pendingRequest,
         },
       };
+    }
+    if (name === '@/lib/assistant-history-window') return historyWindow;
+    if (name === './assistant-messages') return assistantWindowMessages;
+    if (name === './AssistantStreamProgress') {
+      return { AssistantStreamProgress: 'StreamProgress' };
     }
     if (name === './assistant-reducer') {
       return { TRANSIENT_TERMINAL_CODES: [], fromHistoryMessage: (message) => message };

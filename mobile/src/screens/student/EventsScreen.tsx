@@ -7,6 +7,7 @@ import { apiClient } from '../../api/client';
 import type { MobileEvent, MobileEventRegistration } from '../../api/client';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { eventsMessages } from '../../i18n/events-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
@@ -51,10 +52,7 @@ export function EventsScreen(_props: MobileScreenProps) {
     preview: previewRegistrations,
   });
 
-  const refreshAll = useCallback(() => {
-    void catalog.reload();
-    void mine.reload();
-  }, [catalog, mine]);
+  const refreshAll = useCallback(() => Promise.all([catalog.reload(), mine.reload()]), [catalog, mine]);
 
   const run = useCallback(async (action: () => Promise<unknown>, ok: string, failed: string) => {
     if (busy || apiClient.mode !== 'live') return;
@@ -63,7 +61,9 @@ export function EventsScreen(_props: MobileScreenProps) {
     try {
       await action();
       success(ok);
-      refreshAll();
+      // The rows still carry the pre-write status until both reads land; hold
+      // the lock across them so a second tap cannot repeat the write.
+      await refreshAll();
     } catch (error) {
       fail(errorCode(error) === 'EVENT_FULL' ? copy.full : contentErrorMessage(common, error, failed));
     } finally {
@@ -154,7 +154,7 @@ export function EventsScreen(_props: MobileScreenProps) {
             <Card>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })])}
+                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })])}
                 onPress={() => setSelectedId(event.id)}
                 style={styles.rowMain}
               >
@@ -164,7 +164,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                   <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
                   <View style={styles.chips}>
                     <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
-                    <UiText variant="meta" tone="muted">{fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}</UiText>
+                    <UiText variant="meta" tone="muted">{fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}</UiText>
                   </View>
                 </View>
                 <ContentChevron />

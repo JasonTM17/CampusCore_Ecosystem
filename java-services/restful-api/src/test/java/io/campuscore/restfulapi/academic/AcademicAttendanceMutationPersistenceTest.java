@@ -1,16 +1,20 @@
 package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.academic.service.AcademicAttendanceWriteService;
+import io.campuscore.restfulapi.academic.web.AcademicAttendanceMutationDtos.SectionAttendanceUpdateRequest;
+import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +45,9 @@ class AcademicAttendanceMutationPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AcademicAttendanceWriteService attendance;
 
     @BeforeEach
     void prepareFixture() {
@@ -83,6 +90,38 @@ class AcademicAttendanceMutationPersistenceTest {
                 "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1' AND \"status\" = 'PRESENT'",
                 Integer.class);
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void nullAttendanceEntryIsRejectedBeforeAnyRowsAreWritten() throws Exception {
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[null]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        assertThat(attendanceCount()).isZero();
+        assertThatThrownBy(() -> attendance.recordSectionAttendance(
+                "section-1", null, List.of("ADMIN"),
+                new SectionAttendanceUpdateRequest("2026-08-25", Collections.singletonList(null))))
+                .isInstanceOf(DomainException.class)
+                .satisfies(failure -> assertThat(((DomainException) failure).getStatus().value()).isEqualTo(400));
+        assertThat(attendanceCount()).isZero();
+
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedCount").value(1));
+        assertThat(attendanceCount()).isEqualTo(1);
+    }
+
+    private Integer attendanceCount() {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1'",
+                Integer.class);
     }
 
     @Test
@@ -348,6 +387,48 @@ class AcademicAttendanceMutationPersistenceTest {
     }
 
     @Test
+    void batchAboveTheDocumentedMaximumIsRejectedBeforeAnyStudentLock() throws Exception {
+        // The write path locks every supplied Student row before it validates
+        // section membership, so an unbounded list amplifies into a lock storm.
+        // The batch bound matches the event-attendance cap (500): a larger
+        // list must answer 400 at the request boundary, before any lock.
+        StringBuilder records = new StringBuilder();
+        StringBuilder boundedRecords = new StringBuilder();
+        for (int index = 0; index < 501; index++) {
+            String suffix = String.format("%03d", index);
+            insertUser("batch-user-" + suffix, "batch" + suffix + "@example.test", "Batch", "Student");
+            insertStudent("batch-student-" + suffix, "batch-user-" + suffix, "B" + suffix);
+            insertEnrollment("batch-enroll-" + suffix, "batch-student-" + suffix, "section-1", "ENROLLED");
+            String entry = "{\"studentId\":\"batch-student-" + suffix + "\",\"status\":\"PRESENT\"}";
+            records.append(index == 0 ? "" : ",").append(entry);
+            if (index < 500) {
+                boundedRecords.append(index == 0 ? "" : ",").append(entry);
+            }
+        }
+
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[" + records + "]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.records").value("records must not exceed 500 entries"));
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1'",
+                        Integer.class))
+                .isZero();
+
+        // The documented maximum itself still records normally.
+        mvc.perform(put("/api/v1/attendance/sections/section-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-25\",\"records\":[" + boundedRecords + "]}")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedCount").value(500));
+    }
+
+    @Test
     void futureDateReturnsBadRequest() throws Exception {
         LocalDate farFuture = LocalDate.now().plusDays(10);
         String payload = String.format("""
@@ -368,23 +449,21 @@ class AcademicAttendanceMutationPersistenceTest {
     }
 
     @Test
-    void campusTodayIsAllowedButCampusTomorrowIsRejected() throws Exception {
-        LocalDate campusToday = Instant.now()
-                .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-                .toLocalDate();
-        LocalDate campusTomorrow = campusToday.plusDays(1);
+    void pastCampusDayIsAllowedButFutureCampusDayIsRejected() throws Exception {
+        // Fixed calendar days keep the assertion independent of the wall clock:
+        // the allowed day can never roll into the rejected day mid-test.
+        LocalDate pastDate = LocalDate.of(2026, 8, 25);
+        LocalDate futureDate = LocalDate.of(2999, 12, 31);
 
-        // The boundary is the normalized campus day, not now()+24h: a request
-        // for today must pass while tomorrow must fail at every wall-clock hour.
         mvc.perform(put("/api/v1/attendance/sections/section-1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"date\":\"" + campusToday + "\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
+                        .content("{\"date\":\"" + pastDate + "\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
                         .with(lecturerJwt("lecturer-1")))
                 .andExpect(status().isOk());
 
         mvc.perform(put("/api/v1/attendance/sections/section-1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"date\":\"" + campusTomorrow + "\",\"records\":[{\"studentId\":\"student-2\",\"status\":\"PRESENT\"}]}")
+                        .content("{\"date\":\"" + futureDate + "\",\"records\":[{\"studentId\":\"student-2\",\"status\":\"PRESENT\"}]}")
                         .with(lecturerJwt("lecturer-1")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_ATTENDANCE_DATE"));

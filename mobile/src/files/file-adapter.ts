@@ -12,6 +12,8 @@ export interface PickedFile {
   name: string;
   sizeBytes?: number;
   mimeType?: string;
+  /** Deletes the adapter's cached copy; safe to call more than once. */
+  release?: () => void;
 }
 
 export interface PickOptions {

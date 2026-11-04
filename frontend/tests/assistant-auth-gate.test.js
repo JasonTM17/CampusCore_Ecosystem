@@ -16,9 +16,10 @@ const messagesSource = fs.readFileSync(
 
 test('the composer disables its input when the session is unauthorized', () => {
   assert.match(composerSource, /authLocked = false/);
-  assert.match(composerSource, /disabled=\{isSending \|\| authLocked\}/);
+  assert.match(composerSource, /const composerLocked = isSending \|\| authLocked \|\| historyLocked;/);
+  assert.match(composerSource, /disabled=\{composerLocked\}/);
   // The submit button cannot bypass the lock with a leftover draft either.
-  assert.match(composerSource, /disabled=\{!input\.trim\(\) \|\| authLocked\}/);
+  assert.match(composerSource, /disabled=\{!input\.trim\(\) \|\| composerLocked\}/);
 });
 
 test('the locked composer explains the sign-in requirement via aria-live', () => {
@@ -30,7 +31,7 @@ test('the locked composer explains the sign-in requirement via aria-live', () =>
 test('the panel routes a 401 answer to sign-in instead of retry', () => {
   assert.match(panelSource, /const authRequired = state\.error === 'unauthorized';/);
   assert.match(panelSource, /authLocked=\{authRequired\}/);
-  assert.match(panelSource, /router\.push\(`\$\{href\('\/login'\)\}\?reason=session-expired`\)/);
+  assert.match(panelSource, /router\.push\(sessionExpiredLoginHref\(href\)\)/);
   // Retry must not be offered for an expired session: it can never succeed.
   assert.match(panelSource, /\{authRequired \? \(/);
   assert.match(panelSource, /messages\.assistant\.signInAction/);
@@ -39,7 +40,7 @@ test('the panel routes a 401 answer to sign-in instead of retry', () => {
 test('the specialized page applies the same 401 sign-in gate', () => {
   assert.match(specializedSource, /const authRequired = state\.error === 'unauthorized';/);
   assert.match(specializedSource, /authLocked=\{authRequired\}/);
-  assert.match(specializedSource, /router\.push\(`\$\{href\('\/login'\)\}\?reason=session-expired`\)/);
+  assert.match(specializedSource, /router\.push\(sessionExpiredLoginHref\(href\)\)/);
   assert.match(specializedSource, /messages\.assistant\.signInAction/);
 });
 

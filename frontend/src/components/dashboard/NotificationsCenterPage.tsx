@@ -16,7 +16,7 @@ import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { notificationsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   EmptyState,
   ErrorState,
@@ -25,6 +25,10 @@ import {
 import { statusToneClass } from '@/components/ui/status';
 import { StatusPill } from '@/components/ui/status-pill';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
+import { safeInternalPath } from '@/lib/safe-url';
+import { countLabel } from '@/lib/plural';
+import { publishNotificationsChanged } from '@/lib/notification-sync';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
 type NotificationItem = {
   id: string;
@@ -43,6 +47,10 @@ type NotificationItem = {
 };
 
 type Filter = 'all' | 'unread';
+
+// The inbox renders the newest window only; older rows stay behind an explicit
+// control so the first paint never waits on the whole mailbox.
+const INBOX_PAGE_SIZE = 20;
 
 // Fallback destinations for feature types seen on notification rows without an
 // authored link. Only types whose link is unambiguous across the seeded data
@@ -65,7 +73,7 @@ function resolveNotificationTarget(notification: {
   type?: string;
   link?: string;
 }): string {
-  const link = typeof notification.link === 'string' ? notification.link.trim() : '';
+  const link = safeInternalPath(notification.link);
   if (link) {
     return link;
   }
@@ -80,46 +88,113 @@ export default function NotificationsCenterPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
   const { formatDateTime, messages, locale } = useI18n();
   const copy = messages.dashboardShell.notifications;
+  const portalNotifications = (locale === 'vi' ? studentPortalVi : studentPortalEn).notifications;
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
+  const filterRef = useRef<Filter>('all');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [allTotal, setAllTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [loadedPages, setLoadedPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [olderError, setOlderError] = useState('');
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [failedAction, setFailedAction] = useState<
+    { kind: 'markRead'; id: string } | { kind: 'markAll' } | null
+  >(null);
   const [status, setStatus] = useState('');
+  // Only the newest load may commit: switching tabs while a page is in flight
+  // must not let the previous tab's rows (or its empty state) win.
+  const requestRef = useRef(0);
+  // Rows marked read while an older page is in flight: that page was read before
+  // the removal, so its commit must still step the cursor back.
+  const removalsRef = useRef(0);
+  const itemsFilterRef = useRef<Filter>('all');
   const filterRefs = useRef<Record<Filter, HTMLButtonElement | null>>({
     all: null,
     unread: null,
   });
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (activeFilter: Filter = filterRef.current) => {
+    const requestId = ++requestRef.current;
     setIsLoading(true);
     setError('');
+    setActionError('');
+    setFailedAction(null);
     setStatus('');
 
     try {
-      // Page through the whole inbox: a single first-page fetch used to hide
-      // every notification (and every unread) older than the newest 50.
-      const first = await notificationsApi.getMy({ page: 1, limit: 100 });
-      const rows = [...(first.data ?? [])];
-      const seen = new Set(rows.map((item) => item.id));
-      const totalPages = Math.min(Math.max(first.meta?.totalPages ?? 1, 1), 10);
-      for (let p = 2; p <= totalPages; p++) {
-        const next = await notificationsApi.getMy({ page: p, limit: 100 });
+      // The rows are a bounded window; the badge count is a server aggregate so
+      // it does not truncate at the page size. The unread tab asks the server
+      // to filter instead of scanning a downloaded mailbox.
+      const [listResult, countResult] = await Promise.allSettled([
+        notificationsApi.getMy({
+          page: 1,
+          limit: INBOX_PAGE_SIZE,
+          ...(activeFilter === 'unread' ? { isRead: false } : {}),
+        }),
+        notificationsApi.unreadCount({ force: true }),
+      ]);
+      if (requestId !== requestRef.current) return;
+      if (listResult.status === 'rejected') throw listResult.reason;
+      const first = listResult.value;
+      const rows = first.data ?? [];
+      setItems(rows);
+      setLoadedPages(1);
+      setTotalPages(Math.max(first.meta?.totalPages ?? 1, 1));
+      if (activeFilter === 'all') {
+        setAllTotal(first.meta?.total ?? rows.length);
+      }
+      itemsFilterRef.current = activeFilter;
+      if (countResult.status === 'fulfilled') {
+        setUnreadCount(countResult.value);
+      }
+    } catch {
+      if (requestId !== requestRef.current) return;
+      setError(copy.loadFailed);
+    } finally {
+      if (requestId === requestRef.current) setIsLoading(false);
+    }
+  }, [copy.loadFailed]);
+
+  const loadOlder = useCallback(async () => {
+    if (isLoadingMore || loadedPages >= totalPages) return;
+    const nextPage = loadedPages + 1;
+    const activeFilter = itemsFilterRef.current;
+    const requestId = requestRef.current;
+    const removalsBefore = removalsRef.current;
+    setIsLoadingMore(true);
+    setOlderError('');
+    try {
+      const next = await notificationsApi.getMy({
+        page: nextPage,
+        limit: INBOX_PAGE_SIZE,
+        ...(activeFilter === 'unread' ? { isRead: false } : {}),
+      });
+      if (requestId !== requestRef.current) return;
+      setItems((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        const merged = [...current];
         for (const item of next.data ?? []) {
           if (!seen.has(item.id)) {
             seen.add(item.id);
-            rows.push(item);
+            merged.push(item);
           }
         }
-      }
-      setItems(rows);
+        return merged;
+      });
+      setLoadedPages(Math.max(0, nextPage - (removalsRef.current - removalsBefore)));
+      setTotalPages(Math.max(nextPage, next.meta?.totalPages ?? totalPages));
     } catch {
-      setError(copy.loadFailed);
+      if (requestId === requestRef.current) setOlderError(copy.loadFailed);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestRef.current) setIsLoadingMore(false);
     }
-  }, [copy.loadFailed]);
+  }, [copy.loadFailed, isLoadingMore, loadedPages, totalPages]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -127,27 +202,41 @@ export default function NotificationsCenterPage() {
     }
   }, [fetchNotifications, hasAccess]);
 
-  const unreadCount = useMemo(
-    () => items.filter((item) => !item.isRead).length,
-    [items],
-  );
   const visibleItems = useMemo(
     () => (filter === 'unread' ? items.filter((item) => !item.isRead) : items),
     [filter, items],
   );
 
+  function selectFilter(tab: Filter) {
+    if (tab === filterRef.current) return;
+    filterRef.current = tab;
+    setFilter(tab);
+    void fetchNotifications(tab);
+  }
+
   async function markRead(id: string) {
     setBusyId(id);
-    setError('');
+    setActionError('');
+    setFailedAction(null);
     try {
       await notificationsApi.markRead(id);
+      publishNotificationsChanged();
       setItems((current) =>
         current.map((item) =>
           item.id === id ? { ...item, isRead: true } : item,
         ),
       );
+      setUnreadCount((count) => Math.max(0, count - 1));
+      // The unread rows are offset-paged over a set this write just shrank:
+      // step the cursor back so the next read overlaps the window already
+      // shown instead of reading past the row that shifted into it.
+      if (filterRef.current === 'unread' && loadedPages < totalPages) {
+        removalsRef.current += 1;
+        setLoadedPages((pages) => Math.max(0, pages - 1));
+      }
     } catch {
-      setError(copy.updateFailed);
+      setActionError(copy.updateFailed);
+      setFailedAction({ kind: 'markRead', id });
     } finally {
       setBusyId(null);
     }
@@ -157,17 +246,28 @@ export default function NotificationsCenterPage() {
     if (unreadCount === 0) return;
 
     setIsMarkingAll(true);
-    setError('');
+    setActionError('');
+    setFailedAction(null);
     setStatus('');
     try {
       const response = await notificationsApi.markAllRead();
+      publishNotificationsChanged();
       const updated = response.updated ?? unreadCount;
-      setStatus(copy.updatedCount.replace('{count}', String(updated)));
       await fetchNotifications();
+      setStatus(countLabel(updated, copy.updatedCountOne, copy.updatedCount).replace('{count}', String(updated)));
     } catch {
-      setError(copy.updateFailed);
+      setActionError(copy.updateFailed);
+      setFailedAction({ kind: 'markAll' });
     } finally {
       setIsMarkingAll(false);
+    }
+  }
+
+  function retryFailedAction() {
+    if (failedAction?.kind === 'markRead') {
+      void markRead(failedAction.id);
+    } else if (failedAction?.kind === 'markAll') {
+      void markAllRead();
     }
   }
 
@@ -185,7 +285,7 @@ export default function NotificationsCenterPage() {
           : tab === 'all'
             ? 'unread'
             : 'all';
-    setFilter(next);
+    selectFilter(next);
     filterRefs.current[next]?.focus();
   }
 
@@ -200,7 +300,6 @@ export default function NotificationsCenterPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.title}</SectionEyebrow>}
         title={copy.title}
         description={copy.description}
         actions={
@@ -238,7 +337,7 @@ export default function NotificationsCenterPage() {
           {(['all', 'unread'] as const).map((tab) => {
             const selected = filter === tab;
             const label = tab === 'all' ? copy.all : copy.unread;
-            const count = tab === 'all' ? items.length : unreadCount;
+            const count = tab === 'all' ? allTotal : unreadCount;
             return (
               <button
                 key={tab}
@@ -251,7 +350,7 @@ export default function NotificationsCenterPage() {
                 aria-selected={selected}
                 aria-controls="notifications-panel"
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setFilter(tab)}
+                onClick={() => selectFilter(tab)}
                 onKeyDown={(event) => moveFilterFocus(event, tab)}
                 className={cn(
                   'inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -295,6 +394,23 @@ export default function NotificationsCenterPage() {
         tabIndex={0}
         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
+        {actionError ? (
+          <div
+            role="alert"
+            className={`mb-3 flex flex-col gap-2 rounded-md border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${statusToneClass('danger')}`}
+          >
+            <span>{actionError}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retryFailedAction}
+              className="shrink-0 self-start sm:self-auto"
+            >
+              {messages.common.actions.retry}
+            </Button>
+          </div>
+        ) : null}
         {error ? (
           <ErrorState
             title={copy.title}
@@ -307,7 +423,7 @@ export default function NotificationsCenterPage() {
           <EmptyState
             icon={Inbox}
             title={filter === 'unread' ? copy.noUnread : copy.noAll}
-            description={filter === 'unread' ? copy.noUnread : copy.empty}
+            description=""
             action={
               <LinkButton href="/dashboard" variant="outline">
                 {messages.common.actions.openDashboard}
@@ -379,7 +495,7 @@ export default function NotificationsCenterPage() {
                             if (!item.isRead) void markRead(item.id);
                           }}
                         >
-                          <span>{locale === 'vi' ? 'Mở tính năng liên quan' : 'Open related feature'}</span>
+                          <span>{portalNotifications.openRelated}</span>
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </LocalizedLink>
                         {!item.isRead ? (
@@ -405,6 +521,21 @@ export default function NotificationsCenterPage() {
               })}
           </div>
         )}
+        {!isLoading && !error && loadedPages < totalPages ? (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadOlder()}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? messages.common.states.loading : messages.studentPages.notifications.loadMore}
+            </Button>
+            {olderError ? (
+              <p role="alert" className="text-xs text-destructive">{olderError}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

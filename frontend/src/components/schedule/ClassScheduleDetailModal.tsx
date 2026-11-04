@@ -9,6 +9,7 @@ import {
   MapPin,
   Users,
 } from 'lucide-react';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useI18n } from '@/i18n';
@@ -70,6 +71,7 @@ export function ClassScheduleDetailModal({
   isLecturer = false,
 }: ClassScheduleDetailModalProps) {
   const { messages } = useI18n();
+  const detail = locale === 'vi' ? studentPagesVi.schedule.detail : studentPagesEn.schedule.detail;
 
   if (!isOpen || !data) return null;
 
@@ -101,7 +103,7 @@ export function ClassScheduleDetailModal({
                 {data.courseCode}
               </span>
               <span className="rounded bg-secondary px-2 py-0.5 text-xs font-semibold text-foreground">
-                {locale === 'vi' ? 'Lớp HP' : 'Section'} {data.sectionNumber}
+                {detail.sectionLabel} {data.sectionNumber}
               </span>
               {data.status ? (
                 <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
@@ -128,7 +130,7 @@ export function ClassScheduleDetailModal({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">
-                {locale === 'vi' ? 'Ngày học / Giảng dạy' : 'Day of Week'}
+                {detail.dayLabel}
               </div>
               <div className="mt-0.5 text-sm font-semibold text-foreground">{dayName}</div>
             </div>
@@ -140,7 +142,7 @@ export function ClassScheduleDetailModal({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">
-                {locale === 'vi' ? 'Khung giờ học' : 'Meeting Time'}
+                {detail.meetingTime}
               </div>
               <div className="mt-0.5 text-sm font-semibold text-foreground">
                 {data.startTime} - {data.endTime}
@@ -154,7 +156,7 @@ export function ClassScheduleDetailModal({
             </div>
             <div>
               <div className="text-xs text-muted-foreground">
-                {locale === 'vi' ? 'Phòng học' : 'Classroom'}
+                {detail.classroom}
               </div>
               <div className="mt-0.5 text-sm font-semibold text-foreground">
                 {data.roomNumber ? (
@@ -164,7 +166,7 @@ export function ClassScheduleDetailModal({
                   </>
                 ) : (
                   <span className="italic text-muted-foreground">
-                    {locale === 'vi' ? 'Chưa xếp phòng' : 'Pending room assignment'}
+                    {detail.roomPending}
                   </span>
                 )}
               </div>
@@ -178,7 +180,7 @@ export function ClassScheduleDetailModal({
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">
-                  {locale === 'vi' ? 'Giảng viên' : 'Instructor'}
+                  {detail.instructor}
                 </div>
                 <div className="mt-0.5 text-sm font-semibold text-foreground">
                   {data.lecturerName}
@@ -194,10 +196,10 @@ export function ClassScheduleDetailModal({
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">
-                  {locale === 'vi' ? 'Số tín chỉ' : 'Credits'}
+                  {detail.credits}
                 </div>
                 <div className="mt-0.5 text-sm font-semibold text-foreground">
-                  {data.credits} {locale === 'vi' ? 'tín chỉ' : 'credits'}
+                  {data.credits} {detail.creditsUnit}
                 </div>
               </div>
             </div>
@@ -210,11 +212,11 @@ export function ClassScheduleDetailModal({
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">
-                  {locale === 'vi' ? 'Sĩ số đăng ký' : 'Enrolled Students'}
+                  {detail.enrolled}
                 </div>
                 <div className="mt-0.5 text-sm font-semibold text-foreground">
                   {data.enrolledCount}
-                  {data.capacity ? `/${data.capacity}` : ''} {locale === 'vi' ? 'sinh viên' : 'students'}
+                  {data.capacity ? `/${data.capacity}` : ''} {detail.studentsUnit}
                 </div>
               </div>
             </div>
@@ -227,7 +229,7 @@ export function ClassScheduleDetailModal({
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">
-                  {locale === 'vi' ? 'Khoa / Bộ môn' : 'Department'}
+                  {detail.department}
                 </div>
                 <div className="mt-0.5 text-sm font-semibold text-foreground">
                   {locale === 'vi'
@@ -242,7 +244,7 @@ export function ClassScheduleDetailModal({
         {/* Footer actions */}
         <div className="mt-6 flex justify-end gap-3 border-t border-border/80 pt-4">
           <Button variant="outline" onClick={onClose}>
-            {locale === 'vi' ? 'Đóng' : 'Close'}
+            {detail.close}
           </Button>
         </div>
     </Modal>

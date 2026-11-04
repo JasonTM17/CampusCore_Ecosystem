@@ -36,7 +36,7 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
 
 ## 2. Navigation — expo-router adapter + route compat
 
-- `src/app/` là route layer (file-based). `src/navigation/routes.ts`
+- `app/` tại thư mục gốc mobile là route layer (file-based). `src/navigation/routes.ts`
   giữ nguyên là **compat-map authority**: mọi `ScreenName` hiện hữu map
   tới một app-route tương đương; screen-atlas test đọc registry này để
   chứng minh không route nào rơi mất trong migration.
@@ -166,9 +166,17 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   `POST {issuer}/oauth2/revoke` `token=<refresh>&client_id=cu-mobile`
   (idempotent, best-effort — revoke fail vẫn sign-out local). Late
   refresh in-flight: epoch-check tại persist-step = no-op.
-- **401/403**: 401 → shared-refresh + retry-một-lần (giữ nguyên exclude
-  list + `/oauth2/*`); refresh fail → sign-out + màn sign-in. 403 →
-  denied state, không retry.
+- **401/403 & refresh resilience**: 401 → shared-refresh một lần (`single-flight`,
+  loại trừ auth endpoints để tránh lặp vô tận). `cu.refresh` bị xóa khỏi
+  SecureStore **trước** khi request token được gửi đi, vì issuer không có cửa sổ
+  tái sử dụng và việc phát lại token đã dùng sẽ thu hồi mọi phiên của tài khoản.
+  Từ chối dứt khoát (HTTP 400/401) trả `signedOut`. Mọi kết quả mơ hồ sau khi đã
+  gửi (timeout 20 giây tính cả đọc body, mất phản hồi, phản hồi sai định dạng,
+  429/5xx, hoặc ghi token mới thất bại) trả `reauthRequired`: phiên kết thúc qua
+  đường expiry có epoch-gate và người dùng đăng nhập lại bằng OIDC. Chỉ lỗi
+  trước khi gửi (cấu hình issuer, form không hợp lệ) trả `unavailable` và giữ
+  credential để thử lại. 403 → denied state, không retry. Xem lại khi issuer có
+  refresh idempotent phía server.
 - **Account identity**: account id = `id_token.sub` (=`principal_name`/
   `User.id` invariant) — key của per-account cache §5. Roles đọc từ
   access-token claims `roles` (decode JWT payload, không verify —
@@ -191,12 +199,17 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   thật gọi (`http://10.0.2.2:4010` cho emulator, LAN IP cho thiết bị
   vật lý) — `127.0.0.1` chỉ đúng cho web trên cùng máy. Prod:
   `id.campusute.io.vn` khác host API → env bắt buộc.
-- **Boot sequence (KM-17)**: `app/_layout.tsx` bootstrap theo thứ tự:
+- **Boot sequence & timeout (KM-17)**: `app/_layout.tsx` bootstrap theo thứ tự:
   font load → marker-check (KM-1, có thể wipe refresh) →
   `sessionStore.loadBootstrap()` → nếu refresh còn → silent
-  `refreshAccessToken()` một lần (fail → signedOut, không crash) →
+  `refreshAccessToken()` một lần (fail terminal → signedOut, không crash) →
   set session-state → render router guard. Guard không evaluate tới
-  khi bootstrap xong (splash giữ chỗ).
+  khi bootstrap xong (splash giữ chỗ). Boot refresh dùng hạn 20 giây
+  (`DEFAULT_TOKEN_TIMEOUT_MS = 20_000` trong `session-store.ts`); quá hạn trả
+  `reauthRequired` và phiên kết thúc — người dùng đăng nhập lại bằng OIDC.
+  Trao đổi OIDC authorization code có hạn riêng 10 giây
+  (`DEFAULT_TOKEN_TIMEOUT_MS = 10_000` trong `oidc-session.ts`); chỉ lỗi trước
+  khi gửi (`issuer_not_configured`) trả `unavailable`.
 
 ## 4. Roles & surface boundary (mobile-matrix.md)
 
@@ -242,9 +255,9 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   | `admin.attendance` | như trên | Điểm danh toàn trường: lọc lớp/sinh viên/ngày, phân trang server (đọc) | `/admin/attendance` |
   | `admin.enrollments` | như trên | Đăng ký học phần: lọc, phân trang server (đọc) | `/admin/enrollments` (xuất hàng loạt) |
   | `admin.audit` | như trên | Nhật ký kiểm toán tối thiểu (hành động, đối tượng, người thực hiện rút gọn, thời gian), lọc, phân trang, không cache | `/admin/audit` |
-  | `admin.creditLimits` | như trên | Đơn nâng hạn mức: duyệt/từ chối (từ chối cần ghi chú) | `/admin/credit-limit-applications` |
+  | `admin.creditLimits` | như trên | Đơn nâng hạn mức: duyệt/từ chối (từ chối cần ghi chú); đọc một lượt (server trả tối đa 500 đơn mới nhất, không có tổng; `page`/`limit` tùy chọn mới kèm `X-Total-Count`) | `/admin/credit-limit-applications` |
   | `admin.events` | như trên | Sự kiện: đăng, đóng đăng ký, hoàn tất, hủy; điểm danh thủ công khi đã đóng đăng ký/hoàn tất | `/admin/events` (tạo, mở đăng ký cần ngày) |
-  | `admin.notifications` | như trên | Soạn, xem trước, xác nhận và gửi thông báo cho một người nhận; lịch sử. Server không có idempotency nên không tự thử lại: lỗi mạng hiện "chưa rõ đã gửi", kiểm tra lịch sử trước khi gửi lại | `/admin/notifications` (gửi hàng loạt, đặt lịch) |
+  | `admin.notifications` | như trên | Soạn, xem trước, xác nhận và gửi thông báo cho một người nhận; lịch sử. `POST /api/v1/notifications` nhận `Idempotency-Key` tùy chọn (gửi lại cùng nội dung trả về đúng thông báo đã tạo, cùng khóa khác nội dung trả `409 IDEMPOTENCY_CONFLICT`); app gửi một khóa cho mỗi bản nháp — gửi lại bản nháp không đổi sau kết quả chưa rõ dùng lại khóa đó, sửa nội dung hoặc gửi thành công thì khóa mới — và không tự thử lại: lỗi mạng hiện "chưa rõ đã gửi", kiểm tra lịch sử trước khi gửi lại | `/admin/notifications` (gửi hàng loạt, đặt lịch) |
 
   Quyền thật luôn do server quyết định: lane bàn việc và sự kiện cần grant
   phía server (và quyền sở hữu với sự kiện), nên admin chưa có grant sẽ
@@ -271,6 +284,9 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
 - **Per-account memory cache**: Map trong memory, key =
   `${accountId}:${queryKey}`; đổi account = đổi keyspace tự nhiên
   (account cũ không lộ). Wipe toàn cache trên sign-out.
+  Dashboard và màn hình đăng ký dùng chung cache key ghi danh học phần
+  (`academic.enrollments`) và tham gia vào lượt prefetch in-flight; các thẻ điểm
+  tính theo điểm cao nhất (best attempt) cho mỗi môn học.
 - **Không persist academic data**: điểm/transcript/file thesis/attendance
   KHÔNG bao giờ ghi disk (không AsyncStorage ngoài marker, không
   cache-dir write). Whitelist đóng — chỉ 3 thứ lên đĩa: SecureStore
@@ -348,7 +364,7 @@ Runner local, evidence `artifacts/verification/mobile-core`. Cases:
 - `mobile-auth`: focused session tests — PKCE shape, session-store
   contract (in-memory impl mirror SecureStore API), refresh-epoch
   (persist-gated, late apply no-op), logout ordering + no-resurrect,
-  reinstall-wipe hai-lớp, compat-map coverage (21/21 ScreenName →
+  reinstall-wipe hai-lớp, compat-map coverage (37/37 ScreenName →
   route, `auth/callback` excluded), role-guard pure-function,
   bearer-origin matrix.
 - `mobile-smoke` (non-required): Android/iOS dev-build launch smoke —

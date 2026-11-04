@@ -18,7 +18,10 @@ const MODULES = {
   '../auth/mobile-session-store': 'mobile-session-store.mjs',
   './assistant-stream': 'assistant-stream.mjs',
   './observability': 'observability.mjs',
+  './base-url': 'base-url.mjs',
 };
+
+globalThis.__DEV__ = true;
 
 function transpile(file, fileName) {
   const source = fs.readFileSync(path.join(mobileRoot, file), 'utf8');
@@ -42,6 +45,7 @@ export const sessionStore = {
 `);
 fs.writeFileSync(path.join(tempRoot, 'assistant-stream.mjs'), 'export const createSseTransport = () => ({});\n');
 transpile('src/api/observability.ts', 'observability.ts');
+transpile('src/api/base-url.ts', 'base-url.ts');
 transpile('src/api/client.ts', 'client.ts');
 const {
   ApiClientError,
@@ -89,6 +93,71 @@ function makeSession(initialToken = 'old-token') {
 }
 
 const authorizedWith = (token) => (call) => call.headers.get('authorization') === `Bearer ${token}`;
+
+test('base URL fallback is development-only and release config must use HTTPS', () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  try {
+    globalThis.__DEV__ = true;
+    assert.equal(
+      createApiClient({ baseUrl: '', mode: 'live' }).baseUrl,
+      'http://127.0.0.1:4010/api/v1',
+    );
+
+    globalThis.__DEV__ = false;
+    assert.equal(createApiClient({ baseUrl: '', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'http://api.test/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(
+      createApiClient({ baseUrl: 'https://api.test/api/v1', mode: 'live' }).baseUrl,
+      'https://api.test/api/v1',
+    );
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('release HTTP bases need the explicit local-only opt-in; HTTPS stays accepted', () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  try {
+    globalThis.__DEV__ = false;
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    assert.equal(createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' }).baseUrl, 'https://api.example.test/api/v1');
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    for (const host of ['localhost', '127.0.0.1', '10.0.2.2', '[::1]']) {
+      const client = createApiClient({ baseUrl: `http://${host}:4010/api/v1`, mode: 'live' });
+      assert.equal(client.baseUrl, `http://${host}:4010/api/v1`, host);
+    }
+    assert.equal(createApiClient({ baseUrl: 'http://api.example.test/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' }).baseUrl, 'https://api.example.test/api/v1');
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('an unconfigured release request fails through the typed network path before fetch', async () => {
+  const previousDev = globalThis.__DEV__;
+  globalThis.__DEV__ = false;
+  const client = createApiClient({ baseUrl: '', mode: 'live' });
+  const net = installFetch(() => json(200, { unexpected: true }));
+  try {
+    await assert.rejects(
+      client.get('/private'),
+      (error) => error.code === 'API_NOT_CONFIGURED' && error.kind === 'network',
+    );
+    assert.equal(net.calls.length, 0);
+  } finally {
+    net.restore();
+    globalThis.__DEV__ = previousDev;
+  }
+});
 
 function deferred() {
   let resolve;
@@ -326,16 +395,113 @@ test('JSON path is unchanged: headers, bodies, 204, text and failed refresh brid
   }
 });
 
+test('a transient refresh outage keeps the session and surfaces a retryable failure', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      return 'unavailable';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    await assert.rejects(
+      client.get('/me'),
+      (error) => error instanceof ApiClientError && error.kind === 'network' && error.retryable === true,
+    );
+    assert.equal(state.expired, 0, 'a transient refresh failure must not sign the user out');
+    assert.equal(state.token, 'old-token', 'the session token survives an issuer outage');
+    assert.equal(state.refreshCalls, 1);
+    assert.equal(net.calls.length, 1, 'no replay without a rotated token');
+  } finally {
+    net.restore();
+  }
+});
+
+test('an ambiguous refresh ends one session without replaying protected requests', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      state.token = null;
+      return 'reauthRequired';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    const results = await Promise.allSettled([
+      client.get('/one'),
+      client.get('/two'),
+      client.download('/three'),
+    ]);
+
+    assert.ok(results.every((result) => result.status === 'rejected'));
+    assert.equal(state.refreshCalls, 1, 'all protected lanes share one refresh');
+    assert.equal(state.expired, 1, 'the shared terminal refresh notifies once');
+    assert.equal(net.calls.length, 3, 'no protected request is replayed');
+    assert.equal(state.token, null);
+  } finally {
+    net.restore();
+  }
+});
+
+test('a recovered issuer is retried by the next request after a transient refresh failure', async () => {
+  const { state, options } = makeSession();
+  let recovered = false;
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      if (!recovered) return 'unavailable';
+      state.token = 'new-token';
+      return 'refreshed';
+    },
+  });
+  const net = installFetch((call) => authorizedWith('new-token')(call)
+    ? json(200, { ok: true })
+    : json(401, { message: 'expired' }));
+  try {
+    await assert.rejects(client.get('/one'), (error) => error.code === 'NETWORK_ERROR');
+    assert.equal(state.expired, 0);
+    recovered = true;
+    assert.deepEqual(await client.get('/one'), { ok: true });
+    assert.equal(state.refreshCalls, 2, 'the next request starts a fresh flight');
+  } finally {
+    net.restore();
+  }
+});
+
+test('a rate-limited response keeps Retry-After on the error for the caller', async () => {
+  const { options } = makeSession();
+  const client = createApiClient(options);
+  const net = installFetch(() => json(429, { code: 'RATE_LIMIT_EXCEEDED', message: 'slow down' }, { 'Retry-After': '45' }));
+  try {
+    await assert.rejects(
+      client.post('/assistant/chat', { message: 'Hi' }),
+      (error) => error instanceof ApiClientError
+        && error.status === 429
+        && error.code === 'RATE_LIMIT_EXCEEDED'
+        && error.retryAfter === '45',
+    );
+  } finally {
+    net.restore();
+  }
+});
+
 test('JSON 401 from a stale epoch lane does not evict the new session', async () => {
   const { state, options } = makeSession();
   const client = createApiClient({
     ...options,
-    refreshSession: async () => { state.epoch += 1; state.token = null; return false; },
+    refreshSession: async () => { state.epoch += 1; state.token = 'account-b-token'; return 'reauthRequired'; },
   });
   const net = installFetch(() => json(401, { message: 'dead lane' }));
   try {
     await assert.rejects(client.get('/me'), (error) => error.status === 401);
     assert.equal(state.expired, 0);
+    assert.equal(state.token, 'account-b-token');
+    assert.equal(net.calls.length, 1, 'the old request is not replayed under the new session');
   } finally {
     net.restore();
   }
@@ -526,6 +692,122 @@ test('a cross-origin redirect is re-sent without Authorization; same-origin keep
     assert.equal(net.calls[3].headers.get('authorization'), 'Bearer old-token');
   } finally {
     net.restore();
+  }
+});
+
+test('an HTTPS transfer refuses an HTTP redirect before following it', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, baseUrl: 'https://api.test/api/v1' });
+  const net = installFetch(() => new Response(null, {
+    status: 302,
+    headers: { location: 'http://insecure.test/blob/1' },
+  }));
+  try {
+    await assert.rejects(
+      client.download('/doc/file'),
+      (error) => error.code === 'INSECURE_REDIRECT',
+    );
+    assert.equal(net.calls.length, 1);
+  } finally {
+    net.restore();
+  }
+});
+
+test('release cleartext redirects stay loopback-only and require the local opt-in', async () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  globalThis.__DEV__ = false;
+  try {
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    const strictClient = createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' });
+    const strictNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://127.0.0.1:4010/blob/1' },
+    }));
+    try {
+      await assert.rejects(strictClient.download('/doc/file'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(strictNet.calls.length, 1);
+    } finally {
+      strictNet.restore();
+    }
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    const localClient = createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' });
+    const localNet = installFetch((call, index) => (index === 1
+      ? new Response(null, { status: 302, headers: { location: 'http://localhost:4010/blob/1' } })
+      : new Response(new Uint8Array([1]), { status: 200 })));
+    try {
+      await localClient.download('/doc/file');
+      assert.equal(localNet.calls.length, 2);
+      assert.equal(localNet.calls[1].url, 'http://localhost:4010/blob/1');
+    } finally {
+      localNet.restore();
+    }
+
+    const publicNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://files.example.test/blob/1' },
+    }));
+    try {
+      await assert.rejects(localClient.download('/doc/file'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(publicNet.calls.length, 1);
+    } finally {
+      publicNet.restore();
+    }
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('release JSON redirects enforce HTTPS except opted-in loopback targets', async () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  globalThis.__DEV__ = false;
+  try {
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    const strictClient = createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' });
+    const strictNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://api.example.test/api/v1/private-next' },
+    }));
+    try {
+      await assert.rejects(strictClient.get('/private'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(strictNet.calls.length, 1);
+      assert.equal(strictNet.calls[0].init.redirect, 'manual');
+    } finally {
+      strictNet.restore();
+    }
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    const localClient = createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' });
+    const localNet = installFetch((call, index) => (index === 1
+      ? new Response(null, { status: 302, headers: { location: '/api/v1/private-next' } })
+      : json(200, { ok: true })));
+    try {
+      assert.deepEqual(await localClient.get('/private'), { ok: true });
+      assert.equal(localNet.calls.length, 2);
+      assert.equal(localNet.calls[0].init.redirect, 'manual');
+      assert.equal(localNet.calls[1].url, 'http://10.0.2.2:4010/api/v1/private-next');
+    } finally {
+      localNet.restore();
+    }
+
+    const publicNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://api.example.test/private-next' },
+    }));
+    try {
+      await assert.rejects(localClient.get('/private'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(publicNet.calls.length, 1);
+    } finally {
+      publicNet.restore();
+    }
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
   }
 });
 

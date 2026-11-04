@@ -5,6 +5,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../../design/chrome';
+import { compactFontScaleCap } from '../../design/font-scale';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { Button } from './Button';
@@ -74,7 +75,7 @@ export function StatusPill({ label, tone = 'neutral', icon }: StatusPillProps) {
   return (
     <View style={[styles.pill, { backgroundColor: fill }]}>
       {icon ? <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={icon} size={14} color={ink} /> : null}
-      <UiText variant="meta" style={{ color: ink, flexShrink: 1 }}>{label}</UiText>
+      <UiText variant="meta" maxFontSizeMultiplier={compactFontScaleCap} style={{ color: ink, flexShrink: 1 }}>{label}</UiText>
     </View>
   );
 }
@@ -149,7 +150,7 @@ export function FilterChip({ label, selected, onPress, icon, count, disabled = f
         opacity: disabled ? 0.5 : 1,
       }]}>
       {icon ? <MaterialCommunityIcons accessible={false} name={icon} color={selected ? colors.primary : colors.textMuted} size={20} /> : null}
-      <UiText variant="label" tone={selected ? 'primary' : 'muted'} numberOfLines={1} style={{ flexShrink: 0 }}>{label}</UiText>
+      <UiText variant="label" tone={selected ? 'primary' : 'muted'} style={{ flexShrink: 1 }}>{label}</UiText>
       {count !== undefined ? <UiText variant="meta" tone={selected ? 'primary' : 'muted'}>{count}</UiText> : null}
     </Pressable>
   );

@@ -20,6 +20,7 @@ import { assertUploadFile, UPLOAD_ACCEPT_DOCUMENTS } from '@/lib/upload-validati
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
+import { createSingleFlight } from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof admissionsMessages)['vi'];
@@ -69,6 +70,32 @@ function isTerminal(application: AdmissionApplication): boolean {
     || application.status === 'WITHDRAWN';
 }
 
+/**
+ * A row's identity seeds the draft; a version bump from an attachment or a
+ * background reload must not overwrite text the applicant has not saved yet.
+ */
+export function formForSelection(
+  ownerId: string,
+  selected: AdmissionApplication | null,
+): { ownerId: string; form: ApplicationForm | null } {
+  if (!selected) {
+    return { ownerId: '', form: EMPTY_FORM };
+  }
+  if (ownerId === selected.id) {
+    return { ownerId, form: null };
+  }
+  return {
+    ownerId: selected.id,
+    form: {
+      fullName: selected.fullName ?? '',
+      dateOfBirth: selected.dateOfBirth ?? '',
+      schoolName: selected.schoolName ?? '',
+      intendedMajor: selected.intendedMajor ?? '',
+      essay: selected.essay ?? '',
+    },
+  };
+}
+
 async function pickFileBase64(input: HTMLInputElement | null): Promise<{ fileName: string; contentType: string; dataBase64: string } | null> {
   const file = input?.files?.[0];
   if (!file) {
@@ -110,6 +137,8 @@ export function AdmissionsApplyPage() {
   // the forbidden state instead of a retryable error.
   const [denied, setDenied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const savingRef = useRef(createSingleFlight());
+  const formOwner = useRef('');
 
   const selected = applications.find((application) => application.id === selectedId) ?? null;
 
@@ -138,17 +167,11 @@ export function AdmissionsApplyPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!selected) {
-      setForm(EMPTY_FORM);
-      return;
+    const next = formForSelection(formOwner.current, selected);
+    formOwner.current = next.ownerId;
+    if (next.form) {
+      setForm(next.form);
     }
-    setForm({
-      fullName: selected.fullName ?? '',
-      dateOfBirth: selected.dateOfBirth ?? '',
-      schoolName: selected.schoolName ?? '',
-      intendedMajor: selected.intendedMajor ?? '',
-      essay: selected.essay ?? '',
-    });
   }, [selectedId, selected?.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createDraft = async () => {
@@ -193,7 +216,9 @@ export function AdmissionsApplyPage() {
     setIsSaving(true);
     try {
       if (kind === 'submit') {
-        await admissionsApi.submit(selected.id, selected.version, newAdmissionsIdempotencyKey());
+        const saved = await admissionsApi.save(selected.id, form, selected.version);
+        setApplications((current) => current.map((row) => (row.id === saved.id ? saved : row)));
+        await admissionsApi.submit(selected.id, saved.version, newAdmissionsIdempotencyKey());
         toast.success(copy.submitted);
       } else {
         await admissionsApi.withdraw(selected.id, selected.version, newAdmissionsIdempotencyKey());
@@ -211,34 +236,44 @@ export function AdmissionsApplyPage() {
     if (!selected) {
       return;
     }
-    try {
-      const payload = await pickFileBase64(fileInputRef.current);
-      if (!payload) {
-        return;
+    await savingRef.current.run(async () => {
+      setIsSaving(true);
+      try {
+        const payload = await pickFileBase64(fileInputRef.current);
+        if (!payload) {
+          return;
+        }
+        await admissionsApi.uploadAttachment(selected.id, payload.fileName, payload.contentType,
+          payload.dataBase64, newAdmissionsIdempotencyKey());
+        toast.success(copy.uploaded);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        await load();
+      } catch (cause) {
+        setError(friendlyError(copy, cause));
+      } finally {
+        setIsSaving(false);
       }
-      await admissionsApi.uploadAttachment(selected.id, payload.fileName, payload.contentType,
-        payload.dataBase64, newAdmissionsIdempotencyKey());
-      toast.success(copy.uploaded);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      await load();
-    } catch (cause) {
-      setError(friendlyError(copy, cause));
-    }
+    });
   };
 
   const removeAttachment = async (attachmentId: string) => {
     if (!selected) {
       return;
     }
-    try {
-      await admissionsApi.deleteAttachment(selected.id, attachmentId, newAdmissionsIdempotencyKey());
-      toast.success(copy.removedAttachment);
-      await load();
-    } catch (cause) {
-      setError(friendlyError(copy, cause));
-    }
+    await savingRef.current.run(async () => {
+      setIsSaving(true);
+      try {
+        await admissionsApi.deleteAttachment(selected.id, attachmentId, newAdmissionsIdempotencyKey());
+        toast.success(copy.removedAttachment);
+        await load();
+      } catch (cause) {
+        setError(friendlyError(copy, cause));
+      } finally {
+        setIsSaving(false);
+      }
+    });
   };
 
   if (authLoading) {
@@ -314,8 +349,9 @@ export function AdmissionsApplyPage() {
           <section className="space-y-4">
             <div className="rounded-xl border border-border bg-card p-4">
               <h2 className="text-lg font-semibold">{copy.newApplication}</h2>
-              <label className="mt-3 block text-sm text-muted-foreground">{copy.cycle}</label>
+              <label htmlFor="admissions-cycle" className="mt-3 block text-sm text-muted-foreground">{copy.cycle}</label>
               <Input
+                id="admissions-cycle"
                 data-testid="admissions-cycle-input"
                 value={cycle}
                 onChange={(event) => setCycle(event.target.value)}
@@ -353,8 +389,9 @@ export function AdmissionsApplyPage() {
 
                 <div className="mt-4 space-y-3">
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.fullName}</label>
+                    <label htmlFor="admissions-fullname" className="text-sm text-muted-foreground">{copy.fullName}</label>
                     <Input
+                      id="admissions-fullname"
                       data-testid="admissions-fullname"
                       value={form.fullName}
                       disabled={!isEditable(selected)}
@@ -362,8 +399,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.dateOfBirth}</label>
+                    <label htmlFor="admissions-dob" className="text-sm text-muted-foreground">{copy.dateOfBirth}</label>
                     <Input
+                      id="admissions-dob"
                       data-testid="admissions-dob"
                       type="date"
                       value={form.dateOfBirth}
@@ -372,8 +410,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.schoolName}</label>
+                    <label htmlFor="admissions-school" className="text-sm text-muted-foreground">{copy.schoolName}</label>
                     <Input
+                      id="admissions-school"
                       data-testid="admissions-school"
                       value={form.schoolName}
                       disabled={!isEditable(selected)}
@@ -381,8 +420,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.intendedMajor}</label>
+                    <label htmlFor="admissions-major" className="text-sm text-muted-foreground">{copy.intendedMajor}</label>
                     <Input
+                      id="admissions-major"
                       data-testid="admissions-major"
                       value={form.intendedMajor}
                       disabled={!isEditable(selected)}
@@ -390,8 +430,9 @@ export function AdmissionsApplyPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">{copy.essay}</label>
+                    <label htmlFor="admissions-essay" className="text-sm text-muted-foreground">{copy.essay}</label>
                     <Textarea
+                      id="admissions-essay"
                       data-testid="admissions-essay"
                       value={form.essay}
                       disabled={!isEditable(selected)}
@@ -450,6 +491,8 @@ export function AdmissionsApplyPage() {
                                 size="sm"
                                 variant="ghost"
                                 className="text-destructive"
+                                data-testid={`admissions-remove-${attachment.id}`}
+                                disabled={isSaving}
                                 onClick={() => void removeAttachment(attachment.id)}
                               >
                                 {copy.remove}
@@ -470,7 +513,8 @@ export function AdmissionsApplyPage() {
                         className="text-sm"
                         aria-label={copy.attachFile}
                       />
-                      <Button size="sm" variant="outline" data-testid="admissions-upload" onClick={() => void upload()}>
+                      <Button size="sm" variant="outline" data-testid="admissions-upload"
+                        disabled={isSaving} onClick={() => void upload()}>
                         {copy.attachFile}
                       </Button>
                     </div>

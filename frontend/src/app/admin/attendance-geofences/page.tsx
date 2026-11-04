@@ -19,6 +19,7 @@ import {
   isUnverifiedGeofence,
   validateGeofenceDraft,
   type GeofenceDraft,
+  type ParsedGeofenceValues,
 } from '@/lib/attendance-checkin';
 import { campusCodeMessage } from '@/lib/campus-error';
 import { AdminFrame } from '@/components/admin/AdminFrame';
@@ -38,9 +39,16 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import type { components } from '@/types/generated-api';
 
-type GeofenceRow = components['schemas']['AttendanceGeofenceResponse'];
+type GeofenceRow = components['schemas']['AttendanceGeofenceResponse'] & {
+  version?: number;
+};
+type GeofenceUpdatePayload = Omit<ParsedGeofenceValues, 'isActive'> & {
+  isActive?: boolean;
+  expectedVersion?: number;
+};
 
 type EditorState =
   | { mode: 'create' }
@@ -68,6 +76,25 @@ function draftFromRow(row: GeofenceRow): GeofenceDraft {
   };
 }
 
+/**
+ * Editing name, coordinates or note must not resend the activation state: an
+ * omitted isActive keeps the stored value even if another admin toggled it.
+ */
+function buildGeofenceUpdatePayload(
+  values: ParsedGeofenceValues,
+  baselineIsActive: boolean,
+  expectedVersion?: number,
+): GeofenceUpdatePayload {
+  const { isActive, ...metadata } = values;
+  const payload = isActive === baselineIsActive ? metadata : values;
+  return expectedVersion == null ? payload : { ...payload, expectedVersion };
+}
+
+function isStaleVersionError(error: unknown): boolean {
+  const response = (error as { response?: { data?: { code?: unknown } } })?.response;
+  return response?.data?.code === 'STALE_VERSION';
+}
+
 export default function AdminAttendanceGeofencesPage() {
   const {
     user,
@@ -93,6 +120,7 @@ export default function AdminAttendanceGeofencesPage() {
   const [draftApiError, setDraftApiError] = useState('');
   const [saving, setSaving] = useState(false);
   const [toggleBusyId, setToggleBusyId] = useState<string | null>(null);
+  const [staleConflict, setStaleConflict] = useState(false);
 
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
@@ -101,7 +129,7 @@ export default function AdminAttendanceGeofencesPage() {
       return;
     }
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) {
@@ -114,9 +142,12 @@ export default function AdminAttendanceGeofencesPage() {
     setError('');
     try {
       const list = await geofencedAttendanceApi.listAdminGeofences();
-      setRows(list ?? []);
+      const refreshed = list ?? [];
+      setRows(refreshed);
+      return refreshed;
     } catch (loadError) {
       setError(campusCodeMessage(loadError, copy.errors));
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +163,7 @@ export default function AdminAttendanceGeofencesPage() {
     setDraft(EMPTY_DRAFT);
     setDraftErrors({});
     setDraftApiError('');
+    setStaleConflict(false);
     setEditor({ mode: 'create' });
   }, []);
 
@@ -139,8 +171,37 @@ export default function AdminAttendanceGeofencesPage() {
     setDraft(draftFromRow(row));
     setDraftErrors({});
     setDraftApiError('');
+    setStaleConflict(false);
     setEditor({ mode: 'edit', row });
   }, []);
+
+  const reloadStaleList = useCallback(async () => {
+    const refreshed = await load();
+    if (refreshed) setStaleConflict(false);
+  }, [load]);
+
+  const reloadStaleEditor = useCallback(async () => {
+    const rowId = editor?.mode === 'edit' ? editor.row.id : undefined;
+    const refreshed = await load();
+    if (!refreshed) return;
+
+    setStaleConflict(false);
+    setDraftApiError('');
+    setDraftErrors({});
+    if (!rowId) {
+      setEditor(null);
+      return;
+    }
+
+    const latest = refreshed.find((row) => row.id === rowId);
+    if (!latest) {
+      setEditor(null);
+      return;
+    }
+
+    setDraft(draftFromRow(latest));
+    setEditor({ mode: 'edit', row: latest });
+  }, [editor, load]);
 
   const errorFor = useCallback(
     (field: keyof GeofenceDraft): string | undefined => {
@@ -162,6 +223,7 @@ export default function AdminAttendanceGeofencesPage() {
   );
 
   const submitEditor = useCallback(async () => {
+    if (staleConflict) return;
     const { errors, values } = validateGeofenceDraft(draft);
     setDraftErrors(errors);
     if (!values) return;
@@ -172,20 +234,25 @@ export default function AdminAttendanceGeofencesPage() {
       if (editor?.mode === 'edit' && editor.row.id) {
         const updated = await geofencedAttendanceApi.updateAdminGeofence(
           editor.row.id,
-          values,
+          buildGeofenceUpdatePayload(values, Boolean(editor.row.isActive), editor.row.version),
         );
         setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
       } else {
         const created = await geofencedAttendanceApi.createAdminGeofence(values);
         setRows((prev) => [...prev, created]);
       }
+      setStaleConflict(false);
       setEditor(null);
     } catch (saveError) {
-      setDraftApiError(campusCodeMessage(saveError, copy.errors));
+      if (isStaleVersionError(saveError)) {
+        setStaleConflict(true);
+      } else {
+        setDraftApiError(campusCodeMessage(saveError, copy.errors));
+      }
     } finally {
       setSaving(false);
     }
-  }, [copy.errors, draft, editor]);
+  }, [copy.errors, draft, editor, staleConflict]);
 
   const toggleActive = useCallback(
     async (row: GeofenceRow) => {
@@ -213,13 +280,19 @@ export default function AdminAttendanceGeofencesPage() {
           openEdit(row);
           return;
         }
-        const updated = await geofencedAttendanceApi.updateAdminGeofence(row.id, {
+        const request = {
           ...values,
           isActive: activating,
-        });
+          expectedVersion: row.version,
+        };
+        const updated = await geofencedAttendanceApi.updateAdminGeofence(row.id, request);
         setRows((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } catch (toggleError) {
-        setError(campusCodeMessage(toggleError, copy.errors));
+        if (isStaleVersionError(toggleError)) {
+          setStaleConflict(true);
+        } else {
+          setError(campusCodeMessage(toggleError, copy.errors));
+        }
       } finally {
         setToggleBusyId(null);
       }
@@ -253,6 +326,14 @@ export default function AdminAttendanceGeofencesPage() {
             </div>
           </div>
         ) : null}
+        {staleConflict && !editor ? (
+          <div role="alert" className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-foreground">
+            <p>{messages.adminPages.announcements.conflict}</p>
+            <Button type="button" variant="outline" className="mt-3" disabled={isLoading} onClick={() => void reloadStaleList()}>
+              {messages.common.actions.refresh}
+            </Button>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
@@ -261,13 +342,13 @@ export default function AdminAttendanceGeofencesPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={() => void load()}
+              onClick={() => void reloadStaleList()}
               disabled={isLoading}
             >
               <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
               {messages.common.actions.retry}
             </Button>
-            <Button onClick={openCreate} className="gap-2">
+            <Button onClick={openCreate} className="gap-2" disabled={staleConflict}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               {copy.newAction}
             </Button>
@@ -278,7 +359,7 @@ export default function AdminAttendanceGeofencesPage() {
           <ErrorState
             title={copy.loadError}
             description={error}
-            onRetry={() => void load()}
+            onRetry={() => void reloadStaleList()}
           />
         ) : isLoading ? (
           <LoadingState label={messages.common.states.loading} />
@@ -369,6 +450,7 @@ export default function AdminAttendanceGeofencesPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => openEdit(row)}
+                              disabled={staleConflict}
                               aria-label={`${copy.edit} — ${row.name}`}
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -379,7 +461,7 @@ export default function AdminAttendanceGeofencesPage() {
                               variant={row.isActive ? 'destructive' : 'outline'}
                               size="sm"
                               onClick={() => void toggleActive(row)}
-                              disabled={busy}
+                              disabled={busy || staleConflict}
                               aria-label={
                                 row.isActive
                                   ? `${copy.deactivate} — ${row.name}`
@@ -419,6 +501,14 @@ export default function AdminAttendanceGeofencesPage() {
           }}
           noValidate
         >
+          {staleConflict ? (
+            <div role="alert" className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-foreground">
+              <p>{messages.adminPages.announcements.conflict}</p>
+              <Button type="button" variant="outline" className="mt-3" disabled={saving} onClick={() => void reloadStaleEditor()}>
+                {messages.common.actions.refresh}
+              </Button>
+            </div>
+          ) : null}
           <div>
             <label htmlFor="checkin-geofence-name" className="mb-1 block text-sm font-medium text-foreground">
               {copy.nameLabel}
@@ -562,7 +652,7 @@ export default function AdminAttendanceGeofencesPage() {
               >
                 {messages.common.actions.cancel}
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || staleConflict}>
                 {saving ? copy.saving : copy.save}
               </Button>
             </div>

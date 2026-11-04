@@ -132,6 +132,13 @@ class PublicationWorkflowPersistenceTest {
                 )
                 """);
         jdbc.execute("DROP TABLE IF EXISTS academic.\"Enrollment\"");
+        jdbc.execute("DROP TABLE IF EXISTS academic.\"Section\"");
+        jdbc.execute("""
+                CREATE TABLE academic."Section" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "lecturerId" VARCHAR(120)
+                )
+                """);
         jdbc.execute("""
                 CREATE TABLE academic."Enrollment" (
                     "id" VARCHAR(120) PRIMARY KEY,
@@ -314,6 +321,69 @@ class PublicationWorkflowPersistenceTest {
 
         // The reworked draft can re-enter the queue and publish normally.
         submitAndApprove(id, admin("admin-1"), admin("admin-2"));
+    }
+
+    @Test
+    void lecturerAuthorCannotReturnOwnSubmission() throws Exception {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)",
+                "section-lect", "wf-lect-1");
+        String id = createDraft(lecturer("wf-lect-u", "wf-lect-1"), "Section notice", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-lect\",");
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isOk());
+        int version = versionOf(id);
+
+        // The reviewer-never-author rule binds return exactly like approve.
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")).contentType("application/json")
+                        .content("{\"reason\":\"Fix it myself\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEWER_EQUALS_AUTHOR"));
+
+        // The rejection leaves row, version and audit trail untouched.
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT \"status\", \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?", id);
+        assertEquals("IN_REVIEW", row.get("status"));
+        assertEquals(version, row.get("version"));
+        assertEquals(0, returnedAuditCount(id));
+
+        // An independent scoped reviewer can still send it back.
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-2")).contentType("application/json")
+                        .content("{\"reason\":\"Fix the headline\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.reviewerId").value("admin-2"));
+        assertEquals(1, returnedAuditCount(id));
+    }
+
+    @Test
+    void adminAuthorCannotReturnOwnSubmission() throws Exception {
+        String id = createDraft(admin("admin-1"), "Guard notice", "Body.", null);
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        int version = versionOf(id);
+
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-1")).contentType("application/json")
+                        .content("{\"reason\":\"Fix it myself\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEWER_EQUALS_AUTHOR"));
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT \"status\", \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?", id);
+        assertEquals("IN_REVIEW", row.get("status"));
+        assertEquals(version, row.get("version"));
+        assertEquals(0, returnedAuditCount(id));
+
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(admin("admin-2")).contentType("application/json")
+                        .content("{\"reason\":\"Fix the headline\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.reviewerId").value("admin-2"));
+        assertEquals(1, returnedAuditCount(id));
     }
 
     @Test
@@ -517,6 +587,14 @@ class PublicationWorkflowPersistenceTest {
                 """, id, "Seeded " + id, lifecycleStatus, authorId);
     }
 
+    private int returnedAuditCount(String id) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"AnnouncementAudit\""
+                        + " WHERE \"announcementId\" = ? AND \"action\" = 'RETURNED'",
+                Integer.class, id);
+        return count == null ? 0 : count;
+    }
+
     private int notificationCount() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM notifications.notification", Integer.class);
@@ -546,4 +624,42 @@ class PublicationWorkflowPersistenceTest {
                 .claim("studentId", "wf-st-1")
                 .claim("student", Map.of("year", 1)), "STUDENT");
     }
+    @Test
+    void lecturerCannotReviewGlobalAnnouncementButGovernanceCan() throws Exception {
+        String id = createDraft(admin("admin-1"), "Global notice", "Body.", null);
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + id + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_APPROVAL_FORBIDDEN"));
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(lecturer("wf-lect-u", "wf-lect-1"))
+                        .contentType("application/json").content("{\"reason\":\"needs work\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/announcements/" + id + "/approve").with(admin("admin-2")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void lecturerReviewsOnlyOwnSectionAnnouncements() throws Exception {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)", "section-own", "wf-lect-1");
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)", "section-other", "wf-lect-2");
+        String own = createDraft(admin("admin-1"), "Section notice", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-own\",");
+        String other = createDraft(admin("admin-1"), "Other section", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-other\",");
+        mvc.perform(post("/api/v1/announcements/" + own + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + other + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + own + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + other + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_APPROVAL_FORBIDDEN"));
+    }
+
 }

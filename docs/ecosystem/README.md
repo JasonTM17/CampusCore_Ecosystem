@@ -4,7 +4,7 @@
 - [Environment setup](environment.md)
 - [Platform baseline](baseline.md)
 - [Runtime compatibility](runtime-compatibility.md)
-- [Deployment overview](../deployment.md)
+- [Local quick start](../../README.md)
 
 ## Product and domain contracts
 - [System architecture](../ARCHITECTURE.md)
@@ -21,6 +21,7 @@
 - [Verification guide](verification.md)
 - [Mobile verification matrix](mobile-matrix.md)
 - [Device evidence template](device-evidence-template.md)
+- [Capacity and restore baseline](capacity-baseline.md)
 - [Flyway lineage reference](../integrations/flyway-lineage.md)
 
 ## Operations and runbooks
@@ -34,7 +35,6 @@
 - [Attendance operations runbook](attendance-operations-runbook.md)
 - [Device runbook](device-runbook.md)
 - [Demo operations runbook](../DEMO_RUNBOOK.md)
-- [Production operations runbook](../PRODUCTION_RUNBOOK.md)
 
 ## Observability
 - [Observability and alerting](observability.md)

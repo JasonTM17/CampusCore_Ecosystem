@@ -221,6 +221,7 @@ public class AcademicSectionReadService {
                 row.finalGrade(),
                 row.letterGrade(),
                 row.gradeStatus(),
+                row.version(),
                 row.enrollmentStatus());
     }
 

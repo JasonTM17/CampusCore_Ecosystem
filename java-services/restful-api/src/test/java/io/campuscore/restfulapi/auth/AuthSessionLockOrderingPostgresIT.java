@@ -81,12 +81,21 @@ class AuthSessionLockOrderingPostgresIT {
         assertThat(sessions).isGreaterThan(0);
 
         CountDownLatch adminHoldsUserLock = new CountDownLatch(1);
+        CountDownLatch refreshAtUserLock = new CountDownLatch(1);
         CountDownLatch releaseAdmin = new CountDownLatch(1);
         String adminThread = "pgw-admin-" + suffix;
+        String refreshThread = "pgw-refresh-" + suffix;
         doAnswer(invocation -> {
             String sql = invocation.getArgument(0, String.class);
+            String thread = Thread.currentThread().getName();
+            if (thread.equals(refreshThread) && sql.contains("FOR UPDATE")) {
+                // The refresh reached the User row lock while the admin
+                // mutation still holds it; from here it can only proceed by
+                // queueing on the row.
+                refreshAtUserLock.countDown();
+            }
             Object result = invocation.callRealMethod();
-            if (Thread.currentThread().getName().equals(adminThread)
+            if (thread.equals(adminThread)
                     && sql.contains("FOR UPDATE") && sql.contains(":userId")) {
                 // The admin transaction now holds the User row lock. Pause
                 // before it can touch Session rows; a Session-first refresher
@@ -111,11 +120,13 @@ class AuthSessionLockOrderingPostgresIT {
                     .isTrue();
 
             Future<?> refresher = pool.submit(() -> {
-                Thread.currentThread().setName("pgw-refresh-" + suffix);
+                Thread.currentThread().setName(refreshThread);
                 authLogin.refresh(refreshToken, "127.0.0.1", "lock-it");
                 return null;
             });
-            Thread.sleep(800);
+            assertThat(awaitLatchOrDone(refreshAtUserLock, refresher))
+                    .as("refresh must reach the user row lock while the admin holds it")
+                    .isTrue();
             assertThat(refresher.isDone())
                     .as("refresh must queue behind the admin user lock")
                     .isFalse();
@@ -175,6 +186,25 @@ class AuthSessionLockOrderingPostgresIT {
             pool.shutdownNow();
             assertThat(pool.awaitTermination(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    /**
+     * Waits for a worker to reach a barrier, but fails fast when the worker
+     * finishes first — a worker that never reaches the barrier must not stall
+     * the test for the whole budget.
+     */
+    private static boolean awaitLatchOrDone(CountDownLatch latch, Future<?> worker)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (latch.await(25, TimeUnit.MILLISECONDS)) {
+                return true;
+            }
+            if (worker.isDone()) {
+                return false;
+            }
+        }
+        return false;
     }
 
     static boolean postgresTargetConfigured() {

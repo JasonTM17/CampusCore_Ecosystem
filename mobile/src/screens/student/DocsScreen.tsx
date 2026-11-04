@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card, UiText } from '../../components/Ui';
 import { SearchBar, StatusPill } from '../../components/ui/index';
 import type { MobilePublicDoc } from '../../api/client';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -18,12 +21,30 @@ import { usePagedList } from '../content/use-paged-list';
 
 /** Public documents: server-side search, paging and a published-revision detail view. */
 export function DocsScreen(_props: MobileScreenProps) {
+  const router = useRouter();
+  const routeParams = useLocalSearchParams<{ slug?: string | string[]; rev?: string | string[] }>();
+  const routeSlugValue = Array.isArray(routeParams.slug) ? routeParams.slug[0] : routeParams.slug;
+  const routeRevValue = Array.isArray(routeParams.rev) ? routeParams.rev[0] : routeParams.rev;
+  const routeSlug = routeSlugValue && /^[a-z0-9][a-z0-9-]{0,239}$/.test(routeSlugValue)
+    ? routeSlugValue : null;
+  const parsedRouteRev = routeRevValue && /^[0-9]{1,10}$/.test(routeRevValue)
+    ? Number(routeRevValue) : null;
+  const routeRevision = parsedRouteRev !== null && Number.isSafeInteger(parsedRouteRev)
+    ? parsedRouteRev : null;
   const { locale, formatDate } = useContentCopy();
+  const { window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const copy = campusMessages[locale];
   const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(routeSlug);
+  const [selectedRevision, setSelectedRevision] = useState<number | null>(routeRevision);
+
+  useEffect(() => {
+    setSelected(routeSlug);
+    setSelectedRevision(routeRevision);
+  }, [routeSlug, routeRevision]);
 
   const preview = useMemo(() => previewDocs(locale), [locale]);
   const list = usePagedList<MobilePublicDoc>({
@@ -33,7 +54,11 @@ export function DocsScreen(_props: MobileScreenProps) {
     preview,
   });
 
-  if (selected) return <DocDetail slug={selected} onBack={() => setSelected(null)} />;
+  if (selected) return <DocDetail
+    slug={selected}
+    initialRevision={selectedRevision}
+    onBack={() => { router.replace('/docs'); }}
+  />;
 
   return (
     <ListFrame
@@ -58,7 +83,11 @@ export function DocsScreen(_props: MobileScreenProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={joinMeta([docTitle(doc, locale), fillCopy(copy.revision, { n: doc.publishedRevision })])}
-          onPress={() => setSelected(doc.slug)}
+          onPress={() => {
+            router.replace({ pathname: '/docs', params: { slug: doc.slug } });
+            setSelected(doc.slug);
+            setSelectedRevision(null);
+          }}
           style={styles.row}
         >
           <Card>
@@ -66,7 +95,7 @@ export function DocsScreen(_props: MobileScreenProps) {
               <ContentIconChip icon="file-document-outline" />
               <View style={styles.rowCopy}>
                 <UiText variant="label">{docTitle(doc, locale)}</UiText>
-                {docSummary(doc, locale) ? <UiText variant="bodySmall" tone="muted" numberOfLines={2}>{docSummary(doc, locale)}</UiText> : null}
+                {docSummary(doc, locale) ? <UiText variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{docSummary(doc, locale)}</UiText> : null}
                 <View style={styles.meta}>
                   <StatusPill label={fillCopy(copy.revision, { n: doc.publishedRevision })} tone="primary" />
                   {doc.categoryId ? <UiText variant="meta" tone="muted">{docCategoryLabel(doc.categoryId, categoryLabels)}</UiText> : null}

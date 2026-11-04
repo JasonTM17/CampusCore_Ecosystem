@@ -19,6 +19,11 @@ import static org.mockito.Mockito.when;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatRequest;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatResponse;
 import io.campuscore.restfulapi.web.DomainException;
+import tools.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -484,6 +489,46 @@ class ThesisAssistantControllerTest {
         assertEquals(1, response.citations().size());
         assertEquals("kb-1", response.citations().get(0).sourceId());
         verify(ragGateway).chat(any(), anyString());
+    }
+
+    @Test
+    void nonStandardUpstreamStatusFallsBackToTheLocalGroundedAnswer() throws Exception {
+        HttpServer upstream = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        upstream.createContext("/chat", exchange -> {
+            byte[] body = "{\"message\":\"origin down\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(520, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        upstream.start();
+        try {
+            ThesisAssistantService assistant = mock(ThesisAssistantService.class);
+            RagAssistantGateway ragGateway = new RagAssistantGateway(new AssistantRagProperties(
+                    "http://127.0.0.1:" + upstream.getAddress().getPort(), "internal-token",
+                    "controller-test-owner-assertion-key", false, 1_000, 5_000),
+                    new ObjectMapper());
+            ThesisAssistantController controller = new ThesisAssistantController(assistant, ragGateway);
+            when(assistant.groundedFallback(anyString(), anyString(), anyBoolean(), any(), anyBoolean()))
+                    .thenReturn(new ChatResponse("Câu trả lời từ kho kiến thức nội bộ.",
+                            ThesisAssistantService.MODEL, true, "ANSWERED", "vi", List.of()));
+            SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+                    actor(), List.of(new SimpleGrantedAuthority("ROLE_STUDENT"))));
+
+            UUID key = UUID.randomUUID();
+            ChatResponse response = controller.chat(
+                    new ChatRequest("Điều kiện đăng ký đề tài là gì?", "vi", key, null),
+                    actor(), new MockHttpServletRequest());
+
+            // A CDN status outside Spring's enum must ride the same local
+            // fallback as the enumerated 5xx codes instead of surfacing 400.
+            assertEquals("ANSWERED", response.reasonCode());
+            assertTrue(response.degraded());
+            assertEquals(key, response.clientRequestId());
+        } finally {
+            SecurityContextHolder.clearContext();
+            upstream.stop(0);
+        }
     }
 
     @Test

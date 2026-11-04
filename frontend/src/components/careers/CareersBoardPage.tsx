@@ -255,6 +255,7 @@ export function CareersBoardPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={copy.searchPlaceholder}
+          aria-label={copy.searchPlaceholder}
           onKeyDown={(event) => { if (event.key === 'Enter') search(); }}
         />
         <Button data-testid="careers-search" variant="outline" onClick={search}>
@@ -300,6 +301,7 @@ export function CareersBoardPage() {
                       ...current, [opportunity.id]: event.target.value,
                     }))}
                     placeholder={copy.coverLetterPlaceholder}
+                    aria-label={`${copy.coverLetterPlaceholder}: ${opportunity.title}`}
                   />
                   <Button size="sm" variant="outline" disabled={isBusy}
                     data-testid={`careers-apply-${opportunity.id}`}

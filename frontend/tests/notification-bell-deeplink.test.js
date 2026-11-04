@@ -49,3 +49,22 @@ test('the notification wire type carries link and type through the API layer', (
   assert.match(record, /link\??:/, 'link must be declared on NotificationRecord');
   assert.match(record, /type\??:/, 'type must be declared on NotificationRecord');
 });
+
+test('W14 Escape on the notification panel returns focus to the bell trigger', () => {
+  const start = LAYOUT.indexOf('const handleEscape');
+  const end = LAYOUT.indexOf("document.addEventListener('keydown', handleEscape)");
+  assert.ok(start >= 0 && end > start, 'the dashboard Escape handler stays directly testable');
+  const handler = LAYOUT.slice(start, end);
+
+  assert.match(
+    LAYOUT,
+    /const notificationsTriggerRef = useRef<HTMLButtonElement>\(null\)/,
+    'the bell trigger needs a stable ref',
+  );
+  assert.match(LAYOUT, /ref=\{notificationsTriggerRef\}/, 'the ref is attached to the bell button');
+  assert.match(
+    handler,
+    /else if \(notificationsOpen\) \{\s*setNotificationsOpen\(false\);\s*notificationsTriggerRef\.current\?\.focus\(\);/,
+    'Escape must close the panel and restore focus to its trigger',
+  );
+});

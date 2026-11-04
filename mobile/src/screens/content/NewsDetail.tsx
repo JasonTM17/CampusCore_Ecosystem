@@ -4,7 +4,7 @@ import { Card, StatePanel, UiText } from '../../components/Ui';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { campusMessages } from '../../i18n/campus-messages';
 import { contentApi } from './content-api';
-import { joinMeta } from './content-rules';
+import { joinMeta, publisherName } from './content-rules';
 import { ContentHero, DetailFrame, StatusChip, isPreviewMode, useContentCopy } from './content-ui';
 import { previewNews } from './preview-data';
 import { htmlToPlainText } from './rich-text';
@@ -50,7 +50,7 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
             icon="newspaper-variant-outline"
             detail={joinMeta([
               item.publishAt ? `${copy.publishedAt}: ${formatDateTime(item.publishAt)}` : null,
-              item.lecturerDisplayName ?? item.publishedBy,
+              publisherName(item.lecturerDisplayName, item.publishedBy),
               item.semesterName ? `${copy.semester}: ${item.semesterName}` : null,
             ])}
           >

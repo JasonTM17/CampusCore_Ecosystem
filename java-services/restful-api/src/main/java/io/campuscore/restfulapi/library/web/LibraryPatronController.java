@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
@@ -74,10 +76,21 @@ public class LibraryPatronController {
     }
 
     @Operation(summary = "Đơn mượn của tôi")
+    @ApiResponse(responseCode = "200", description = "Đơn mượn của tôi", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = "Số bản ghi trước khi phân trang",
+            schema = @Schema(type = "integer")))
     @GetMapping("/requests/my")
     @PreAuthorize("isAuthenticated()")
-    public List<LoanRequestResponse> myLoans(@AuthenticationPrincipal Jwt jwt) {
-        return library.myLoans(patron(jwt));
+    public ResponseEntity<List<LoanRequestResponse>> myLoans(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC + "; mặc định 0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Số bản ghi mỗi trang, 1 đến " + ListPaging.MAX_LIMIT
+                    + "; mặc định " + ListPaging.MAX_LIMIT)
+            @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(library.myLoans(patron(jwt), window));
     }
 
     @Operation(summary = "Chi tiết đơn mượn (chủ sở hữu)")
@@ -105,7 +118,7 @@ public class LibraryPatronController {
     public LoanRequestResponse cancel(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String requestId,
-            @RequestBody(required = false) CancelRequest request,
+            @Valid @RequestBody(required = false) CancelRequest request,
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
         return library.cancel(patron(jwt), requestId,
                 request == null ? null : request.expectedVersion(),

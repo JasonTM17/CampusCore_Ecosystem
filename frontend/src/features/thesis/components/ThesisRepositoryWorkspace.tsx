@@ -15,18 +15,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { ListPager } from '@/components/ui/list-pager';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import type { I18nMessages } from '@/i18n/messages';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import type { Locale } from '@/i18n/config';
-import { type ThesisRepositoryReport } from '@/lib/thesis-api';
+import { type ThesisRepositoryReport, type ThesisRepositorySummary } from '@/lib/thesis-api';
 import { fillCopy, formatReportFileSize } from '@/features/thesis/components/thesis-helpers';
+import { countLabel } from '@/lib/plural';
+import { isHttpUrl } from '@/lib/safe-url';
+import { archiveEmptyState } from '@/lib/thesis-page-list';
 
 interface ThesisRepositoryWorkspaceProps {
   messages: I18nMessages;
   locale: Locale;
   formatDateTime: (value: string | number | Date) => string;
   reports: ThesisRepositoryReport[];
-  filteredReports: ThesisRepositoryReport[];
+  filteredTotal?: number;
+  summary?: ThesisRepositorySummary;
   roundName?: string;
   isLoading: boolean;
   /** A failed archive load; an outage must never read as an empty repository. */
@@ -34,6 +40,9 @@ interface ThesisRepositoryWorkspaceProps {
   onRetry?: () => void;
   search: string;
   onSearchChange: (value: string) => void;
+  page: number;
+  limit: number;
+  onPage: (page: number) => void;
   onDownloadReport: (report: ThesisRepositoryReport) => void | Promise<void>;
 }
 
@@ -43,19 +52,27 @@ export default function ThesisRepositoryWorkspace({
   locale,
   formatDateTime,
   reports,
-  filteredReports,
+  filteredTotal,
+  summary,
   roundName,
   isLoading,
   loadError,
   onRetry,
   search,
   onSearchChange,
+  page,
+  limit,
+  onPage,
   onDownloadReport,
 }: ThesisRepositoryWorkspaceProps) {
   const pageCopy = messages.thesisWorkflow.page;
-  const totalReports = reports.length;
-  const totalFiles = reports.filter((r) => r.fileName).length;
-  const totalUrls = reports.filter((r) => r.url).length;
+  const isVi = locale === 'vi';
+  const copy = isVi ? thesisWorkflowVi.repository : thesisWorkflowEn.repository;
+  const pagerCopy = isVi ? thesisWorkflowVi.listPager : thesisWorkflowEn.listPager;
+  const emptyState = archiveEmptyState(summary?.total, filteredTotal);
+  const totalReports = summary?.total ?? '—';
+  const totalFiles = summary?.files ?? '—';
+  const totalUrls = summary?.urls ?? '—';
 
   return (
     <Card className="rounded-xl border-border/80 shadow-xs">
@@ -74,28 +91,27 @@ export default function ThesisRepositoryWorkspace({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
               <FileStack className="h-3.5 w-3.5" />
-              {fillCopy(pageCopy.reportsCount, { count: totalReports })}
+              {fillCopy(countLabel(typeof totalReports === 'number' ? totalReports : 0, pageCopy.reportsCountOne, pageCopy.reportsCount), { count: totalReports })}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               <FileDown className="h-3.5 w-3.5" />
-              {totalFiles} {locale === 'vi' ? 'tài liệu đính kèm' : 'attached files'}
+              {totalFiles} {copy.attachedFiles}
             </span>
-            {totalUrls > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
-                <ExternalLink className="h-3.5 w-3.5" />
-                {totalUrls} {locale === 'vi' ? 'liên kết ngoài' : 'external links'}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+              <ExternalLink className="h-3.5 w-3.5" />
+              {totalUrls} {copy.externalLinks}
+            </span>
           </div>
         </div>
 
         {/* Search bar */}
         <div className="pt-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               value={search}
+              aria-label={copy.searchLabel}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={pageCopy.repositorySearchPlaceholder}
               className="pl-9 pr-8 text-xs sm:text-sm h-10 rounded-xl"
@@ -103,8 +119,9 @@ export default function ThesisRepositoryWorkspace({
             {search ? (
               <button
                 type="button"
+                aria-label={copy.clearSearch}
                 onClick={() => onSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -122,37 +139,39 @@ export default function ThesisRepositoryWorkspace({
           // An outage is not an empty archive: surface the real failure with a
           // retry instead of the "no reports yet" state.
           <ErrorState
-            title={
-              locale === 'vi'
-                ? 'Không thể tải kho lưu trữ báo cáo'
-                : 'The report archive could not be loaded'
-            }
+            title={copy.loadErrorTitle}
             description={loadError}
             onRetry={onRetry}
           />
-        ) : reports.length === 0 ? (
+        ) : reports.length === 0 && emptyState === 'empty' ? (
           <EmptyState
             icon={Archive}
             title={pageCopy.noRoundReportsYet}
-            description={locale === 'vi' ? 'Các nhóm nghiên cứu sau khi hoàn thành sẽ nộp báo cáo tại đây để lưu trữ và thẩm định.' : 'Research groups will submit their thesis reports here once ready for archival.'}
+            description={copy.emptyDescription}
             className="min-h-[220px]"
           />
-        ) : filteredReports.length === 0 ? (
+        ) : reports.length === 0 && emptyState === 'no-match' ? (
           <EmptyState
             icon={Search}
             title={pageCopy.noReportsFound}
-            description={locale === 'vi' ? 'Thử thay đổi từ khóa tìm kiếm theo tên đề tài, mã số sinh viên hoặc giảng viên hướng dẫn.' : 'Try adjusting your search keywords by topic, student ID or supervisor.'}
+            description={copy.noMatchDescription}
             className="min-h-[200px]"
+          />
+        ) : reports.length === 0 ? (
+          <ErrorState
+            title={copy.unknownCountTitle}
+            description={copy.unknownCountDescription}
+            onRetry={onRetry}
           />
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-              <span>{fillCopy(pageCopy.allReports, { count: filteredReports.length })}</span>
-              <span>{locale === 'vi' ? 'Đợt:' : 'Round:'} <strong className="text-foreground">{roundName}</strong></span>
+              <span>{fillCopy(pageCopy.allReports, { count: filteredTotal ?? '—' })}</span>
+              <span>{copy.roundLabel} <strong className="text-foreground">{roundName}</strong></span>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {filteredReports.map((report) => {
+              {reports.map((report) => {
                 return (
                   <div
                     key={report.reportId}
@@ -200,13 +219,13 @@ export default function ThesisRepositoryWorkspace({
                           {pageCopy.archiveSupervisorLabel}
                         </span>
                         {report.supervisors.length === 0 ? (
-                          <span className="text-muted-foreground italic">{locale === 'vi' ? 'Chưa phân công' : 'Not assigned'}</span>
+                          <span className="text-muted-foreground italic">{copy.notAssigned}</span>
                         ) : (
                           <div className="space-y-1">
                             {report.supervisors.map((s) => (
                               <div key={`${s.supervisorOrder}-${s.displayName}`} className="flex items-center gap-2">
                                 <span className="font-medium text-foreground">
-                                  {s.displayName || (locale === 'vi' ? 'Chưa có tên' : 'Unnamed supervisor')}
+                                  {s.displayName || copy.unnamedSupervisor}
                                 </span>
                               </div>
                             ))}
@@ -221,17 +240,17 @@ export default function ThesisRepositoryWorkspace({
                           {pageCopy.membersLabel} ({report.members.length})
                         </span>
                         {report.members.length === 0 ? (
-                          <span className="text-muted-foreground italic">{locale === 'vi' ? 'Chưa có thông tin thành viên' : 'No roster details'}</span>
+                          <span className="text-muted-foreground italic">{copy.noRoster}</span>
                         ) : (
                           <div className="space-y-1">
                             {report.members.map((m) => {
-                              const name = m.displayName || m.studentNumber || (locale === 'vi' ? 'Thành viên' : 'Member');
+                              const name = m.displayName || m.studentNumber || copy.memberFallback;
                               return (
                                 <div key={`${m.studentNumber || name}-${m.isLeader ? 'leader' : 'member'}`} className="flex flex-wrap items-center gap-1.5">
                                   <span className="font-medium text-foreground">{name}</span>
                                   {m.studentNumber && (
                                     <span className="font-mono text-muted-foreground text-[11px] bg-background/80 px-1.5 py-0.5 rounded">
-                                      MSSV: {m.studentNumber}
+                                      {messages.thesis.studentIdLabel}: {m.studentNumber}
                                     </span>
                                   )}
                                   {m.isLeader && (
@@ -283,27 +302,34 @@ export default function ThesisRepositoryWorkspace({
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">
-                            {locale === 'vi' ? 'Không có file đính kèm' : 'No attached file'}
+                            {copy.noAttachedFile}
                           </span>
                         )}
 
-                        {report.url && (
-                          <a
-                            href={report.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            <span>{pageCopy.openExternalLink}</span>
-                          </a>
-                        )}
+                        {report.url ? (
+                          isHttpUrl(report.url) ? (
+                            <a
+                              href={report.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>{pageCopy.openExternalLink}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>{pageCopy.openExternalLink}</span>
+                            </span>
+                          )
+                        ) : null}
                       </div>
 
                       <div className="text-[11px] text-muted-foreground">
-                        {locale === 'vi' ? 'Người nộp:' : 'Submitted by:'}{' '}
+                        {copy.submittedBy}{' '}
                         <strong className="text-foreground">
-                          {report.submittedByDisplayName || report.submittedByStudentNumber || (locale === 'vi' ? 'Không rõ' : 'Unavailable')}
+                          {report.submittedByDisplayName || report.submittedByStudentNumber || copy.submitterUnavailable}
                         </strong>
                         {report.submittedByDisplayName && report.submittedByStudentNumber && (
                           <span className="ml-1 font-mono">({report.submittedByStudentNumber})</span>
@@ -316,6 +342,19 @@ export default function ThesisRepositoryWorkspace({
             </div>
           </div>
         )}
+        {!isLoading && !loadError ? (
+          <ListPager
+            testId="thesis-repository-pager"
+            navLabel={pagerCopy.repositoryNav}
+            page={page}
+            limit={limit}
+            total={filteredTotal}
+            itemCount={reports.length}
+            pending={isLoading}
+            copy={pagerCopy}
+            onPage={onPage}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );

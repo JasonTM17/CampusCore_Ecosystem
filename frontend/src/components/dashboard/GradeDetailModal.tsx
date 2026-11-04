@@ -6,6 +6,11 @@ import { Modal } from '@/components/ui/modal';
 import { gradesApi } from '@/lib/api';
 import { StudentGradeRecord, StudentGradesByEnrollmentResponse } from '@/types/api';
 import { useI18n } from '@/i18n';
+import {
+  studentPortalEn,
+  studentPortalVi,
+  type StudentPortalCopy,
+} from '@/i18n/messages-student-portal';
 import { getLocalizedFlatLabel } from '@/lib/academic-content';
 import { resolveGradePoint } from '@/lib/grade-scale';
 
@@ -24,22 +29,19 @@ function isFiniteScore(value: number | null | undefined): value is number {
  * `gradeItemNameEn`), so the English dialog used to show Vietnamese labels.
  * Translate the known component types and keep the raw name for anything else.
  */
-const GRADE_ITEM_LABELS: Record<string, { vi: string; en: string }> = {
-  PROCESS: { vi: 'Điểm quá trình (ĐQT - 50%)', en: 'Process score (50%)' },
-  FINAL: { vi: 'Điểm cuối kỳ (ĐCK - 50%)', en: 'Final exam score (50%)' },
-};
-
 function gradeItemLabel(
   item: { gradeItemName: string; gradeItemType?: string | null },
-  locale: string,
+  copy: StudentPortalCopy['gradeDetail'],
 ): string {
-  const known = GRADE_ITEM_LABELS[(item.gradeItemType ?? '').toUpperCase()];
-  if (!known) return item.gradeItemName;
-  return locale === 'vi' ? known.vi : known.en;
+  const known = (item.gradeItemType ?? '').toUpperCase();
+  if (known === 'PROCESS') return copy.processItem;
+  if (known === 'FINAL') return copy.finalItem;
+  return item.gradeItemName;
 }
 
 export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalProps) {
   const { locale } = useI18n();
+  const copy = (locale === 'vi' ? studentPortalVi : studentPortalEn).gradeDetail;
   const [data, setData] = useState<StudentGradesByEnrollmentResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [detailFailed, setDetailFailed] = useState(false);
@@ -84,7 +86,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
     record.courseNameVi,
     record.courseName,
   );
-  const emptyValue = locale === 'vi' ? 'Chưa có' : 'N/A';
+  const emptyValue = copy.emptyValue;
 
   // Canonical 50/50 rows come from persisted component scores only.
   const items = data?.grades?.length
@@ -94,7 +96,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
             {
               id: 'process-grade',
               gradeItemId: 'process',
-              gradeItemName: GRADE_ITEM_LABELS.PROCESS.vi,
+              gradeItemName: copy.processItem,
               gradeItemType: 'PROCESS',
               score: record.processScore,
               maxScore: 10,
@@ -103,7 +105,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
             {
               id: 'final-exam-grade',
               gradeItemId: 'final_exam',
-              gradeItemName: GRADE_ITEM_LABELS.FINAL.vi,
+              gradeItemName: copy.finalItem,
               gradeItemType: 'FINAL',
               score: record.finalExamScore,
               maxScore: 10,
@@ -116,7 +118,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={locale === 'vi' ? 'Chi tiết điểm học phần' : 'Course Grade Breakdown'}
+      title={copy.title}
       className="max-w-xl"
     >
       <div className="space-y-6">
@@ -130,7 +132,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
               {record.sectionCode}
             </span>
             <span className="text-xs text-muted-foreground">
-              {record.credits} {locale === 'vi' ? 'tín chỉ' : 'credits'}
+              {record.credits} {copy.credits}
             </span>
           </div>
           <h3 className="mt-1.5 text-base font-bold text-foreground sm:text-lg">
@@ -160,45 +162,49 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
         <div className="space-y-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              {locale === 'vi' ? 'Thành phần điểm học phần (50% Quá trình + 50% Cuối kỳ)' : 'Course Grade Components (50% In-Course + 50% Final)'}
+              {copy.componentsTitle}
             </h4>
             <span className="text-[11px] font-mono text-muted-foreground">
-              {locale === 'vi' ? 'ĐHP = ĐQT × 50% + ĐCK × 50%' : 'Final = Process × 50% + Exam × 50%'}
+              {copy.formula}
             </span>
           </div>
 
           {detailFailed ? (
-            <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
-              {locale === 'vi'
-                ? 'Không tải được điểm thành phần mới nhất — bảng dưới hiển thị điểm tóm tắt đã lưu, có thể chưa đầy đủ.'
-                : 'Could not load the latest component scores — the table below shows saved summary scores and may be incomplete.'}
+            <div
+              role="alert"
+              className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              {copy.detailFailed}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <div
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+              className="flex items-center justify-center py-8 text-sm text-muted-foreground"
+            >
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {locale === 'vi' ? 'Đang tải điểm chi tiết...' : 'Loading grade breakdown...'}
+              {copy.loading}
             </div>
           ) : items.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
-              {locale === 'vi'
-                ? 'Chưa có dữ liệu điểm thành phần cho học phần này.'
-                : 'No grade breakdown available for this course yet.'}
+              {copy.empty}
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-border/70">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm" aria-label={copy.component}>
                 <thead className="bg-secondary/40 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">
-                      {locale === 'vi' ? 'Thành phần' : 'Component'}
+                    <th scope="col" className="px-4 py-3 font-semibold">
+                      {copy.component}
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold">
-                      {locale === 'vi' ? 'Trọng số' : 'Weight'}
+                    <th scope="col" className="px-4 py-3 text-center font-semibold">
+                      {copy.weight}
                     </th>
-                    <th className="px-4 py-3 text-right font-semibold">
-                      {locale === 'vi' ? 'Điểm số' : 'Score'}
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">
+                      {copy.score}
                     </th>
                   </tr>
                 </thead>
@@ -214,7 +220,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
                     return (
                       <tr key={item.id} className="transition-colors hover:bg-secondary/15">
                         <td className="px-4 py-3 font-medium text-foreground">
-                          {gradeItemLabel(item, locale)}
+                          {gradeItemLabel(item, copy)}
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground font-mono">
                           {weightPct}
@@ -240,7 +246,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
         <div className="grid grid-cols-3 gap-3 rounded-xl border border-border/70 bg-secondary/20 p-4 text-center">
           <div>
             <div className="text-xs text-muted-foreground">
-              {locale === 'vi' ? 'Điểm tổng kết (10)' : 'Final Score (10)'}
+              {copy.finalScore}
             </div>
             <div className="mt-1 text-2xl font-bold text-foreground">
               {isFiniteScore(record.finalGrade)
@@ -250,7 +256,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
           </div>
           <div>
             <div className="text-xs text-muted-foreground">
-              {locale === 'vi' ? 'Điểm chữ' : 'Letter Grade'}
+              {copy.letterGrade}
             </div>
             <div className="mt-1 text-2xl font-bold text-primary">
               {record.letterGrade || emptyValue}
@@ -258,7 +264,7 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
           </div>
           <div>
             <div className="text-xs text-muted-foreground">
-              {locale === 'vi' ? 'Quy đổi (4.0)' : 'Grade Point'}
+              {copy.gradePoint}
             </div>
             <div className="mt-1 text-2xl font-bold text-foreground">
               {resolveGradePoint(record) !== null

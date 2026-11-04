@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.learning.web;
 
 import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.learning.service.LearningService;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
@@ -14,11 +15,17 @@ import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionRevisionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -69,7 +76,7 @@ public class LearningStaffController {
     public MaterialResponse createMaterial(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String sectionId,
-            @RequestBody MaterialUpsertRequest request) {
+            @Valid @RequestBody MaterialUpsertRequest request) {
         return learning.createMaterial(lecturer(jwt), sectionId, request);
     }
 
@@ -109,7 +116,7 @@ public class LearningStaffController {
     public MaterialResponse updateMaterial(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String materialId,
-            @RequestBody MaterialUpsertRequest request) {
+            @Valid @RequestBody MaterialUpsertRequest request) {
         return learning.updateMaterial(lecturer(jwt), materialId, request);
     }
 
@@ -150,7 +157,7 @@ public class LearningStaffController {
     public AssignmentResponse createAssignment(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String sectionId,
-            @RequestBody AssignmentUpsertRequest request) {
+            @Valid @RequestBody AssignmentUpsertRequest request) {
         return learning.createAssignment(lecturer(jwt), sectionId, request);
     }
 
@@ -169,7 +176,7 @@ public class LearningStaffController {
     public AssignmentResponse updateAssignment(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String assignmentId,
-            @RequestBody AssignmentUpsertRequest request) {
+            @Valid @RequestBody AssignmentUpsertRequest request) {
         return learning.updateAssignment(lecturer(jwt), assignmentId, request);
     }
 
@@ -201,12 +208,22 @@ public class LearningStaffController {
     }
 
     @Operation(summary = "Danh sách roster với trạng thái nộp bài")
+    @ApiResponse(responseCode = "200", description = "Roster lớp học phần", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = "Số bản ghi trước khi phân trang",
+            schema = @Schema(type = "integer")))
     @GetMapping("/assignments/{assignmentId}/roster")
     @PreAuthorize("isAuthenticated()")
-    public List<RosterRowResponse> roster(
+    public ResponseEntity<List<RosterRowResponse>> roster(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String assignmentId) {
-        return learning.roster(lecturer(jwt), assignmentId);
+            @PathVariable String assignmentId,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC + "; mặc định 0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Số bản ghi mỗi trang, 1 đến " + ListPaging.MAX_LIMIT
+                    + "; mặc định " + ListPaging.MAX_LIMIT)
+            @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(learning.roster(lecturer(jwt), assignmentId, window));
     }
 
     // ---------------- submissions / feedback ----------------
@@ -235,7 +252,7 @@ public class LearningStaffController {
     public SubmissionResponse returnSubmission(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String submissionId,
-            @RequestBody ReturnRequest request) {
+            @Valid @RequestBody ReturnRequest request) {
         return learning.returnSubmission(lecturer(jwt), submissionId, request);
     }
 
@@ -245,7 +262,7 @@ public class LearningStaffController {
     public SubmissionResponse reviewSubmission(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String submissionId,
-            @RequestBody(required = false) SubmissionReviewRequest request) {
+            @Valid @RequestBody(required = false) SubmissionReviewRequest request) {
         return learning.reviewSubmission(lecturer(jwt), submissionId, request);
     }
 
@@ -281,10 +298,20 @@ public class LearningStaffController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .contentType(MediaType.parseMediaType(
-                        contentType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                                : String.valueOf(contentType)))
+                .contentType(downloadMediaType(contentType))
                 .body(bytes);
+    }
+
+    /** Stored types predate write-time validation, so a bad value must not fail the download. */
+    private static MediaType downloadMediaType(Object contentType) {
+        if (contentType == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(String.valueOf(contentType));
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private static MaterialUpsertRequest materialUpsert(String title, String description, Integer version,

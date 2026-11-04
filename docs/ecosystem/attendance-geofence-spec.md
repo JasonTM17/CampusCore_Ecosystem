@@ -73,7 +73,7 @@ Student (ROLE STUDENT, must be enrolled):
 - `POST /attendance/sessions/{id}/checkin` body {code?, latitude, longitude, accuracyMeters, capturedAt, mockProvider, installationId} -> 200 {decision, status, message}; errors: 400 INVALID_LOCATION, 403 NOT_ENROLLED, 403 CONSENT_REQUIRED, 409 ALREADY_CHECKED_IN, 410 SESSION_CLOSED, 422 BAD_CODE, 422 OUTSIDE_AREA, 422 LOW_ACCURACY, 429 TOO_MANY_ATTEMPTS. Error bodies use the project's existing error contract.
 - `POST /attendance/location-consent` body {version}; `GET /attendance/location-consent`
 Admin:
-- `GET/POST/PUT /admin/attendance/geofences` (CRUD, validation of ranges, audit); deactivate instead of delete when sessions reference it.
+- `GET/POST /admin/attendance/geofences`, `PUT /admin/attendance/geofences/{id}` (CRUD, validation of ranges, audit); deactivate instead of delete when sessions reference it. `PUT` accepts an optional `expectedVersion`; a mismatch with the stored `version` returns `409 STALE_VERSION`, and every update increments it.
 Rules: server rejects check-in when the geofence is inactive; all inputs validated (bean validation); authorization on every method explicit (@PreAuthorize); responses never include the code secret or other students' coordinates.
 
 ## 6. Mobile (Expo)
@@ -113,4 +113,5 @@ Waves: G1 -> G2 -> (G3, G5 in parallel, different trees) -> G4 -> G6 -> G7 -> G8
 - Coordinates kept 30 days. Owner decision: confirm the retention period with the school's data-protection officer.
 - Mock-location and shared-device signals send the check-in to lecturer review instead of rejecting. Owner decision (2026-10-29): keep manual review, do not reject outright.
 - Residual risk: coordinates travel over plain HTTPS JSON, so a determined attacker can fabricate a fix. Exploiting that still requires a valid student account, active enrolment in the section, the in-room rotating code, and a forged request body. Mitigations present: the rotating code is only visible in the room, per-student/per-session rate limits, shared-device and impossible-speed signals, lecturer review of every flagged check-in, and full audit of attempts and reviews. Device attestation (Play Integrity / App Attest) is Phase 2 and is intentionally not part of this release.
+- Geofence concurrency: the web editor always sends `expectedVersion`. The field stays optional on the API so existing clients keep working; a request without it overwrites the stored row (last write wins) and still increments `version`. Make it required once no client omits it.
 - Phase 2: Play Integrity attestation (needs a Google Cloud project and Play console, BLOCKED_HUMAN).

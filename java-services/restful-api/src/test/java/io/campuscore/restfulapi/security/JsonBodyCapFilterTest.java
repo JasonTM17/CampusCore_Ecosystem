@@ -37,6 +37,27 @@ class JsonBodyCapFilterTest {
         return request;
     }
 
+    /**
+     * A chunked or HTTP/2 body reports -1 for both length accessors while the
+     * stream still carries bytes, which is exactly what the cap must not trust.
+     */
+    private MockHttpServletRequest jsonPostWithoutContentLength(String uri, int contentLength) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", uri) {
+            @Override
+            public int getContentLength() {
+                return -1;
+            }
+
+            @Override
+            public long getContentLengthLong() {
+                return -1;
+            }
+        };
+        request.setContentType("application/json");
+        request.setContent(new byte[contentLength]);
+        return request;
+    }
+
     @Test
     void oversizedAnonymousAuthLoginIsRejectedWith413() throws Exception {
         MockHttpServletRequest request = jsonPost("/api/v1/auth/login", 5 * 1024);
@@ -48,6 +69,35 @@ class JsonBodyCapFilterTest {
         verify(chain, never()).doFilter(request, response);
         assertEquals(413, response.getStatus());
         assertTrue(response.getContentAsString().contains("REQUEST_BODY_TOO_LARGE"));
+    }
+
+    @Test
+    void chunkedLoginBodyWithoutContentLengthIsRejectedWith413() throws Exception {
+        MockHttpServletRequest request = jsonPostWithoutContentLength("/api/v1/auth/login", 5 * 1024);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(request, response, chain);
+
+        verify(chain, never()).doFilter(request, response);
+        assertEquals(413, response.getStatus());
+        assertTrue(response.getContentAsString().contains("REQUEST_BODY_TOO_LARGE"));
+    }
+
+    @Test
+    void chunkedBodyWithinTheCapPassesAndStaysReadable() throws Exception {
+        MockHttpServletRequest request = jsonPostWithoutContentLength("/api/v1/auth/login", 512);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        FilterChain chain = (wrapped, result) -> {
+            calls.incrementAndGet();
+            assertEquals(512, wrapped.getInputStream().readAllBytes().length);
+        };
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(1, calls.get());
+        assertEquals(200, response.getStatus());
     }
 
     @Test

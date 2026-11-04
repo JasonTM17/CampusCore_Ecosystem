@@ -1,9 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import net from 'node:net';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedCourseE2e, seedReportE2e } from './course-e2e-fixture.mjs';
+import {
+  assertPortAvailable,
+  processGroupSpawnOptions,
+  stopProcessTree,
+  waitForPortClosed,
+} from './e2e-process-control.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +64,10 @@ async function main() {
       },
     });
   } finally {
-    await stopProcess(frontend);
+    await stopProcessTree(frontend, { port: frontendPort });
+    if (!(await waitForPortClosed(frontendPort))) {
+      console.error(`Frontend port ${frontendPort} is still in use after the E2E frontend was stopped; the next run may report a stale collision.`);
+    }
     if (stackStarted) {
       // The project name was preflighted as disposable and is unique to this
       // invocation; no developer/default Compose project can be touched.
@@ -104,47 +112,45 @@ function dockerQuery(args) {
   }
 }
 
-async function assertPortAvailable(portValue, label) {
-  const port = Number(portValue);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`${label} port is invalid; refusing E2E startup`);
-  }
-  // An occupied host port is a hard collision, not a reason to stop or
-  // reconfigure another developer's service.
-  const available = await new Promise((resolve) => {
-    const socket = new net.Socket();
-    const finish = (value) => { socket.destroy(); resolve(value); };
-    socket.setTimeout(250);
-    socket.once('connect', () => finish(false));
-    socket.once('error', () => finish(true));
-    socket.once('timeout', () => finish(true));
-    socket.connect(port, '127.0.0.1');
-  });
-  if (!available) throw new Error(`${label} port ${port} is already in use; refusing E2E collision`);
-}
-
 async function startFrontend() {
   const onWindows = process.platform === 'win32';
   const command = onWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
+  // Keep browser requests same-origin so the Next proxy forwards the
+  // session/CSRF cookies to the isolated API.  A direct cross-origin
+  // browser URL would bypass the proxy and make authenticated evidence
+  // depend on an unconfigured CORS policy. NEXT_PUBLIC_* is inlined at
+  // build time, so the same env must cover both the build and the serve.
+  const env = {
+    ...process.env,
+    NEXT_PUBLIC_API_URL: '/api/v1',
+    JAVA_API_ORIGIN: new URL(apiBaseURL).origin,
+  };
+  const serveMode = process.env.E2E_FRONTEND_SERVE || 'dev';
+  if (serveMode === 'start' && !process.env.E2E_FRONTEND_SKIP_BUILD) {
+    // next dev recompiles routes on demand and can stall e2e budgets on a
+    // contended host; next start serves precompiled output. The build must
+    // run from the runner so NEXT_PUBLIC_API_URL is set inside Node — a
+    // Git-Bash env prefix is MSYS2-mangled into the client bundle.
+    const buildArgs = onWindows ? ['/d', '/s', '/c', 'npm.cmd', 'run', 'build'] : ['run', 'build'];
+    await new Promise((resolve, reject) => {
+      const build = spawn(command, buildArgs, { cwd: frontendDir, env, stdio: 'inherit', shell: false });
+      build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`frontend build failed (exit ${code})`))));
+      build.on('error', reject);
+    });
+  }
+  const script = serveMode === 'start' ? 'start' : 'dev';
   const args = onWindows
-    ? ['/d', '/s', '/c', 'npm.cmd', 'run', 'dev', '--', '--hostname', '127.0.0.1', '--port', frontendPort]
-    : ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', frontendPort];
+    ? ['/d', '/s', '/c', 'npm.cmd', 'run', script, '--', '--hostname', '127.0.0.1', '--port', frontendPort]
+    : ['run', script, '--', '--hostname', '127.0.0.1', '--port', frontendPort];
   return spawn(
     command,
     args,
     {
     cwd: frontendDir,
-    env: {
-      ...process.env,
-      // Keep browser requests same-origin so the Next proxy forwards the
-      // session/CSRF cookies to the isolated API.  A direct cross-origin
-      // browser URL would bypass the proxy and make authenticated evidence
-      // depend on an unconfigured CORS policy.
-      NEXT_PUBLIC_API_URL: '/api/v1',
-      JAVA_API_ORIGIN: new URL(apiBaseURL).origin,
-    },
+    env,
     stdio: 'inherit',
     shell: false,
+    ...processGroupSpawnOptions(),
     },
   );
 }
@@ -195,34 +201,6 @@ async function compose(args, options = {}) {
       POSTGRES_HOST_PORT: process.env.POSTGRES_HOST_PORT ?? '5433',
     },
     allowFailure: options.allowFailure ?? false,
-  });
-}
-
-async function stopProcess(child) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-
-  if (process.platform === 'win32' && child.pid) {
-    // npm.cmd/cmd.exe can leave the Next child alive after SIGTERM. Kill only
-    // this exact process tree so a failed run cannot leave port 3101 occupied;
-    // the runner never broadens this to a name- or port-based kill.
-    try {
-      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore',
-      });
-    } catch {
-      // The process may have exited between the status check and taskkill.
-    }
-  } else {
-  child.kill('SIGTERM');
-  }
-  await new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve();
-      return;
-    }
-    child.once('close', resolve);
   });
 }
 

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +13,7 @@ import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -148,6 +151,27 @@ class AdmissionContractPersistenceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
         return id;
+    }
+
+    @Test
+    void futureDateOfBirthIsRejectedByApplicationValidation() throws Exception {
+        String id = createDraft(applicantJwt, "future-dob");
+
+        mvc.perform(put("/api/v1/admissions/applications/" + id)
+                        .with(applicantJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Nguyen Van A\",\"dateOfBirth\":\"2099-01-01\","
+                                + "\"schoolName\":\"THPT Demo\",\"intendedMajor\":\"CNTT\","
+                                + "\"expectedVersion\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mvc.perform(put("/api/v1/admissions/applications/" + id)
+                        .with(applicantJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Nguyen Van A\",\"dateOfBirth\":\"2008-01-15\","
+                                + "\"schoolName\":\"THPT Demo\",\"intendedMajor\":\"CNTT\","
+                                + "\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dateOfBirth").value("2008-01-15"));
     }
 
     private void claim(String id, RequestPostProcessor staff, int version) throws Exception {
@@ -312,7 +336,7 @@ class AdmissionContractPersistenceTest {
                         .with(applicantJwt).header("Idempotency-Key", "iso-att")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"score.pdf\",\"contentType\":\"application/pdf\","
-                                + "\"dataBase64\":\"" + b64("synthetic-score") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nsynthetic-score") + "\"}"))
                 .andExpect(status().isCreated());
         String attachmentId = jdbc.queryForObject(
                 "SELECT \"id\" FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
@@ -374,9 +398,18 @@ class AdmissionContractPersistenceTest {
                 .andExpect(jsonPath("$[?(@.userId=='staff-1')].id").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.userId=='staff-1' && @.scope=='admissions')].grantedBy").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.userId=='staff-1')].createdAt").isNotEmpty());
-        mvc.perform(get("/api/v1/admissions/staff/grants").with(staffJwt))
+        MvcResult adminPage = mvc.perform(get("/api/v1/admissions/staff/grants?page=0&limit=20").with(adminJwt))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].scope").value("admissions"));
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andReturn();
+        assertThat(objectMapper.readTree(adminPage.getResponse().getContentAsString()).size()).isEqualTo(2);
+
+        MvcResult staffPage = mvc.perform(get("/api/v1/admissions/staff/grants?page=0&limit=20").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$[0].userId").value("staff-1"))
+                .andReturn();
+        assertThat(objectMapper.readTree(staffPage.getResponse().getContentAsString()).size()).isEqualTo(1);
 
         mvc.perform(get("/api/v1/admissions/staff/grants").with(ungrantedStaffJwt))
                 .andExpect(status().isForbidden())
@@ -599,9 +632,39 @@ class AdmissionContractPersistenceTest {
     // ---------------------------------------------------------------
 
     @Test
+    void jsonAttachmentsRequireSupportedTypesAndMatchingSignatures() throws Exception {
+        String id = createDraft(applicantJwt, "attachment-policy-create");
+
+        var unsupported = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "attachment-policy-html")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.html\",\"contentType\":\"text/html\","
+                                + "\"dataBase64\":\"" + b64("<html>") + "\"}"))
+                .andReturn();
+
+        var mismatched = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "attachment-policy-signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.pdf\",\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64("not a PDF") + "\"}"))
+                .andReturn();
+
+        assertThat(List.of(unsupported.getResponse().getStatus(), mismatched.getResponse().getStatus()))
+                .containsExactly(415, 400);
+        assertThat(objectMapper.readTree(unsupported.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_TYPE_UNSUPPORTED");
+        assertThat(objectMapper.readTree(mismatched.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_CONTENT_MISMATCH");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
+                Integer.class, id)).isZero();
+    }
+
+    @Test
     void attachmentsChecksumDownloadAndCleanup() throws Exception {
         String id = createDraft(applicantJwt, "att-create");
-        String payload = "synthetic-transcript-bytes";
+        String payload = "%PDF-1.7\nsynthetic-transcript-bytes";
         String expectedSha = HexFormat.of().formatHex(
                 MessageDigest.getInstance("SHA-256").digest(payload.getBytes(StandardCharsets.UTF_8)));
 
@@ -656,12 +719,15 @@ class AdmissionContractPersistenceTest {
                                 + "\"dataBase64\":\"" + b64(payload) + "\","
                                 + "\"checksum\":\"" + expectedSha + "\"}"))
                 .andReturn();
+        byte[] pngPayload = {(byte) 0x89, 'P', 'N', 'G'};
+        String pngBase64 = java.util.Base64.getEncoder().encodeToString(pngPayload);
+        String pngSha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pngPayload));
         MvcResult changedType = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
                         .with(applicantJwt).header("Idempotency-Key", "att-upload")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"hoc-ba.pdf\",\"contentType\":\"application/x-transcript\","
-                                + "\"dataBase64\":\"" + b64(payload) + "\","
-                                + "\"checksum\":\"" + expectedSha + "\"}"))
+                        .content("{\"fileName\":\"hoc-ba.pdf\",\"contentType\":\"image/png\","
+                                + "\"dataBase64\":\"" + pngBase64 + "\","
+                                + "\"checksum\":\"" + pngSha + "\"}"))
                 .andReturn();
         assertThat(changedName.getResponse().getStatus()).isEqualTo(409);
         assertThat(objectMapper.readTree(changedName.getResponse().getContentAsString())
@@ -715,7 +781,7 @@ class AdmissionContractPersistenceTest {
                         .with(applicant2Jwt).header("Idempotency-Key", "att2-upload")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"tmp.pdf\",\"contentType\":\"application/pdf\","
-                                + "\"dataBase64\":\"" + b64("orphan-check") + "\"}"))
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\norphan-check") + "\"}"))
                 .andExpect(status().isCreated());
         String att2 = jdbc.queryForObject(
                 "SELECT \"id\" FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
@@ -729,6 +795,86 @@ class AdmissionContractPersistenceTest {
                         + " WHERE NOT EXISTS (SELECT 1 FROM admissions.\"Attachment\" a"
                         + " WHERE a.\"fileKey\" = f.\"key\")",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    void longReturnNoteStillAppliesTheTransition() throws Exception {
+        String id = submitted("longnote", applicantJwt);
+        claim(id, staffJwt, 3);
+        String note = "thiếu giấy tờ — ".repeat(160);
+        assertThat(note.length()).isGreaterThan(2000);
+
+        // The transition applies; the stored note keeps every character and
+        // only the inbox copy is bounded to its column.
+        mvc.perform(post("/api/v1/admissions/staff/applications/" + id + "/return")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"" + note + "\",\"expectedVersion\":4}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RETURNED"));
+        Integer stored = jdbc.queryForObject(
+                "SELECT LENGTH(\"note\") FROM admissions.\"Review\""
+                        + " WHERE \"applicationId\" = ? AND \"action\" = 'RETURN'",
+                Integer.class, id);
+        assertThat(stored).isEqualTo(note.length());
+        Integer message = jdbc.queryForObject(
+                "SELECT LENGTH(\"message\") FROM notifications.notification"
+                        + " WHERE user_id = 'applicant-1'",
+                Integer.class);
+        assertThat(message).isLessThanOrEqualTo(2000);
+    }
+
+    @Test
+    void attachmentMetadataIsBoundedAndCanonical() throws Exception {
+        String id = createDraft(applicantJwt, "meta-create");
+
+        // The JSON lane applies the same display-name rule as the multipart
+        // lane: a long or path-like name is reduced, never a width failure.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-name")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"" + "n".repeat(301) + "\","
+                                + "\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
+
+        // A declared type that is not a media type is rejected at the boundary.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-type")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"ok.pdf\",\"contentType\":\"not-a-media-type\","
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_INVALID"));
+
+        // Case and parameters are canonicalized to the stored type.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-canon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"scan.pdf\","
+                                + "\"contentType\":\" Application/PDF ; charset=utf-8\","
+                                + "\"dataBase64\":\"" + b64("%PDF-1.7\nmeta-bytes") + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.attachments[1].contentType").value("application/pdf"));
+
+        // A value already stored malformed can never break a later download.
+        byte[] bytes = "data".getBytes(StandardCharsets.UTF_8);
+        jdbc.update("INSERT INTO admissions.\"FileObject\""
+                        + " (\"key\", \"contentType\", \"sizeBytes\", \"sha256\", \"data\")"
+                        + " VALUES ('admissions/" + id + "/legacy', 'garbage', 4, 'aa', ?)",
+                (Object) bytes);
+        jdbc.update("INSERT INTO admissions.\"Attachment\""
+                        + " (\"id\", \"applicationId\", \"fileKey\", \"fileName\", \"contentType\","
+                        + " \"sizeBytes\", \"checksum\")"
+                        + " VALUES ('legacy-att', ?, 'admissions/" + id + "/legacy',"
+                        + " 'legacy.bin', 'garbage', 4, 'aa')", id);
+        mvc.perform(get("/api/v1/admissions/applications/" + id
+                        + "/attachments/legacy-att/file").with(applicantJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        MediaType.APPLICATION_OCTET_STREAM_VALUE))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
+                        .isEqualTo(bytes));
     }
 
     // ---------------------------------------------------------------

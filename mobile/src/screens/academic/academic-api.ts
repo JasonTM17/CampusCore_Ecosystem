@@ -97,6 +97,8 @@ export interface RegistrationWorkspace {
   enrollments: AcademicEnrollment[];
   roundOpen: boolean;
   eligibility: RegistrationEligibility | null;
+  /** The eligibility read failed: the credit limit is unknown, not absent. */
+  eligibilityError?: unknown;
   /** Server code when the catalog is closed to this student, for example WINDOW_CLOSED. */
   closedReason: string | null;
 }
@@ -129,12 +131,19 @@ export const academicApi = {
     const enrollments = await academicApi.enrollments();
     try {
       const [rounds, sections] = await Promise.all([campusApi.registrationRounds(), campusApi.registrationSections()]);
-      const eligibility = await apiClient.get<RegistrationEligibility>('/me/registration/eligibility').catch(() => null);
+      let eligibility: RegistrationEligibility | null = null;
+      let eligibilityError: unknown = null;
+      try {
+        eligibility = await apiClient.get<RegistrationEligibility>('/me/registration/eligibility');
+      } catch (error) {
+        eligibilityError = error;
+      }
       return {
         sections: sections as unknown as BrowseSection[],
         enrollments,
         roundOpen: (rounds as RegistrationRound[]).some((round) => round.status === 'OPEN'),
         eligibility,
+        eligibilityError,
         closedReason: null,
       };
     } catch (error) {

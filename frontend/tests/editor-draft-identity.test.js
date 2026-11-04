@@ -19,6 +19,17 @@ const deferred = () => {
 };
 const settle = () => new Promise(done => setImmediate(done));
 
+function loadTs(relativePath) {
+  const output = ts.transpileModule(fs.readFileSync(path.join(root, relativePath), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
+
 // Execute the real TSX and callbacks. Only dependencies/host UI are stubbed;
 // keyed component instances, effect dependencies and unmount cleanup are retained.
 function createStudio(entries = new Map(), search = '') {
@@ -83,14 +94,16 @@ function createStudio(entries = new Map(), search = '') {
   const messages = { editor: { blocks: Object.fromEntries(blocks.map(key => [key, { title: key, description: key }])),
     seedTitleVi: 'Seed', seedTitleEn: 'Seed', saveChanges: 'Save changes', saving: 'Saving',
     publishing: 'Publishing', publishChanges: 'Publish changes', editingBanner: 'Editing {title}',
-    priorityOptions: {}, targetOptions: {}, targetRoleOptions: {}, categoryOptions: {}, cancelEdit: 'Cancel edit' } };
+    priorityOptions: {}, targetOptions: {}, targetRoleOptions: {}, categoryOptions: {}, cancelEdit: 'Cancel edit' },
+    content: { lifecycle: { actions: { submit: 'Gửi duyệt' }, submitted: 'Đã gửi bản nháp chờ duyệt.' } } };
   const appearance = { hero: { vi: {}, en: {} }, postOrder: [], accent: 'ute-yellow' };
   const modules = new Map();
   const guard = { requestLeave: fn => fn(), confirmLeave() {}, cancelLeave() {} };
   const api = {
     getAll: async () => ({ data: [] }),
     getById: id => { const request = deferred(); requests.push({ id, ...request }); return request.promise; },
-    create: async payload => { updates.push({ payload }); },
+    create: async payload => { updates.push({ payload }); return { id: 'created-notice', status: 'DRAFT' }; },
+    submit: async id => ({ id, status: 'IN_REVIEW' }),
     update: async (id, payload) => { updates.push({ id, payload }); return payload; },
   };
   const stubs = {
@@ -98,6 +111,7 @@ function createStudio(entries = new Map(), search = '') {
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     '@/context/AuthContext': { useRequireAuth: () => auth },
     '@/i18n': { useI18n: () => ({ locale: 'vi', formatDate: String, messages }) },
+    '@/i18n/messages-editor': editorSurfaces,
     '@/i18n/messages': { getMessages: () => messages },
     '@/lib/use-unsaved-changes-guard': { useUnsavedChangesGuard: () => guard },
     '@/lib/site-appearance': { DEFAULT_SITE_APPEARANCE: appearance, SITE_APPEARANCE_ACCENTS: [] },
@@ -230,7 +244,7 @@ test('unattributed legacy drafts and engine choices remain quarantined, never ad
   assert.equal(JSON.parse(studio.entries.get(draftKey('admin-b'))).editingId, null);
 });
 
-for (const action of ['Tạo mới', 'Đăng lên Bảng tin Học vụ', 'Save changes']) {
+for (const action of ['Tạo mới', 'Gửi duyệt', 'Save changes']) {
   test(`${action} clears only the current owner's draft and TinyMCE recovery keys`, async () => {
     const studio = createStudio(new Map([
       [draftKey('admin-a'), draft('A', action === 'Save changes' ? { editingId: 'notice-a', editingVersion: 7 } : {})],

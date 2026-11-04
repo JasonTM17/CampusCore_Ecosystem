@@ -101,6 +101,27 @@ class EventCancellationPrivacyTest {
     }
 
     @Test
+    void cancelledDraftRegistrationIsIndistinguishableFromMissing() throws Exception {
+        String id = createDraft("Private planning", "Unpublished private description");
+        cancel(id, "Private cancellation reason");
+
+        var hidden = mvc.perform(post("/api/v1/events/" + id + "/register").with(student)
+                        .header("Idempotency-Key", "cancelled-draft-register"))
+                .andReturn();
+        var missing = mvc.perform(post("/api/v1/events/missing-event/register").with(student)
+                        .header("Idempotency-Key", "missing-event-register"))
+                .andReturn();
+
+        assertThat(hidden.getResponse().getStatus()).isEqualTo(404);
+        assertThat(hidden.getResponse().getStatus()).isEqualTo(missing.getResponse().getStatus());
+        var hiddenError = objectMapper.readTree(hidden.getResponse().getContentAsString());
+        var missingError = objectMapper.readTree(missing.getResponse().getContentAsString());
+        assertThat(hiddenError.get("code").asText()).isEqualTo("EVENT_NOT_FOUND");
+        assertThat(hiddenError.get("code").asText()).isEqualTo(missingError.get("code").asText());
+        assertThat(hiddenError.get("message").asText()).isEqualTo(missingError.get("message").asText());
+    }
+
+    @Test
     void cancelledPublishedEventRemainsVisibleWithoutRegistrations() throws Exception {
         String id = createDraft("Public event", "Published description");
         publish(id);

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TextProps, TextStyle } from 'react-native';
 import type { StyleProp } from 'react-native';
 
+import { effectiveFontSizeMultiplier } from '../../design/font-scale';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
@@ -66,10 +67,7 @@ export function UiText({ variant = 'bodyMedium', tone = 'default', style, ...pro
   const face = Number(weight) >= 700 || weight === 'bold' ? 'BeVietnamPro_700Bold'
     : Number(weight) >= 600 ? 'BeVietnamPro_600SemiBold'
       : Number(weight) >= 500 ? 'BeVietnamPro_500Medium' : 'BeVietnamPro_400Regular';
-  const capped =
-    props.maxFontSizeMultiplier !== undefined
-      ? props.maxFontSizeMultiplier
-      : Math.min(props.maxFontSizeMultiplier ?? typography.maxFontScale, typography.maxFontScale);
+  const capped = effectiveFontSizeMultiplier(props.maxFontSizeMultiplier, typography.maxFontScale);
   return (
     <Text
       {...props}

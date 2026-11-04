@@ -8,15 +8,11 @@ import { cn } from '@/lib/utils';
 
 export function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
-  const { locale } = useI18n();
+  const { messages } = useI18n();
   const nextThemeLabel =
     theme === 'light'
-      ? locale === 'vi'
-        ? 'Chuyển sang giao diện tối'
-        : 'Switch to dark theme'
-      : locale === 'vi'
-        ? 'Chuyển sang giao diện sáng'
-        : 'Switch to light theme';
+      ? messages.common.theme.switchToDark
+      : messages.common.theme.switchToLight;
 
   return (
     <Button

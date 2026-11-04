@@ -10,8 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,8 +42,23 @@ public class PeopleReadRepository {
     }
 
     public List<StudentResponse> findStudents(long offset, int limit, String status) {
+        return findStudents(offset, limit, status, List.of("ADMIN"), null);
+    }
+
+    /**
+     * Lecturer-scoped variant: non-governance callers see only students with
+     * an enrollment in a section inside their visibility tier — own sections,
+     * department courses (TRUONG_BO_MON), or faculty courses (TRUONG_KHOA),
+     * mirroring AcademicSectionReadRepository.hasSectionAccess.
+     */
+    public List<StudentResponse> findStudents(long offset, int limit, String status,
+            List<String> roles, String lecturerId) {
         MapSqlParameterSource parameters = pageParameters(offset, limit);
         String where = studentStatusFilter(parameters, status);
+        String scope = lecturerScopeClause(parameters, roles, lecturerId);
+        if (!scope.isEmpty()) {
+            where = where.isEmpty() ? " WHERE " + scope : where + " AND " + scope;
+        }
         return jdbc.query(
                 studentSelect()
                         + where
@@ -54,15 +67,63 @@ public class PeopleReadRepository {
                 STUDENT_MAPPER);
     }
 
-    public long countStudents(String status) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource();
-        String where = studentStatusFilter(parameters, status);
+    public boolean studentVisibleToLecturer(String studentId, List<String> roles, String lecturerId) {
+        if (roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
+            return true;
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("id", studentId);
+        String scope = lecturerScopeClause(parameters, roles, lecturerId);
+        if (scope.isEmpty()) {
+            return false;
+        }
         Long count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM " + STUDENT_TABLE + " student"
-                        + where,
-                parameters,
-                Long.class);
-        return Objects.requireNonNullElse(count, 0L);
+                        + " WHERE student.\"id\" = :id AND " + scope,
+                parameters, Long.class);
+        return count != null && count > 0;
+    }
+
+    private static String lecturerScopeClause(MapSqlParameterSource parameters,
+            List<String> roles, String lecturerId) {
+        if (roles == null || roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")) {
+            return "";
+        }
+        if (!roles.contains("LECTURER")) {
+            return "1 = 0";
+        }
+        if (lecturerId == null || lecturerId.isBlank()) {
+            return "1 = 0";
+        }
+        parameters.addValue("scopeLecturerId", lecturerId);
+        parameters.addValue("scopeDepartment", roles.contains("TRUONG_BO_MON"));
+        parameters.addValue("scopeFaculty", roles.contains("TRUONG_KHOA"));
+        return "EXISTS (SELECT 1 FROM \"academic\".\"Enrollment\" scopeEnrollment"
+                + " JOIN \"academic\".\"Section\" scopeSection ON scopeSection.\"id\" = scopeEnrollment.\"sectionId\""
+                + " JOIN \"academic\".\"Course\" scopeCourse ON scopeCourse.\"id\" = scopeSection.\"courseId\""
+                + " JOIN \"academic\".\"Department\" courseDept ON courseDept.\"id\" = scopeCourse.\"departmentId\""
+                + " JOIN \"academic\".\"Lecturer\" scopeLecturer ON scopeLecturer.\"id\" = :scopeLecturerId"
+                + " JOIN \"academic\".\"Department\" lecturerDept ON lecturerDept.\"id\" = scopeLecturer.\"departmentId\""
+                + " WHERE scopeEnrollment.\"studentId\" = student.\"id\""
+                + " AND (scopeSection.\"lecturerId\" = :scopeLecturerId"
+                + " OR (:scopeDepartment = TRUE AND scopeCourse.\"departmentId\" = scopeLecturer.\"departmentId\")"
+                + " OR (:scopeFaculty = TRUE AND courseDept.\"facultyId\" = lecturerDept.\"facultyId\")))";
+    }
+
+    public long countStudents(String status) {
+        return countStudents(status, List.of("ADMIN"), null);
+    }
+
+    public long countStudents(String status, List<String> roles, String lecturerId) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        String where = studentStatusFilter(parameters, status);
+        String scope = lecturerScopeClause(parameters, roles, lecturerId);
+        if (!scope.isEmpty()) {
+            where = where.isEmpty() ? " WHERE " + scope : where + " AND " + scope;
+        }
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + STUDENT_TABLE + " student" + where,
+                parameters, Long.class);
+        return total == null ? 0 : total;
     }
 
     /**
@@ -324,7 +385,8 @@ public class PeopleReadRepository {
         if (timestamp == null) {
             return null;
         }
-        LocalDateTime localDateTime = timestamp.toLocalDateTime();
-        return localDateTime.toInstant(ZoneOffset.UTC);
+        // A java.sql.Timestamp already carries the instant; reinterpreting its
+        // local wall-clock fields would shift the value by the JVM zone offset.
+        return timestamp.toInstant();
     }
 }

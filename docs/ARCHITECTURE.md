@@ -50,7 +50,8 @@ flowchart TD
 1. **Một Cổng API Duy Nhất**: Ứng dụng Java (`restful-api`) là dịch vụ duy nhất sở hữu và công khai các route `/api/v1/**` ra bên ngoài.
 2. **Cách ly Dịch vụ RAG**: Dịch vụ `rag-service` chạy trên cổng nội bộ `4011`, tuyệt đối không mở port ra internet trong Docker Compose. Mọi truy vấn từ Frontend đều phải đi qua cổng kiểm soát của REST API (`/api/v1/assistant/chat`), nơi thực hiện xác thực người dùng và kiểm tra hạn ngạch.
 3. **Phân quyền xác thực Client**:
-   - Web Client: Sử dụng HTTP-only SameSite=Strict cookies và CSRF double-submit tokens.
+   - Web Client — direct lane (mặc định khi BFF tắt): cookie HTTP-only `cc_access_token`/`cc_refresh_token` với `SameSite=Lax`, cộng token double-submit `cc_csrf` (không HttpOnly).
+   - Web Client — BFF lane: `__Host-cu_session` với `SameSite=Strict`; `cc_csrf` cũng `Strict`. Cả hai lane web đều dựa trên CSRF token cho request ghi.
    - Mobile Client: Sử dụng OAuth2-compatible Bearer Access & Refresh Tokens.
    - Cả hai client đều tuân thủ cùng một bản hợp đồng OpenAPI (`/v3/api-docs`).
 
@@ -138,12 +139,12 @@ sequenceDiagram
         alt Đã đăng ký trước đó
             DB-->>API: Vi phạm Unique Constraint (academic_enrollment_active_student_section_uq)
             API->>DB: ROLLBACK
-            API-->>Web: HTTP 409 Conflict (ALREADY_ENROLLED)
+            API-->>Web: HTTP 409 Conflict (ENROLLMENT_DUPLICATE)
             Web-->>Student: Báo lỗi: Bạn đã có tên trong lớp này!
         else Đăng ký mới hợp lệ
             DB-->>API: Insert thành công
             API->>DB: COMMIT TRANSACTION
-            API-->>Web: HTTP 201 Created (EnrollmentDTO)
+            API-->>Web: HTTP 200 OK (EnrollmentResponse)
             Web-->>Student: Thông báo đăng ký thành công & Cập nhật TKB!
         end
     end
@@ -180,11 +181,11 @@ sequenceDiagram
     API->>API: Kiểm tra JWT Token & Session
     API->>API: AssistantInputGuard: Quét Prompt Injection song ngữ (VI/EN)
     alt Phát hiện tấn công Jailbreak
-        API-->>Web: HTTP 400 Bad Request (PROMPT_INJECTION)
+        API-->>Web: HTTP 200 OK (reasonCode=PROMPT_INJECTION, terminalStatus=REJECTED)
     else Hợp lệ
         API->>DB: CAS Quota Check (Tối đa 20 lượt/ngày)
         alt Hết hạn ngạch
-            API-->>Web: HTTP 429 Too Many Requests (QUOTA_EXCEEDED)
+            API-->>Web: HTTP 200 OK (reasonCode=QUOTA_EXCEEDED)
         else Còn quota
             API->>Sidecar: POST /internal/rag/assistant
             activate Sidecar

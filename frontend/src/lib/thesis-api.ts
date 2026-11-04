@@ -6,6 +6,11 @@ import {
   parseAssistantStreamEvent,
   AssistantStreamOrder,
 } from '@/lib/assistant-stream';
+import {
+  parseCountHeader,
+  toArrayListPage,
+  type ArrayListPage,
+} from '@/lib/array-list-page';
 export {
   createAssistantSseParser,
   parseAssistantStreamEvent,
@@ -26,6 +31,10 @@ export type ThesisTopicStatus = 'DRAFT' | 'PUBLISHED' | 'APPROVED' | 'REJECTED' 
 export type ThesisGroupStatus =
   'DRAFT' | 'ASSIGNED' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
 export type ThesisApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** Terminal topic outcome recorded at result publication; null = unresolved. */
+export type ThesisResultStatus = 'GRADED' | 'NOT_QUALIFIED';
+export type ThesisResultReason = 'GVPB_BELOW_THRESHOLD';
 
 export interface ThesisRound {
   id: string;
@@ -136,6 +145,20 @@ export interface ThesisRepositoryReport {
   members: ThesisRepositoryMember[];
 }
 
+export interface ThesisRepositorySummary {
+  total?: number;
+  files?: number;
+  urls?: number;
+}
+
+export type ThesisRepositoryPage = ArrayListPage<ThesisRepositoryReport> & {
+  summary: ThesisRepositorySummary;
+};
+
+export type ThesisTopicCatalogPage = ArrayListPage<ThesisTopic> & {
+  catalogTotal?: number;
+};
+
 export type ThesisProgressMilestone =
   | 'ROUND_SELECTED'
   | 'GROUP_CREATED'
@@ -159,6 +182,7 @@ export interface ThesisProgressResponse {
     | 'GROUP_CANCELLED'
     | 'GROUP_INVALID_MEMBER_COUNT'
     | 'PROGRESS_INCONSISTENT'
+    | 'NOT_QUALIFIED'
     | 'RESULT_NOT_AVAILABLE';
   groupId?: string | null;
   groupStatus?: string | null;
@@ -171,6 +195,10 @@ export interface ThesisProgressResponse {
   councilId?: string | null;
   finalScore?: number | null;
   finalScoreFinalizedAt?: string | null;
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
+  skippedMilestones?: ThesisProgressMilestone[];
   userReportedGroupStatus?: string | null;
 }
 
@@ -198,10 +226,14 @@ export interface ThesisScoreComment {
 export interface ThesisRoundResult {
   groupId: string;
   topicTitle: string;
-  finalScore: number;
+  /** Null for a resolved non-graded outcome (e.g. below-threshold review). */
+  finalScore: number | null;
   councilName: string;
   leaderStudentId: string;
   comments?: ThesisScoreComment[];
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
 }
 
 export interface ThesisSupervisedTopic {
@@ -336,7 +368,9 @@ export interface ThesisTopic {
   status: ThesisTopicStatus;
   createdBy: string;
   finalScore?: number | null;
-  resultStatus?: string | null;
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: ThesisResultReason | null;
+  resultResolvedAt?: string | null;
   gvpbLecturerId?: string | null;
 }
 
@@ -446,6 +480,7 @@ export interface AssistantReply {
     | 'PROVIDER_TRUNCATED'
     | 'HISTORY_UNAVAILABLE'
     | 'QUOTA_EXCEEDED'
+    | 'QUOTA_ACCOUNTING_UNAVAILABLE'
     | 'CANCELLED'
     | string;
   locale: 'en' | 'vi';
@@ -521,6 +556,7 @@ export interface AssistantKnowledgeRequest {
   source: string;
   domain?: AssistantKnowledgeDomain;
   priority?: number;
+  expectedVersion?: number;
 }
 
 export type AssistantKnowledgeDomain =
@@ -746,6 +782,27 @@ export const thesisApi = {
     return response.data;
   },
 
+  listTopicsPage: async (
+    roundId: string,
+    options: { status?: ThesisTopicStatus; search?: string; page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ThesisTopicCatalogPage> => {
+    const response = await api.get<ThesisTopic[]>('/thesis/topics', {
+      params: {
+        roundId,
+        status: options.status ?? 'PUBLISHED',
+        ...(options.search !== undefined ? { search: options.search } : {}),
+        page: options.page,
+        limit: options.limit,
+      },
+      ...(signal ? { signal } : {}),
+    });
+    return {
+      ...toArrayListPage(response.data, options.page, response.headers, options.limit),
+      catalogTotal: parseCountHeader(response.headers, 'X-Topic-Total-Count'),
+    };
+  },
+
   getTopic: async (topicId: string): Promise<ThesisTopic> => {
     const response = await api.get<ThesisTopic>('/thesis/topics/' + topicId);
     return response.data;
@@ -766,6 +823,18 @@ export const thesisApi = {
       params: { roundId },
     });
     return response.data;
+  },
+
+  listGroupsPage: async (
+    roundId: string,
+    options: { page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ArrayListPage<ThesisGroup>> => {
+    const response = await api.get<ThesisGroup[]>('/thesis/groups', {
+      params: { roundId, page: options.page, limit: options.limit },
+      ...(signal ? { signal } : {}),
+    });
+    return toArrayListPage(response.data, options.page, response.headers, options.limit);
   },
 
   createGroup: async (roundId: string): Promise<ThesisGroup> => {
@@ -1006,6 +1075,32 @@ export const thesisApi = {
       '/thesis/rounds/' + roundId + '/repository',
     );
     return response.data || [];
+  },
+
+  listRoundRepositoryPage: async (
+    roundId: string,
+    options: { search?: string; page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ThesisRepositoryPage> => {
+    const response = await api.get<ThesisRepositoryReport[]>(
+      '/thesis/rounds/' + roundId + '/repository',
+      {
+        params: {
+          ...(options.search !== undefined ? { search: options.search } : {}),
+          page: options.page,
+          limit: options.limit,
+        },
+        ...(signal ? { signal } : {}),
+      },
+    );
+    return {
+      ...toArrayListPage(response.data || [], options.page, response.headers, options.limit),
+      summary: {
+        total: parseCountHeader(response.headers, 'X-Archive-Total-Count'),
+        files: parseCountHeader(response.headers, 'X-Archive-File-Count'),
+        urls: parseCountHeader(response.headers, 'X-Archive-Url-Count'),
+      },
+    };
   },
 
   getMyProgress: async (roundId: string): Promise<ThesisProgressResponse> => {

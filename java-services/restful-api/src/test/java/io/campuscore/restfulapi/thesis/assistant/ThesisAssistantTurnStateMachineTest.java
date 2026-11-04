@@ -40,6 +40,7 @@ class ThesisAssistantTurnStateMachineTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private NamedParameterJdbcTemplate jdbc;
     @Autowired private JdbcTemplate plainJdbc;
+    @Autowired private ThesisAssistantTurnRepository turns;
 
     @Test
     void sameKeyReplaysExactlyOneCommittedExchange() throws Exception {
@@ -203,6 +204,56 @@ class ThesisAssistantTurnStateMachineTest {
         assertEquals(2, page.size());
         assertTrue(java.time.Instant.parse(page.get(0).get("createdAt").asText())
                 .compareTo(java.time.Instant.parse(page.get(1).get("createdAt").asText())) <= 0);
+    }
+
+    @Test
+    void cancelledFirstTurnDoesNotStrandTheConversationForTheNextSend() throws Exception {
+        String owner = "cancel-first-owner-" + UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        ThesisAssistantTurnRepository.Reservation reservation = turns.reserve(owner, key,
+                AssistantInputGuard.canonicalHash("How do I choose a thesis topic?", "en", null),
+                null, "en", "lease", 90);
+        assertTrue(turns.markSnapshotReady(reservation.turnId(), owner, reservation.leaseGeneration(), "a".repeat(64)));
+
+        mvc.perform(post("/api/v1/thesis/assistant/requests/{id}/cancel", key).with(student(owner)))
+                .andExpect(status().isOk());
+
+        // The panel keeps the conversation id the stream meta returned: the
+        // next send must continue it instead of failing as not found.
+        mvc.perform(post("/api/v1/thesis/assistant/chat").with(student(owner))
+                        .contentType("application/json")
+                        .content("{\"message\":\"How do I choose a thesis topic?\",\"locale\":\"en\",\"conversationId\":\""
+                                + reservation.conversationId() + "\",\"clientRequestId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value(reservation.conversationId().toString()));
+    }
+
+    @Test
+    void corsExposesTheHistoryCursorOnBothAssistantPages() throws Exception {
+        String owner = "cursor-cors-owner-" + UUID.randomUUID();
+        UUID conversation = null;
+        for (int i = 0; i < 2; i++) {
+            JsonNode response = mapper.readTree(mvc.perform(post("/api/v1/thesis/assistant/chat").with(student(owner))
+                            .contentType("application/json").content(body("How do I choose a thesis topic?", UUID.randomUUID())))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            conversation = UUID.fromString(response.get("conversationId").asText());
+        }
+        String conversations = mvc.perform(get("/api/v1/thesis/assistant/conversations")
+                        .header("Origin", "http://localhost:3000")
+                        .with(student(owner)).param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Next-Cursor"))
+                .andReturn().getResponse().getHeader("Access-Control-Expose-Headers");
+        String messages = mvc.perform(get("/api/v1/thesis/assistant/conversations/{id}/messages", conversation)
+                        .header("Origin", "http://localhost:3000")
+                        .with(student(owner)).param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Next-Cursor"))
+                .andReturn().getResponse().getHeader("Access-Control-Expose-Headers");
+        assertNotNull(conversations, "cross-origin conversation pages must expose the cursor");
+        assertNotNull(messages, "cross-origin message pages must expose the cursor");
+        assertTrue(conversations.toLowerCase(java.util.Locale.ROOT).contains("x-next-cursor"), conversations);
+        assertTrue(messages.toLowerCase(java.util.Locale.ROOT).contains("x-next-cursor"), messages);
     }
 
     @Test

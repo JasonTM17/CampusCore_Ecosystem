@@ -38,8 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  * every outcome — unknown mailbox, ineligible account, hourly cap reached,
  * mail disabled — and the mail itself is sent asynchronously, so response
  * timing never reveals whether the account exists. Privileged accounts
- * (ADMIN, SUPER_ADMIN, TRUONG_KHOA) are recovered by a super administrator per
- * docs/PRODUCTION_RUNBOOK.md and get the same generic reply with no token.
+ * (ADMIN, SUPER_ADMIN, TRUONG_KHOA) are recovered by a super administrator
+ * out of band and get the same generic reply with no token.
  */
 @Service
 @Profile("persistence")

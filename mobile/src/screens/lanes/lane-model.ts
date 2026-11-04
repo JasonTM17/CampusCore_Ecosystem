@@ -3,6 +3,8 @@
 // and never invent data; action rules mirror the server state machines, and the
 // server stays the authority (every write carries the row version it saw).
 
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
+
 export interface PageMeta {
   total: number;
   page: number;
@@ -94,19 +96,33 @@ export function transitionBody(row: Versioned, text?: string): { expectedVersion
 
 export type EventAction = 'publish' | 'closeRegistration' | 'complete' | 'cancel';
 
-/** Status transitions the app offers; opening registration needs dates and stays on the web. */
-export function eventActions(status: string | undefined): EventAction[] {
+const startInstant = (startsAt: string | undefined): number | null => {
+  if (!startsAt) return null;
+  const instant = Date.parse(startsAt);
+  return Number.isFinite(instant) ? instant : null;
+};
+
+/**
+ * Status transitions the app offers; opening registration needs dates and stays
+ * on the web. Publishing and completing follow the server's start-instant rule.
+ */
+export function eventActions(status: string | undefined, startsAt?: string, now: number = Date.now()): EventAction[] {
+  const start = startInstant(startsAt);
   switch (status) {
-    case 'DRAFT': return ['publish', 'cancel'];
+    case 'DRAFT': return start !== null && start > now ? ['publish', 'cancel'] : ['cancel'];
     case 'PUBLISHED': return ['cancel'];
     case 'REGISTRATION_OPEN': return ['closeRegistration', 'cancel'];
-    case 'REGISTRATION_CLOSED': return ['complete', 'cancel'];
+    case 'REGISTRATION_CLOSED': return start === null || start <= now ? ['complete', 'cancel'] : ['cancel'];
     default: return [];
   }
 }
 
-/** The server accepts manual marks once registration is closed or the event is complete. */
-export const canMarkAttendance = (status: string | undefined): boolean => status === 'REGISTRATION_CLOSED' || status === 'COMPLETED';
+/** The server accepts manual marks once registration is closed, the event has started and it is not cancelled. */
+export const canMarkAttendance = (status: string | undefined, startsAt?: string, now: number = Date.now()): boolean => {
+  if (status !== 'REGISTRATION_CLOSED' && status !== 'COMPLETED') return false;
+  const start = startInstant(startsAt);
+  return start === null || start <= now;
+};
 
 /** One manual mark; the roster row version rides along so a concurrent change is a conflict. */
 export function attendanceMark(row: { registrationId?: string; version?: number }, status: 'ATTENDED' | 'ABSENT') {
@@ -170,7 +186,7 @@ export type FailureKind = 'offline' | 'unauthorized' | 'denied' | 'conflict' | '
 export function failureKind(error: unknown): FailureKind {
   const status = (error as { status?: number } | null)?.status;
   if (status === 0 || error instanceof TypeError) return 'offline';
-  if (status === 401) return 'unauthorized';
+  if (isResourceUnauthorizedError(error)) return 'unauthorized';
   if (status === 403) return 'denied';
   if (status === 409 || status === 412) return 'conflict';
   if (status === 400 || status === 422) return 'invalid';

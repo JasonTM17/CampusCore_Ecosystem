@@ -9,10 +9,13 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import { lanesMessages, type LanesCopy } from '../../i18n/lanes-messages';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { failureKind, type FailureKind } from './lane-model';
+import { createRequestGate } from './lane-request';
 
 export function useLanesCopy(): { copy: LanesCopy; locale: 'vi' | 'en' } {
   const { locale } = useLocale();
@@ -21,9 +24,11 @@ export function useLanesCopy(): { copy: LanesCopy; locale: 'vi' | 'en' } {
 
 /** Localised message for a failed read or write; never the raw server text. */
 export function laneErrorMessage(copy: LanesCopy, error: unknown, fallback: string): string {
+  // A resource 401 stays inline and retryable; the API client's refresh lane
+  // owns the only sign-in route, so the screen never claims the session died.
+  if (isResourceUnauthorizedError(error)) return fallback;
   switch (failureKind(error)) {
     case 'offline': return copy.offline;
-    case 'unauthorized': return copy.signIn;
     case 'denied': return copy.denied;
     case 'conflict': return copy.conflict;
     case 'invalid': return copy.invalid;
@@ -52,19 +57,20 @@ export function useLaneRequest<T>(fetcher: () => Promise<T>, key: string, enable
   fetcherRef.current = fetcher;
   const copyRef = useRef(copy);
   copyRef.current = copy;
-  const sequence = useRef(0);
+  const gate = useRef<ReturnType<typeof createRequestGate> | null>(null);
+  if (gate.current === null) gate.current = createRequestGate();
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
   const reload = useCallback(async () => {
     if (!enabled) return;
-    const mine = ++sequence.current;
+    const mine = gate.current!.begin();
     setState((current) => ({ key, data: current.key === key ? current.data : undefined, loading: true, error: null, failure: null }));
     try {
       const data = await fetcherRef.current();
-      if (mounted.current && mine === sequence.current) setState({ key, data, loading: false, error: null, failure: null });
+      if (mounted.current && gate.current!.isLatest(mine)) setState({ key, data, loading: false, error: null, failure: null });
     } catch (error) {
-      if (mounted.current && mine === sequence.current) {
+      if (mounted.current && gate.current!.isLatest(mine)) {
         setState({ key, loading: false, error: laneErrorMessage(copyRef.current, error, copyRef.current.errorTitle), failure: failureKind(error) });
       }
     }
@@ -328,23 +334,32 @@ export function AuditTimelineRow({ action, entityType, actorId, createdAt, copy,
 
 export interface PagerProps {
   copy: LanesCopy;
+  /** One-based page label. */
   page: number;
-  totalPages: number;
-  total: number;
+  /** Known number of pages; absent with an unknown total. */
+  totalPages?: number;
+  /** Whole-list size; absent when the server did not report it. */
+  total?: number;
+  /** Whether another page exists when the total is unknown. */
+  hasMore?: boolean;
   onPage: (page: number) => void;
   disabled?: boolean;
 }
 
-/** Server paging control (1-based pages), with the position stated as text. */
-export function Pager({ copy, page, totalPages, total, onPage, disabled = false }: PagerProps) {
+/** Server paging control (1-based pages), stating the position only from what the server reported. */
+export function Pager({ copy, page, totalPages, total, hasMore = false, onPage, disabled = false }: PagerProps) {
+  const known = total !== undefined && totalPages !== undefined;
+  const canGoNext = known ? page < Math.max(totalPages, 1) : hasMore;
   return (
     <View style={styles.pager}>
       <UiText variant="bodySmall" tone="muted" accessibilityLiveRegion="polite">
-        {fillCopy(copy.pageOf, { page, pages: Math.max(totalPages, 1), total })}
+        {known
+          ? fillCopy(countForm(total, copy.pageOfOne, copy.pageOf), { page, pages: Math.max(totalPages, 1), total })
+          : fillCopy(copy.pageOnly, { page })}
       </UiText>
       <View style={styles.actions}>
         <Button label={copy.prevPage} variant="secondary" disabled={disabled || page <= 1} onPress={() => onPage(page - 1)} />
-        <Button label={copy.nextPage} variant="secondary" disabled={disabled || page >= totalPages} onPress={() => onPage(page + 1)} />
+        <Button label={copy.nextPage} variant="secondary" disabled={disabled || !canGoNext} onPress={() => onPage(page + 1)} />
       </View>
     </View>
   );

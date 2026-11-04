@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  type RefreshControlProps,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -12,9 +13,11 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../design/chrome';
+import { compactFontScaleCap } from '../design/font-scale';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
+import { useLocale } from '../i18n/locale-provider';
 import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
@@ -89,7 +92,7 @@ function buildStyles(colors: ThemeColors) {
     unreadLabel: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
     rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
     progressGroup: { marginTop: tokens.spacing.sm },
-    progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
+    progressHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
     progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.spacing.xs, height: tokens.spacing.sm, overflow: 'hidden' },
     progressFill: { borderRadius: tokens.spacing.xs, height: '100%' },
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
@@ -119,14 +122,16 @@ export interface ScreenShellProps {
   contentStyle?: StyleProp<ViewStyle>;
   /** Custom auth composition can keep the shell without its standard heading. */
   hideHeader?: boolean;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }
 
-export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false }: ScreenShellProps) {
+export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false, refreshControl }: ScreenShellProps) {
   const styles = useUiStyles();
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, contentStyle]}
+        refreshControl={refreshControl}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -196,7 +201,7 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
     tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
   return (
     <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
-      <UiText variant="meta" tone={textTone} style={{ flexShrink: 1 }}>
+      <UiText variant="meta" tone={textTone} maxFontSizeMultiplier={compactFontScaleCap} style={{ flexShrink: 1 }}>
         {label}
       </UiText>
     </View>
@@ -351,24 +356,24 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
   ].filter(Boolean).join('. ');
   const content = (
     <View
-      accessible={!onPress}
-      accessibilityLabel={!onPress ? accessibilityLabel : undefined}
+      accessible={!onPress && !trailing}
+      accessibilityLabel={!onPress && !trailing ? accessibilityLabel : undefined}
       style={styles.listRow}
     >
       {icon ? <IconChip icon={icon} tone={unread ? 'primary' : 'neutral'} /> : leading ? (
         <View style={[styles.leading, unread ? styles.leadingUnread : undefined]}>
-          <UiText variant="label" tone={unread ? 'primary' : 'muted'}>
+          <UiText variant="label" tone={unread ? 'primary' : 'muted'} maxFontSizeMultiplier={compactFontScaleCap}>
             {leading}
           </UiText>
         </View>
       ) : null}
-      <View style={styles.listCopy}>
+      <View testID="list-row-copy" style={styles.listCopy}>
         <View style={styles.listTitleRow}>
           <UiText variant="bodyMedium" style={unread ? styles.unreadTitle : styles.listTitle}>
             {title}
           </UiText>
           {unread ? (
-            <UiText variant="meta" tone="primary" style={styles.unreadLabel}>
+            <UiText variant="meta" tone="primary" maxFontSizeMultiplier={compactFontScaleCap} style={styles.unreadLabel}>
               {copy.unread}
             </UiText>
           ) : null}
@@ -417,6 +422,7 @@ export interface ProgressBarProps {
 export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps) {
   const styles = useUiStyles();
   const { colors } = useTheme();
+  const { t } = useLocale();
   const boundedValue = Math.max(0, Math.min(100, value));
   const fill = {
     primary: colors.primaryContainer,
@@ -427,7 +433,7 @@ export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps
   return (
     <View
       accessible
-      accessibilityLabel={label ?? 'Progress'}
+      accessibilityLabel={label ?? t('progress')}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(boundedValue) }}
       style={styles.progressGroup}
@@ -520,7 +526,7 @@ export function DataNotice({ message }: { message: string }) {
       accessibilityLiveRegion="polite"
       style={[styles.statePanel, styles.dataNotice]}
     >
-      <UiText variant="bodySmall" tone="warning">
+      <UiText variant="bodySmall" tone="warning" style={{ flex: 1 }}>
         {message}
       </UiText>
     </View>

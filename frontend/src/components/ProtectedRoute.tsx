@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { LinkButton } from '@/components/ui/link-button';
 import { ForbiddenState, LoadingState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { stripLocaleFromPathname } from '@/i18n/paths';
+import { loginHref, portalFromPathname } from '@/lib/login-portal';
 
 export function WorkspaceForbiddenState({
   signedIn = true,
@@ -50,8 +52,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !user) {
+      const requested =
+        stripLocaleFromPathname(window.location.pathname).pathname +
+        window.location.search;
       router.push(
-        `${href('/login')}?portal=${window.location.pathname.includes('/admin') ? 'admin' : window.location.pathname.includes('/dashboard/dean') ? 'dean' : window.location.pathname.includes('/lecturer') ? 'lecturer' : 'student'}`,
+        loginHref(
+          href,
+          portalFromPathname(window.location.pathname),
+          undefined,
+          requested,
+        ),
       );
     }
   }, [href, user, isLoading, router]);

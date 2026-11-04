@@ -51,7 +51,7 @@ const CALLOUT_CLASS: Record<string, string> = {
   amber: 'rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-300',
   emerald:
     'rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-800 dark:text-emerald-300',
-  destructive: 'rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive',
+  destructive: 'rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-status-danger-foreground',
   primary: 'rounded-lg border border-primary/30 bg-primary/[0.06] p-3 text-foreground',
   muted: 'rounded-lg border border-border/70 bg-muted/20 p-3 text-foreground/90',
 };

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatRequest;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatResponse;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.FeedbackRequest;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -169,6 +171,7 @@ public class ThesisAssistantController {
      * unpersisted exactly as before.
      */
     private ChatResponse persistPersonalTurn(ChatRequest request, ChatResponse personal, String owner) {
+        personal = AssistantLinkSanitizer.sanitize(personal);
         try {
             // Round-3 cb3-7/cb3-10: a personal turn without a conversationId
             // used to skip persistence entirely — the answer vanished from
@@ -223,7 +226,7 @@ public class ThesisAssistantController {
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, @AuthenticationPrincipal Jwt actor,
             HttpServletRequest httpRequest) {
-        ChatResponse answer = chatAnswer(request, actor, httpRequest);
+        ChatResponse answer = AssistantLinkSanitizer.sanitize(chatAnswer(request, actor, httpRequest));
         if (answer != null) {
             io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, answer.degraded());
         }
@@ -513,12 +516,12 @@ public class ThesisAssistantController {
                 java.util.concurrent.TimeUnit.MILLISECONDS);
         Runnable stopHeartbeat = () -> heartbeat.cancel(false);
         AtomicBoolean answerCounted = new AtomicBoolean(false);
-        Consumer<ThesisAssistantService.StreamEvent> sink = event -> {
+        Consumer<ThesisAssistantService.StreamEvent> sink = AssistantLinkSanitizer.sanitizingSink(event -> {
             if (event instanceof ThesisAssistantService.StreamDone done && answerCounted.compareAndSet(false, true)) {
                 io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, done.degraded());
             }
             if (!transportClosed.get()) send(emitter, event);
-        };
+        });
         var securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(SecurityContextHolder.getContext().getAuthentication());
         Runnable generation = () -> {
@@ -692,7 +695,8 @@ public class ThesisAssistantController {
 
     @Operation(summary = "Danh sách phiên hội thoại của người dùng", description = "Truy vấn danh sách các cuộc trò chuyện trước đây kèm con trỏ phân trang")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lấy danh sách phiên hội thoại thành công")
+        @ApiResponse(responseCode = "200", description = "Lấy danh sách phiên hội thoại thành công", headers = @Header(
+                name = "X-Next-Cursor", description = "Cursor for the next page", schema = @Schema(type = "string")))
     })
     @GetMapping("/conversations")
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
@@ -711,7 +715,7 @@ public class ThesisAssistantController {
         }
         ThesisAssistantRepository.ConversationPage page = assistant.conversationPage(owner, limit, cursor, scope);
         if (page.nextCursor() != null) response.setHeader("X-Next-Cursor", page.nextCursor());
-        return page.data();
+        return page.data().stream().map(AssistantLinkSanitizer::sanitize).toList();
     }
 
     @Operation(summary = "Tạo mới phiên hội thoại", description = "Khởi tạo phiên hội thoại mới với ngôn ngữ chỉ định (vi/en)")
@@ -740,7 +744,8 @@ public class ThesisAssistantController {
 
     @Operation(summary = "Lấy lịch sử tin nhắn trong phiên hội thoại", description = "Truy xuất danh sách tin nhắn hỏi và đáp theo thứ tự thời gian")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lấy lịch sử tin nhắn thành công")
+        @ApiResponse(responseCode = "200", description = "Lấy lịch sử tin nhắn thành công", headers = @Header(
+                name = "X-Next-Cursor", description = "Cursor for the next page", schema = @Schema(type = "string")))
     })
     @GetMapping("/conversations/{id}/messages")
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
@@ -930,6 +935,7 @@ public class ThesisAssistantController {
         public String type() { return "error"; }
     }
     public record CancelResponse(UUID clientRequestId, String status) { }
+    @Schema(name = "FeedbackResponse")
     public record FeedbackResponse(UUID messageId, String rating, String reason, boolean removed) { }
     public record CreateConversationRequest(String locale, String scope) { }
     public record ConversationCreated(String id, String locale) { }

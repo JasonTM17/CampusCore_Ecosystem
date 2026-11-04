@@ -9,7 +9,7 @@ import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
-import { NO_CAPABILITIES } from '../../src/auth/capabilities';
+import { hasApplicantSurface, NO_CAPABILITIES } from '../../src/auth/capabilities';
 import { LANE_FLAGS } from '../../src/config/lane-flags';
 import { useTheme } from '../../src/design/theme';
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
@@ -56,12 +56,25 @@ export default function AppGroupLayout() {
   const activeRoute = (screenForPath(pathname) ?? 'dashboard.student') as ScreenName;
   const navigate = (route: ScreenName) => {
     setMenuOpen(false);
-    router.push(pathFor(route));
+    const target = pathFor(route);
+    // A tab that is already open must not stack an identical screen.
+    if (target === pathname) return;
+    router.push(target);
   };
+  // An applicant session cannot open the profile screen, so the shell offers
+  // the session-ending control in place of the profile shortcut.
+  const applicant = hasApplicantSurface(session.capabilities ?? NO_CAPABILITIES);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['bottom']}>
-      <AppBar role={session.role} onProfile={() => navigate('profile')} />
+      <AppBar
+        role={session.role}
+        onProfile={applicant ? undefined : () => navigate('profile')}
+        onSignOut={applicant ? () => {
+          setMenuOpen(false);
+          void session.signOut().catch(() => undefined).finally(() => router.replace('/session/logged-out'));
+        } : undefined}
+      />
       <View style={styles.container}>
         <View
           testID="app-chrome"

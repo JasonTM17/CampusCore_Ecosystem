@@ -1,4 +1,17 @@
 -- Update publishers from 'Phòng Khoa Học Công Nghệ & HTQT' to 'Khoa Công nghệ Thông tin & Phòng Đào Tạo'
+--
+-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'update_research_content.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
+
 UPDATE engagement."Announcement"
 SET "publishedBy" = 'Khoa Công nghệ Thông tin & Phòng Đào Tạo'
 WHERE "publishedBy" ILIKE '%Khoa Học Công Nghệ%' OR "publishedBy" ILIKE '%HTQT%';
@@ -29,3 +42,5 @@ SET content = 'Căn cứ Kế hoạch hoạt động Khoa học và Công nghệ
 - **Hình thức nộp hồ sơ**: Nhóm sinh viên nộp Thuyết minh đề tài (theo mẫu R-01/HCM-UTE) trực tiếp tại Văn phòng Khoa quản lý và đồng thời số hóa nộp qua Cổng quản lý NCKH trực tuyến.
 - Mọi thắc mắc vui lòng liên hệ: Văn phòng Khoa Công nghệ Thông tin & Phòng Đào tạo (Tòa nhà Trung tâm, HCM-UTE).'
 WHERE id = 'announcement-v32-ute-research';
+
+COMMIT;

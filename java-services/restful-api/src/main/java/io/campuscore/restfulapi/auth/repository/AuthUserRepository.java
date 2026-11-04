@@ -178,6 +178,7 @@ public class AuthUserRepository {
     /** One statement snapshot of the current authority; excludes credentials and personal data. */
     public Optional<AccountAuthorization> findAccountAuthorization(String userId) {
         return jdbc.query("SELECT u.\"status\", u.\"mustChangePassword\", u.\"credentialVersion\","
+                        + " u.\"email\", u.\"firstName\", u.\"lastName\","
                         + " s.\"id\" AS student_id, s.\"year\" AS student_year, l.\"id\" AS lecturer_id,"
                         + " r.\"name\" AS role_name, p.\"module\" AS permission_module, p.\"action\" AS permission_action"
                         + " FROM " + USER_TABLE + " u"
@@ -195,6 +196,9 @@ public class AuthUserRepository {
                     String studentId = resultSet.getString("student_id");
                     Integer studentYear = nullableInteger(resultSet, "student_year");
                     String lecturerId = resultSet.getString("lecturer_id");
+                    String email = resultSet.getString("email");
+                    String firstName = resultSet.getString("firstName");
+                    String lastName = resultSet.getString("lastName");
                     java.util.Set<String> roles = new java.util.HashSet<>();
                     java.util.Set<String> permissions = new java.util.HashSet<>();
                     do {
@@ -206,13 +210,13 @@ public class AuthUserRepository {
                     } while (resultSet.next());
                     return Optional.of(new AccountAuthorization(status, mustChangePassword, studentId, studentYear,
                             lecturerId, java.util.Set.copyOf(roles), java.util.Set.copyOf(permissions),
-                            credentialVersion));
+                            credentialVersion, email, firstName, lastName));
                 });
     }
 
     public record AccountAuthorization(String status, boolean mustChangePassword, String studentId,
             Integer studentYear, String lecturerId, java.util.Set<String> roles, java.util.Set<String> permissions,
-            long credentialVersion) {
+            long credentialVersion, String email, String firstName, String lastName) {
     }
 
     /** Opt-in email OTP switch added by V85; read per login, never cached. */

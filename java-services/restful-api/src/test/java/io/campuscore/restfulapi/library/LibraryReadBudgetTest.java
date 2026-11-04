@@ -8,6 +8,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.service.LibraryPatronService;
 import io.campuscore.restfulapi.library.service.LibraryService;
 import io.campuscore.restfulapi.library.web.LibraryDtos.BorrowRequest;
@@ -171,6 +172,67 @@ class LibraryReadBudgetTest {
     }
 
     @Test
+    void staffQueueKeepsOneExpiryBatchAndBoundsThePagedReadInSql() {
+        for (int i = 2; i <= 31; i++) {
+            queueRow(i, "REQUESTED");
+        }
+
+        statements.clear();
+        rowsRead.clear();
+        var legacy = staff.queue("desk", "REQUESTED");
+        assertThat(legacy).hasSize(30);
+        assertThat(expiryBatchSelects()).hasSize(1);
+        assertThat(countQueries()).isEmpty();
+        assertThat(rowQueries()).hasSize(1);
+        // Legacy reads keep the original statement byte-for-byte: no count,
+        // no LIMIT/OFFSET and no extra id key in the order.
+        assertThat(rowQueries().getFirst()).endsWith(
+                " ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\"");
+        assertThat(rowsRead.get(rowQueries().getFirst())).isEqualTo(30);
+
+        statements.clear();
+        rowsRead.clear();
+        var page = staff.queue("desk", "REQUESTED", ListPaging.Window.of(0, 20));
+        assertThat(page.total()).isEqualTo(30L);
+        assertThat(page.items()).hasSize(20);
+        assertThat(expiryBatchSelects()).hasSize(1);
+        assertThat(countQueries()).hasSize(1);
+        assertThat(countQueries().getFirst()).contains(" WHERE r.\"status\" = ?");
+        assertThat(rowQueries()).hasSize(1);
+        String pagedRows = rowQueries().getFirst();
+        // The paged ORDER BY keeps both legacy timestamp keys and adds the id
+        // tiebreak; LIMIT/OFFSET are in SQL, so only one page is materialized.
+        assertThat(pagedRows).contains(" WHERE r.\"status\" = ?")
+                .contains(" ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\", r.\"id\""
+                        + " LIMIT ? OFFSET ?");
+        assertThat(rowsRead.get(pagedRows)).isEqualTo(20);
+
+        statements.clear();
+        rowsRead.clear();
+        var empty = staff.queue("desk", "REQUESTED", ListPaging.Window.of(9, 20));
+        assertThat(empty.total()).isEqualTo(30L);
+        assertThat(empty.items()).isEmpty();
+        assertThat(expiryBatchSelects()).hasSize(1);
+        assertThat(countQueries()).hasSize(1);
+        assertThat(rowsRead.getOrDefault(rowQueries().getFirst(), 0)).isZero();
+    }
+
+    @Test
+    void staffQueueWithoutStatusFiltersCountsAndRowsAlike() {
+        for (int i = 2; i <= 6; i++) {
+            queueRow(i, i == 6 ? "RETURNED" : "REQUESTED");
+        }
+        statements.clear();
+        var page = staff.queue("desk", null, ListPaging.Window.of(0, 10));
+        assertThat(page.total()).isEqualTo(6L);
+        assertThat(page.items()).hasSize(6);
+        assertThat(countQueries()).hasSize(1);
+        assertThat(countQueries().getFirst()).doesNotContain(" WHERE ");
+        assertThat(rowQueries().getFirst()).doesNotContain(" WHERE ");
+        assertThat(expiryBatchSelects()).hasSize(1);
+    }
+
+    @Test
     void patronCannotInvokeGlobalExpiryMaintenance() {
         assertThatThrownBy(() -> staff.expireOverdue("reader")).isInstanceOf(DomainException.class);
         assertThat(statements).allMatch(sql -> sql.startsWith("SELECT"));
@@ -227,15 +289,45 @@ class LibraryReadBudgetTest {
             String sql = invocation.getArgument(0);
             if (sql.contains("FROM library.\"Copy\"") && sql.endsWith("FOR UPDATE")) {
                 assertThat(java.time.Instant.now()).isBefore(deadline);
-                while (!java.time.Instant.now().isAfter(deadline)) {
-                    Thread.sleep(5);
+                long pollDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+                while (!java.time.Instant.now().isAfter(deadline) && System.nanoTime() < pollDeadline) {
+                    Thread.sleep(20);
                 }
+                assertThat(java.time.Instant.now()).as("the test clock passes the hold deadline within 10 seconds")
+                        .isAfter(deadline);
             }
             return result;
         }).when(named).queryForMap(anyString(), any(SqlParameterSource.class));
         assertThatThrownBy(() -> staff.issue("desk", "hold-1", new IssueRequest(1, 14)))
                 .isInstanceOf(DomainException.class).hasMessageContaining("expired");
         assertThat(status("hold-1")).isEqualTo("APPROVED");
+    }
+
+    private void queueRow(int i, String status) {
+        titleAndCopy(i);
+        jdbc.update("INSERT INTO library.\"LoanRequest\""
+                + " (\"id\",\"copyId\",\"borrowerUserId\",\"status\",\"requestedAt\",\"createdAt\")"
+                + " VALUES (?, ?, 'owner', ?, TIMESTAMP WITH TIME ZONE '2030-01-01 00:00:00',"
+                + " TIMESTAMP WITH TIME ZONE '2030-01-01 00:00:00')", "queue-" + i, "copy-" + i, status);
+    }
+
+    private List<String> expiryBatchSelects() {
+        return statements.stream()
+                .filter(sql -> sql.startsWith("SELECT \"id\", \"copyId\", \"borrowerUserId\", \"status\""
+                        + " FROM library.\"LoanRequest\""))
+                .toList();
+    }
+
+    private List<String> countQueries() {
+        return statements.stream()
+                .filter(sql -> sql.startsWith("SELECT COUNT(*) FROM library.\"LoanRequest\""))
+                .toList();
+    }
+
+    private List<String> rowQueries() {
+        return statements.stream()
+                .filter(sql -> sql.startsWith("SELECT r.\"id\", r.\"copyId\""))
+                .toList();
     }
 
     private void titleAndCopy(int i) {

@@ -4,9 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
+const sourceRoot = process.env.W13_SRC_ROOT
+  ? path.resolve(process.env.W13_SRC_ROOT)
+  : path.join(__dirname, '..');
+
 // Execute the actual async page callback, supplying its hook/API dependencies.
 function callback(file, name, dependencies) {
-  const source = fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
+  const source = fs.readFileSync(path.join(sourceRoot, 'src', file), 'utf8');
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let declaration;
   function visit(node) {
@@ -52,6 +56,7 @@ test('council report 200 then 204 clears stale document links', async () => {
     setTopicReports: update => { reports = update(reports); },
     setTopicReportErrors: update => { errors = update(errors); },
     setDraftScores: () => {}, setDraftComments: () => {},
+    COUNCIL_TOPIC_CONCURRENCY: 4,
   });
   const councils = [{ id: 'council', topicIds: ['topic'] }];
   await load(councils);
@@ -75,6 +80,7 @@ test('council report failure is distinct from no report, and retry restores it',
     setTopicReports: update => { reports = update(reports); },
     setTopicReportErrors: update => { errors = update(errors); },
     setDraftScores: () => {}, setDraftComments: () => {},
+    COUNCIL_TOPIC_CONCURRENCY: 4,
   });
   const councils = [{ id: 'council', topicIds: ['topic'] }];
   await load(councils);
@@ -84,4 +90,22 @@ test('council report failure is distinct from no report, and retry restores it',
   await load(councils);
   assert.equal(errors.topic, false);
   assert.equal(reports.topic.groupId, 'group');
+});
+
+test('lecturer attendance surfaces a semester filter failure with a retry', async () => {
+  let fail = true;
+  let error = '';
+  let semesters = [];
+  const load = callback('app/dashboard/lecturer/attendance/page.tsx', 'fetchSemesters', {
+    semestersApi: { getAll: async () => { if (fail) throw new Error('503'); return { data: [{ id: 'term' }] }; } },
+    messages: { lecturerGrades: { errors: { semestersFailed: 'Semesters unavailable' } } },
+    setSemesters: value => { semesters = value; },
+    setSemesterError: value => { error = value; },
+  });
+  await assert.doesNotReject(load());
+  assert.equal(error, 'Semesters unavailable', 'the failure is visible instead of swallowed');
+  fail = false;
+  await load();
+  assert.equal(error, '', 'a successful retry clears the warning');
+  assert.deepEqual(semesters, [{ id: 'term' }]);
 });

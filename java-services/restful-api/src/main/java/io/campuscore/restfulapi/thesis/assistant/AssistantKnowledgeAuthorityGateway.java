@@ -38,8 +38,10 @@ import org.springframework.stereotype.Component;
 public class AssistantKnowledgeAuthorityGateway {
     private static final String TOKEN_HEADER = "X-Rag-Service-Token";
     private static final String OWNER_HEADER = "X-Assistant-Owner";
+    private static final String OWNER_ASSERTION_HEADER = AssistantOwnerAssertion.HEADER;
 
     private final AssistantRagProperties properties;
+    private final AssistantOwnerAssertion ownerAssertions;
     private final ObjectMapper mapper;
     private final HttpClient http;
 
@@ -51,6 +53,7 @@ public class AssistantKnowledgeAuthorityGateway {
 
     AssistantKnowledgeAuthorityGateway(AssistantRagProperties properties, ObjectMapper mapper, HttpClient http) {
         this.properties = properties;
+        this.ownerAssertions = new AssistantOwnerAssertion(properties);
         this.mapper = mapper;
         this.http = http;
     }
@@ -107,6 +110,7 @@ public class AssistantKnowledgeAuthorityGateway {
                 .timeout(Duration.ofMillis(properties.readTimeoutMs()))
                 .header("Accept", "application/json")
                 .header(TOKEN_HEADER, properties.serviceToken())
+                .header(OWNER_ASSERTION_HEADER, ownerAssertions.issueKnowledgeAdmin(actor))
                 .header(OWNER_HEADER, actor);
         if (body == null) {
             builder.method(method, HttpRequest.BodyPublishers.noBody());

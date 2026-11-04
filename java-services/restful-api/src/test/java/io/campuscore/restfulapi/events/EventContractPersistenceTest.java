@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -520,6 +521,58 @@ class EventContractPersistenceTest {
     }
 
     @Test
+    void attendanceBatchIsBounded() throws Exception {
+        String eventId = createDraft(staffJwt, 501,
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/publish").with(staffJwt));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/open-registration").with(staffJwt)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt));
+        startEventNow(eventId);
+        for (int index = 1; index <= 501; index++) {
+            jdbc.update("INSERT INTO events.\"Registration\""
+                            + " (\"id\", \"eventId\", \"studentId\", \"status\", \"version\")"
+                            + " VALUES (?, ?, ?, 'REGISTERED', 0)",
+                    "bulk-att-" + index, eventId, "bulk-student-" + index);
+        }
+        jdbc.update("UPDATE events.\"Event\" SET \"registeredCount\" = 501 WHERE \"id\" = ?", eventId);
+
+        List<Map<String, Object>> oversized = java.util.stream.IntStream.rangeClosed(1, 501)
+                .mapToObj(index -> Map.<String, Object>of(
+                        "registrationId", "bulk-att-" + index,
+                        "status", "ATTENDED",
+                        "version", 0))
+                .toList();
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", oversized))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_ATTENDANCE_BATCH_TOO_LARGE"));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Registration\""
+                        + " WHERE \"eventId\" = ? AND \"attendanceStatus\" = 'ATTENDED'",
+                Integer.class, eventId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Audit\" WHERE \"eventId\" = ? AND \"action\" = 'ATTENDED'",
+                Integer.class, eventId)).isZero();
+
+        List<Map<String, Object>> accepted = java.util.stream.IntStream.rangeClosed(1, 10)
+                .mapToObj(index -> Map.<String, Object>of(
+                        "registrationId", "bulk-att-" + index,
+                        "status", "ATTENDED",
+                        "version", 0))
+                .toList();
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", accepted))))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Registration\""
+                        + " WHERE \"eventId\" = ? AND \"attendanceStatus\" = 'ATTENDED'",
+                Integer.class, eventId)).isEqualTo(10);
+    }
+
+    @Test
     void eventNotYetStartedRejectsAttendance() throws Exception {
         String eventId = createDraft(staffJwt, 3,
                 Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
@@ -559,6 +612,41 @@ class EventContractPersistenceTest {
         // The newly granted outsider can now use staff operations.
         mvc.perform(get("/api/v1/events/staff").with(outsiderJwt))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void staffSeeOnlyTheirOwnGrantRows() throws Exception {
+        // Two staffers granted by distinct grantors: neither can enumerate
+        // the other's row.
+        jdbc.update("UPDATE events.\"StaffGrant\" SET \"grantedBy\" = 'admin-user-2'"
+                + " WHERE \"userId\" = 'staff-user-2'");
+
+        mvc.perform(get("/api/v1/events/staff/grants").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value("staff-user"))
+                .andExpect(jsonPath("$[0].grantedBy").value("test-fixture"));
+        mvc.perform(get("/api/v1/events/staff/grants").with(secondStaffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value("staff-user-2"))
+                .andExpect(jsonPath("$[0].grantedBy").value("admin-user-2"));
+
+        // Paged totals are scoped to the caller's own row.
+        mvc.perform(get("/api/v1/events/staff/grants")
+                        .param("page", "0").param("limit", "1").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // The staff-grant gate is preserved for ungranted callers, including
+        // the ADMIN role alone.
+        mvc.perform(get("/api/v1/events/staff/grants").with(outsiderJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/events/staff/grants").with(adminJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
     }
 
     @Test
@@ -821,6 +909,52 @@ class EventContractPersistenceTest {
     }
 
     @Test
+    void registrationWindowMustEndBeforeEventStart() throws Exception {
+        Instant start = Instant.now().plus(2, ChronoUnit.HOURS);
+        Instant end = start.plus(2, ChronoUnit.HOURS);
+        List<MvcResult> invalidWindows = List.of(
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start.plus(1, ChronoUnit.HOURS), null)))
+                        .andReturn(),
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start, null)))
+                        .andReturn(),
+                mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createEventJson(5, start, end, start.minus(1, ChronoUnit.HOURS), start)))
+                        .andReturn());
+
+        assertThat(invalidWindows.stream().map(result -> result.getResponse().getStatus()).toList())
+                .containsExactly(400, 400, 400);
+        for (MvcResult result : invalidWindows) {
+            assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).get("code").asText())
+                    .isEqualTo("EVENT_WINDOW_INVALID");
+        }
+    }
+
+    @Test
+    void createEventRejectsTextLongerThanItsColumns() throws Exception {
+        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+        String longTitle = "E".repeat(241);
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + longTitle + "\",\"organizer\":\"Student office\","
+                                + "\"capacity\":5,\"startsAt\":\"" + startsAt + "\",\"endsAt\":\"" + endsAt + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        String maxTitle = "E".repeat(240);
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + maxTitle + "\",\"organizer\":\"Student office\","
+                                + "\"capacity\":5,\"startsAt\":\"" + startsAt + "\",\"endsAt\":\"" + endsAt + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void completeRejectedBeforeEventStarts() throws Exception {
         String eventId = openEventId();
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))
@@ -828,6 +962,37 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/complete").with(staffJwt))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EVENT_NOT_STARTED"));
+    }
+
+    @Test
+    void publishRejectsAnEventWhoseStartAlreadyPassed() throws Exception {
+        String expiredId = createPastDraft(Instant.now().minus(2, ChronoUnit.HOURS),
+                Instant.now().minus(1, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + expiredId + "/publish").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+
+        // An in-progress window is the same dead end: registration can never
+        // open, so the event could be published but never completed.
+        String startedId = createPastDraft(Instant.now().minus(1, ChronoUnit.HOURS),
+                Instant.now().plus(1, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + startedId + "/publish").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+        Integer drafts = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Event\" WHERE \"id\" IN (?, ?) AND \"status\" = 'DRAFT'",
+                Integer.class, expiredId, startedId);
+        assertThat(drafts).isEqualTo(2);
+    }
+
+    /** Creates a draft without a registration window so a past event window is legal input. */
+    private String createPastDraft(Instant startsAt, Instant endsAt) throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createEventJson(5, startsAt, endsAt, null, null)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
     @Test

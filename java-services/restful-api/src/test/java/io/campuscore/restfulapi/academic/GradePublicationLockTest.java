@@ -106,6 +106,28 @@ class GradePublicationLockTest {
     }
 
     @Test
+    void staleGradeVersionReturnsTheExactConflictEnvelope() throws Exception {
+        mvc.perform(put("/api/v1/sections/section-1/grades")
+                        .with(lecturerJwt("lecturer-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grades":[{"enrollmentId":"enrollment-1","processScore":8.0,"finalExamScore":9.0,"version":99}]}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"))
+                .andExpect(jsonPath("$.message").value("The record changed; reload before editing"))
+                .andExpect(jsonPath("$.path").value("/api/v1/sections/section-1/grades"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(jsonPath("$.fields").isEmpty());
+
+        assertEnrollmentGrade("enrollment-1", null, null, "DRAFT");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enrollment-1'",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void gradesAreRejectedForADroppedEnrollment() throws Exception {
         dropEnrollment1();
 
@@ -266,6 +288,39 @@ class GradePublicationLockTest {
         assertEnrollmentStatus("enrollment-1", "COMPLETED", "PUBLISHED");
         // The dropped row was fully graded, yet publish must leave it alone.
         assertEnrollmentStatus("enrollment-2-dropped", "DROPPED", "DRAFT");
+    }
+
+    @Test
+    void republishingLeavesAppealedRowsInTheirAppealState() throws Exception {
+        mvc.perform(put("/api/v1/sections/section-1/grades")
+                        .with(lecturerJwt("lecturer-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grades":[{"enrollmentId":"enrollment-1","processScore":8.0,"finalExamScore":9.0}]}
+                                """))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/sections/section-1/grades/publish")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk());
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"gradeStatus\" = 'APPEALED'"
+                + " WHERE \"id\" = 'enrollment-1'");
+        // A second enrollment completes grading later; re-publishing the
+        // section must not roll the appealed row back to PUBLISHED.
+        insertEnrollment("enrollment-2", "ENROLLED");
+        mvc.perform(put("/api/v1/sections/section-1/grades")
+                        .with(lecturerJwt("lecturer-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grades":[{"enrollmentId":"enrollment-2","processScore":7.0,"finalExamScore":8.0}]}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/sections/section-1/grades/publish")
+                        .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk());
+
+        assertEnrollmentStatus("enrollment-1", "COMPLETED", "APPEALED");
+        assertEnrollmentStatus("enrollment-2", "COMPLETED", "PUBLISHED");
     }
 
     private void dropEnrollment1() {
@@ -445,7 +500,8 @@ class GradePublicationLockTest {
                     "finalGrade" DECIMAL(5, 2),
                     "letterGrade" VARCHAR(10),
                     "createdAt" TIMESTAMP NOT NULL,
-                    "updatedAt" TIMESTAMP NOT NULL
+                    "updatedAt" TIMESTAMP NOT NULL,
+                    "version" INTEGER NOT NULL DEFAULT 0
                 )
                 """);
         jdbc.execute("""

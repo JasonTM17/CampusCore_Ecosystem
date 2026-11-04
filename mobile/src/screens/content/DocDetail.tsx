@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
@@ -17,17 +17,20 @@ import { useContentQuery } from './use-content-query';
 export interface DocDetailProps {
   slug: string;
   onBack: () => void;
+  initialRevision?: number | null;
 }
 
 type DocRecord = MobilePublicDoc & { superseded?: boolean };
 
 /** A published document pinned to its published revision, with permalinked earlier revisions. */
-export function DocDetail({ slug, onBack }: DocDetailProps) {
+export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailProps) {
   const { locale, copy: shared, formatDateTime, t } = useContentCopy();
   const copy = campusMessages[locale];
   const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const preview = isPreviewMode();
-  const [revision, setRevision] = useState<number | null>(null);
+  const [revision, setRevision] = useState<number | null>(initialRevision);
+
+  useEffect(() => setRevision(initialRevision), [slug, initialRevision]);
 
   const query = useContentQuery<DocRecord>(
     `content.doc.${slug}.${revision ?? 'current'}`,

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.domain.ThesisRegistrationRound;
 import java.time.Instant;
@@ -10,6 +11,7 @@ public final class ThesisRoundDtos {
     private ThesisRoundDtos() {
     }
 
+    @Schema(name = "RoundResponse")
     public record RoundResponse(
             UUID id,
             String name,

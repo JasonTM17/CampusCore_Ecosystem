@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.identity;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
@@ -142,6 +144,7 @@ public class IdentityLoginPageController {
             </script></body></html>
             """;
 
+    @SecurityRequirements
     @GetMapping("/login")
     public ResponseEntity<String> loginPage() {
         return ResponseEntity.ok()

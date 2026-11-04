@@ -37,6 +37,7 @@ public class SupabaseKnowledgeInternalController {
     private final SupabaseKnowledgeAuthorityService authority;
     private final SupabaseKnowledgeSyncService sync;
     private final AssistantRagProperties ragProperties;
+    private final AssistantOwnerAssertion ownerAssertions;
     private final boolean rejectKnownDefaults;
 
     public SupabaseKnowledgeInternalController(SupabaseKnowledgeAuthorityService authority,
@@ -45,6 +46,7 @@ public class SupabaseKnowledgeInternalController {
         this.authority = authority;
         this.sync = sync;
         this.ragProperties = ragProperties;
+        this.ownerAssertions = new AssistantOwnerAssertion(ragProperties);
         this.rejectKnownDefaults = rejectKnownDefaults;
         if (!rejectKnownDefaults && ragProperties.tokenIsDevComposeDefault()) {
             LoggerFactory.getLogger(SupabaseKnowledgeInternalController.class).warn(
@@ -56,52 +58,60 @@ public class SupabaseKnowledgeInternalController {
 
     @GetMapping
     public List<KnowledgeDocumentView> list(@RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor,
             @RequestParam(required = false) String domain, @RequestParam(required = false) String state) {
         verify(token);
-        return authority.list(owner(actor), domain, state);
+        return authority.list(ownerAssertions.verifyKnowledgeAdmin(assertion, actor), domain, state);
     }
 
     @GetMapping("/{id}")
     public KnowledgeDocumentView get(@PathVariable UUID id,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        return authority.get(id, owner(actor));
+        return authority.get(id, ownerAssertions.verifyKnowledgeAdmin(assertion, actor));
     }
 
     @PostMapping
     public KnowledgeRevision create(@RequestBody KnowledgeRequest request,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
+        String owner = ownerAssertions.verifyKnowledgeAdmin(assertion, actor);
         ThesisAssistantKnowledgeAdminController.validate(request);
-        return authority.create(request, owner(actor));
+        return authority.create(request, owner);
     }
 
     @PutMapping("/{id}")
     public KnowledgeRevision update(@PathVariable UUID id, @RequestBody KnowledgeRequest request,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
+        String owner = ownerAssertions.verifyKnowledgeAdmin(assertion, actor);
         ThesisAssistantKnowledgeAdminController.validate(request);
-        return authority.update(id, request, owner(actor));
+        return authority.update(id, request, owner);
     }
 
     @PostMapping("/{id}/submit")
     public KnowledgeRevision submit(@PathVariable UUID id,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        return authority.submit(id, owner(actor));
+        return authority.submit(id, ownerAssertions.verifyKnowledgeAdmin(assertion, actor));
     }
 
     @PostMapping("/{id}/publish")
     public KnowledgeRevision publish(@PathVariable UUID id,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        String owner = owner(actor);
+        String owner = ownerAssertions.verifyKnowledgeAdmin(assertion, actor);
         KnowledgeRevision published = authority.publish(id, owner);
         SupabaseKnowledgeSyncService.SyncResult projection = sync.syncNow();
         return new KnowledgeRevision(published.documentId(), published.revisionId(), published.version(), published.state(),
@@ -111,9 +121,10 @@ public class SupabaseKnowledgeInternalController {
     @DeleteMapping("/{id}")
     public SupabaseKnowledgeSyncService.SyncResult archive(@PathVariable UUID id,
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        authority.archive(id, owner(actor));
+        authority.archive(id, ownerAssertions.verifyKnowledgeAdmin(assertion, actor));
         // Supabase published the tombstone release in the archive transaction.
         // Return the cross-database projection state to the admin edge.
         return sync.syncNow();
@@ -122,18 +133,20 @@ public class SupabaseKnowledgeInternalController {
     @PostMapping("/sync")
     public SupabaseKnowledgeSyncService.SyncResult sync(
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        owner(actor);
+        ownerAssertions.verifyKnowledgeAdmin(assertion, actor);
         return sync.syncNow();
     }
 
     @GetMapping("/sync-status")
     public SupabaseKnowledgeSyncService.SyncResult status(
             @RequestHeader(name = TOKEN_HEADER, required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String actor) {
         verify(token);
-        owner(actor);
+        ownerAssertions.verifyKnowledgeAdmin(assertion, actor);
         return sync.status();
     }
 
@@ -159,13 +172,4 @@ public class SupabaseKnowledgeInternalController {
         }
     }
 
-    private static String owner(String actor) {
-        // Opaque identifier bound to VARCHAR(120) owner columns; reject values
-        // that would silently break the RLS match or fail late inside the
-        // transaction.
-        if (actor == null || actor.isBlank() || actor.length() > 120) {
-            throw new DomainException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Assistant owner is required");
-        }
-        return actor;
-    }
 }

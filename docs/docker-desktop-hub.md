@@ -1,63 +1,36 @@
-# Docker Desktop Hub lookup
+# Local image tags and registry publishing (deferred)
 
-Do not guess the Hub namespace from GitHub (`jasontm17`). Read the signed-in Docker Desktop account.
+The local stack builds its images from the working tree and tags them
+`student-management-ute-*:local`:
 
-## Find the username
+| Component | Local tag |
+| --- | --- |
+| Database | `student-management-ute-database:local` |
+| REST API | `student-management-ute-restful-api:local` |
+| RAG service | `student-management-ute-rag-service:local` |
+| Frontend | `student-management-ute-frontend:local` |
 
-1. Confirm Docker Desktop is running and signed in.
-2. Open `%APPDATA%\Docker\login-info.json`.
-3. Field `0` is Base64 JSON. Decode it and use `Username`.
-4. Never commit that file. It is machine-local login state.
+`node scripts/local-dev.mjs up` builds every image from source and starts the
+stack. `--no-build` only works when matching images already exist locally or were
+pulled from a registry.
 
-On this machine the Hub user is `nguyenson1710`.
+## Publishing is deferred
 
-## Publish images manually (fallback)
+This repository ships **no image publishing workflow**: `.github/workflows/ci.yml`
+builds and tests only. Pushing these images to Docker Hub or GHCR is
+**deferred — future deployment work** and is not authorized by the workspace's
+local-first status.
 
-```powershell
-docker tag student-management-ute-frontend:local nguyenson1710/student-management-ute-frontend:<version>
-docker push nguyenson1710/student-management-ute-frontend:<version>
-docker manifest inspect docker.io/nguyenson1710/student-management-ute-frontend:<version>
-```
+If a commit is ever published externally, [RELEASE.md](RELEASE.md) holds the
+rules: an immutable full-commit-SHA tag bound to
+`org.opencontainers.image.revision`, BuildKit provenance and SBOM attestations,
+no cross-registry `latest` move, and the no-build overlay
+(`docker-compose.rag.override.yml`) pinned via `CAMPUSCORE_IMAGE_TAG` to that
+same SHA.
 
-The supported release path is the `Publish container images` workflow. It
-builds and pushes the four images from the same commit to Docker Hub and GHCR:
+## Hub namespace lookup
 
-| Component | Docker Hub | GHCR |
-| --- | --- | --- |
-| Database | `nguyenson1710/student-management-ute-database` | `ghcr.io/jasontm17/student-management-ute-database` |
-| REST API | `nguyenson1710/student-management-ute-restful-api` | `ghcr.io/jasontm17/student-management-ute-restful-api` |
-| RAG service | `nguyenson1710/student-management-ute-rag-service` | `ghcr.io/jasontm17/student-management-ute-rag-service` |
-| Frontend | `nguyenson1710/student-management-ute-frontend` | `ghcr.io/jasontm17/student-management-ute-frontend` |
-
-The workflow needs repository secrets `DOCKERHUB_USERNAME` and
-`DOCKERHUB_TOKEN`; it never stores credentials in the repository. It publishes
-an immutable full-commit-SHA tag, refuses to overwrite an existing or mismatched
-tag, emits BuildKit provenance and SBOM attestations, and binds each image to
-the full source commit without a non-atomic cross-registry `latest` move.
-The workflow runs on the default branch after GHCR/Docker Hub digest parity is
-verified.
-
-For a no-build smoke, set `CAMPUSCORE_IMAGE_TAG` to the reviewed full commit SHA so
-all services resolve the same immutable release across registries:
-
-```powershell
-$env:CAMPUSCORE_IMAGE_TAG = "<full-commit-sha>"
-docker compose -f docker-compose.yml -f docker-compose.rag.override.yml up -d --no-build
-```
-
-GitHub Packages stays separate:
-
-```powershell
-gh auth token | docker login ghcr.io -u JasonTM17 --password-stdin
-docker tag student-management-ute-frontend:local ghcr.io/jasontm17/student-management-ute-frontend:<version>
-docker push ghcr.io/jasontm17/student-management-ute-frontend:<version>
-```
-
-The GHCR workflow publishes the same course stack as four artifacts. The
-database artifact is a migration-free PostgreSQL runtime wrapper; Flyway in
-the REST API still owns schema and seed data.
-
-```powershell
-docker tag student-management-ute-database:local ghcr.io/jasontm17/student-management-ute-database:<version>
-docker push ghcr.io/jasontm17/student-management-ute-database:<version>
-```
+Do not guess the Docker Hub namespace from GitHub. Read it from the signed-in
+Docker Desktop account: `%APPDATA%\Docker\login-info.json`, field `0` is Base64
+JSON, decode it and use `Username`. Never commit that file; it is machine-local
+login state.

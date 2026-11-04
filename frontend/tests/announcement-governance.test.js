@@ -30,9 +30,20 @@ test('admin announcements expose governed edit, history, and lifecycle flows', (
 
 test('announcement presenter never falls back to a raw service enum', () => {
   const presenter = read('src/lib/announcement-presentation.ts');
+  const workspace = read('src/i18n/messages-announcements.ts');
 
-  assert.match(presenter, /\['Khác', 'Other'\]/);
-  assert.match(presenter, /\['Đã thay đổi', 'Changed'\]/);
+  // The fallback labels moved to the announcement workspace catalogue with the
+  // rest of the presentation copy; the presenter still resolves unknown service
+  // values through them instead of echoing the enum.
+  assert.match(presenter, /@\/i18n\/messages-announcements/);
+  assert.match(workspace, /other: 'Other'/);
+  assert.match(workspace, /other: 'Khác'/);
+  assert.match(workspace, /other: 'Changed'/);
+  assert.match(workspace, /other: 'Đã thay đổi'/);
+  assert.ok(
+    (presenter.match(/labels\[key\] \?\? labels\.other/g) ?? []).length >= 3,
+    'priority, role and history fallbacks must resolve from the catalogue',
+  );
   assert.match(presenter, /announcementPriorityLabel/);
   assert.match(presenter, /announcementRoleLabel/);
   assert.match(presenter, /announcementHistoryReason/);

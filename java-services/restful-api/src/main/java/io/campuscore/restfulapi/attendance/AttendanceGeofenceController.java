@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.attendance;
 
 import static io.campuscore.restfulapi.attendance.AttendanceDtos.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -29,6 +30,7 @@ public class AttendanceGeofenceController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(operationId="attendanceCreateGeofence",summary="Tạo vùng điểm danh đã xác minh tọa độ")
+    @ApiResponse(responseCode = "201", description = "Vùng điểm danh đã được tạo")
     public ResponseEntity<GeofenceResponse> create(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody GeofenceRequest r) {
         return ResponseEntity.status(201).body(service.save(null,r,jwt.getSubject()));
     }

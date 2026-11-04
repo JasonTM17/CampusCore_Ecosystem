@@ -1,5 +1,8 @@
 package io.campuscore.restfulapi.learning.service;
 
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.events.web.ListPaging;
+import io.campuscore.restfulapi.exception.ValidationException;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
 import io.campuscore.restfulapi.learning.web.LearningDtos.FeedbackResponse;
@@ -18,6 +21,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.BreakIterator;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +29,8 @@ import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -62,6 +68,7 @@ public class LearningService {
     static final String ROSTER_STATUSES = "('ENROLLED','PENDING','CONFIRMED','COMPLETED')";
 
     private static final int NOTIFICATION_TITLE_MAX_LENGTH = 240;
+    private static final Instant MIN_ASSIGNMENT_DEADLINE = Instant.parse("2000-01-01T00:00:00Z");
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -117,6 +124,7 @@ public class LearningService {
         if (request == null || request.title() == null || request.title().isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
+        validateMaterialTitle(request.title());
         String id = "mat-" + UUID.randomUUID();
         Map<String, Object> stored = storeFile(lecturerId, sectionId, request.fileName(),
                 request.contentType(), request.contentBase64(), request.checksum());
@@ -125,7 +133,7 @@ public class LearningService {
                         + " \"fileName\", \"contentType\", \"sizeBytes\", \"checksum\", \"uploaderId\")"
                         + " VALUES (:id, :sectionId, :title, :description, :fileKey,"
                         + " :fileName, :contentType, :sizeBytes, :checksum, :uploaderId)",
-                materialParams(id, sectionId, request, stored, lecturerId));
+                materialParams(id, sectionId, request, request.description(), stored, lecturerId));
         audit(null, null, lecturerId, "MATERIAL_CREATED", "material=" + id);
         return findMaterial(id);
     }
@@ -139,15 +147,25 @@ public class LearningService {
         if (request.title() == null || request.title().isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
+        validateMaterialTitle(request.title());
+        // Partial PUT: an omitted description keeps the stored text.
+        String description = request.description() == null
+                ? (String) material.get("description") : request.description();
         boolean newFile = request.contentBase64() != null && !request.contentBase64().isBlank();
-        Map<String, Object> stored = newFile
-                ? storeFile(lecturerId, String.valueOf(material.get("sectionId")), request.fileName(),
-                        request.contentType(), request.contentBase64(), request.checksum())
-                : Map.of("key", (Object) material.get("fileKey"),
-                        "fileName", material.get("fileName"),
-                        "contentType", material.get("contentType"),
-                        "sizeBytes", material.get("sizeBytes"),
-                        "checksum", material.get("checksum"));
+        Map<String, Object> stored;
+        if (newFile) {
+            stored = storeFile(lecturerId, String.valueOf(material.get("sectionId")), request.fileName(),
+                    request.contentType(), request.contentBase64(), request.checksum());
+        } else {
+            // File columns are nullable: a text-only material keeps them null,
+            // so the holder must tolerate nulls (Map.of would throw).
+            stored = new HashMap<>();
+            stored.put("key", material.get("fileKey"));
+            stored.put("fileName", material.get("fileName"));
+            stored.put("contentType", material.get("contentType"));
+            stored.put("sizeBytes", material.get("sizeBytes"));
+            stored.put("checksum", material.get("checksum"));
+        }
         int updated = jdbc.update("UPDATE " + MATERIAL
                         + " SET \"title\" = :title, \"description\" = :description,"
                         + " \"fileKey\" = :fileKey, \"fileName\" = :fileName,"
@@ -156,11 +174,14 @@ public class LearningService {
                         + " \"updatedAt\" = CURRENT_TIMESTAMP"
                         + " WHERE \"id\" = :id AND \"version\" = :expected",
                 materialParams(materialId, String.valueOf(material.get("sectionId")), request,
-                        stored, lecturerId)
+                        description, stored, lecturerId)
                         .addValue("expected", request.version()));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
                     "The material changed; reload before editing");
+        }
+        if (newFile) {
+            deleteFileIfUnreferenced((String) material.get("fileKey"));
         }
         return findMaterial(materialId);
     }
@@ -169,8 +190,10 @@ public class LearningService {
     public void deleteMaterial(String lecturerId, String materialId) {
         Map<String, Object> material = lockMaterial(materialId);
         requireSectionLecturer(lecturerId, String.valueOf(material.get("sectionId")));
+        String fileKey = (String) material.get("fileKey");
         jdbc.update("DELETE FROM " + MATERIAL + " WHERE \"id\" = :id",
                 new MapSqlParameterSource("id", materialId));
+        deleteFileIfUnreferenced(fileKey);
         audit(null, null, lecturerId, "MATERIAL_DELETED", "material=" + materialId);
     }
 
@@ -202,6 +225,7 @@ public class LearningService {
             throw problem(HttpStatus.BAD_REQUEST, "ASSIGNMENT_TITLE_REQUIRED",
                     "Assignment title is required");
         }
+        validateAssignmentDeadline(request.deadlineAt());
         String id = "asg-" + UUID.randomUUID();
         jdbc.update("INSERT INTO " + ASSIGNMENT
                         + " (\"id\", \"sectionId\", \"title\", \"description\", \"deadlineAt\","
@@ -229,6 +253,19 @@ public class LearningService {
                     "Only draft assignments can be edited");
         }
         requireVersion(request == null ? null : request.version(), assignment);
+        if (request.title() == null || request.title().isBlank()) {
+            throw problem(HttpStatus.BAD_REQUEST, "ASSIGNMENT_TITLE_REQUIRED",
+                    "Assignment title is required");
+        }
+        // Partial PUT: omitted fields keep the locked row's values instead of
+        // clearing the deadline, grade scale, or description.
+        String description = request.description() == null
+                ? (String) assignment.get("description") : request.description();
+        Instant deadlineAt = request.deadlineAt() == null
+                ? toInstant(assignment.get("deadlineAt")) : request.deadlineAt();
+        validateAssignmentDeadline(deadlineAt);
+        Double maxScore = request.maxScore() == null
+                ? toDouble(assignment.get("maxScore")) : request.maxScore();
         int updated = jdbc.update("UPDATE " + ASSIGNMENT
                         + " SET \"title\" = :title, \"description\" = :description,"
                         + " \"deadlineAt\" = :deadlineAt, \"maxScore\" = :maxScore,"
@@ -236,9 +273,9 @@ public class LearningService {
                         + " WHERE \"id\" = :id AND \"version\" = :expected",
                 new MapSqlParameterSource("id", assignmentId)
                         .addValue("title", request.title())
-                        .addValue("description", request.description())
-                        .addValue("deadlineAt", ts(request.deadlineAt()))
-                        .addValue("maxScore", request.maxScore())
+                        .addValue("description", description)
+                        .addValue("deadlineAt", ts(deadlineAt))
+                        .addValue("maxScore", maxScore)
                         .addValue("expected", request.version()));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
@@ -303,33 +340,46 @@ public class LearningService {
      * joined to the assignment's submission (when one exists). */
     @Transactional(readOnly = true)
     public List<RosterRowResponse> roster(String lecturerId, String assignmentId) {
+        return roster(lecturerId, assignmentId, null).items();
+    }
+
+    /** Reads the authorised roster with a database window; a missing window uses the shared maximum. */
+    @Transactional(readOnly = true)
+    public ListPaging.Result<RosterRowResponse> roster(
+            String lecturerId, String assignmentId, ListPaging.Window window) {
+        if (window == null) {
+            window = new ListPaging.Window(0, ListPaging.MAX_LIMIT);
+        }
         String sectionId = sectionOfAssignment(assignmentId);
         requireSectionLecturer(lecturerId, sectionId);
-        return jdbc.query(
-                "SELECT e.\"id\" AS enrollment_id, e.\"studentId\" AS student_id,"
-                        + " student_user.\"lastName\" || ' ' || student_user.\"firstName\" AS student_name,"
-                        + " student_user.\"email\" AS student_email, e.\"status\" AS enrollment_status,"
-                        + " s.\"id\" AS submission_id, s.\"status\" AS submission_status,"
-                        + " s.\"submittedAt\" AS submitted_at"
-                        + " FROM " + ENROLLMENT + " e"
-                        + " JOIN " + STUDENT + " student ON student.\"id\" = e.\"studentId\""
-                        + " JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
-                        + " LEFT JOIN " + SUBMISSION + " s ON s.\"assignmentId\" = :assignmentId"
-                        + " AND s.\"studentId\" = e.\"studentId\""
-                        + " WHERE e.\"sectionId\" = :sectionId"
-                        + " AND e.\"status\" IN " + ROSTER_STATUSES
-                        // One row per student: retake history leaves several
-                        // seats on the same section — the operative one
-                        // (ENROLLED first) represents them on the roster.
-                        + " AND e.\"id\" = (SELECT e2.\"id\" FROM " + ENROLLMENT + " e2"
-                        + "   WHERE e2.\"studentId\" = e.\"studentId\" AND e2.\"sectionId\" = e.\"sectionId\""
-                        + "   AND e2.\"status\" IN " + ROSTER_STATUSES
-                        + "   ORDER BY CASE e2.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
-                        + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e2.\"enrolledAt\" DESC"
-                        + "   LIMIT 1)"
-                        + " ORDER BY student_user.\"lastName\", student_user.\"firstName\"",
-                new MapSqlParameterSource("sectionId", sectionId).addValue("assignmentId", assignmentId),
-                LearningService::mapRosterRow);
+        String from = " FROM (SELECT e.\"id\", e.\"studentId\", e.\"status\", e.\"enrolledAt\","
+                + "   ROW_NUMBER() OVER (PARTITION BY e.\"studentId\", e.\"sectionId\""
+                + "   ORDER BY CASE e.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
+                + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e.\"enrolledAt\" DESC) AS retake_rank"
+                + "   FROM " + ENROLLMENT + " e"
+                + "   WHERE e.\"sectionId\" = :sectionId"
+                + "   AND e.\"status\" IN " + ROSTER_STATUSES + ") operative"
+                + " JOIN " + STUDENT + " student ON student.\"id\" = operative.\"studentId\""
+                + " JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
+                + " LEFT JOIN " + SUBMISSION + " s ON s.\"assignmentId\" = :assignmentId"
+                + " AND s.\"studentId\" = operative.\"studentId\""
+                // One row per student: retake history leaves several
+                // seats on the same section — the operative one
+                // (ENROLLED first) represents them on the roster.
+                + " WHERE operative.retake_rank = 1";
+        MapSqlParameterSource params = new MapSqlParameterSource("sectionId", sectionId)
+                .addValue("assignmentId", assignmentId);
+        Long total = jdbc.queryForObject("SELECT COUNT(*)" + from, params, Long.class);
+        String sql = "SELECT operative.\"id\" AS enrollment_id, operative.\"studentId\" AS student_id,"
+                + " student_user.\"lastName\" || ' ' || student_user.\"firstName\" AS student_name,"
+                + " student_user.\"email\" AS student_email, operative.\"status\" AS enrollment_status,"
+                + " s.\"id\" AS submission_id, s.\"status\" AS submission_status,"
+                + " s.\"submittedAt\" AS submitted_at" + from
+                + " ORDER BY student_user.\"lastName\", student_user.\"firstName\"";
+        sql += ", operative.\"id\" ASC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        List<RosterRowResponse> items = jdbc.query(sql, params, LearningService::mapRosterRow);
+        return new ListPaging.Result<>(items, total);
     }
 
     @Transactional(readOnly = true)
@@ -364,6 +414,7 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Only submitted work can be returned with feedback");
         }
+        requireValidScore(String.valueOf(submission.get("assignmentId")), request.score());
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'RETURNED', \"returnedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
@@ -399,16 +450,25 @@ public class LearningService {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Only resubmitted or returned work can be marked reviewed");
         }
-        if (request != null && request.expectedVersion() != null
-                && request.expectedVersion() != ((Number) submission.get("version")).intValue()) {
+        int currentVersion = ((Number) submission.get("version")).intValue();
+        Integer expectedVersion = request == null ? null : request.expectedVersion();
+        // A resubmitted revision must be reviewed against a version the lecturer loaded.
+        if (expectedVersion == null && "RESUBMITTED".equals(status)) {
+            requireVersion(null, submission);
+        }
+        if (expectedVersion != null && expectedVersion != currentVersion) {
             throw problem(HttpStatus.CONFLICT, "STALE_VERSION",
                     "The submission changed; reload before reviewing");
         }
+        requireValidScore(String.valueOf(submission.get("assignmentId")),
+                request == null ? null : request.score());
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'REVIEWED', \"reviewedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
-                        + " WHERE \"id\" = :id AND \"status\" IN ('RESUBMITTED','RETURNED')",
-                new MapSqlParameterSource("id", submissionId));
+                        + " WHERE \"id\" = :id AND \"status\" IN ('RESUBMITTED','RETURNED')"
+                        + " AND \"version\" = :expected",
+                new MapSqlParameterSource("id", submissionId)
+                        .addValue("expected", expectedVersion == null ? currentVersion : expectedVersion));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
                     "Submission is no longer in returned state");
@@ -516,10 +576,9 @@ public class LearningService {
         }
     }
 
-    /** Stores a file object when content is supplied; verifies the caller's
-     * declared checksum against the received bytes (LMS-T07). Returns the
-     * stored-object metadata (key/name/type/size/checksum) or null when no
-     * content was supplied. */
+    /** Stores a file object when content is supplied; validates the COURSEWORK
+     * type and size, then verifies the caller's checksum against the received
+     * bytes (LMS-T07). Returns stored-object metadata or null when absent. */
     Map<String, Object> storeFile(String actorId, String scope, String fileName, String contentType,
             String contentBase64, String checksum) {
         if (contentBase64 == null || contentBase64.isBlank()) {
@@ -532,6 +591,12 @@ public class LearningService {
             throw problem(HttpStatus.BAD_REQUEST, "FILE_ENCODING_INVALID",
                     "File content must be base64");
         }
+        if (bytes.length > MultipartAttachment.MAX_BYTES) {
+            throw problem(HttpStatus.BAD_REQUEST, "ATTACHMENT_SIZE_INVALID",
+                    "Attachment must be 1 byte to 5 MiB");
+        }
+        String mediaType = MultipartAttachment.validateContentTypeAndSignature(
+                contentType, bytes, MultipartAttachment.COURSEWORK);
         String sha256 = sha256(bytes);
         if (checksum != null && !checksum.isBlank() && !checksum.equalsIgnoreCase(sha256)) {
             throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "FILE_CHECKSUM_MISMATCH",
@@ -542,13 +607,50 @@ public class LearningService {
                         + " (\"key\", \"contentType\", \"sizeBytes\", \"sha256\", \"data\")"
                         + " VALUES (:key, :contentType, :sizeBytes, :sha256, :data)",
                 new MapSqlParameterSource("key", key)
-                        .addValue("contentType", contentType == null ? "application/octet-stream" : contentType)
+                        .addValue("contentType", mediaType)
                         .addValue("sizeBytes", (long) bytes.length)
                         .addValue("sha256", sha256)
                         .addValue("data", bytes));
         return Map.of("key", key, "fileName", fileName == null ? "" : fileName,
-                "contentType", contentType == null ? "application/octet-stream" : contentType,
+                "contentType", mediaType,
                 "sizeBytes", (long) bytes.length, "checksum", sha256);
+    }
+
+    void deleteFileIfUnreferenced(String fileKey) {
+        if (fileKey == null || fileKey.isBlank()) {
+            return;
+        }
+        jdbc.update("DELETE FROM " + FILE_OBJECT + " WHERE \"key\" = :key"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + MATERIAL + " WHERE \"fileKey\" = :key)"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + SUBMISSION + " WHERE \"draftFileKey\" = :key)"
+                        + " AND NOT EXISTS (SELECT 1 FROM " + REVISION + " WHERE \"fileKey\" = :key)",
+                new MapSqlParameterSource("key", fileKey));
+    }
+
+    private static void validateMaterialTitle(String title) {
+        if (title.length() > 300) {
+            throw new ValidationException("Request validation failed",
+                    Map.of("title", "title must be at most 300 characters"));
+        }
+    }
+
+    private static void validateAssignmentDeadline(Instant deadlineAt) {
+        if (deadlineAt != null && !deadlineAt.isAfter(MIN_ASSIGNMENT_DEADLINE)) {
+            throw new ValidationException("Request validation failed",
+                    Map.of("deadlineAt", "deadlineAt must be after 2000-01-01"));
+        }
+    }
+
+    /** Client-declared media types are untrusted; store only a parseable type. */
+    static String normaliseContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        try {
+            return MediaType.parseMediaType(contentType).toString();
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
     }
 
     static String sha256(byte[] data) {
@@ -557,6 +659,24 @@ public class LearningService {
                     java.security.MessageDigest.getInstance("SHA-256").digest(data));
         } catch (java.security.NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);
+        }
+    }
+
+    /** Feedback is the student-visible grade: keep it inside the assignment scale and NUMERIC(6,2). */
+    private void requireValidScore(String assignmentId, Double score) {
+        if (score == null) {
+            return;
+        }
+        Double maxScore = toDouble(jdbc.queryForMap(
+                "SELECT \"maxScore\" FROM " + ASSIGNMENT + " WHERE \"id\" = :id",
+                new MapSqlParameterSource("id", assignmentId)).get("maxScore"));
+        boolean invalid = score.isNaN() || score.isInfinite() || score < 0 || score > 9999.99
+                || (maxScore != null && score > maxScore);
+        boolean tooPrecise = !invalid
+                && java.math.BigDecimal.valueOf(score).stripTrailingZeros().scale() > 2;
+        if (invalid || tooPrecise) {
+            throw problem(HttpStatus.BAD_REQUEST, "FEEDBACK_SCORE_INVALID",
+                    "Score must be between zero and the assignment maximum with at most two decimals");
         }
     }
 
@@ -617,7 +737,12 @@ public class LearningService {
 
     Map<String, Object> getSubmission(String submissionId) {
         try {
-            return jdbc.queryForMap("SELECT * FROM " + SUBMISSION + " WHERE \"id\" = :id",
+            return jdbc.queryForMap("SELECT s.*, student_user.\"lastName\" || ' ' || student_user.\"firstName\""
+                            + " AS student_name, student_user.\"email\" AS student_email"
+                            + " FROM " + SUBMISSION + " s"
+                            + " LEFT JOIN " + STUDENT + " student ON student.\"id\" = s.\"studentId\""
+                            + " LEFT JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
+                            + " WHERE s.\"id\" = :id",
                     new MapSqlParameterSource("id", submissionId));
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission not found");
@@ -709,13 +834,27 @@ public class LearningService {
     }
 
     static SubmissionResponse mapSubmission(Map<String, Object> row) {
+        return mapSubmission(row, false);
+    }
+
+    /** Student-facing read: carries the owning student's working-copy draft
+     * columns. Callers must have already proven ownership. */
+    static SubmissionResponse mapStudentSubmission(Map<String, Object> row) {
+        return mapSubmission(row, true);
+    }
+
+    private static SubmissionResponse mapSubmission(Map<String, Object> row, boolean withDraft) {
         return new SubmissionResponse(
                 String.valueOf(row.get("id")), String.valueOf(row.get("assignmentId")),
                 String.valueOf(row.get("studentId")), String.valueOf(row.get("status")),
                 (String) row.get("currentRevisionId"), toInstant(row.get("submittedAt")),
                 toInstant(row.get("returnedAt")), toInstant(row.get("reviewedAt")),
                 ((Number) row.get("version")).intValue(),
-                (String) row.get("student_name"), (String) row.get("student_email"));
+                (String) row.get("student_name"), (String) row.get("student_email"),
+                withDraft ? (String) row.get("draftText") : null,
+                withDraft ? (String) row.get("draftFileName") : null,
+                withDraft ? (String) row.get("draftContentType") : null,
+                withDraft ? toLong(row.get("draftSizeBytes")) : null);
     }
 
     static SubmissionRevisionResponse mapRevision(ResultSet row, int n) throws SQLException {
@@ -742,11 +881,11 @@ public class LearningService {
     }
 
     private static MapSqlParameterSource materialParams(String id, String sectionId,
-            MaterialUpsertRequest request, Map<String, Object> stored, String uploaderId) {
+            MaterialUpsertRequest request, String description, Map<String, Object> stored, String uploaderId) {
         return new MapSqlParameterSource("id", id)
                 .addValue("sectionId", sectionId)
                 .addValue("title", request.title())
-                .addValue("description", request.description())
+                .addValue("description", description)
                 .addValue("fileKey", stored == null ? null : stored.get("key"))
                 .addValue("fileName", stored == null ? request.fileName() : stored.get("fileName"))
                 .addValue("contentType", stored == null ? request.contentType() : stored.get("contentType"))

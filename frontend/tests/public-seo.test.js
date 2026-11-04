@@ -5,6 +5,13 @@ const path = require('node:path');
 const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
+const siteSource = fs.readFileSync(path.join(root, 'src/lib/site.ts'), 'utf8');
+const siteCompiled = ts.transpileModule(siteSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
+const siteRecord = { exports: {} };
+Function('module', 'exports', siteCompiled)(siteRecord, siteRecord.exports);
+const { getSiteUrl, buildSiteUrl } = siteRecord.exports;
 const source = fs.readFileSync(path.join(root, 'src/lib/public-seo.ts'), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -32,7 +39,7 @@ Function('module', 'exports', 'require', apiServerCompiled)(
 );
 const { buildPublicApiUrl } = apiServerRecord.exports;
 
-const siteUrl = 'https://www.campusute.io.vn';
+const siteUrl = 'http://localhost:3000';
 const newsCopy = {
   en: {
     title: 'Campus news',
@@ -47,6 +54,47 @@ const newsCopy = {
     notFoundBody: 'Bài viết này chưa xuất bản hoặc không còn tồn tại.',
   },
 };
+
+function withSiteEnvironment(overrides, callback) {
+  const previous = new Map();
+  for (const [key, value] of Object.entries(overrides)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  try {
+    callback();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test('site URL defaults to localhost in development, test, and production modes', () => {
+  for (const NODE_ENV of ['development', 'test', 'production']) {
+    withSiteEnvironment({
+      NODE_ENV,
+      NEXT_PUBLIC_SITE_URL: undefined,
+      VERCEL_PROJECT_PRODUCTION_URL: undefined,
+      VERCEL_URL: undefined,
+    }, () => assert.equal(getSiteUrl(), 'http://localhost:3000'));
+  }
+});
+
+test('explicit NEXT_PUBLIC_SITE_URL wins and trailing slashes are normalized', () => {
+  withSiteEnvironment({
+    NODE_ENV: 'production',
+    NEXT_PUBLIC_SITE_URL: ' https://ecosystem.example.test/// ',
+    VERCEL_PROJECT_PRODUCTION_URL: 'implicit-project.vercel.app',
+    VERCEL_URL: 'implicit-preview.vercel.app',
+  }, () => {
+    assert.equal(getSiteUrl(), 'https://ecosystem.example.test');
+    assert.equal(buildSiteUrl('/sitemap.xml'), 'https://ecosystem.example.test/sitemap.xml');
+  });
+});
 
 test('news list metadata is localized and includes canonical, hreflang, OpenGraph and Twitter tags', () => {
   const metadata = buildNewsListMetadata('vi', siteUrl, newsCopy.vi);
@@ -174,9 +222,11 @@ test('server-side public API URLs use the configured API base and encode each pa
   assert.throws(() => buildPublicApiUrl('javascript:alert(1)', siteUrl, ['news']), /Invalid public API base URL/);
 });
 
-test('sitemap performs only the two bounded public-list API requests', () => {
+test('sitemap walks the public lists with a bounded page size and page count', () => {
   const route = fs.readFileSync(path.join(root, 'src/app/sitemap.ts'), 'utf8');
-  assert.match(route, /fetchPublicApiJson\(\['announcements', 'public'\], \{ page: '1', limit: '50' \}\)/);
-  assert.match(route, /fetchPublicApiJson\(\['public', 'docs'\], \{ page: '1', limit: '50' \}\)/);
-  assert.equal((route.match(/fetchPublicApiJson\(/g) ?? []).length, 2);
+  assert.match(route, /PUBLIC_SITEMAP_PAGE_SIZE = 100/);
+  assert.match(route, /PUBLIC_SITEMAP_MAX_PAGES = 20/);
+  assert.match(route, /limit: String\(PUBLIC_SITEMAP_PAGE_SIZE\)/);
+  assert.match(route, /for \(let page = 1; page <= PUBLIC_SITEMAP_MAX_PAGES; page \+= 1\)/);
+  assert.equal((route.match(/fetchPublicApiJson\(/g) ?? []).length, 1);
 });

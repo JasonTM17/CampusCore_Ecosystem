@@ -1,4 +1,5 @@
 import { getSiteUrl } from '@/lib/site';
+import { getMessages } from '@/i18n/messages';
 
 interface JsonLdProps {
   locale?: string;
@@ -7,22 +8,17 @@ interface JsonLdProps {
 
 export function JsonLd({ locale = 'vi', nonce }: JsonLdProps) {
   const siteUrl = getSiteUrl();
-  const isVi = locale === 'vi';
-  const organizationName = isVi
-    ? 'Trường Đại học Công nghệ Kỹ thuật TP.HCM'
-    : 'Ho Chi Minh City University of Technology and Engineering';
+  const copy = getMessages(locale === 'vi' ? 'vi' : 'en').meta.jsonLd;
 
   const organizationSchema = {
     '@context': 'https://schema.org',
     '@type': 'CollegeOrUniversity',
-    name: organizationName,
+    name: copy.organizationName,
     alternateName: ['HCM-UTE', 'HCMUTE', 'CampusUTE', 'UTE'],
     url: siteUrl,
     logo: `${siteUrl}/icon.png`,
     image: `${siteUrl}/icon.png`,
-    description: isVi
-      ? 'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.'
-      : 'CampusUTE online academic portal of Ho Chi Minh City University of Technology and Engineering.',
+    description: copy.organizationDescription,
     address: {
       '@type': 'PostalAddress',
       streetAddress: '01 Võ Văn Ngân, Phường Linh Chiểu',
@@ -52,7 +48,7 @@ export function JsonLd({ locale = 'vi', nonce }: JsonLdProps) {
     },
     author: {
       '@type': 'EducationalOrganization',
-      name: organizationName,
+      name: copy.organizationName,
     },
   };
 
@@ -64,7 +60,7 @@ export function JsonLd({ locale = 'vi', nonce }: JsonLdProps) {
     inLanguage: ['vi-VN', 'en-US'],
     publisher: {
       '@type': 'CollegeOrUniversity',
-      name: organizationName,
+      name: copy.organizationName,
     },
   };
 

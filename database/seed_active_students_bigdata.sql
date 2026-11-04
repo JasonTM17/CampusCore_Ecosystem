@@ -8,7 +8,20 @@
 -- student down to exactly 5 active enrollments so the population stays inside the contract no
 -- matter how many rows the migrations created.
 
+-- Safety guard: this is a one-off demo-seeding repair, not a migration. It deletes
+-- and rewrites enrollment rows, so it must only run when the operator opts in for
+-- the session:
+--     SET campuscore.demo_seed = 'on';
+-- The DO block below runs inside the transaction, so its exception aborts the whole
+-- script and COMMIT rolls back even when psql runs without ON_ERROR_STOP.
 BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'seed_active_students_bigdata.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
 
 -- 1. Clean conflicting demo enrollments for student-profile
 DELETE FROM "academic"."Enrollment"
@@ -91,9 +104,11 @@ BEGIN
     END LOOP;
 END $$;
 
--- 4. Normalize: no student may exceed 5 active enrollments in semester-demo.
---    Keeps the 5 oldest (deterministic by enrolledAt, then id) and removes the excess created
---    by migration V26 for students whose generated picks never collided on the same course.
+-- 4. Normalize: no demo student may exceed 5 active enrollments in semester-demo.
+--    Scoped to the 'student-profile%' demo cohort only, so registrations belonging to
+--    any other student can never be removed. Keeps the 5 oldest (deterministic by
+--    enrolledAt, then id) and removes the excess created by migration V26 for
+--    students whose generated picks never collided on the same course.
 WITH ranked AS (
     SELECT e.id,
            row_number() OVER (
@@ -103,6 +118,7 @@ WITH ranked AS (
     FROM "academic"."Enrollment" e
     WHERE e."semesterId" = 'semester-demo'
       AND e.status IN ('ENROLLED', 'CONFIRMED')
+      AND e."studentId" LIKE 'student-profile%'
 )
 DELETE FROM "academic"."Enrollment" e
 USING ranked r

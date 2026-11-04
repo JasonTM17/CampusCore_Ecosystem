@@ -11,6 +11,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Locale } from '@/i18n/config';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 export interface AttachmentItem {
   id?: string;
@@ -67,7 +71,7 @@ export function DocumentAttachmentsList({
   className,
   locale = 'vi',
 }: DocumentAttachmentsListProps) {
-  const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.attachments;
   const extracted = extractAttachmentsFromContent(content);
   const allAttachments = [...attachments, ...extracted];
 
@@ -115,10 +119,10 @@ export function DocumentAttachmentsList({
       <div className="flex items-center gap-2 border-b border-border/60 pb-3">
         <Paperclip className="h-4 w-4 text-primary" />
         <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-          {isVi ? 'Tệp đính kèm chính thức' : 'Official Attached Documents'}
+          {copy.heading}
         </h4>
         <span className="ml-auto rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-          {allAttachments.length} {isVi ? 'tệp' : 'files'}
+          {allAttachments.length} {copy.countSuffix}
         </span>
       </div>
 
@@ -149,7 +153,7 @@ export function DocumentAttachmentsList({
                   >
                     {file.type || 'DOC'}
                   </span>
-                  <span>{file.size ?? (isVi ? 'Tài liệu số' : 'Digital document')}</span>
+                  <span>{file.size ?? copy.digitalDocument}</span>
                 </div>
               </div>
             </div>

@@ -1,10 +1,12 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, RefreshCw, ScrollText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { adminAuditApi, type AdminAuditEntry } from '@/lib/api';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
@@ -19,6 +21,7 @@ import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 const PAGE_SIZE = 20;
 
@@ -32,7 +35,7 @@ function actionTone(action: string): StatusTone {
 /** Round-3 ct-2 completion: the admin-facing viewer for GET /api/v1/admin/audit. */
 export default function AdminAuditTrailPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
-  const { href, messages, formatDateTime } = useI18n();
+  const { href, locale, messages, formatDateTime } = useI18n();
   const router = useRouter();
   const copy = messages.admin.auditTrail;
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
@@ -48,11 +51,16 @@ export default function AdminAuditTrailPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const [applied, setApplied] = useState<{ action?: string; entityType?: string; search?: string }>({});
   const [expanded, setExpanded] = useState<string | null>(null);
+  const auditEpoch = useRef(createRequestEpoch()).current;
+
+  useEffect(() => () => {
+    auditEpoch.invalidate();
+  }, [auditEpoch]);
 
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
     if (!isAdmin && !isSuperAdmin) {
@@ -61,19 +69,23 @@ export default function AdminAuditTrailPage() {
   }, [authLoading, href, isAdmin, isLoggingOut, isSuperAdmin, router, user]);
 
   const load = useCallback(async () => {
+    const epoch = auditEpoch.begin();
     setLoading(true);
     setError('');
     try {
       const result = await adminAuditApi.list({ page, limit: PAGE_SIZE, ...applied });
+      if (!auditEpoch.isCurrent(epoch)) return;
       setRows(result.data);
       setTotalPages(Math.max(1, result.meta.totalPages));
       setTotal(result.meta.total);
     } catch (cause) {
+      if (!auditEpoch.isCurrent(epoch)) return;
       setError(campusErrorMessage(cause, messages.common.campusErrors, copy.loadFailed));
     } finally {
+      if (!auditEpoch.isCurrent(epoch)) return;
       setLoading(false);
     }
-  }, [applied, copy.loadFailed, messages.common.campusErrors, page]);
+  }, [applied, auditEpoch, copy.loadFailed, messages.common.campusErrors, page]);
 
   useEffect(() => {
     if (canAccess) void load();
@@ -128,7 +140,7 @@ export default function AdminAuditTrailPage() {
               <Input
                 value={searchFilter}
                 onChange={(event) => setSearchFilter(event.target.value)}
-                placeholder="Nguyễn Tiến Sơn, E2E PROBE…"
+                placeholder={(locale === 'vi' ? adminOpsVi : adminOpsEn).audit.searchPlaceholder}
                 aria-label={copy.filterSearch}
               />
             </label>
@@ -182,7 +194,6 @@ export default function AdminAuditTrailPage() {
                     <th className="px-3 py-2">{copy.colActor}</th>
                     <th className="px-3 py-2">{copy.colEntity}</th>
                     <th className="px-3 py-2">{copy.colSummary}</th>
-                    <th className="w-8 px-2 py-2" aria-hidden="true" />
                   </tr>
                 </thead>
                 <tbody>
@@ -190,20 +201,24 @@ export default function AdminAuditTrailPage() {
                     <Fragment key={entry.id}>
                       <tr
                         key={entry.id}
-                        className="cursor-pointer border-t border-border/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent focus-visible:ring-inset"
-                        tabIndex={0}
-                        aria-expanded={expanded === entry.id}
-                        aria-controls={`audit-detail-${entry.id}`}
-                        onClick={() => setExpanded((current) => (current === entry.id ? null : entry.id))}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            setExpanded((current) => (current === entry.id ? null : entry.id));
-                          }
-                        }}
+                        className="border-t border-border/60 hover:bg-muted/40"
                       >
                         <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                          {formatDateTime(entry.createdAt)}
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent"
+                            aria-expanded={expanded === entry.id}
+                            aria-controls={`audit-detail-${entry.id}`}
+                            aria-label={`${copy.detailTitle}: ${formatDateTime(entry.createdAt)}`}
+                            onClick={() => setExpanded((current) => (current === entry.id ? null : entry.id))}
+                          >
+                            {expanded === entry.id ? (
+                              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            <span>{formatDateTime(entry.createdAt)}</span>
+                          </button>
                         </td>
                         <td className="px-3 py-2">
                           <span
@@ -224,17 +239,10 @@ export default function AdminAuditTrailPage() {
                         <td className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground" title={entry.summary ?? undefined}>
                           {entry.summary || '—'}
                         </td>
-                        <td className="px-2 py-2 text-muted-foreground">
-                          {expanded === entry.id ? (
-                            <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                          )}
-                        </td>
                       </tr>
                       {expanded === entry.id ? (
                         <tr id={`audit-detail-${entry.id}`} className="border-t border-border/40 bg-muted/20">
-                          <td colSpan={6} className="px-4 py-3">
+                          <td colSpan={5} className="px-4 py-3">
                             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                               {copy.detailTitle}
                             </p>

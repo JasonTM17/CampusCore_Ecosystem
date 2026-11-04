@@ -71,15 +71,24 @@ public class AdminAnalyticsRepository {
         return jdbc.query("""
                 SELECT d."code" AS code,
                        COALESCE(d."nameVi", d."name") AS name,
-                       (SELECT COUNT(*) FROM academic."Student" s
-                         JOIN academic."Curriculum" c ON c."id" = s."curriculumId"
-                         WHERE c."departmentId" = d."id") AS students,
-                       (SELECT COUNT(*) FROM academic."Course" cr
-                         WHERE cr."departmentId" = d."id") AS courses,
-                       (SELECT COUNT(*) FROM academic."Section" sec
-                         JOIN academic."Course" cr2 ON cr2."id" = sec."courseId"
-                         WHERE cr2."departmentId" = d."id") AS sections
+                       COALESCE(student_counts.students, 0) AS students,
+                       COALESCE(course_counts.courses, 0) AS courses,
+                       COALESCE(course_counts.sections, 0) AS sections
                 FROM academic."Department" d
+                LEFT JOIN (
+                    SELECT c."departmentId" AS department_id, COUNT(*) AS students
+                    FROM academic."Student" s
+                    JOIN academic."Curriculum" c ON c."id" = s."curriculumId"
+                    GROUP BY c."departmentId"
+                ) student_counts ON student_counts.department_id = d."id"
+                LEFT JOIN (
+                    SELECT cr."departmentId" AS department_id,
+                           COUNT(DISTINCT cr."id") AS courses,
+                           COUNT(sec."id") AS sections
+                    FROM academic."Course" cr
+                    LEFT JOIN academic."Section" sec ON sec."courseId" = cr."id"
+                    GROUP BY cr."departmentId"
+                ) course_counts ON course_counts.department_id = d."id"
                 ORDER BY students DESC, d."code"
                 """, DEPARTMENT_MAPPER);
     }
@@ -145,17 +154,26 @@ public class AdminAnalyticsRepository {
 
     /** Campus-wide totals for the header tiles. */
     public Totals totals() {
-        long students = requireCount("SELECT COUNT(*) FROM academic.\"Student\"");
-        long lecturers = requireCount("SELECT COUNT(*) FROM academic.\"Lecturer\"");
-        long courses = requireCount("SELECT COUNT(*) FROM academic.\"Course\"");
-        long enrollments = requireCount(
-                "SELECT COUNT(*) FROM academic.\"Enrollment\" "
-                        + "WHERE \"status\" NOT IN ('DROPPED', 'CANCELLED')");
-        return new Totals(students, lecturers, courses, enrollments);
-    }
-
-    private long requireCount(String sql) {
-        Long count = jdbc.getJdbcOperations().queryForObject(sql, Long.class);
-        return count == null ? 0L : count;
+        return jdbc.queryForObject("""
+                SELECT
+                    COUNT(*) FILTER (WHERE kind = 'STUDENT') AS students,
+                    COUNT(*) FILTER (WHERE kind = 'LECTURER') AS lecturers,
+                    COUNT(*) FILTER (WHERE kind = 'COURSE') AS courses,
+                    COUNT(*) FILTER (WHERE kind = 'ENROLLMENT') AS enrollments
+                FROM (
+                    SELECT CAST('STUDENT' AS VARCHAR(16)) AS kind FROM academic."Student"
+                    UNION ALL
+                    SELECT CAST('LECTURER' AS VARCHAR(16)) FROM academic."Lecturer"
+                    UNION ALL
+                    SELECT CAST('COURSE' AS VARCHAR(16)) FROM academic."Course"
+                    UNION ALL
+                    SELECT CAST('ENROLLMENT' AS VARCHAR(16)) FROM academic."Enrollment"
+                        WHERE "status" NOT IN ('DROPPED', 'CANCELLED')
+                ) campus_rows
+                """, new MapSqlParameterSource(), (rs, ignored) -> new Totals(
+                        rs.getLong("students"),
+                        rs.getLong("lecturers"),
+                        rs.getLong("courses"),
+                        rs.getLong("enrollments")));
     }
 }

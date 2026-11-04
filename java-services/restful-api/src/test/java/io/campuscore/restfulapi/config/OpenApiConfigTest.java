@@ -32,8 +32,7 @@ class OpenApiConfigTest {
         assertThat(securityScheme.getBearerFormat()).isEqualTo("JWT");
 
         // Assert servers
-        assertThat(openAPI.getServers()).hasSize(2);
+        assertThat(openAPI.getServers()).hasSize(1);
         assertThat(openAPI.getServers().get(0).getUrl()).isEqualTo("http://127.0.0.1:4010");
-        assertThat(openAPI.getServers().get(1).getUrl()).isEqualTo("https://campusute.io.vn");
     }
 }

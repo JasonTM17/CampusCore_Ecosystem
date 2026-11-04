@@ -19,6 +19,7 @@ test.after(() => {
 // binary, service, provider or dependency installation is used by these tests.
 // CONTRACT_TEARDOWN_TEST_OCCUPIED=1 makes the API port probe answer "occupied".
 // CONTRACT_TEARDOWN_TEST_EXISTING=1 makes `compose ps -aq` report a container id.
+// CONTRACT_TEARDOWN_TEST_DOWN_FAILURE=1 makes the owned compose teardown fail.
 const preload = path.join(temp, 'preload.mjs');
 fs.writeFileSync(preload, `
 import childProcess from 'node:child_process';
@@ -28,6 +29,12 @@ childProcess.spawnSync = (command, args, options) => {
   fs.appendFileSync(process.env.CONTRACT_TEARDOWN_TEST_RECORD, JSON.stringify({ command, args }) + '\\n');
   if (args.includes('ps')) {
     return { status: 0, stdout: process.env.CONTRACT_TEARDOWN_TEST_EXISTING === '1' ? 'abc123def456\\n' : '', stderr: '' };
+  }
+  if (args.includes('volume') && args.includes('ls')) {
+    return { status: 0, stdout: '', stderr: '' };
+  }
+  if (args.includes('down') && process.env.CONTRACT_TEARDOWN_TEST_DOWN_FAILURE === '1') {
+    return { status: 1, stdout: '', stderr: 'synthetic teardown failure' };
   }
   return { status: 0, stdout: args.includes('logs') ? 'synthetic container log' : '{}', stderr: '' };
 };
@@ -84,8 +91,24 @@ test('a stack this run started is still torn down with its volumes', () => {
   const { result, calls } = runCli('owned');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const docker = calls.filter((call) => call.command === 'docker');
-  const verbs = docker.map((call) => call.args.find((arg) => ['ps', 'up', 'logs', 'down'].includes(arg)));
-  assert.deepEqual(verbs, ['ps', 'up', 'logs', 'down']);
+  const verbs = docker.map((call) => call.args.includes('volume')
+    ? 'volume'
+    : call.args.find((arg) => ['ps', 'up', 'logs', 'down'].includes(arg)));
+  assert.deepEqual(verbs, ['ps', 'volume', 'up', 'logs', 'down']);
   const down = docker.find((call) => call.args.includes('down'));
   assert.ok(down.args.includes('-v'), 'the disposable stack keeps volume cleanup');
+});
+
+test('a teardown failure fails the run and preserves probe evidence', () => {
+  const { result, calls, receipt } = runCli('down-failed', {
+    CONTRACT_TEARDOWN_TEST_DOWN_FAILURE: '1',
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /"verdict":"FAIL"/);
+  assert.equal(receipt.verdict, 'FAIL');
+  assert.equal(receipt.teardown, 'degraded');
+  assert.ok(receipt.results, 'probe results remain available after teardown fails');
+  assert.ok(receipt.results.requestId.length > 0, 'request-id probe evidence is preserved');
+  assert.ok(calls.some((call) => call.args.includes('down')));
 });

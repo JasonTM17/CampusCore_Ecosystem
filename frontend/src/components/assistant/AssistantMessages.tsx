@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/i18n';
+import { getAssistantWindowMessages } from './assistant-messages';
 import { toast } from 'sonner';
 import type { AssistantCitation } from '@/lib/thesis-api';
 import {
@@ -165,6 +166,7 @@ export function AssistantMessages({
   scope = 'academic',
 }: AssistantMessagesProps) {
   const { messages, locale, formatDateTime } = useI18n();
+  const windowCopy = getAssistantWindowMessages(locale);
   const [openCitations, setOpenCitations] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -186,11 +188,7 @@ export function AssistantMessages({
         setCopiedId((current) => (current === message.id ? null : current));
       }, 1500);
     } catch {
-      toast.error(
-        locale === 'vi'
-          ? 'Không thể sao chép vào bộ nhớ tạm.'
-          : 'Could not copy to clipboard.',
-      );
+      toast.error(windowCopy.clipboard.copyFailed);
     }
   };
 
@@ -338,10 +336,10 @@ export function AssistantMessages({
                         <span className="text-[10px] text-muted-foreground">
                           {messages.assistant.quotaResetsAt.replace(
                             '{time}',
-                            new Date(message.resetAt).toLocaleTimeString(
-                              undefined,
-                              { hour: '2-digit', minute: '2-digit' },
-                            ),
+                            formatDateTime(message.resetAt, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }),
                           )}
                         </span>
                       ) : null}
@@ -484,14 +482,14 @@ export function AssistantMessages({
                       {message.feedbackRetry ? (
                         <div
                           role="alert"
-                          className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs text-destructive"
+                          className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs text-status-danger-foreground"
                         >
                           <span>{messages.assistant.feedbackSaveFailed}</span>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="min-h-9 shrink-0 px-2 text-destructive hover:bg-transparent hover:underline"
+                            className="min-h-9 shrink-0 px-2 text-status-danger-foreground hover:bg-transparent hover:underline"
                             onClick={() => {
                               const retry = message.feedbackRetry;
                               if (retry) onFeedback(message.id, retry.rating, retry.reason);

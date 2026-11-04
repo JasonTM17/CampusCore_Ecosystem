@@ -3,6 +3,7 @@
 // No React and no network here so the node suite can run it directly.
 
 import type { ThesisCopy } from '../../i18n/thesis-messages';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 
 /** Server rules (ThesisMutationService, ReportFilePolicy, ThesisReportService). */
 export const THESIS_GROUP_MIN_MEMBERS = 3;
@@ -76,6 +77,8 @@ export interface ThesisSupervisor {
   email?: string | null;
 }
 
+export type ThesisResultStatus = 'GRADED' | 'NOT_QUALIFIED';
+
 export interface ThesisProgress {
   roundId: string;
   roundStatus: string;
@@ -92,6 +95,12 @@ export interface ThesisProgress {
   reportId?: string | null;
   reportSubmittedAt?: string | null;
   finalScore?: number | null;
+  /** Null while the round has no resolved outcome. */
+  resultStatus?: ThesisResultStatus | null;
+  resultReason?: string | null;
+  resultResolvedAt?: string | null;
+  /** Steps the server marks as inapplicable for this outcome. */
+  skippedMilestones?: string[] | null;
 }
 
 export interface ThesisReport {
@@ -144,8 +153,15 @@ export function pickDefaultRound<T extends { id: string; status: string }>(
   return rounds.find((round) => round.status !== 'CANCELLED' && round.status !== 'DRAFT') ?? rounds[0] ?? null;
 }
 
-export function isRegistrationOpen(round: { status: string } | null | undefined): boolean {
-  return round?.status === 'REGISTRATION_OPEN';
+/** Mirrors the server check: the stored window is normative — start <= now < end. */
+export function isRegistrationOpen(
+  round: Pick<ThesisRound, 'status' | 'registrationStart' | 'registrationEnd'> | null | undefined,
+): boolean {
+  if (round?.status !== 'REGISTRATION_OPEN') return false;
+  const start = Date.parse(round.registrationStart);
+  const end = Date.parse(round.registrationEnd);
+  const now = Date.now();
+  return !Number.isNaN(start) && !Number.isNaN(end) && now >= start && now < end;
 }
 
 /** Case- and accent-insensitive match over title, department and brief of the loaded topics. */
@@ -280,11 +296,28 @@ export async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export type MilestoneState = 'done' | 'current' | 'pending';
+export type MilestoneState = 'done' | 'current' | 'pending' | 'skipped';
 
-export function milestoneState(progress: Pick<ThesisProgress, 'completedMilestones' | 'currentMilestone'>, milestone: string): MilestoneState {
+export function milestoneState(
+  progress: Pick<ThesisProgress, 'completedMilestones' | 'currentMilestone' | 'skippedMilestones'>,
+  milestone: string,
+): MilestoneState {
+  // A step the outcome makes inapplicable must never read as reached.
+  if ((progress.skippedMilestones ?? []).includes(milestone)) return 'skipped';
   if (progress.completedMilestones.includes(milestone)) return 'done';
   return progress.currentMilestone === milestone ? 'current' : 'pending';
+}
+
+export function isNotQualified(progress: Pick<ThesisProgress, 'resultStatus'> | null | undefined): boolean {
+  return progress?.resultStatus === 'NOT_QUALIFIED';
+}
+
+export type MilestoneTone = 'success' | 'primary' | 'neutral';
+
+/** A non-qualifying result keeps reached steps factual and never uses success styling. */
+export function milestoneTone(state: MilestoneState, notQualified = false): MilestoneTone {
+  if (state === 'done') return notQualified ? 'primary' : 'success';
+  return state === 'current' ? 'primary' : 'neutral';
 }
 
 /** Share of milestones completed, 0..100. */
@@ -292,6 +325,23 @@ export function progressPercent(progress: Pick<ThesisProgress, 'completedMilesto
   if (!progress) return 0;
   const done = THESIS_MILESTONES.filter((milestone) => progress.completedMilestones.includes(milestone)).length;
   return Math.round((done / THESIS_MILESTONES.length) * 100);
+}
+
+/**
+ * A final score belongs to an approved group's published result. The group is
+ * the authority: a rejected/cancelled membership, or a progress payload left
+ * over from another group, must never surface one.
+ */
+export function canShowFinalScore(
+  group: Pick<ThesisGroup, 'id' | 'status' | 'approvalStatus'> | null | undefined,
+  progress: Pick<ThesisProgress, 'groupId' | 'groupStatus' | 'approvalStatus' | 'finalScore' | 'resultStatus'> | null | undefined,
+): boolean {
+  if (!group || !progress || typeof progress.finalScore !== 'number') return false;
+  if (progress.resultStatus === 'NOT_QUALIFIED') return false;
+  if (group.approvalStatus !== 'APPROVED' || group.status === 'CANCELLED') return false;
+  if (progress.groupId && group.id && progress.groupId !== group.id) return false;
+  if (progress.approvalStatus && progress.approvalStatus !== 'APPROVED') return false;
+  return progress.groupStatus !== 'CANCELLED';
 }
 
 /** A report can be written only by the leader of an approved group (server: GROUP_STATE_CONFLICT otherwise). */
@@ -355,7 +405,7 @@ export function validateReportFile(file: { name: string; sizeBytes?: number }): 
 
 // --- Errors ---------------------------------------------------------------
 
-export type ThesisErrorKind = 'session' | 'forbidden' | 'offline' | 'notFound' | 'conflict' | 'unavailable' | 'rate' | 'aborted' | 'generic';
+export type ThesisErrorKind = 'forbidden' | 'offline' | 'notFound' | 'conflict' | 'unavailable' | 'rate' | 'aborted' | 'generic';
 
 export interface ThesisErrorInfo {
   kind: ThesisErrorKind;
@@ -373,7 +423,9 @@ export function thesisErrorInfo(error: unknown): ThesisErrorInfo {
     return { ...base, kind: 'aborted' };
   }
   if (numeric === 0 || text === 'NETWORK_ERROR') return { ...base, kind: 'offline' };
-  if (numeric === 401) return { ...base, kind: 'session' };
+  // A resource 401 stays inline and retryable: the API client's refresh lane
+  // owns the only sign-in route, so this screen never claims the session died.
+  if (isResourceUnauthorizedError(error)) return { ...base, kind: 'generic' };
   if (numeric === 403) return { ...base, kind: 'forbidden' };
   if (numeric === 404) return { ...base, kind: 'notFound' };
   if (numeric === 409 || numeric === 412) return { ...base, kind: 'conflict' };
@@ -392,7 +444,6 @@ export function thesisErrorMessage(copy: ThesisCopy, error: unknown): string {
   const specific = info.code ? copy.errors.codes[info.code] : undefined;
   if (specific) return specific;
   switch (info.kind) {
-    case 'session': return copy.errors.session;
     case 'forbidden': return copy.errors.forbidden;
     case 'offline': return copy.errors.offline;
     case 'notFound': return copy.errors.notFound;

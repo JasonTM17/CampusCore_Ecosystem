@@ -33,6 +33,28 @@ export default function robots(): MetadataRoute.Robots {
           '/reset-password',
           '/en/reset-password',
           '/vi/reset-password',
+          // Recovery is a uniform-response entry point, never a search
+          // landing page.
+          '/forgot-password',
+          '/en/forgot-password',
+          '/vi/forgot-password',
+          // Staff desks: authenticated consoles with no public content. They
+          // mirror STAFF_DESKS (admissions / careers / library); the events and
+          // admin consoles already sit under '/admin/'. The bare path already
+          // covers its subtree, the trailing-slash form is kept explicit for
+          // readers grepping the canonical desk URL.
+          '/apply/review',
+          '/apply/review/',
+          '/en/apply/review',
+          '/vi/apply/review',
+          '/careers/desk',
+          '/careers/desk/',
+          '/en/careers/desk',
+          '/vi/careers/desk',
+          '/library/desk',
+          '/library/desk/',
+          '/en/library/desk',
+          '/vi/library/desk',
           // Check-in deep links hand off to the CampusUTE app; session ids
           // must never reach a search index.
           '/attendance/checkin/',

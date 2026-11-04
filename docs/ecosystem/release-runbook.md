@@ -1,4 +1,8 @@
-# Release runbook — demo candidate → staged deploy → rollback
+# Release runbook — local demo candidate → future go-live → rollback
+
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Runbook này mô tả quy trình release/go-live **tương lai**; local quick start nằm ở
+> [README.md](../../README.md#quick-start-local).
 
 C2 P14: một release hội tụ D0–D10 (synthetic demo, chưa pilot). Mọi bước
 ghi evidence; deploy/DNS/store là external capability — `BLOCKED_CAPABILITY`
@@ -19,18 +23,26 @@ tree, không phải snapshot đã commit.
 
 ## 2. Backup/restore drill
 
+Drill chạy trên **fixture disposable** (không dùng stack demo chung): container mang label
+`io.campusute.drill.disposable=true` và tên theo hợp đồng ở
+[ops/backup/README.md](../../ops/backup/README.md). Guard từ chối mọi tên khác.
+
 ```powershell
-# demo stack đang chạy (compose project bất kỳ):
-$env:ECO_DRILL_CONTAINER='campuscore-demo-p14-postgres-1'
-$env:ECO_DRILL_DB='campuscore_restful_e2e'
+$env:ECO_DRILL_CONTAINER='campusute-drill-p14-postgres'
+$env:ECO_DRILL_DB='campusute_drill_p14'
+$env:ECO_DRILL_DISPOSABLE='1'
 node scripts/ecosystem-backup-drill.mjs --out artifacts/verification/demo
 # → demo-<ts>.dump + .sha256 + backup-drill.json (row-count parity mọi
 #   bảng, FK parity, orphan checks library/careers/events/admissions).
 #   exit 4 = BLOCKED_CAPABILITY khi không có stack.
 ```
 
+Bản sao lưu gồm dump DB và tar thư mục báo cáo luận văn được chụp ở hai thời điểm khác nhau;
+backup, verify và restore đối chiếu `storage_key` trong dump với tar, chụp lại một lần khi lệch
+(chi tiết ở [ops/backup/README.md](../../ops/backup/README.md)).
+
 Sau drill: verify archive bằng `ops/backup/verify-backup.sh` nếu restore
-bằng tay. Restore **luôn** vào DB isolated (`demo_restore_*`) — script từ
+bằng tay. Restore **luôn** vào DB isolated (`campuscore_restore_*`) — script từ
 chối overwrite DB nguồn.
 
 ## 3. Host probe
@@ -67,23 +79,26 @@ free-tier CU-h chỉ là ước lượng ghi rõ method, không gọi là bill t
 
 Mốc đo lịch sử trong rehearsal: API RSS774,6MiB; các mốc trước ghi825MiB–1,03GiB. Các giá trị đó vượt ngân sách512MiB đã dùng khi lập phương án miễn phí; không phải phép đo của candidate hiện tại hay xác nhận gói dịch vụ hiện hành. Trước cloud deployment, owner phải chọn phương án có bằng chứng: tài nguyên trả phí đủ RAM, giảm footprint rồi đo lại mà giữ các kiểm bảo mật, hoặc tiếp tục local/tự host trong phạm vi được phép. Chưa có quyết định thì cloud deploy còn BLOCKED_CAPABILITY. Ưu tiên miễn phí không đồng nghĩa cam kết vận hành miễn phí; không tự mua hoặc đăng ký dịch vụ. Local verification không thay quyết định cloud sizing.
 
-## 5. Staged deploy (BLOCKED_CAPABILITY hiện tại)
+## 5. Staged deploy (BLOCKED_CAPABILITY — future go-live)
 
-Cần DNS + hosting credentials + store/signing. Khi có:
+Cần DNS + hosting credentials + store/signing. Khi owner mở go-live:
 
-1. Deploy API/id trước từ image đã qua cổng staged: workflow `publish-ghcr.yml` build và stage tag `candidate-<sha>`, yêu cầu scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động).
+1. Build API/id image từ commit đã qua cổng staged, gắn tag `candidate-<sha>`, chạy scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động). Repo này **không** chứa workflow publish image. Với database đã có dữ liệu (populated database), thực hiện quy trình pre-deployment DDL cho các migration nặng khóa (V146–V150) theo [Flyway lineage pre-deployment](../integrations/flyway-lineage.md#44-pre-deployment-procedure-for-populated-databases-lock-heavy-migrations-v146v150) trước khi khởi động API.
 2. Deploy web hosts (portal/learn/apply/apex) trỏ surface registry.
 3. `probe-ecosystem-hosts.mjs` chống declared hostname (không `--insecure`).
 4. Canary synthetic personas → full lifecycle suite → live smoke.
 5. Rollback drill: restore backup hiện tại → attachment parity → delta
    check trước reopen. DNS rollback theo record thực — TTL không tức thì.
 
-### Provider checklist còn thiếu (measured 2026-10-30, all probed)
+### Future go-live prerequisites (measured 2026-10-30 — không phải defect của repo này)
 
-| Item | Probe result | Owner action |
+Các host dưới đây là **host đích tương lai** của ecosystem; việc chúng chưa
+resolve/404 phản ánh go-live chưa mở, không phải lỗi cần sửa trong workspace local.
+
+| Item | Probe result (2026-10-30) | Owner action khi mở go-live |
 | --- | --- | --- |
-| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | DNS CNAME → Render custom domain; issuer env `IDENTITY_ISSUER` phải khớp |
-| `api.campusute.io.vn` | NXDOMAIN | DNS CNAME → Render service (hoặc giữ Vercel `/api/v1` proxy và bỏ host này khỏi registry) |
+| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | Trỏ DNS về hosting đã chọn; issuer env `IDENTITY_ISSUER_URI` phải khớp |
+| `api.campusute.io.vn` | NXDOMAIN | Trỏ DNS về API service (hoặc giữ `/api/v1` proxy và bỏ host này khỏi registry) |
 | `/.well-known/assetlinks.json` | 404 trên www | Deploy frontend ≥ commit `4471465a`; fingerprint đã bind keystore release local (`0A:0B:8C:…`, xem `device-runbook.md`) |
 | `/.well-known/apple-app-site-association` | 404 trên www | Cùng deploy; TeamID còn `SYNTH00000` — điền khi enroll Apple Developer (proposal trong `device-runbook.md`) |
 | Physical device acceptance | NOT_RUN | Emulator pass là mức chứng minh hiện có; không thay physical |
@@ -92,7 +107,8 @@ Cần DNS + hosting credentials + store/signing. Khi có:
 
 - Data corrupt → fence writer → `ops/backup/restore-postgres.sh` vào
   isolated target → verify parity → re-point → kiểm delta trước reopen.
-- Frontend deployment trước trong schema-expand window; API image digest
-  phải nằm trong manifest candidate.
+- Thứ tự rollout frontend-trước-API trong schema-expand window và việc API image
+  digest nằm trong manifest candidate chỉ áp dụng cho **future go-live**
+  (deferred); recovery local không cần bước này.
 - Supabase cũ **không** là fallback target.
 - Không đổi bundle ID/package name để né lỗi (mobile-policy).

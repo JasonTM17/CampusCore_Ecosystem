@@ -6,6 +6,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { DateField } from '../../components/ui/date-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { campusIsoDate, countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import type { LanesCopy } from '../../i18n/lanes-messages';
 import {
@@ -45,12 +46,7 @@ import {
 } from './lane-ui';
 import { HandoffLink } from './HandoffLink';
 
-const todayIso = () => {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-};
+const todayIso = () => campusIsoDate();
 
 const personName = (user?: { firstName?: string; lastName?: string }) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(' ');
@@ -270,7 +266,9 @@ export function AdminAuditScreen() {
 export function AdminCreditLimitsScreen() {
   const { copy } = useLanesCopy();
   const [status, setStatus] = useState('PENDING');
-  const request = useLaneRequest(() => laneApi.creditApplications(status), `admin:credit:${status}`);
+  // The endpoint defaults a missing status to PENDING; "All" must be explicit.
+  const filter = status || 'ALL';
+  const request = useLaneRequest(() => laneApi.creditApplications(filter), `admin:credit:${filter}`);
   const runner = useActionRunner(copy, () => void request.reload());
   const items = request.data ?? [];
 
@@ -290,12 +288,12 @@ export function AdminCreditLimitsScreen() {
               key={row.id}
               title={row.studentName ?? row.studentCode ?? row.id}
               status={row.status}
-              count={typeof row.requestedLimit === 'number' ? fillCopy(copy.creditUnit, { n: row.requestedLimit }) : undefined}
+              count={typeof row.requestedLimit === 'number' ? fillCopy(countForm(row.requestedLimit, copy.creditUnitOne, copy.creditUnit), { n: row.requestedLimit }) : undefined}
               copy={copy}
               lines={[
                 row.studentCode,
                 row.semesterName ?? row.roundName,
-                typeof row.requestedLimit === 'number' ? fillCopy(copy.creditRequested, { n: row.requestedLimit }) : null,
+                typeof row.requestedLimit === 'number' ? fillCopy(countForm(row.requestedLimit, copy.creditRequestedOne, copy.creditRequested), { n: row.requestedLimit }) : null,
                 typeof row.standardLimit === 'number' ? fillCopy(copy.creditStandard, { n: row.standardLimit }) : null,
                 row.reason ? fillCopy(copy.creditReason, { text: row.reason }) : null,
                 row.reviewerNote,
@@ -339,7 +337,7 @@ const EVENT_PATH: Record<Exclude<EventAction, 'cancel'>, 'publish' | 'close-regi
 function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCopy; onBack: () => void }) {
   const roster = useLaneRequest(() => laneApi.eventRoster(event.id), `admin:roster:${event.id}`);
   const runner = useActionRunner(copy, () => void roster.reload());
-  const markable = canMarkAttendance(event.status);
+  const markable = canMarkAttendance(event.status, event.startsAt);
   const rows: RosterRow[] = roster.data ?? [];
 
   const mark = (row: RosterRow, status: 'ATTENDED' | 'ABSENT'): PendingAction | null => {
@@ -424,7 +422,7 @@ export function AdminEventsScreen() {
               ]}
               actions={[
                 { key: 'detail', label: copy.eventDetail, variant: 'secondary', onPress: () => setSelected(event) },
-                ...eventActions(event.status).map((action) => ({
+                ...eventActions(event.status, event.startsAt).map((action) => ({
                   key: action,
                   label: EVENT_LABEL(copy, action),
                   variant: action === 'cancel' ? ('destructive' as const) : action === 'publish' ? ('primary' as const) : ('secondary' as const),
@@ -473,9 +471,10 @@ export function AdminNotificationsScreen() {
     if (found.length === 0) setPreviewing(true);
   };
 
-  // A notification reaches its recipient immediately and the server has no
-  // idempotency key, so a failed send is never retried automatically; when the
-  // outcome is unknown the admin is told to check the history first.
+  // A notification reaches its recipient immediately and a failed send is
+  // never retried automatically; when the outcome is unknown the admin is told
+  // to check the history first. A manual resend of the unchanged draft replays
+  // the idempotency key, so the server dedupes it.
   const send = async () => {
     if (inFlight.current) return;
     inFlight.current = true;

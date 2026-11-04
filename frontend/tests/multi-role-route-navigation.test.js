@@ -40,8 +40,11 @@ test('messages and layout use standardized institutional portal names', () => {
   assert.match(messages, /Cổng Quản trị/);
 
   const announcementsPage = readSource('src/app/dashboard/announcements/page.tsx');
-  assert.match(announcementsPage, /Dạng Bản tin/);
-  assert.match(announcementsPage, /Dạng Công văn/);
+  const studentPages = readSource('src/i18n/messages-student-pages.ts');
+  assert.match(studentPages, /viewMagazine: 'Dạng Bản tin'/);
+  assert.match(studentPages, /viewDispatch: 'Dạng Công văn'/);
+  assert.match(announcementsPage, /announcementMessages\.viewMagazine/);
+  assert.match(announcementsPage, /announcementMessages\.viewDispatch/);
   assert.doesNotMatch(announcementsPage, /Tạp chí báo/);
   assert.doesNotMatch(announcementsPage, /Sổ công văn/);
 
@@ -54,8 +57,12 @@ test('messages and layout use standardized institutional portal names', () => {
 
 test('dashboard upcoming schedule displays standardized room formatting', () => {
   const dashboard = readSource('src/app/dashboard/page.tsx');
-  assert.match(dashboard, /Phòng \$\{meeting\.building\}-\$\{meeting\.roomNumber\}/);
-  assert.match(dashboard, /Room \$\{meeting\.building\}-\$\{meeting\.roomNumber\}/);
+  // The room templates moved to the studentPortal fragment.
+  const studentPortal = readSource('src/i18n/messages-student-portal.ts');
+  assert.match(studentPortal, /roomWithBuilding: 'Phòng \{building\}-\{room\}'/);
+  assert.match(studentPortal, /roomWithBuilding: 'Room \{building\}-\{room\}'/);
+  assert.match(dashboard, /copy\.roomWithBuilding/);
+  assert.match(dashboard, /copy\.roomOnly/);
 });
 
 test('department-head and admin shell navigation stay aligned across layout, thesis, and admin users', () => {

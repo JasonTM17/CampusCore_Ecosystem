@@ -35,7 +35,9 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedCourseLabel,
   getLocalizedName,
@@ -116,6 +118,70 @@ interface ScheduleEntry {
 const sectionStatuses = ['OPEN', 'CLOSED', 'CANCELLED'] as const;
 type SectionStatus = (typeof sectionStatuses)[number];
 
+type SectionScheduleSnapshot = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId?: string;
+  classroom?: { id?: string };
+};
+
+function sectionScheduleListsEqual(
+  left: SectionScheduleSnapshot[],
+  right: SectionScheduleSnapshot[],
+): boolean {
+  const normalize = (schedules: SectionScheduleSnapshot[]) => schedules
+    .map((schedule) => ({
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      classroomId: schedule.classroomId ?? schedule.classroom?.id ?? '',
+    }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
+function hasSectionSnapshotChanged(baseline: Section, current: Section): boolean {
+  return baseline.courseId !== current.courseId
+    || baseline.semesterId !== current.semesterId
+    || baseline.sectionNumber !== current.sectionNumber
+    || (baseline.lecturerId || '') !== (current.lecturerId || '')
+    || baseline.capacity !== current.capacity
+    || baseline.status !== current.status
+    || !sectionScheduleListsEqual(baseline.schedules || [], current.schedules || []);
+}
+
+function buildSectionUpdatePayload(
+  baseline: Section,
+  formData: {
+    courseId: string;
+    semesterId: string;
+    sectionNumber: string;
+    capacity: number;
+    status: string;
+    lecturerId: string;
+  },
+  schedules: ScheduleEntry[],
+  schedulesLoaded: boolean,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.courseId !== baseline.courseId) payload.courseId = formData.courseId;
+  if (formData.semesterId !== baseline.semesterId) payload.semesterId = formData.semesterId;
+  if (formData.sectionNumber !== baseline.sectionNumber) payload.sectionNumber = formData.sectionNumber;
+  if (Number(formData.capacity) !== baseline.capacity) payload.capacity = Number(formData.capacity);
+  if (formData.status !== baseline.status) payload.status = formData.status;
+  if (formData.lecturerId !== (baseline.lecturerId || '')) payload.lecturerId = formData.lecturerId;
+  if (schedulesLoaded && !sectionScheduleListsEqual(baseline.schedules || [], schedules)) {
+    payload.schedules = schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({
+      dayOfWeek,
+      startTime,
+      endTime,
+      classroomId,
+    }));
+  }
+  return payload;
+}
+
 function isSectionStatus(value: string): value is SectionStatus {
   return sectionStatuses.includes(value as SectionStatus);
 }
@@ -123,6 +189,7 @@ function isSectionStatus(value: string): value is SectionStatus {
 export default function AdminSectionsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatNumber, href, locale, messages } = useI18n();
+  const { sections: copy } = messages.adminPages;
   const router = useRouter();
   const [sections, setSections] = useState<Section[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -139,7 +206,10 @@ export default function AdminSectionsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [editingSectionBaseline, setEditingSectionBaseline] = useState<Section | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     courseId: '',
     semesterId: '',
@@ -149,6 +219,8 @@ export default function AdminSectionsPage() {
     lecturerId: '',
   });
   const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
+  const scheduleLoadRequestRef = useRef(0);
+  const sectionsEpoch = useRef(createRequestEpoch()).current;
   // A failed schedule read must never read as "no schedules added yet": this
   // flag keeps an outage distinguishable from a schedule-free section.
   const [schedulesError, setSchedulesError] = useState('');
@@ -164,7 +236,7 @@ export default function AdminSectionsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -191,15 +263,12 @@ export default function AdminSectionsPage() {
     if ([coursesResult, semestersResult, lecturersResult, classroomsResult].some(
       (result) => result.status === 'rejected',
     )) {
-      setReferenceError(
-        locale === 'vi'
-          ? 'Một hoặc nhiều danh sách cần cho biểu mẫu lớp học phần chưa tải được.'
-          : 'Some course lists needed by this page could not be loaded.',
-      );
+      setReferenceError(copy.referenceDataFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   const fetchSections = useCallback(async () => {
+    const epoch = sectionsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -210,18 +279,21 @@ export default function AdminSectionsPage() {
         semesterId: semesterFilter || undefined,
         search: search || undefined,
       });
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setSections(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách lớp học phần.'
-          : 'Sections could not be loaded.',
-      );
+      if (!sectionsEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search, semesterFilter]);
+  }, [copy, page, search, sectionsEpoch, semesterFilter]);
+
+  useEffect(() => () => {
+    sectionsEpoch.invalidate();
+  }, [sectionsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -242,182 +314,33 @@ export default function AdminSectionsPage() {
 
   const dayOptions = useMemo(
     () =>
-      locale === 'vi'
-        ? [
-            { value: '2', label: 'Thứ hai' },
-            { value: '3', label: 'Thứ ba' },
-            { value: '4', label: 'Thứ tư' },
-            { value: '5', label: 'Thứ năm' },
-            { value: '6', label: 'Thứ sáu' },
-            { value: '7', label: 'Thứ bảy' },
-            { value: '1', label: 'Chủ nhật' },
-          ]
-        : [
-            { value: '2', label: 'Monday' },
-            { value: '3', label: 'Tuesday' },
-            { value: '4', label: 'Wednesday' },
-            { value: '5', label: 'Thursday' },
-            { value: '6', label: 'Friday' },
-            { value: '7', label: 'Saturday' },
-            { value: '1', label: 'Sunday' },
-          ],
-    [locale],
+      copy.weekdayLabels.map((label, index) => ({
+        value: String(((index + 1) % 7) + 1),
+        label,
+      })),
+    [copy.weekdayLabels],
   );
-
-  const copy =
-    locale === 'vi'
-      ? {
-          loading: 'Đang tải lớp học phần',
-          title: 'Lớp học phần',
-          description:
-            'Quản lý sức chứa, phân công giảng dạy và lịch phòng học trong một quy trình nhất quán.',
-          create: 'Tạo lớp học phần',
-          searchLabel: 'Tìm lớp học phần',
-          searchPlaceholder: 'Tìm theo mã lớp, môn học hoặc giảng viên',
-          semester: 'Học kỳ',
-          allSemesters: 'Tất cả học kỳ',
-          selectCourse: 'Chọn môn học',
-          selectSemester: 'Chọn học kỳ',
-          noLecturerAssigned: 'Chưa phân công giảng viên',
-          selectRoom: 'Chọn phòng',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          unavailableTitle: 'Lớp học phần chưa sẵn sàng',
-          emptyTitle: 'Không có lớp học phần phù hợp',
-          emptyDescription:
-            'Hãy tạo lớp học phần để liên kết môn học, giảng viên và lịch phòng học trong cùng một thông tin.',
-          tableTitle: 'Danh sách lớp học phần',
-          headers: {
-            course: 'Môn học',
-            section: 'Lớp học phần',
-            semester: 'Học kỳ',
-            lecturer: 'Giảng viên',
-            capacity: 'Sức chứa',
-            schedule: 'Lịch học',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          unknownCourse: 'Chưa rõ môn học',
-          noCourseName: 'Chưa có tên môn',
-          unassigned: 'Chưa gán',
-          noSchedule: 'Chưa có lịch',
-          deleteTitle: 'Xóa lớp học phần',
-          deleteMessage: (sectionNumber: string, courseCode: string) =>
-            `Xóa lớp học phần ${sectionNumber} của ${courseCode}?`,
-          deleteConfirm: 'Xóa lớp học phần',
-          deleted: 'Đã xóa lớp học phần',
-          deleteFailed: 'Hiện chưa thể xóa lớp học phần này.',
-          updated: 'Đã cập nhật lớp học phần',
-          created: 'Đã tạo lớp học phần',
-          saveFailed: 'Hiện chưa thể lưu lớp học phần.',
-          editTitle: 'Chỉnh sửa lớp học phần',
-          createTitle: 'Tạo lớp học phần',
-          fields: {
-            course: 'Môn học',
-            semester: 'Học kỳ',
-            sectionNumber: 'Mã lớp học phần',
-            capacity: 'Sức chứa',
-            status: 'Trạng thái',
-            lecturer: 'Giảng viên',
-            day: 'Ngày học',
-            start: 'Giờ bắt đầu',
-            end: 'Giờ kết thúc',
-            room: 'Phòng học',
-          },
-          schedulesTitle: 'Lịch học',
-          schedulesDescription:
-            'Chỉ thêm lịch khi lớp học phần đã có học kỳ, phòng và người phụ trách rõ ràng.',
-          addSchedule: 'Thêm lịch',
-          noSchedules: 'Chưa có lịch nào.',
-          schedulesLoadFailed: 'Không tải được lịch học hiện có của lớp học phần này.',
-          dayFallback: (day: number) => `Thứ ${day}`,
-          removeSchedule: (index: number) => `Xóa lịch ${index}`,
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (sectionNumber: string, courseCode: string) =>
-            `Chỉnh sửa lớp học phần ${sectionNumber} của ${courseCode}`,
-          deleteLabel: (sectionNumber: string, courseCode: string) =>
-            `Xóa lớp học phần ${sectionNumber} của ${courseCode}`,
-        }
-      : {
-          loading: 'Loading sections',
-          title: 'Sections',
-          description:
-            'Manage class capacity, teaching assignments, and classroom schedules from one consistent workflow.',
-          create: 'Create section',
-          searchLabel: 'Search sections',
-          searchPlaceholder: 'Search by section code, course, or lecturer',
-          semester: 'Semester',
-          allSemesters: 'All semesters',
-          selectCourse: 'Select course',
-          selectSemester: 'Select semester',
-          noLecturerAssigned: 'No lecturer assigned',
-          selectRoom: 'Select room',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          unavailableTitle: 'Sections unavailable',
-          emptyTitle: 'No matching sections',
-          emptyDescription:
-            'Create a class to connect course details, lecturer assignment, and room scheduling in one record.',
-          tableTitle: 'Section records',
-          headers: {
-            course: 'Course',
-            section: 'Section',
-            semester: 'Semester',
-            lecturer: 'Lecturer',
-            capacity: 'Capacity',
-            schedule: 'Schedule',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          unknownCourse: 'Unknown course',
-          noCourseName: 'No course name',
-          unassigned: 'Unassigned',
-          noSchedule: 'No schedule',
-          deleteTitle: 'Delete section',
-          deleteMessage: (sectionNumber: string, courseCode: string) =>
-            `Delete section ${sectionNumber} for ${courseCode}?`,
-          deleteConfirm: 'Delete section',
-          deleted: 'Section deleted',
-          deleteFailed: 'We could not delete that section.',
-          updated: 'Section updated',
-          created: 'Section created',
-          saveFailed: 'The section could not be saved.',
-          editTitle: 'Edit section',
-          createTitle: 'Create section',
-          fields: {
-            course: 'Course',
-            semester: 'Semester',
-            sectionNumber: 'Section number',
-            capacity: 'Capacity',
-            status: 'Status',
-            lecturer: 'Lecturer',
-            day: 'Day of week',
-            start: 'Start time',
-            end: 'End time',
-            room: 'Classroom',
-          },
-          schedulesTitle: 'Schedules',
-          schedulesDescription:
-            'Add meeting times only when the class already has a semester, room, and assigned lecturer.',
-          addSchedule: 'Add schedule',
-          noSchedules: 'No schedules added yet.',
-          schedulesLoadFailed: 'The existing schedules for this section could not be loaded.',
-          dayFallback: (day: number) => `Day ${day}`,
-          removeSchedule: (index: number) => `Remove schedule ${index}`,
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (sectionNumber: string, courseCode: string) =>
-            `Edit section ${sectionNumber} for ${courseCode}`,
-          deleteLabel: (sectionNumber: string, courseCode: string) =>
-            `Delete section ${sectionNumber} for ${courseCode}`,
-        };
 
   const getDayLabel = (day: number) => {
     const normalized = day === 0 ? 1 : day;
     const match = dayOptions.find((opt) => opt.value === String(normalized));
-    return match ? match.label : copy.dayFallback(normalized);
+    return match
+      ? match.label
+      : copy.dayFallback.replace('{day}', () => String(normalized));
   };
+
+  const formatPageSummary = () =>
+    copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
+  const formatSectionLabel = (
+    template: string,
+    sectionNumber: string,
+    courseCode: string,
+  ) =>
+    template
+      .replace('{sectionNumber}', () => sectionNumber)
+      .replace('{courseCode}', () => courseCode);
 
   useEffect(() => {
     if (canAccess) {
@@ -488,7 +411,9 @@ export default function AdminSectionsPage() {
   }
 
   const resetForm = () => {
+    scheduleLoadRequestRef.current += 1;
     setEditingSection(null);
+    setEditingSectionBaseline(null);
     setFormData({
       courseId: '',
       semesterId: '',
@@ -510,10 +435,15 @@ export default function AdminSectionsPage() {
   // The modal must never claim a section is schedule-free just because the
   // schedule read failed: a failed load is surfaced with a retry instead.
   const loadSectionSchedules = async (section: Section) => {
+    const requestId = ++scheduleLoadRequestRef.current;
+    const isCurrent = () => requestId === scheduleLoadRequestRef.current;
     setSchedulesError('');
     setSchedulesLoaded(false);
+    setSchedules([]);
     try {
       const fullSection = await adminSectionsApi.getById(section.id);
+      if (!isCurrent()) return;
+      setEditingSectionBaseline({ ...section, schedules: fullSection.schedules || [] });
       setSchedules(
         (fullSection.schedules || []).map((schedule) => ({
           rowId: schedule.id || createScheduleRowId(),
@@ -523,15 +453,43 @@ export default function AdminSectionsPage() {
           classroomId: schedule.classroom?.id || '',
         })),
       );
+      if (!isCurrent()) return;
       setSchedulesLoaded(true);
     } catch {
+      if (!isCurrent()) return;
       setSchedules([]);
+      if (!isCurrent()) return;
       setSchedulesError(copy.schedulesLoadFailed);
     }
   };
 
-  const openEdit = async (section: Section) => {
+  // A stale save must leave the editor on the server's latest row instead of
+  // keeping a baseline that would reject every retry.
+  const applySectionEditorSnapshot = (section: Section) => {
     setEditingSection(section);
+    setEditingSectionBaseline(section);
+    setFormData({
+      courseId: section.courseId,
+      semesterId: section.semesterId,
+      sectionNumber: section.sectionNumber,
+      capacity: section.capacity,
+      status: section.status,
+      lecturerId: section.lecturerId || '',
+    });
+    setSchedules((section.schedules || []).map((schedule) => ({
+      rowId: schedule.id || createScheduleRowId(),
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      classroomId: schedule.classroom?.id || '',
+    })));
+    setSchedulesError('');
+    setSchedulesLoaded(true);
+  };
+
+  const openEdit = (section: Section) => {
+    setEditingSection(section);
+    setEditingSectionBaseline(section);
     setFormData({
       courseId: section.courseId,
       semesterId: section.semesterId,
@@ -541,9 +499,8 @@ export default function AdminSectionsPage() {
       lecturerId: section.lecturerId || '',
     });
 
-    await loadSectionSchedules(section);
-
     setIsModalOpen(true);
+    void loadSectionSchedules(section);
   };
 
   const closeModal = () => {
@@ -552,21 +509,24 @@ export default function AdminSectionsPage() {
   };
 
   const handleDelete = async (section: Section) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(
-        section.sectionNumber,
-        section.course?.code || copy.unknownCourse,
-      ),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
-
+    if (deletingRef.current) return;
+    deletingRef.current = true;
     try {
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: formatSectionLabel(copy.deleteMessage,
+          section.sectionNumber,
+          section.course?.code || copy.unknownCourse,
+        ),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      setDeletingSectionId(section.id);
       await adminSectionsApi.delete(section.id);
       toast.success(copy.deleted);
       if (sections.length === 1 && page > 1) {
@@ -576,6 +536,9 @@ export default function AdminSectionsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingSectionId(null);
     }
   };
 
@@ -583,31 +546,37 @@ export default function AdminSectionsPage() {
     event.preventDefault();
 
     if (schedules.some((s) => !s.classroomId)) {
-      toast.error(
-        locale === 'vi'
-          ? 'Vui lòng chọn phòng học cho tất cả các lịch học.'
-          : 'Please select a classroom for each scheduled session.',
-      );
+      toast.error(copy.roomRequired);
       return;
     }
 
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        capacity: Number(formData.capacity),
-        // An empty known list means delete every meeting. An unavailable read
-        // omits the field so a metadata edit preserves the stored schedule.
-        schedules: schedulesLoaded
-          ? schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({ dayOfWeek, startTime, endTime, classroomId }))
-          : undefined,
-      };
-
       if (editingSection) {
+        const currentSection = await adminSectionsApi.getById(editingSection.id);
+        if (hasSectionSnapshotChanged(editingSectionBaseline || editingSection, currentSection)) {
+          applySectionEditorSnapshot(currentSection);
+          toast.error(copy.staleEdit);
+          await fetchSections();
+          return;
+        }
+        const payload = buildSectionUpdatePayload(
+          editingSectionBaseline || editingSection,
+          formData,
+          schedules,
+          schedulesLoaded,
+        );
         await adminSectionsApi.update(editingSection.id, payload);
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          capacity: Number(formData.capacity),
+          schedules: schedulesLoaded
+            ? schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({ dayOfWeek, startTime, endTime, classroomId }))
+            : undefined,
+        };
         await adminSectionsApi.create(payload);
         toast.success(copy.created);
       }
@@ -655,7 +624,7 @@ export default function AdminSectionsPage() {
       title={copy.title}
       description={copy.description}
       actions={
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} disabled={!schedulesLoaded}>
           <Plus className="mr-2 h-4 w-4" />
           {copy.create}
         </Button>
@@ -689,7 +658,7 @@ export default function AdminSectionsPage() {
                 />
               </div>
               <div className="text-sm text-muted-foreground">
-                {copy.pageSummary(page, totalPages)}
+                {formatPageSummary()}
               </div>
             </div>
         </AdminToolbarCard>
@@ -715,14 +684,14 @@ export default function AdminSectionsPage() {
             icon={ClipboardList}
             title={copy.emptyTitle}
             description={copy.emptyDescription}
-            action={<Button onClick={openCreate}>{copy.create}</Button>}
+            action={<Button onClick={openCreate} disabled={!schedulesLoaded}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
             title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
-                summary={copy.pageSummary(page, totalPages)}
+                summary={formatPageSummary()}
                 page={page}
                 totalPages={totalPages}
                 onPrevious={() => setPage((current) => current - 1)}
@@ -836,12 +805,13 @@ export default function AdminSectionsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => void openEdit(section)}
-                          aria-label={copy.editLabel(
+                          onClick={() => openEdit(section)}
+                          disabled={!schedulesLoaded}
+                          aria-label={formatSectionLabel(copy.editLabel,
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
                           )}
-                          title={copy.editLabel(
+                          title={formatSectionLabel(copy.editLabel,
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
                           )}
@@ -853,11 +823,12 @@ export default function AdminSectionsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(section)}
-                          aria-label={copy.deleteLabel(
+                          disabled={deletingSectionId !== null}
+                          aria-label={formatSectionLabel(copy.deleteLabel,
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
                           )}
-                          title={copy.deleteLabel(
+                          title={formatSectionLabel(copy.deleteLabel,
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
                           )}
@@ -870,17 +841,17 @@ export default function AdminSectionsPage() {
                 })}
               </div>
               <AdminTableScroll className="hidden md:block">
-                <table className="w-full min-w-[1120px] text-sm">
+                <table className="w-full min-w-[1120px] text-sm" aria-label={copy.title}>
                   <thead>
                     <tr className="border-b border-border/70 bg-secondary/50 text-left text-muted-foreground">
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.course}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.section}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.semester}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.lecturer}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.capacity}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.schedule}</th>
-                      <th className="px-4 py-3.5 font-medium">{copy.headers.status}</th>
-                      <th className="px-4 py-3.5 text-right font-medium">{copy.headers.actions}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.course}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.section}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.semester}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.lecturer}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.capacity}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.schedule}</th>
+                      <th scope="col" className="px-4 py-3.5 font-medium">{copy.headers.status}</th>
+                      <th scope="col" className="px-4 py-3.5 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -962,12 +933,13 @@ export default function AdminSectionsPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => void openEdit(section)}
-                              aria-label={copy.editLabel(
+                              onClick={() => openEdit(section)}
+                              disabled={!schedulesLoaded}
+                              aria-label={formatSectionLabel(copy.editLabel,
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,
                               )}
-                              title={copy.editLabel(
+                              title={formatSectionLabel(copy.editLabel,
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,
                               )}
@@ -979,11 +951,12 @@ export default function AdminSectionsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(section)}
-                              aria-label={copy.deleteLabel(
+                              disabled={deletingSectionId !== null}
+                              aria-label={formatSectionLabel(copy.deleteLabel,
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,
                               )}
-                              title={copy.deleteLabel(
+                              title={formatSectionLabel(copy.deleteLabel,
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,
                               )}
@@ -1106,7 +1079,9 @@ export default function AdminSectionsPage() {
               </Button>
             </div>
 
-            {schedulesError ? (
+            {!schedulesLoaded && !schedulesError ? (
+              <LoadingState label={copy.schedulesTitle} />
+            ) : schedulesError ? (
               <ErrorState
                 title={copy.schedulesTitle}
                 description={schedulesError}
@@ -1126,7 +1101,7 @@ export default function AdminSectionsPage() {
                     className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-border/70 bg-secondary/20 p-4 sm:grid-cols-2"
                   >
                     <legend className="px-1 text-sm font-medium text-foreground">
-                      {locale === 'vi' ? `Lịch ${idx + 1}` : `Meeting ${idx + 1}`}
+                      {copy.scheduleLabel.replace('{index}', () => String(idx + 1))}
                     </legend>
                     <Select
                       label={copy.fields.day}
@@ -1163,8 +1138,8 @@ export default function AdminSectionsPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => removeSchedule(idx)}
-                      aria-label={copy.removeSchedule(idx + 1)}
-                      title={copy.removeSchedule(idx + 1)}
+                      aria-label={copy.removeSchedule.replace('{index}', () => String(idx + 1))}
+                      title={copy.removeSchedule.replace('{index}', () => String(idx + 1))}
                       className="self-end justify-self-end sm:col-span-2"
                     >
                       <X className="h-4 w-4 text-destructive" />
@@ -1179,11 +1154,11 @@ export default function AdminSectionsPage() {
             <Button type="button" variant="outline" onClick={closeModal}>
               {messages.common.actions.cancel}
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || !schedulesLoaded}>
               {isSaving
                 ? copy.saving
                 : editingSection
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : copy.create}
             </Button>
           </AdminDialogFooter>

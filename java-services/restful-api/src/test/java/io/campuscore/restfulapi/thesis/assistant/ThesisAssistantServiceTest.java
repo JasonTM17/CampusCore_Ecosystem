@@ -1,11 +1,13 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -30,9 +32,11 @@ import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantService.StreamDe
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantService.StreamEvent;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantService.StreamReplace;
 import io.campuscore.restfulapi.web.DomainException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -1149,13 +1153,24 @@ class ThesisAssistantServiceTest {
         ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
         var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
                 "77777777-7777-7777-7777-777777777777", "topic", "vi", "Đề tài", "Nội dung đề tài", "handbook");
+        // The search can never finish inside the budget: deterministic where a
+        // wall-clock sleep only guessed "long enough". The finally release
+        // frees the pooled worker once the timeout path has run.
+        CountDownLatch searchGate = new CountDownLatch(1);
         when(knowledge.search(anyString(), anyList(), anyInt())).thenAnswer(invocation -> {
-            Thread.sleep(ThesisAssistantService.LOCAL_FALLBACK_BUDGET_MS + 1_000L); // exceed the raised fallback ceiling
+            searchGate.await();
             return List.of(document);
         });
 
-        ChatResponse response = new ThesisAssistantService(knowledge)
-                .groundedFallback("Điều kiện đăng ký đề tài là gì?", "vi");
+        ChatResponse response;
+        try {
+            response = assertTimeoutPreemptively(
+                    Duration.ofMillis(ThesisAssistantService.LOCAL_FALLBACK_BUDGET_MS + 4_000L),
+                    () -> new ThesisAssistantService(knowledge)
+                            .groundedFallback("Điều kiện đăng ký đề tài là gì?", "vi"));
+        } finally {
+            searchGate.countDown();
+        }
 
         assertTrue(response.degraded());
         assertTrue(response.answer().contains("Phòng Đào tạo"), response.answer());
@@ -1381,6 +1396,43 @@ class ThesisAssistantServiceTest {
                 new DeepSeekProperties(false, "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
                 null);
         assertNull(deadProvider.generalAnswerIfOffTopic("Con gà có mấy cái chân", "vi", null, null));
+    }
+
+    @Test
+    void offTopicQuotaChargeDataAccessFailureDoesNotCallProvider() {
+        ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        DeepSeekClient provider = mock(DeepSeekClient.class);
+        ThesisAssistantTurnRepository turns = mock(ThesisAssistantTurnRepository.class);
+        when(provider.model()).thenReturn("deepseek-v4-flash");
+        when(provider.complete(any(AssistantCompletionProvider.CompletionRequest.class),
+                any(java.util.function.Consumer.class)))
+                .thenReturn(new CompletionResult("General answer", List.of(), "stop"));
+        when(turns.chargeStandaloneQuota(anyString(), anyInt(), anyInt()))
+                .thenThrow(new DataAccessResourceFailureException("quota store unavailable"));
+
+        ThesisAssistantService service = new ThesisAssistantService(knowledge, provider,
+                mock(ThesisAssistantRepository.class), turns, mock(ThesisAssistantCatalogRepository.class),
+                new AssistantCancellationRegistry(),
+                new DeepSeekProperties(true, "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
+                new AssistantProperties(6000, 2000, 20, 200, 90, true));
+
+        ChatResponse vietnamese = service.generalAnswerIfOffTopic(
+                "Con gà có mấy cái chân", "vi", null, null, "quota-owner");
+        ChatResponse english = service.generalAnswerIfOffTopic(
+                "How many legs does a chicken have", "en", null, null, "quota-owner");
+
+        assertAll(
+                () -> assertEquals("QUOTA_ACCOUNTING_UNAVAILABLE", vietnamese.reasonCode()),
+                () -> assertTrue(vietnamese.degraded()),
+                () -> assertEquals("Hiện chưa thể xác nhận hạn mức câu hỏi. Vui lòng thử lại sau.",
+                        vietnamese.answer()),
+                () -> assertEquals("QUOTA_ACCOUNTING_UNAVAILABLE", english.reasonCode()),
+                () -> assertTrue(english.degraded()),
+                () -> assertEquals("The daily question quota cannot be checked right now. Please try again later.",
+                        english.answer()),
+                () -> verify(provider, never()).complete(
+                        any(AssistantCompletionProvider.CompletionRequest.class),
+                        any(java.util.function.Consumer.class)));
     }
 
     // V105: scope persistence — the stored conversation scope governs resumed

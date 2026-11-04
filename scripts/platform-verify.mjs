@@ -26,7 +26,7 @@ const PROJECT_RE = /^campuscore-[a-z0-9-]+$/;
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
-  console.error('Usage: platform-verify.mjs <image|stack|pgit> --project <campuscore-*> [--evidence dir]');
+  console.error('Usage: platform-verify.mjs <image|stack|pgit> --project <campuscore-*> [--evidence dir] [--its class,...]');
   process.exit(2);
 }
 
@@ -42,6 +42,102 @@ function parseArgs(argv) {
     else usage(`unknown arg ${a}`);
   }
   return args;
+}
+
+function parseRequestedItSelectors(requestedClasses) {
+  const selectors = (Array.isArray(requestedClasses) ? requestedClasses : [requestedClasses])
+    .flatMap((selector) => String(selector ?? '').split(','))
+    .map((selector) => selector.trim())
+    .filter(Boolean)
+    .map((raw) => {
+      const excluded = raw.startsWith('!');
+      let pattern = excluded ? raw.slice(1) : raw;
+      if (pattern.includes('/')) {
+        const pathSelector = /^\*\*\/([^/]+)$/.exec(pattern);
+        if (!pathSelector) {
+          throw new Error(`Unsupported Maven --its selector "${raw}"; path globs must use **/<class-name pattern>.`);
+        }
+        pattern = pathSelector[1];
+      }
+      if (!pattern) throw new Error(`Unsupported empty Maven --its selector "${raw}".`);
+      return { raw, pattern, excluded, isGlob: /[*?]/.test(pattern) };
+    });
+  return {
+    includes: selectors.filter((selector) => !selector.excluded),
+    excludes: selectors.filter((selector) => selector.excluded),
+  };
+}
+
+function reportMatchesSelector(selector, report) {
+  const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+  const suiteName = suite?.[1].match(/\bname="([^"]+)"/)?.[1]
+    || report.file.replace(/^TEST-/, '').replace(/\.xml$/, '');
+  const target = selector.pattern.includes('.') ? suiteName : suiteName.split('.').at(-1);
+  if (!selector.isGlob) return target === selector.pattern;
+  const expression = selector.pattern.split(/([*?])/)
+    .map((part) => part === '*' ? '.*' : part === '?' ? '.' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('');
+  return new RegExp(`^${expression}$`).test(target);
+}
+
+export function inspectRequestedItReports(requestedClasses, reports) {
+  const { includes, excludes } = parseRequestedItSelectors(requestedClasses);
+  return includes.map((selector) => {
+    const requestedClass = selector.raw;
+    const isGlob = selector.isGlob;
+    const matches = reports.filter((report) => reportMatchesSelector(selector, report)
+      && !excludes.some((excluded) => reportMatchesSelector(excluded, report)));
+    if (matches.length === 0 || (!isGlob && matches.length !== 1)) {
+      return {
+        class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+        passed: false, reason: matches.length ? 'ambiguous report' : 'report missing',
+      };
+    }
+    const inspect = (report) => {
+      const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+      if (!suite) {
+        return {
+          class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+          passed: false, reason: 'invalid report',
+        };
+      }
+      const attribute = (name) => {
+        const value = suite[1].match(new RegExp(`\\b${name}="(\\d+)"`))?.[1];
+        return value === undefined ? 0 : Number(value);
+      };
+      const tests = attribute('tests');
+      const skipped = attribute('skipped');
+      const failures = attribute('failures');
+      const errors = attribute('errors');
+      const executed = tests - skipped;
+      const fresh = report.currentRun === true;
+      const passed = fresh && tests > 0 && executed > 0 && skipped === 0 && failures === 0 && errors === 0;
+      const reason = passed ? 'executed' : !fresh ? 'report not produced by this run'
+        : tests === 0 ? 'zero tests executed'
+          : skipped > 0 ? 'unexpected skipped tests'
+            : executed === 0 ? 'zero tests executed'
+              : failures > 0 || errors > 0 ? 'class failures or errors' : 'invalid test counts';
+      return { class: requestedClass, tests, skipped, executed, failures, errors, passed, reason };
+    };
+    if (!isGlob) return inspect(matches[0]);
+
+    const freshMatches = matches.filter((report) => report.currentRun === true);
+    if (freshMatches.length === 0) {
+      return {
+        class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+        passed: false, reason: 'report not produced by this run',
+      };
+    }
+    const checks = freshMatches.map(inspect);
+    return ['tests', 'skipped', 'executed', 'failures', 'errors'].reduce((result, key) => {
+      result[key] = checks.reduce((sum, check) => sum + check[key], 0);
+      return result;
+    }, {
+      class: requestedClass,
+      passed: checks.every((check) => check.passed),
+      reason: checks.find((check) => !check.passed)?.reason || 'executed',
+    });
+  });
 }
 
 function run(cmd, argv, opts = {}) {
@@ -94,6 +190,36 @@ function compose(args, argv, opts = {}) {
 }
 function composeTry(args, argv, opts = {}) {
   return tryRun('docker', composeArgs(args, argv), opts);
+}
+
+/**
+ * A throw inside `finally` would replace an in-flight case failure. Keep the
+ * original error and attach the cleanup failure as its cause instead; only a
+ * case that otherwise succeeded reports the cleanup failure itself.
+ */
+function attachCleanupFailure(failed, failure) {
+  const cleanupError = new Error('Owned Compose stack cleanup failed.');
+  if (!failed) {
+    throw cleanupError;
+  }
+  if (failure && typeof failure === 'object') {
+    failure.cause = failure.cause === undefined
+      ? cleanupError
+      : new AggregateError([failure.cause, cleanupError]);
+  }
+}
+
+export function preflightComposeProject(args, runCommand = tryRun) {
+  const containers = runCommand('docker', composeArgs(args, ['ps', '-aq']));
+  if (!containers.ok) throw new Error('Compose project ownership preflight failed; refusing startup.');
+  if (containers.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains containers.');
+
+  const volumes = runCommand('docker', [
+    'volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${args.project}`,
+  ]);
+  if (!volumes.ok) throw new Error('Compose volume ownership preflight failed; refusing startup.');
+  if (volumes.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains volumes.');
+  return true;
 }
 
 let args_env = null; // compose env for the active subcommand (set in main)
@@ -208,7 +334,8 @@ function caseImage(args) {
 /* ------------------------------------------------------------------ */
 /* case: stack — boot the full disposable stack once; startup/RSS/probes   */
 /* ------------------------------------------------------------------ */
-async function caseStack(args) {
+export async function caseStack(args, runner = {}) {
+  const composeCase = runner.composeTry ?? composeTry;
   const dir = ensureEvidenceDir(args);
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
@@ -219,8 +346,13 @@ async function caseStack(args) {
     case: 'stack', target: 'local', project: args.project, image: IMAGE_TAG,
     ports: { ...args_env }, startedAt: new Date(started).toISOString(),
   };
+  let stackStarted = false;
+  let failed = false;
+  let failure;
   try {
-    const up = composeTry(args, ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']);
+    preflightComposeProject(args, runner.tryRun ?? tryRun);
+    stackStarted = true;
+    const up = composeCase(args, ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     const api = await waitServiceHealthy(args, /restful-api/, 480000);
     result.startupMs = api.healthyMs;
@@ -245,22 +377,35 @@ async function caseStack(args) {
       throw new Error(`stack probes failed: ${JSON.stringify(result.probes)}`);
     }
     console.log(`PASS stack up=${api.healthyMs}ms rss=${result.memory.memUsage} fits512Mb=${result.fits512Mb} probes=${JSON.stringify(result.probes)}`);
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
-    try { composeTry(args, ['down', '-v', '--remove-orphans']); } catch { /* best-effort */ }
+    if (stackStarted) {
+      const down = composeCase(args, ['down', '-v', '--remove-orphans']);
+      if (!down.ok) attachCleanupFailure(failed, failure);
+    }
   }
 }
 
 /* ------------------------------------------------------------------ */
 /* case: pgit — disposable postgres + full *PostgresIT failsafe run        */
 /* ------------------------------------------------------------------ */
-async function casePgit(args) {
+export async function casePgit(args, runner = {}) {
+  parseRequestedItSelectors(args.its);
+  const composeCase = runner.composeTry ?? composeTry;
   const dir = ensureEvidenceDir(args);
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
     E2E_API_HOST_PORT: String(await allocPort()),
   };
   const result = { case: 'pgit', target: 'local', project: args.project, ports: { ...args_env } };
+  let stackStarted = false;
+  let failed = false;
+  let failure;
   try {
+    preflightComposeProject(args, runner.tryRun ?? tryRun);
     // One IT pins the historical audit rig at 127.0.0.1:5452 — publish the same
     // disposable postgres on that fixed port too when it is free; if taken,
     // proceed without the override and that class stays skipped (honest).
@@ -286,7 +431,8 @@ async function casePgit(args) {
       // compose recreate postgres without the 5452 binding mid-run.
       args.composeFiles = [path.join(REPO, COMPOSE_FILE), overrideFile];
     }
-    const up = composeTry(args, ['up', '-d', 'postgres']);
+    stackStarted = true;
+    const up = composeCase(args, ['up', '-d', 'postgres']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     await waitServiceHealthy(args, /postgres/, 240000);
     const pgPort = args_env.POSTGRES_HOST_PORT;
@@ -311,6 +457,10 @@ async function casePgit(args) {
       'campuscore_restful_e2e_assistant_mig',
       'campuscore_council_race_credential_20261016',
       'campuscore_restful_e2e_report',
+      'attendance_g1_test',
+      'campuscore_w14_index_fresh_test',
+      'campuscore_w14_index_upgrade_test',
+      'policy_migration_test_knowledge_version_current_supabase',
       // correction-migration ITs require a *fresh* db per scenario whose name
       // matches /policy_migration_test_[a-z0-9_]+ (asserted by the fixtures)
       ...policyScenarios.map((s) => `policy_migration_test_policy_${s}`),
@@ -319,7 +469,7 @@ async function casePgit(args) {
     ];
     for (const db of dbs.slice(1)) {
       // DROP DATABASE cannot run inside a transaction block — separate -c calls.
-      const mk = composeTry(args, ['exec', '-T', 'postgres', 'sh', '-c',
+      const mk = composeCase(args, ['exec', '-T', 'postgres', 'sh', '-c',
         `psql --no-psqlrc --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres -c "DROP DATABASE IF EXISTS ${db}" -c "CREATE DATABASE ${db}"`]);
       if (!mk.ok) throw new Error(`could not provision db ${db}\n${mk.out.slice(-1000)}`);
     }
@@ -327,7 +477,7 @@ async function casePgit(args) {
     // V84 creates campuscore_assistant_runtime NOLOGIN; the one-shot provisioner
     // flips it to LOGIN with the dev-only password, matching the e2e compose
     // dependency chain the restful-api service relies on.
-    const prov = composeTry(args, ['run', '--rm', 'assistant-db-provisioner']);
+    const prov = composeCase(args, ['run', '--rm', 'assistant-db-provisioner']);
     result.provisionerExit = prov.code;
     if (!prov.ok) throw new Error(`assistant-db-provisioner failed\n${prov.out.slice(-1500)}`);
     const jdbcBase = `jdbc:postgresql://127.0.0.1:${pgPort}`;
@@ -352,6 +502,9 @@ async function casePgit(args) {
       ...env('CAMPUSCORE_REPORT_POSTGRES', 'campuscore_restful_e2e_report'),
       ...env('ASSISTANT_POSTGRES', 'campuscore_restful_e2e_assistant'),
       ...env('ASSISTANT_MIGRATION_POSTGRES', 'campuscore_restful_e2e_assistant_mig'),
+      ...env('ATTENDANCE_LOCAL_POSTGRES', 'attendance_g1_test'),
+      ...env('W14_INDEX_FRESH_POSTGRES', 'campuscore_w14_index_fresh_test'),
+      ...env('W14_INDEX_UPGRADE_POSTGRES', 'campuscore_w14_index_upgrade_test'),
       // demo-team/spring-focus ITs create their own scenario DBs through an
       // admin URL that must point at the maintenance database /postgres
       CAMPUSCORE_DEMO_TEAM_PG_ADMIN_URL: `${jdbcBase}/postgres`,
@@ -369,6 +522,10 @@ async function casePgit(args) {
       ])),
       CAMPUSCORE_POLICY_MIGRATION_USER: 'campuscore',
       CAMPUSCORE_POLICY_MIGRATION_PASSWORD: 'campuscore_password',
+      CAMPUSCORE_KNOWLEDGE_VERSION_CURRENT_SUPABASE_URL:
+        `${jdbcBase}/policy_migration_test_knowledge_version_current_supabase`,
+      CAMPUSCORE_KNOWLEDGE_VERSION_USER: 'campuscore',
+      CAMPUSCORE_KNOWLEDGE_VERSION_PASSWORD: 'campuscore_password',
       ...Object.fromEntries(certScenarios.map((s) => [
         `CAMPUSCORE_CERTIFICATE_MIGRATION_${s.toUpperCase()}_URL`,
         `${jdbcBase}/policy_migration_test_cert_${s}`,
@@ -393,6 +550,10 @@ async function casePgit(args) {
       CAMPUSCORE_DEMO_TEAM_PG_ENABLED: 'true',
       CAMPUSCORE_SPRING_FOCUS_PG_ENABLED: 'true',
     };
+    const reportDir = path.join(REPO, 'java-services', 'restful-api', 'target', 'failsafe-reports');
+    const requestedClasses = args.its
+      ? args.its.split(',').map((name) => name.trim()).filter(Boolean)
+      : [];
     const t0 = Date.now();
     const res = tryRun('mvn', [
       '-f', 'java-services/pom.xml', '-pl', 'restful-api', 'verify',
@@ -412,15 +573,44 @@ async function casePgit(args) {
     const executed = totals[0] - totals[3];
     const itRan = executed > 0;
     result.executedTests = executed;
-    result.verdict = res.ok && itRan && totals[1] === 0 && totals[2] === 0 ? 'PASS' : 'FAIL';
     result.zeroTestGuard = itRan ? 'executed' : 'NO_ITS_RAN — refuse to count as pass';
+    const reports = fs.existsSync(reportDir)
+      ? fs.readdirSync(reportDir).filter((file) => file.startsWith('TEST-') && file.endsWith('.xml')).map((file) => ({
+        file,
+        xml: fs.readFileSync(path.join(reportDir, file), 'utf8'),
+        currentRun: fs.statSync(path.join(reportDir, file)).mtimeMs >= t0,
+      }))
+      : [];
+    const requestedItResults = inspectRequestedItReports(requestedClasses, reports);
+    result.requestedItClasses = requestedItResults;
+    const requestedItsPassed = requestedItResults.every((check) => check.passed);
+    result.requestedItGuard = requestedClasses.length === 0
+      ? 'aggregate zero-test guard only'
+      : requestedItsPassed ? 'all requested classes executed without skips' : 'FAIL: requested class did not execute cleanly';
+    result.verdict = res.ok && itRan && totals[1] === 0 && totals[2] === 0 && requestedItsPassed ? 'PASS' : 'FAIL';
     writeJson(dir, args.resultName || 'pgit.json', result);
     if (result.verdict !== 'PASS') {
-      throw new Error(`pgit verdict FAIL exit=${res.code} totals=${JSON.stringify(result.totals)} — see ${args.logName || 'pgit-mvn.log'}`);
+      throw new Error(`pgit verdict FAIL exit=${res.code} totals=${JSON.stringify(result.totals)} requested=${JSON.stringify(requestedItResults)} — see ${args.logName || 'pgit-mvn.log'}`);
     }
     console.log(`PASS pgit tests=${totals[0]} failures=${totals[1]} errors=${totals[2]} skipped=${totals[3]} in ${result.mvnMs}ms`);
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
-    try { composeTry(args, ['down', '-v', '--remove-orphans']); } catch { /* best-effort */ }
+    if (stackStarted) {
+      const down = composeCase(args, ['down', '-v', '--remove-orphans']);
+      result.composeDown = down.ok ? 'PASS' : 'FAIL';
+      const remaining = down.ok ? composeCase(args, ['ps', '-q']) : { ok: false, out: down.out };
+      result.containerGone = remaining.ok && remaining.out.trim() === '';
+      result.containerGoneCheck = 'Compose ps -q is empty after compose down';
+      const cleanupFailed = !down.ok || !result.containerGone;
+      if (cleanupFailed) {
+        result.cleanupError = !down.ok ? down.out.trim().slice(-1000) : remaining.out.trim().slice(-1000);
+      }
+      writeJson(dir, args.resultName || 'pgit.json', result);
+      if (cleanupFailed) attachCleanupFailure(failed, failure);
+    }
   }
 }
 
@@ -446,4 +636,6 @@ async function main() {
   else usage(`unknown subcommand ${cmd}`);
 }
 
-main().catch((e) => { console.error(`FAIL ${e.message || e}`); process.exit(1); });
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  main().catch((e) => { console.error(`FAIL ${e.message || e}`); process.exit(1); });
+}

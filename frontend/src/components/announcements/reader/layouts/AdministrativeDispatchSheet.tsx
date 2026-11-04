@@ -9,9 +9,11 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CAMPUS_TIME_ZONE } from '@/lib/attendance-checkin';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import { localeCodes } from '@/i18n/config';
+import { getMessages } from '@/i18n/messages';
 import { useI18n } from '@/i18n';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import {
@@ -25,6 +27,10 @@ import {
 import { DocumentAttachmentsList } from '../DocumentAttachmentsList';
 import { TableOfContents } from '../TableOfContents';
 import type { ReadingPreferences } from '../ReadingToolbar';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface AdministrativeDispatchSheetProps {
   announcement: AnnouncementRecord;
@@ -38,6 +44,7 @@ export function AdministrativeDispatchSheet({
   locale = 'vi',
 }: AdministrativeDispatchSheetProps) {
   const isVi = locale === 'vi';
+  const metaMessages = getMessages(locale).meta;
   const { formatDate, formatDateTime } = useI18n();
   const publishDate = announcement.publishAt || announcement.createdAt;
   const dateObj = publishDate ? new Date(publishDate) : new Date();
@@ -53,12 +60,12 @@ export function AdministrativeDispatchSheet({
   // slashed date. formatDate always merges year+month+day defaults, so partial
   // options would still render the full date — ask Intl for each single part
   // through the same BCP-47 tag the provider uses.
-  const proseDay = new Intl.DateTimeFormat(localeCodes[locale], { day: 'numeric' }).format(dateObj);
-  const proseMonthRaw = new Intl.DateTimeFormat(localeCodes[locale], { month: 'long' }).format(dateObj);
+  const proseDay = new Intl.DateTimeFormat(localeCodes[locale], { day: 'numeric', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
+  const proseMonthRaw = new Intl.DateTimeFormat(localeCodes[locale], { month: 'long', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
   // vi-VN emits the standalone month capitalized ("Tháng 9"); prose dates
   // lowercase it ("ngày 21 tháng 9 năm 2026").
   const proseMonth = proseMonthRaw.charAt(0).toLowerCase() + proseMonthRaw.slice(1);
-  const proseYear = new Intl.DateTimeFormat(localeCodes[locale], { year: 'numeric' }).format(dateObj);
+  const proseYear = new Intl.DateTimeFormat(localeCodes[locale], { year: 'numeric', timeZone: CAMPUS_TIME_ZONE }).format(dateObj);
 
   // Deterministic official reference number based on ID/date
   const docHash =
@@ -76,39 +83,19 @@ export function AdministrativeDispatchSheet({
   const docRefSuffix = isRectorDoc ? 'TB-ĐHCNKT' : isFacultyDoc ? 'TB-CNTT' : 'TB-ĐHCNKT-ĐT';
   const docRefNumber = `${docHash}/${docRefSuffix}`;
 
-  const copy = isVi
-    ? {
-        ministryName: 'BỘ GIÁO DỤC VÀ ĐÀO TẠO',
-        universityName: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
-        departmentName: 'KHOA CÔNG NGHỆ THÔNG TIN & PHÒNG ĐÀO TẠO',
-        nationalMotto1: 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',
-        nationalMotto2: 'Độc lập - Tự do - Hạnh phúc',
-        datePrefix: `TP. Hồ Chí Minh, ngày ${proseDay} ${proseMonth} năm ${proseYear}`,
-        docRef: `Số: ${docRefNumber}`,
-        officialDocBadge: 'VĂN BẢN ĐIỆN TỬ',
-        noticeHeader: 'THÔNG BÁO',
-        audience: 'Đối tượng áp dụng',
-        section: 'Lớp học phần',
-        salutation: 'Kính gửi',
-        issuedByLabel: 'Đơn vị ban hành',
-        signOffHint: 'Thông báo được ban hành điện tử trên Cổng học vụ',
-      }
-    : {
-        ministryName: 'MINISTRY OF EDUCATION AND TRAINING',
-        universityName: 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING',
-        departmentName: 'FACULTY OF IT & ACADEMIC AFFAIRS OFFICE',
-        nationalMotto1: 'SOCIALIST REPUBLIC OF VIETNAM',
-        nationalMotto2: 'Independence - Freedom - Happiness',
-        datePrefix: `Ho Chi Minh City, ${formatDate(dateObj)}`,
-        docRef: `Ref: ${docRefNumber}`,
-        officialDocBadge: 'OFFICIAL DOCUMENT',
-        noticeHeader: 'ANNOUNCEMENT',
-        audience: 'Target audience',
-        section: 'Section',
-        salutation: 'To',
-        issuedByLabel: 'Issuing unit',
-        signOffHint: 'Published electronically on the Campus Portal',
-      };
+  const dispatchCopy = {
+    en: announcementWorkspaceEn,
+    vi: announcementWorkspaceVi,
+  }[locale].reader.dispatch;
+  const proseDate = `${proseDay} ${proseMonth} năm ${proseYear}`;
+  const copy = {
+    ...dispatchCopy,
+    datePrefix: dispatchCopy.datePrefix.replace(
+      '{date}',
+      isVi ? proseDate : formatDate(dateObj),
+    ),
+    docRef: dispatchCopy.docRef.replace('{ref}', docRefNumber),
+  };
 
   const publisherName = formatAnnouncementPublisher(
     announcement.publishedBy,
@@ -162,7 +149,7 @@ export function AdministrativeDispatchSheet({
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border/60 bg-white dark:bg-slate-100 p-1 shadow-xs">
             <Image
               src="/hcmute-logo.png"
-              alt="HCMUTE Emblem"
+              alt={metaMessages.emblemAlt}
               fill
               sizes="56px"
               className="object-contain"

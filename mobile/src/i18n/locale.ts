@@ -48,6 +48,7 @@ const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const EMPTY = '—';
 const CAMPUS_TIME_OFFSET_MS = 7 * 60 * 60 * 1000;
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 interface DateParts { y: number; m: number; d: number; hh: number; mm: number }
 
@@ -71,7 +72,9 @@ function toParts(value: string | number | Date | null | undefined): DateParts | 
 }
 
 function datePart(p: DateParts, locale: AppLocale): string {
-  return locale === 'en' ? `${pad(p.m)}/${pad(p.d)}/${p.y}` : `${pad(p.d)}/${pad(p.m)}/${p.y}`;
+  if (locale === 'vi') return `${pad(p.d)}/${pad(p.m)}/${p.y}`;
+  const month = MONTHS_EN[p.m - 1];
+  return month ? `${month} ${p.d}, ${p.y}` : `${pad(p.m)}/${pad(p.d)}/${p.y}`;
 }
 
 /** Date-only strings (YYYY-MM-DD) never shift with the device time zone. */
@@ -83,6 +86,32 @@ export function formatDate(value: string | number | Date | null | undefined, loc
 export function formatDateTime(value: string | number | Date | null | undefined, locale: AppLocale): string {
   const p = toParts(value);
   return p ? `${datePart(p, locale)} ${pad(p.hh)}:${pad(p.mm)}` : EMPTY;
+}
+
+/** An instant's fixed UTC+07 calendar day, encoded at UTC midnight for zone-free day math. */
+export function campusDate(value: Date | number = new Date()): Date {
+  const instant = value instanceof Date ? value : new Date(value);
+  const campus = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
+  // UTC midnight carrying the campus civil date, so day math reads UTC fields.
+  return new Date(Date.UTC(campus.getUTCFullYear(), campus.getUTCMonth(), campus.getUTCDate()));
+}
+
+/** Backend day number of the campus calendar day: 1 = Sunday … 7 = Saturday. */
+export function campusDayOfWeek(value: Date | number = new Date()): number {
+  return campusDate(value).getUTCDay() + 1;
+}
+
+/** Minutes since midnight on the fixed UTC+07 campus clock. */
+export function campusMinutesOfDay(value: Date | number = new Date()): number {
+  const instant = value instanceof Date ? value : new Date(value);
+  const campus = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
+  return campus.getUTCHours() * 60 + campus.getUTCMinutes();
+}
+
+/** The campus calendar day as YYYY-MM-DD, independent of the device zone. */
+export function campusIsoDate(instant: Date = new Date()): string {
+  const day = campusDate(instant);
+  return `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
 }
 
 export interface NumberFormatOptions {
@@ -107,8 +136,16 @@ export function formatNumber(value: number | null | undefined, locale: AppLocale
 export function formatCredits(value: number | null | undefined, locale: AppLocale): string {
   const text = formatNumber(value, locale, { maximumFractionDigits: 1 });
   if (text === EMPTY) return EMPTY;
-  if (locale === 'en') return `${text} ${value === 1 ? 'credit' : 'credits'}`;
+  if (locale === 'en') return `${text} ${countForm(value ?? 0, 'credit', 'credits')}`;
   return `${text} tín chỉ`;
+}
+
+/**
+ * Picks the one/other copy for a count, the same rule formatCredits applies.
+ * Callers pass the pair for the active locale; Vietnamese pairs repeat the same text.
+ */
+export function countForm(count: number, one: string, other: string): string {
+  return count === 1 ? one : other;
 }
 
 export function formatBytes(bytes: number | null | undefined, locale: AppLocale): string {
@@ -126,17 +163,23 @@ export function formatBytes(bytes: number | null | undefined, locale: AppLocale)
 
 /**
  * Parses typed date input to YYYY-MM-DD, or null when it is not a real date.
- * Accepts ISO plus the locale order (vi: day first, en: month first).
+ * Accepts ISO, the locale order (vi: day first, en: month first), and the
+ * English month-name form the formatter produces.
  */
 export function parseDateInput(text: string, locale: AppLocale): string | null {
   const raw = text.trim();
   let y: number; let m: number; let d: number;
   const iso = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(raw);
   const local = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(raw);
+  const monthName = /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/.exec(raw);
   if (iso) {
     [y, m, d] = [+iso[1], +iso[2], +iso[3]];
   } else if (local) {
     [y, m, d] = locale === 'en' ? [+local[3], +local[1], +local[2]] : [+local[3], +local[2], +local[1]];
+  } else if (monthName && locale === 'en') {
+    const month = MONTHS_EN.findIndex((name) => name.toLowerCase() === monthName[1].slice(0, 3).toLowerCase()) + 1;
+    if (month === 0) return null;
+    [y, m, d] = [+monthName[3], month, +monthName[2]];
   } else {
     return null;
   }
@@ -178,6 +221,7 @@ const vi = {
   fileFailed: 'Thất bại',
   chartNoData: 'Chưa có số liệu',
   chartRange: 'thấp nhất {min}, cao nhất {max}, mới nhất {last}',
+  progress: 'Tiến độ',
   language: 'Ngôn ngữ',
   avatarLabel: 'Ảnh của {name}',
   avatarLabelRole: 'Ảnh của {name}, {role}',
@@ -217,6 +261,7 @@ const en: Record<UiMessageKey, string> = {
   fileFailed: 'Failed',
   chartNoData: 'No data yet',
   chartRange: 'lowest {min}, highest {max}, latest {last}',
+  progress: 'Progress',
   language: 'Language',
   avatarLabel: 'Photo of {name}',
   avatarLabelRole: 'Photo of {name}, {role}',

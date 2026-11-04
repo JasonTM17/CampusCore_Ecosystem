@@ -282,16 +282,18 @@ class ThesisCouncilRoundPostgresIT {
             throws InterruptedException {
         assertThat(waiterPid).as("waiter backend pid captured").isPositive();
         assertThat(expectedBlocker).as("blocker backend pid captured").isPositive();
-        for (int attempt = 0; attempt < 100; attempt++) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
             Boolean blocked = jdbc.queryForObject(
                     "SELECT EXISTS(SELECT 1 FROM unnest(pg_blocking_pids(?)) b WHERE b = ?)",
                     Boolean.class, waiterPid, expectedBlocker);
             if (Boolean.TRUE.equals(blocked)) {
                 return;
             }
-            Thread.sleep(100);
+            Thread.sleep(20);
         }
-        throw new AssertionError(because + " (waiter pid " + waiterPid + ", expected blocker pid " + expectedBlocker + ")");
+        throw new AssertionError(because + " (waiter pid " + waiterPid
+                + " was not blocked by pid " + expectedBlocker + " within 10 seconds)");
     }
 
     private void insertDefenseScore(Fixture fx, String lecturerId, BigDecimal score) {
@@ -302,8 +304,8 @@ class ThesisCouncilRoundPostgresIT {
 
     private void insertCounterReviewScore(Fixture fx, String lecturerId, BigDecimal score) {
         jdbc.update("INSERT INTO thesis.thesis_topic_score (id, topic_id, council_id, lecturer_id, component, score) "
-                        + "VALUES (?, ?, ?, ?, 'GVPB', ?)",
-                UUID.randomUUID(), fx.topicId(), fx.councilId(), lecturerId, score);
+                        + "VALUES (?, ?, NULL, ?, 'GVPB', ?)",
+                UUID.randomUUID(), fx.topicId(), lecturerId, score);
     }
 
     private Fixture fixture(String tag) {
@@ -343,6 +345,7 @@ class ThesisCouncilRoundPostgresIT {
         jdbc.update("INSERT INTO thesis.thesis_topic (id, round_id, department_id, title, description, max_groups, status, created_by) "
                         + "VALUES (?, ?, 'department-demo', ?, 'council race fixture', 1, 'PUBLISHED', ?)",
                 topicId, roundId, "Council race topic " + tag, userOf(supervisor));
+        jdbc.update("UPDATE thesis.thesis_topic SET gvpb_lecturer_id = ? WHERE id = ?", reviewer, topicId);
         jdbc.update("INSERT INTO thesis.thesis_topic_supervisor (id, topic_id, lecturer_id, supervisor_order) VALUES (?, ?, ?, 1)",
                 UUID.randomUUID(), topicId, supervisor);
         jdbc.update("INSERT INTO thesis.thesis_council_topic (id, council_id, topic_id, assigned_by) VALUES (?, ?, ?, ?)",

@@ -12,13 +12,20 @@ const thesisJava = path.resolve(
   '../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis',
 );
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-thesis-'));
-for (const file of ['screens/thesis/thesis-model.ts', 'screens/thesis/thesis-files.ts', 'i18n/thesis-messages.ts']) {
+for (const file of [
+  'screens/thesis/thesis-model.ts',
+  'screens/thesis/thesis-files.ts',
+  'i18n/thesis-messages.ts',
+  'screens/student/shared/resource-error.ts',
+]) {
   const { outputText } = ts.transpileModule(fs.readFileSync(path.join(mobileRoot, 'src', file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   });
   fs.writeFileSync(
     path.join(tempRoot, path.basename(file).replace('.ts', '.mjs')),
-    outputText.replace(/from '\.\/([\w-]+)'/g, "from './$1.mjs'"),
+    outputText
+      .replace(/from '\.\/([\w-]+)'/g, "from './$1.mjs'")
+      .replace(/from '\.\.\/student\/shared\/resource-error'/g, "from './resource-error.mjs'"),
   );
 }
 const load = (name) => import(pathToFileURL(path.join(tempRoot, `${name}.mjs`)).href);
@@ -37,8 +44,30 @@ test('the default round is the selection, else registration, else published topi
   assert.equal(model.pickDefaultRound(rounds.slice(0, 3)).id, 'c');
   assert.equal(model.pickDefaultRound([round('x', 'CANCELLED'), round('y', 'DRAFT')]).id, 'x');
   assert.equal(model.pickDefaultRound([]), null);
-  assert.equal(model.isRegistrationOpen(round('d', 'REGISTRATION_OPEN')), true);
+  const live = { id: 'd', status: 'REGISTRATION_OPEN', registrationStart: '2020-01-01T00:00:00Z', registrationEnd: '2099-01-01T00:00:00Z' };
+  assert.equal(model.isRegistrationOpen(live), true);
+  assert.equal(model.isRegistrationOpen({ ...live, registrationEnd: '2020-06-01T00:00:00Z' }), false);
+  assert.equal(model.isRegistrationOpen({ ...live, registrationStart: '2098-01-01T00:00:00Z', registrationEnd: '2099-01-01T00:00:00Z' }), false);
+  assert.equal(model.isRegistrationOpen(round('d', 'REGISTRATION_OPEN')), false);
   assert.equal(model.isRegistrationOpen(round('c', 'PROPOSALS_PUBLISHED')), false);
+});
+
+test('a final score is visible only for an approved group and its own progress payload', () => {
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const approvedProgress = {
+    groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED', finalScore: 8.25,
+  };
+  assert.equal(model.canShowFinalScore(approved, approvedProgress), true);
+  assert.equal(model.canShowFinalScore(
+    { ...approved, status: 'REJECTED', approvalStatus: 'REJECTED' },
+    { ...approvedProgress, groupStatus: 'REJECTED', approvalStatus: 'REJECTED' },
+  ), false);
+  assert.equal(model.canShowFinalScore(
+    { ...approved, status: 'CANCELLED' },
+    { ...approvedProgress, groupStatus: 'CANCELLED' },
+  ), false);
+  assert.equal(model.canShowFinalScore(approved, { ...approvedProgress, groupId: 'g2' }), false);
+  assert.equal(model.canShowFinalScore(approved, { ...approvedProgress, finalScore: null }), false);
 });
 
 test('topic search ignores case and Vietnamese accents over title, department and brief', () => {
@@ -92,6 +121,61 @@ test('progress follows the server milestones', () => {
   for (const milestone of model.THESIS_MILESTONES) {
     assert.ok(vi.milestones[milestone] && en.milestones[milestone], milestone);
   }
+});
+
+test('a not-qualified result skips the defense milestones and never exposes a score', () => {
+  const disposition = {
+    completedMilestones: ['ROUND_SELECTED', 'GROUP_CREATED', 'TOPIC_ASSIGNED', 'GROUP_APPROVED', 'REPORT_SUBMITTED', 'RESULTS_PUBLISHED'],
+    currentMilestone: 'RESULTS_PUBLISHED',
+    skippedMilestones: ['COUNCIL_ASSIGNED', 'SCORE_FINALIZED'],
+    resultStatus: 'NOT_QUALIFIED',
+    resultReason: 'GVPB_BELOW_THRESHOLD',
+    resultResolvedAt: '2026-10-20T08:00:00Z',
+    finalScore: null,
+  };
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const own = { ...disposition, groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  assert.equal(model.isNotQualified(disposition), true);
+  assert.equal(model.isNotQualified({ ...disposition, resultStatus: 'GRADED' }), false);
+  assert.equal(model.milestoneState(disposition, 'COUNCIL_ASSIGNED'), 'skipped');
+  assert.equal(model.milestoneState(disposition, 'SCORE_FINALIZED'), 'skipped');
+  assert.equal(model.milestoneState(disposition, 'RESULTS_PUBLISHED'), 'done');
+  assert.equal(model.milestoneState(disposition, 'REPORT_SUBMITTED'), 'done');
+  assert.equal(model.milestoneTone('skipped', true), 'neutral');
+  assert.equal(model.milestoneTone('done', true), 'primary');
+  assert.equal(model.canShowFinalScore(approved, own), false);
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: 4.9 }), false);
+  assert.equal(vi.attention.NOT_QUALIFIED, 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0');
+  assert.equal(en.attention.NOT_QUALIFIED, 'Not eligible for defense - counter-review score below 5.0');
+  assert.equal(vi.milestoneSkipped, 'Không áp dụng');
+  assert.equal(en.milestoneSkipped, 'Not applicable');
+});
+
+test('a graded result keeps every milestone and its published score', () => {
+  const graded = {
+    completedMilestones: [...model.THESIS_MILESTONES],
+    currentMilestone: 'RESULTS_PUBLISHED',
+    skippedMilestones: [],
+    resultStatus: 'GRADED',
+    finalScore: 8.25,
+  };
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  for (const milestone of model.THESIS_MILESTONES) {
+    assert.equal(model.milestoneState(graded, milestone), 'done', milestone);
+  }
+  assert.equal(model.progressPercent(graded), 100);
+  assert.equal(model.milestoneTone('done', false), 'success');
+  assert.equal(model.milestoneTone('pending', false), 'neutral');
+  assert.equal(model.canShowFinalScore(approved, {
+    ...graded, groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED',
+  }), true);
+});
+
+test('a null final score is not a zero score', () => {
+  const approved = { id: 'g1', status: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  const own = { groupId: 'g1', groupStatus: 'SUBMITTED', approvalStatus: 'APPROVED' };
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: null }), false);
+  assert.equal(model.canShowFinalScore(approved, { ...own, finalScore: 0 }), true);
 });
 
 test('group size and writes follow the server rules', () => {
@@ -158,7 +242,7 @@ test('saving a report sends the fewest calls and never clears the stored file', 
 test('errors map to student-safe copy and never expose the server text', () => {
   const error = (status, code, message = 'raw server detail') => Object.assign(new Error(message), { status, code });
   const cases = [
-    [error(401), 'session'],
+    [error(401), 'generic'],
     [error(403), 'forbidden'],
     [error(404), 'notFound'],
     [error(409), 'conflict'],
@@ -170,6 +254,10 @@ test('errors map to student-safe copy and never expose the server text', () => {
     [error(500, 'SESSION_CHANGED'), 'aborted'],
   ];
   for (const [value, kind] of cases) assert.equal(model.thesisErrorInfo(value).kind, kind);
+  for (const value of [{ status: 401 }, { status: 401, code: 'HTTP_401' }, { code: 'UNAUTHENTICATED' }]) {
+    assert.equal(model.thesisErrorInfo(value).kind, 'generic');
+  }
+  assert.equal(model.thesisErrorMessage(vi, error(401)), vi.errors.generic);
   assert.equal(model.isAbortLike(error(0, 'REQUEST_ABORTED')), true);
   assert.equal(model.thesisErrorMessage(vi, error(409, 'GROUP_FULL')), vi.errors.codes.GROUP_FULL);
   assert.equal(model.thesisErrorMessage(en, error(409, 'REPORT_DEADLINE_PASSED')), en.errors.codes.REPORT_DEADLINE_PASSED);
@@ -228,6 +316,17 @@ test('a picked file is validated before any upload and keeps its declared type',
   assert.deepEqual(await pick({ ...good, sizeBytes: model.THESIS_REPORT_FILE_MAX_BYTES + 1 }), { status: 'invalid', issue: 'fileSize' });
   assert.deepEqual(await files.pickReportFile(adapterWith()), { status: 'cancelled' });
   assert.deepEqual(files.toReportPart(good), { uri: good.uri, name: good.name, type: 'application/pdf' });
+});
+
+test('an invalid pick releases the adapter cache copy; a kept pick is the caller\'s', async () => {
+  let released = 0;
+  const file = (name) => ({ uri: `file:///a/${name}`, name, sizeBytes: 2048, release: () => { released += 1; } });
+  const invalid = await files.pickReportFile(adapterWith({ pick: async () => ({ status: 'picked', file: file('x.zip') }) }));
+  assert.deepEqual(invalid, { status: 'invalid', issue: 'fileType' });
+  assert.equal(released, 1);
+  const picked = await files.pickReportFile(adapterWith({ pick: async () => ({ status: 'picked', file: file('a.pdf') }) }));
+  assert.equal(picked.status, 'picked');
+  assert.equal(released, 1);
 });
 
 test('a downloaded report is handed to the save sheet with a data uri and a safe name', async () => {

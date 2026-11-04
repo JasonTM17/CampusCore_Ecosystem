@@ -55,8 +55,41 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 
+const CIVIL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CAMPUS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
 function toIntlLocale(locale: Locale) {
   return localeCodes[locale] ?? localeCodes[defaultLocale];
+}
+
+/**
+ * A date-only API value is a calendar day, not an instant: format its own
+ * components in UTC. Instants belong to the fixed campus day, never the
+ * viewer's device zone.
+ */
+function toFormattableDate(
+  value: string | number | Date,
+): { date: Date; timeZone: string } | null {
+  if (typeof value === 'string') {
+    const civil = CIVIL_DATE.exec(value);
+    if (civil) {
+      const year = Number(civil[1]);
+      const month = Number(civil[2]);
+      const day = Number(civil[3]);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (
+        date.getUTCFullYear() !== year
+        || date.getUTCMonth() !== month - 1
+        || date.getUTCDate() !== day
+      ) {
+        return null;
+      }
+      return { date, timeZone: 'UTC' };
+    }
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return { date, timeZone: CAMPUS_TIME_ZONE };
 }
 
 export function I18nProvider({
@@ -118,29 +151,31 @@ export function I18nProvider({
       switchLocalePath: (pathname, nextLocale, search = '', hash = '') =>
         buildLocaleSwitchPath(pathname, nextLocale, search, hash),
       formatDate: (value, options) => {
-        const date = new Date(value);
+        const parsed = toFormattableDate(value);
         // An unparseable API value used to throw RangeError out of Intl and
         // blank the whole render — print the same em-dash the UI uses for a
         // missing date instead.
-        if (Number.isNaN(date.getTime())) return '—';
+        if (!parsed) return '—';
         return new Intl.DateTimeFormat(intlLocale, {
           year: 'numeric',
           month: resolvedLocale === 'vi' ? '2-digit' : 'short',
           day: resolvedLocale === 'vi' ? '2-digit' : 'numeric',
+          timeZone: parsed.timeZone,
           ...options,
-        }).format(date);
+        }).format(parsed.date);
       },
       formatDateTime: (value, options) => {
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return '—';
+        const parsed = toFormattableDate(value);
+        if (!parsed) return '—';
         return new Intl.DateTimeFormat(intlLocale, {
           year: 'numeric',
           month: resolvedLocale === 'vi' ? '2-digit' : 'short',
           day: resolvedLocale === 'vi' ? '2-digit' : 'numeric',
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: parsed.timeZone,
           ...options,
-        }).format(date);
+        }).format(parsed.date);
       },
       formatNumber: (value, options) =>
         new Intl.NumberFormat(intlLocale, options).format(value),

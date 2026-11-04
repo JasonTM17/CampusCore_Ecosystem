@@ -1,6 +1,8 @@
 import { apiClient } from '../../../api/client';
 import { useScreenQuery } from '../../../hooks/useScreenQuery';
+import { useLocale } from '../../../i18n/locale-provider';
 import { studentFriendlyErrorMessage } from './errors';
+import { isResourceUnauthorizedError } from './resource-error';
 
 /**
  * Screen-local resource helper — the shared lifecycle lives in
@@ -14,10 +16,14 @@ export function useLiveResource<T>(
   request: () => Promise<T>,
   fallbackMessage: string,
 ) {
+  const { locale } = useLocale();
   const query = useScreenQuery<T>(key, request, {
     enabled: apiClient.mode === 'live',
     errorMessage: fallbackMessage,
-    mapError: (error) => studentFriendlyErrorMessage(error, fallbackMessage),
+    mapError: (error) => {
+      const message = studentFriendlyErrorMessage(error, fallbackMessage, locale);
+      return isResourceUnauthorizedError(error) ? fallbackMessage : message;
+    },
   });
   return {
     data: query.data ?? initialValue,

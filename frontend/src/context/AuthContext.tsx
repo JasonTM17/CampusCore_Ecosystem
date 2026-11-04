@@ -12,11 +12,13 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/i18n';
-import { User, TwoFactorChallengeResponse } from '@/types/api';
+import { stripLocaleFromPathname } from '@/i18n/paths';
+import { LoginResponse, User, TwoFactorChallengeResponse } from '@/types/api';
+import { surfaceFromHost } from '@/lib/surfaces';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { clearLogoutInProgress, hasCsrfSessionHint, markLogoutInProgress, readCsrfSessionHint } from '@/lib/session-hint';
-import { loginHref, portalFromPathname, portalFromUser } from '@/lib/login-portal';
+import { loginHref, portalFromPathname, portalFromUser, sessionExpiredLoginHref } from '@/lib/login-portal';
 import { getBrowserQueryClient } from '@/lib/query';
 import { publishSessionChange, subscribeSessionChanges, type SessionChangeKind } from '@/lib/session-sync';
 
@@ -327,10 +329,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoggingOut(true);
     const recordedPath = pathname;
     logoutPathnameRef.current = recordedPath;
+    let bffLogoutUrl: string | undefined;
     try {
       await waitForPendingSessionRefresh();
       if (generation === sessionGenerationRef.current) {
-        await authApi.logout();
+        const result = await authApi.logout();
+        bffLogoutUrl = result.logoutUrl;
       }
     } catch {
       // Ignore logout API failures and still clear the client session.
@@ -339,6 +343,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getBrowserQueryClient().clear();
         setUserIdentity(null);
         publishSessionChange('signed-out');
+        if (bffLogoutUrl) {
+          window.location.assign(bffLogoutUrl);
+          return;
+        }
         if (options?.redirect === false) {
           logoutPathnameRef.current = null;
           logoutTargetPathRef.current = null;
@@ -396,7 +404,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoggingOut(false);
       clearLogoutInProgress();
       clearSessionState();
-      if (kind === 'signed-out') {
+      if (kind === 'session-expired') {
+        // A shared session death: keep this tab's page as the return target so
+        // a re-login comes back here instead of the portal root.
+        window.location.replace(sessionExpiredLoginHref(href));
+      } else if (kind === 'signed-out') {
         window.location.replace(
           loginHref(href, portalFromPathname(window.location.pathname), 'signed-out'),
         );
@@ -464,9 +476,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const status = (error as { response?: { status?: number } } | undefined)
           ?.response?.status;
-        if (status === 401 && readCsrfSessionHint() === csrfHintBefore) {
-          publishSessionChange('signed-out');
-          handleExternalSessionChange('signed-out');
+        if (status !== 401 || readCsrfSessionHint() !== csrfHintBefore) {
+          return;
+        }
+
+        // A BFF session is an opaque server-side cookie: the browser has no
+        // refresh route there, so a 401 on the probe is already terminal.
+        if (
+          surfaceFromHost(window.location.host)?.mode === 'bff'
+          && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
+        ) {
+          publishSessionChange('session-expired');
+          handleExternalSessionChange('session-expired');
+          return;
+        }
+
+        let refreshed: LoginResponse;
+        try {
+          refreshed = await refreshSessionSingleFlight();
+        } catch (refreshError) {
+          if (!isCurrent()) {
+            return;
+          }
+          const refreshStatus = (
+            refreshError as { response?: { status?: number } } | undefined
+          )?.response?.status;
+          const refreshRejected = [400, 401, 403].includes(refreshStatus ?? 0);
+          if (refreshRejected && readCsrfSessionHint() === csrfHintBefore) {
+            publishSessionChange('session-expired');
+            handleExternalSessionChange('session-expired');
+          }
+          return;
+        }
+
+        if (!isCurrent()) {
+          return;
+        }
+        const previous = latestIdentityRef.current;
+        if (!previous) {
+          return;
+        }
+        if (identitySignature(refreshed.user) !== identitySignature(previous)) {
+          handleExternalSessionChange('changed');
+        } else {
+          setUserIdentity(refreshed.user);
         }
       } finally {
         pollInFlight = false;
@@ -479,7 +532,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       window.clearInterval(timer);
     };
-  }, [handleExternalSessionChange]);
+  }, [handleExternalSessionChange, setUserIdentity]);
 
   useEffect(() => {
     if (
@@ -594,7 +647,19 @@ export function useRequireAuth(
     }
 
     if (!user) {
-      router.push(loginHref(href, portalFromPathname(typeof window === 'undefined' ? '' : window.location.pathname), 'session-expired'));
+      const requested =
+        typeof window === 'undefined'
+          ? null
+          : stripLocaleFromPathname(window.location.pathname).pathname +
+            window.location.search;
+      router.push(
+        loginHref(
+          href,
+          portalFromPathname(typeof window === 'undefined' ? '' : window.location.pathname),
+          'session-expired',
+          requested,
+        ),
+      );
       return;
     }
 

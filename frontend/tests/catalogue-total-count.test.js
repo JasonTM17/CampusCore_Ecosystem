@@ -18,6 +18,9 @@ function loadApi(relativePath, api) {
   const mockedRequire = specifier => {
     if (specifier === '@/lib/api') return { __esModule: true, default: api };
     if (specifier === '@/lib/upload-validation') return { assertUploadFile() {} };
+    // The desk page adapter is exercised by desk-pagination.test.js; these
+    // catalogue assertions only need the module to load.
+    if (specifier === '@/lib/array-list-page') return { fetchArrayListPage: async () => ({ items: [] }) };
     return require(specifier);
   };
   Function('module', 'exports', 'require', output)(loadedModule, loadedModule.exports, mockedRequire);

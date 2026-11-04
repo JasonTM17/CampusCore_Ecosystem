@@ -6,13 +6,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Profile("persistence")
 public class AcademicEnrollmentReadRepository {
+    private static final Logger log = LoggerFactory.getLogger(AcademicEnrollmentReadRepository.class);
     private static final String ENROLLMENT = "\"academic\".\"Enrollment\"";
     private static final String SECTION = "\"academic\".\"Section\"";
     private static final String SCHEDULE = "\"academic\".\"SectionSchedule\"";
@@ -77,7 +79,7 @@ public class AcademicEnrollmentReadRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource();
         String where = enrollmentWhere(parameters, status, semesterId, studentId, courseId, sectionId, search);
         Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + ENROLLMENT + " e" + commonJoins() + where,
+                "SELECT COUNT(*) FROM " + ENROLLMENT + " e" + countJoins(courseId, search) + where,
                 parameters,
                 Long.class);
         return Objects.requireNonNullElse(count, 0L);
@@ -112,7 +114,7 @@ public class AcademicEnrollmentReadRepository {
                         + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = e.\"id\" AND gi.\"type\" = 'PROCESS') AS process_score,"
                         + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = e.\"id\" AND gi.\"type\" = 'FINAL') AS final_exam_score,"
                         + " section.\"sectionNumber\", course.\"code\", course.\"name\", course.\"nameEn\", course.\"nameVi\","
-                        + " course.\"credits\", semester.\"name\" AS semester_name, semester.\"nameEn\" AS semester_name_en,"
+                        + " e.\"creditsSnapshot\" AS credits, semester.\"name\" AS semester_name, semester.\"nameEn\" AS semester_name_en,"
                         + " semester.\"nameVi\" AS semester_name_vi, lecturer_user.\"firstName\" AS lecturer_first_name,"
                         + " lecturer_user.\"lastName\" AS lecturer_last_name"
                         + " FROM " + ENROLLMENT + " e" + commonJoins()
@@ -183,7 +185,9 @@ public class AcademicEnrollmentReadRepository {
                 if (count != null && count > 0) {
                     return true;
                 }
-            } catch (Exception ignored) {
+            } catch (DataAccessException failure) {
+                log.warn("department-scoped section access check failed, denying access; exceptionType={}",
+                        failure.getClass().getSimpleName());
             }
         }
         if (roles != null && roles.contains("TRUONG_KHOA")) {
@@ -200,7 +204,9 @@ public class AcademicEnrollmentReadRepository {
                 if (count != null && count > 0) {
                     return true;
                 }
-            } catch (Exception ignored) {
+            } catch (DataAccessException failure) {
+                log.warn("faculty-scoped section access check failed, denying access; exceptionType={}",
+                        failure.getClass().getSimpleName());
             }
         }
         return false;
@@ -275,6 +281,15 @@ public class AcademicEnrollmentReadRepository {
                 + " JOIN " + USER + " student_user ON student_user.\"id\" = student.\"userId\""
                 + " LEFT JOIN " + LECTURER + " lecturer ON lecturer.\"id\" = section.\"lecturerId\""
                 + " LEFT JOIN " + USER + " lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\"";
+    }
+
+    private static String countJoins(String courseId, String search) {
+        if (!LikePattern.tokens(search).isEmpty()) {
+            return commonJoins();
+        }
+        return courseId == null
+                ? ""
+                : " JOIN " + SECTION + " section ON section.\"id\" = e.\"sectionId\"";
     }
 
     private static String enrollmentWhere(MapSqlParameterSource parameters, String status, String semesterId, String studentId, String courseId, String sectionId, String search) {
@@ -410,10 +425,7 @@ public class AcademicEnrollmentReadRepository {
     }
 
     private static Instant instant(Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        return timestamp.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 
     public record EnrollmentRow(String id, String studentId, String sectionId, String semesterId, String status,

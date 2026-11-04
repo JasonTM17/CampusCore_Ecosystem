@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { apiClient } from '../api/client';
+import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
@@ -20,6 +21,8 @@ export interface AppBarProps {
   /** Signed-in view: role and a profile shortcut. */
   role?: UserRole;
   onProfile?: () => void;
+  /** Signed-in view without a profile screen: the session-ending control. */
+  onSignOut?: () => void;
   /** Guest view: a way back to sign-in. */
   onSignIn?: () => void;
 }
@@ -28,7 +31,7 @@ export interface AppBarProps {
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
-export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
+export function AppBar({ role, onProfile, onSignOut, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
@@ -54,14 +57,14 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
           />
         </View>
         <View style={styles.copy}>
-          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ color: chrome.onSurface }}>
+          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
             CampusUTE
           </UiText>
-          {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
+          {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
         </View>
         {roleLabel && window.fontScale < 1.3 && !preview ? (
           <View style={[styles.rolePill, { backgroundColor: chrome.overlay }]}>
-            <UiText variant="meta" style={{ color: chrome.onSurface }}>
+            <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
               {roleLabel}
             </UiText>
           </View>
@@ -77,13 +80,23 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
             <MaterialCommunityIcons color={chrome.onSurface} name="account-circle-outline" size={26} />
           </Pressable>
         ) : null}
+        {onSignOut ? (
+          <Pressable
+            accessibilityLabel={copy.signOut}
+            accessibilityRole="button"
+            onPress={onSignOut}
+            style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
+          >
+            <MaterialCommunityIcons color={chrome.onSurface} name="logout" size={26} />
+          </Pressable>
+        ) : null}
         {onSignIn ? (
           <Pressable
             accessibilityRole="button"
             onPress={onSignIn}
             style={({ pressed }) => [styles.signIn, { backgroundColor: pressed ? chrome.overlay : chrome.accent }]}
           >
-            <UiText variant="label" style={{ color: chrome.surfaceStrong }}>{copy.guestSignIn}</UiText>
+            <UiText variant="label" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.surfaceStrong }}>{copy.guestSignIn}</UiText>
           </Pressable>
         ) : null}
       </View>

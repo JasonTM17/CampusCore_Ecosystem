@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { civilDateInputValue, CIVIL_DATE_TIME_ZONE } from '@/lib/civil-date';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 import { authApi } from '@/lib/api';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { isDemoUser } from '@/lib/login-portal';
@@ -41,7 +42,9 @@ export function StudentUteProfileGradeView({
 }: StudentUteProfileGradeViewProps) {
   const { user, refreshUser } = useAuth();
   const { messages, locale, formatDate } = useI18n();
+  const portalProfileCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).profile;
   const card = messages.studentCard;
+  const creditUnit = messages.studentPages.schedule.creditsAbbreviation;
   // Round-5: the line/bar/combo toggle is gone — 'line' rendered an empty
   // plot and 'combo' was pixel-identical to 'bar' after the class-average
   // series was removed. The widget now always draws the per-course bars.
@@ -88,7 +91,7 @@ export function StudentUteProfileGradeView({
     if (!svg) {
       // The chart element only exists when graded courses exist, and the
       // control is disabled in that state. Never fall back to opening the
-      // print dialog from a control labelled "download chart" (F-3).
+      // print dialog from a control labelled "download chart".
       toast.info(card.chartNoData);
       return;
     }
@@ -267,7 +270,7 @@ export function StudentUteProfileGradeView({
               <div className="mt-1 flex justify-center">
                 <span className="inline-flex items-center gap-1 rounded bg-status-warning/15 border border-status-warning/30 px-2 py-0.5 text-[11px] font-medium text-status-warning-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-status-warning animate-pulse" />
-                  {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo account'}
+                  {portalProfileCopy.demoAccountShort}
                 </span>
               </div>
             )}
@@ -556,8 +559,8 @@ export function StudentUteProfileGradeView({
 
               {creditsKnown ? (
                 <div className="w-full pt-2 border-t border-border/70 flex justify-between text-xs text-muted-foreground">
-                  <span>{card.accumulated}: <strong>{earnedCredits} TC</strong></span>
-                  <span>{card.needMore}: <strong>{remainingCredits} TC</strong></span>
+                  <span>{card.accumulated}: <strong>{earnedCredits} {creditUnit}</strong></span>
+                  <span>{card.needMore}: <strong>{remainingCredits} {creditUnit}</strong></span>
                 </div>
               ) : null}
             </div>

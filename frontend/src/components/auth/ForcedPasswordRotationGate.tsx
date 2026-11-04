@@ -7,6 +7,7 @@ import { authApi } from '@/lib/api';
 import { campusCodeMessage } from '@/lib/campus-error';
 import { loginHref, portalFromUser } from '@/lib/login-portal';
 import { checkPasswordPolicy } from '@/lib/password-policy';
+import { authPagesEn, authPagesVi } from '@/i18n/messages-auth';
 import { useI18n } from '@/i18n';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -31,33 +32,7 @@ export function ForcedPasswordRotationGate() {
     return null;
   }
 
-  const copy = locale === 'vi'
-    ? {
-        title: 'Đổi mật khẩu tạm thời',
-        description:
-          'Tài khoản của bạn do Phòng Đào tạo cấp bằng mật khẩu tạm thời. Hãy đặt mật khẩu mới để tiếp tục sử dụng cổng thông tin.',
-        currentLabel: 'Mật khẩu tạm thời',
-        newLabel: 'Mật khẩu mới',
-        confirmLabel: 'Nhập lại mật khẩu mới',
-        hint: 'Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số; không được chứa địa chỉ email của bạn.',
-        submit: 'Đổi mật khẩu và đăng nhập lại',
-        saving: 'Đang cập nhật...',
-        success: 'Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.',
-        failed: 'Không thể đổi mật khẩu. Hãy kiểm tra mật khẩu tạm thời và thử lại.',
-      }
-    : {
-        title: 'Rotate your temporary credential',
-        description:
-          'Your account was issued by the Academic Office with a temporary password. Set a new one to continue using the portal.',
-        currentLabel: 'Temporary password',
-        newLabel: 'New password',
-        confirmLabel: 'Confirm new password',
-        hint: 'Between 8 and 128 characters with at least one letter and one digit; it must not contain your email address.',
-        submit: 'Rotate and sign in again',
-        saving: 'Updating...',
-        success: 'Password rotated. Please sign in again with the new one.',
-        failed: 'Could not rotate the password. Check the temporary credential and retry.',
-      };
+  const copy = (locale === 'vi' ? authPagesVi : authPagesEn).passwordRotation;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -102,7 +77,7 @@ export function ForcedPasswordRotationGate() {
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {error ? (
-            <p role="alert" className="text-sm font-medium text-destructive">
+            <p id="rotation-error" role="alert" className="text-sm font-medium text-destructive">
               {error}
             </p>
           ) : null}
@@ -116,6 +91,8 @@ export function ForcedPasswordRotationGate() {
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
               autoComplete="current-password"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error' : undefined}
               required
             />
           </div>
@@ -130,9 +107,11 @@ export function ForcedPasswordRotationGate() {
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
               minLength={8}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error rotation-hint' : 'rotation-hint'}
               required
             />
-            <p className="text-xs leading-5 text-muted-foreground">{copy.hint}</p>
+            <p id="rotation-hint" className="text-xs leading-5 text-muted-foreground">{copy.hint}</p>
           </div>
           <div className="space-y-2">
             <label htmlFor="rotation-confirm" className="text-sm font-medium text-foreground">
@@ -145,6 +124,8 @@ export function ForcedPasswordRotationGate() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
               minLength={8}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error' : undefined}
               required
             />
           </div>

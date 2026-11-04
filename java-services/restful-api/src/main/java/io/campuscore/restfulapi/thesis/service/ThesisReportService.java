@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.repository.ThesisGroupReadRepository;
 import io.campuscore.restfulapi.thesis.web.ThesisMutationDtos.ReportUpdateRequest;
@@ -17,6 +18,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -36,6 +38,14 @@ import org.slf4j.LoggerFactory;
 public class ThesisReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ThesisReportService.class);
+
+    /**
+     * The legacy unpaged archive read keeps its bare-array contract but shares
+     * the paged API's row ceiling, so no request can order an unbounded result
+     * set from the single read path.
+     */
+    private static final int LEGACY_READ_CEILING = ListPaging.MAX_LIMIT;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ThesisReportStorage storage;
     private final ThesisReportStorageProperties storageProperties;
@@ -365,6 +375,12 @@ public class ThesisReportService {
 
     @Transactional(readOnly = true)
     public List<ReportResponse> listByRound(UUID roundId, Jwt actor) {
+        return listByRound(roundId, actor, null).items();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ListPaging.Result<ReportResponse> listByRound(
+            UUID roundId, Jwt actor, ListPaging.Window window) {
         MapSqlParameterSource parameters = params().addValue("roundId", roundId);
         // Staff archive (plan F6): an admin sees every report row of the round
         // — a group reopened to PENDING or one without a topic must not hide
@@ -372,14 +388,27 @@ public class ThesisReportService {
         // and department scope; a topic-less row self-excludes there because
         // its NULL department_id never matches the lecturer's.
         String filter = archiveFilter(actor, parameters);
-        return jdbc.query(
-                "SELECT r.group_id, r.title, r.url, r.note, r.submitted_by, r.submitted_at, r.updated_at, "
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_group_report r "
+                            + "JOIN thesis.thesis_group g ON g.id = r.group_id "
+                            + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
+                            + "WHERE r.round_id = :roundId" + filter,
+                    parameters, Long.class);
+            parameters.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        String sql = "SELECT r.group_id, r.title, r.url, r.note, r.submitted_by, r.submitted_at, r.updated_at, "
                         + "r.file_name, r.file_type, r.file_size "
                         + "FROM thesis.thesis_group_report r "
                         + "JOIN thesis.thesis_group g ON g.id = r.group_id "
                         + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "WHERE r.round_id = :roundId" + filter + " ORDER BY r.submitted_at DESC, r.group_id",
-                parameters,
+                        + "WHERE r.round_id = :roundId" + filter
+                        + " ORDER BY r.submitted_at DESC, r.group_id ASC";
+        sql += window == null
+                ? " LIMIT " + LEGACY_READ_CEILING
+                : " LIMIT :limit OFFSET :offset";
+        List<ReportResponse> items = jdbc.query(sql, parameters,
                 (rs, ignored) -> new ReportResponse(
                         UUID.fromString(rs.getString("group_id")),
                         rs.getString("title"),
@@ -391,34 +420,80 @@ public class ThesisReportService {
                         rs.getString("file_name"),
                         rs.getString("file_type"),
                         (Long) rs.getObject("file_size")));
+        return new ListPaging.Result<>(items, total);
     }
 
     /**
      * Server-owned archive projection. The query is already authorization
      * scoped; callers must not rebuild this response from lecturer-scoped
      * groups or topic endpoints.
+     *
+     * <p>Legacy complete read: every authorized report of the round, no count
+     * header. Kept as its own entry point because the archive workspace derives
+     * its membership and global counters from the complete array.
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<RepositoryReportResponse> listRepository(UUID roundId, Jwt actor) {
+        return readRepository(roundId, actor, null, List.of()).items();
+    }
+
+    /**
+     * Additive paged archive read. Count and page share one authorization
+     * predicate, so the reported total can never drift from the page; the
+     * roots are projected alone (topic, department and submitter are
+     * one-to-one joins) and the two child collections are loaded only for the
+     * selected groups/topics. Order is {@code submitted_at DESC, group_id ASC}
+     * for both branches, so the legacy ties become deterministic as well.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ListPaging.Result<RepositoryReportResponse> listRepository(UUID roundId, Jwt actor,
+            ListPaging.Window window) {
+        RepositoryArchivePage page = readRepository(roundId, actor, window, List.of());
+        return new ListPaging.Result<>(page.items(), page.total());
+    }
+
+    /**
+     * Additive archive read with the optional server search. The predicate is
+     * the web predicate within the shared list-search term budget (see
+     * {@link ThesisArchiveSearch}); it applies after authorization and before
+     * the filtered total and the page window, and the three unfiltered
+     * {@code X-Archive-*} totals are read in the same repeatable-read statement.
+     * Without a window the body is still the legacy bare array (filtered when a
+     * term was supplied) and no summary is read.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public RepositoryArchivePage listRepository(UUID roundId, Jwt actor, ListPaging.Window window,
+            String search) {
+        return readRepository(roundId, actor, window, ThesisArchiveSearch.tokens(search));
+    }
+
+    private RepositoryArchivePage readRepository(UUID roundId, Jwt actor, ListPaging.Window window,
+            List<String> tokens) {
         MapSqlParameterSource parameters = params().addValue("roundId", roundId);
         // Same archive rule as listByRound: admins see every report of the
         // round; lecturers keep the approval + department scope (topic-less
         // rows self-exclude via the NULL department join).
         String filter = archiveFilter(actor, parameters);
-        String sql = """
-                SELECT r.id AS report_id, r.title, r.url, r.note, r.submitted_at, r.updated_at,
+        String condition = ThesisArchiveSearch.condition(tokens, parameters);
+        String searchFilter = condition.isEmpty() ? "" : " AND " + condition;
+        Long total = null;
+        RepositoryArchiveSummary summary = null;
+        if (window != null) {
+            summary = readArchiveSummary(filter, condition, parameters);
+            total = summary.filteredTotal();
+            if (window.offset() >= total) {
+                return new RepositoryArchivePage(List.of(), total, summary);
+            }
+        }
+        // One row per report root: never join members and supervisors here, or
+        // the page would be a multiplied Cartesian product and LIMIT would cut
+        // child rows instead of reports.
+        StringBuilder sql = new StringBuilder("""
+                SELECT r.id AS report_id, r.group_id, r.title, r.url, r.note, r.submitted_at, r.updated_at,
                        r.file_name, r.file_type, r.file_size,
-                       t.title AS topic_title, t.description AS topic_description,
+                       t.id AS topic_id, t.title AS topic_title, t.description AS topic_description,
                        COALESCE(d."name", t.department_id) AS department_name,
                        g.status AS group_status, g.approval_status,
-                       gm.student_id, gm.display_name AS external_display_name,
-                       gm.is_external, gm.is_leader, gm.member_order,
-                       s."studentId" AS student_number,
-                       member_user."firstName" AS member_first_name,
-                       member_user."lastName" AS member_last_name,
-                       sup.lecturer_id, sup.supervisor_order,
-                       supervisor_user."firstName" AS supervisor_first_name,
-                       supervisor_user."lastName" AS supervisor_last_name,
                        submitted_student."studentId" AS submitter_student_number,
                        submitter_user."firstName" AS submitter_first_name,
                        submitter_user."lastName" AS submitter_last_name
@@ -426,64 +501,190 @@ public class ThesisReportService {
                  JOIN thesis.thesis_group g ON g.id = r.group_id
                  LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id
                  LEFT JOIN academic."Department" d ON d."id" = t.department_id
-                LEFT JOIN thesis.thesis_group_member gm ON gm.group_id = g.id
-                LEFT JOIN campuscore_auth."Student" s ON s."id" = gm.student_id
-                LEFT JOIN campuscore_auth."User" member_user ON member_user."id" = s."userId"
-                LEFT JOIN thesis.thesis_topic_supervisor sup ON sup.topic_id = t.id
-                LEFT JOIN campuscore_auth."Lecturer" supervisor_profile
-                    ON supervisor_profile."id" = sup.lecturer_id
-                LEFT JOIN campuscore_auth."User" supervisor_user
-                    ON supervisor_user."id" = supervisor_profile."userId"
                 LEFT JOIN campuscore_auth."Student" submitted_student
                     ON submitted_student."id" = r.submitted_by
                 LEFT JOIN campuscore_auth."User" submitter_user
                     ON submitter_user."id" = submitted_student."userId"
                 WHERE r.round_id = :roundId
-                """ + filter + " ORDER BY r.submitted_at DESC, gm.member_order, sup.supervisor_order";
-        Map<UUID, RepositoryBuilder> builders = new LinkedHashMap<>();
-        jdbc.query(sql, parameters, rs -> {
-            UUID reportId = UUID.fromString(rs.getString("report_id"));
-            RepositoryBuilder builder = builders.get(reportId);
-            if (builder == null) {
-                builder = new RepositoryBuilder(
-                        reportId,
-                        rs.getString("title"),
-                        rs.getString("url"),
-                        rs.getString("note"),
-                        instantOf(rs.getObject("submitted_at")),
-                        instantOf(rs.getObject("updated_at")),
-                        rs.getString("file_name"),
-                        rs.getString("file_type"),
-                        (Long) rs.getObject("file_size"),
-                        rs.getString("topic_title"),
-                        rs.getString("topic_description"),
-                        rs.getString("department_name"),
-                        rs.getString("group_status"),
-                        rs.getString("approval_status"),
-                        displayName(rs.getString("submitter_first_name"), rs.getString("submitter_last_name")),
-                        rs.getString("submitter_student_number"));
-                builders.put(reportId, builder);
-            }
-            String memberId = rs.getString("student_id");
-            if (memberId != null) {
-                builder.members.putIfAbsent(memberKey(memberId, rs.getInt("member_order")),
-                        new RepositoryMemberResponse(
-                                displayName(rs.getString("member_first_name"), rs.getString("member_last_name"),
-                                        rs.getString("external_display_name"), rs.getString("student_number")),
-                                rs.getString("student_number"),
-                                rs.getBoolean("is_external"),
-                                rs.getBoolean("is_leader")));
-            }
-            String supervisorId = rs.getString("lecturer_id");
-            if (supervisorId != null) {
-                builder.supervisors.putIfAbsent(supervisorId,
-                        new RepositorySupervisorResponse(
-                                displayName(rs.getString("supervisor_first_name"), rs.getString("supervisor_last_name")),
-                                rs.getInt("supervisor_order")));
-            }
+                """);
+        sql.append(filter).append(searchFilter).append(" ORDER BY r.submitted_at DESC, r.group_id ASC");
+        if (window != null) {
+            parameters.addValue("limit", window.limit()).addValue("offset", window.offset());
+            sql.append(" LIMIT :limit OFFSET :offset");
+        } else {
+            sql.append(" LIMIT ").append(LEGACY_READ_CEILING);
+        }
+        List<RepositoryRoot> roots = jdbc.query(sql.toString(), parameters, (rs, ignored) -> {
+            String topicId = rs.getString("topic_id");
+            return new RepositoryRoot(
+                    UUID.fromString(rs.getString("report_id")),
+                    UUID.fromString(rs.getString("group_id")),
+                    topicId == null ? null : UUID.fromString(topicId),
+                    rs.getString("title"),
+                    rs.getString("url"),
+                    rs.getString("note"),
+                    instantOf(rs.getObject("submitted_at")),
+                    instantOf(rs.getObject("updated_at")),
+                    rs.getString("file_name"),
+                    rs.getString("file_type"),
+                    (Long) rs.getObject("file_size"),
+                    rs.getString("topic_title"),
+                    rs.getString("topic_description"),
+                    rs.getString("department_name"),
+                    rs.getString("group_status"),
+                    rs.getString("approval_status"),
+                    rs.getString("submitter_first_name"),
+                    rs.getString("submitter_last_name"),
+                    rs.getString("submitter_student_number"));
         });
-        return builders.values().stream().map(RepositoryBuilder::build).toList();
+        if (roots.isEmpty()) {
+            return new RepositoryArchivePage(List.of(), total, summary);
+        }
+        List<UUID> groupIds = roots.stream().map(RepositoryRoot::groupId).distinct().toList();
+        List<UUID> topicIds = roots.stream().map(RepositoryRoot::topicId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<UUID, Map<String, RepositoryMemberResponse>> members = new LinkedHashMap<>();
+        jdbc.query("""
+                SELECT gm.group_id, gm.student_id, gm.display_name AS external_display_name,
+                       gm.is_external, gm.is_leader, gm.member_order,
+                       s."studentId" AS student_number,
+                       member_user."firstName" AS member_first_name,
+                       member_user."lastName" AS member_last_name
+                FROM thesis.thesis_group_member gm
+                LEFT JOIN campuscore_auth."Student" s ON s."id" = gm.student_id
+                LEFT JOIN campuscore_auth."User" member_user ON member_user."id" = s."userId"
+                WHERE gm.group_id IN (:groupIds)
+                ORDER BY gm.group_id, gm.member_order
+                """, params().addValue("groupIds", groupIds), rs -> {
+                    String studentId = rs.getString("student_id");
+                    if (studentId == null) {
+                        return;
+                    }
+                    members.computeIfAbsent(UUID.fromString(rs.getString("group_id")),
+                                    ignored -> new LinkedHashMap<>())
+                            .putIfAbsent(memberKey(studentId, rs.getInt("member_order")),
+                                    new RepositoryMemberResponse(
+                                            displayName(rs.getString("member_first_name"),
+                                                    rs.getString("member_last_name"),
+                                                    rs.getString("external_display_name"),
+                                                    rs.getString("student_number")),
+                                            rs.getString("student_number"),
+                                            rs.getBoolean("is_external"),
+                                            rs.getBoolean("is_leader")));
+                });
+        Map<UUID, Map<String, RepositorySupervisorResponse>> supervisors = new LinkedHashMap<>();
+        if (!topicIds.isEmpty()) {
+            jdbc.query("""
+                    SELECT sup.topic_id, sup.lecturer_id, sup.supervisor_order,
+                           supervisor_user."firstName" AS supervisor_first_name,
+                           supervisor_user."lastName" AS supervisor_last_name
+                    FROM thesis.thesis_topic_supervisor sup
+                    LEFT JOIN campuscore_auth."Lecturer" supervisor_profile
+                        ON supervisor_profile."id" = sup.lecturer_id
+                    LEFT JOIN campuscore_auth."User" supervisor_user
+                        ON supervisor_user."id" = supervisor_profile."userId"
+                    WHERE sup.topic_id IN (:topicIds)
+                    ORDER BY sup.topic_id, sup.supervisor_order
+                    """, params().addValue("topicIds", topicIds), rs -> {
+                        String lecturerId = rs.getString("lecturer_id");
+                        if (lecturerId == null) {
+                            return;
+                        }
+                        supervisors.computeIfAbsent(UUID.fromString(rs.getString("topic_id")),
+                                        ignored -> new LinkedHashMap<>())
+                                .putIfAbsent(lecturerId, new RepositorySupervisorResponse(
+                                        displayName(rs.getString("supervisor_first_name"),
+                                                rs.getString("supervisor_last_name")),
+                                        rs.getInt("supervisor_order")));
+                    });
+        }
+        // Assemble in parent-page order; the IN (:ids) hydration order must
+        // never decide the response order.
+        List<RepositoryReportResponse> items = new java.util.ArrayList<>(roots.size());
+        for (RepositoryRoot root : roots) {
+            items.add(new RepositoryReportResponse(
+                    root.reportId(),
+                    root.title(),
+                    root.url(),
+                    root.note(),
+                    root.submittedAt(),
+                    root.updatedAt(),
+                    root.fileName(),
+                    root.fileType(),
+                    root.fileSize(),
+                    root.topicTitle(),
+                    root.topicDescription(),
+                    root.departmentName(),
+                    root.groupStatus(),
+                    root.approvalStatus(),
+                    displayName(root.submitterFirstName(), root.submitterLastName()),
+                    root.submitterStudentNumber(),
+                    List.copyOf(supervisors.getOrDefault(root.topicId(), Map.of()).values()),
+                    List.copyOf(members.getOrDefault(root.groupId(), Map.of()).values())));
+        }
+        return new RepositoryArchivePage(items, total, summary);
     }
+
+    /**
+     * Unfiltered authorized totals plus the filtered total in one statement, so
+     * the three summary headers and {@code X-Total-Count} share the page's
+     * repeatable-read snapshot. File and URL counts reproduce the web
+     * truthiness check: non-null and not the empty string (not trimmed).
+     */
+    private RepositoryArchiveSummary readArchiveSummary(String filter, String condition,
+            MapSqlParameterSource parameters) {
+        String filteredTotal = condition.isEmpty()
+                ? "COUNT(*)"
+                : "COALESCE(SUM(CASE WHEN " + condition + " THEN 1 ELSE 0 END), 0)";
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) AS archive_total, "
+                        + "COALESCE(SUM(CASE WHEN r.file_name IS NOT NULL AND r.file_name <> '' "
+                        + "THEN 1 ELSE 0 END), 0) AS file_count, "
+                        + "COALESCE(SUM(CASE WHEN r.url IS NOT NULL AND r.url <> '' "
+                        + "THEN 1 ELSE 0 END), 0) AS url_count, "
+                        + filteredTotal + " AS filtered_total "
+                        + "FROM thesis.thesis_group_report r "
+                        + "JOIN thesis.thesis_group g ON g.id = r.group_id "
+                        + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
+                        + "LEFT JOIN academic.\"Department\" d ON d.\"id\" = t.department_id "
+                        + "LEFT JOIN campuscore_auth.\"Student\" submitted_student "
+                        + "ON submitted_student.\"id\" = r.submitted_by "
+                        + "LEFT JOIN campuscore_auth.\"User\" submitter_user "
+                        + "ON submitter_user.\"id\" = submitted_student.\"userId\" "
+                        + "WHERE r.round_id = :roundId" + filter,
+                parameters,
+                (rs, row) -> new RepositoryArchiveSummary(rs.getLong("archive_total"),
+                        rs.getLong("file_count"), rs.getLong("url_count"), rs.getLong("filtered_total")));
+    }
+
+    /** Unfiltered authorized archive totals plus the filtered total. */
+    public record RepositoryArchiveSummary(long archiveTotal, long fileCount, long urlCount, long filteredTotal) { }
+
+    /** Archive body plus the totals a paged response publishes as headers. */
+    public record RepositoryArchivePage(List<RepositoryReportResponse> items, Long total,
+            RepositoryArchiveSummary summary) { }
+
+    /** Scalar row of the archive parent projection; children are hydrated by id. */
+    private record RepositoryRoot(
+            UUID reportId,
+            UUID groupId,
+            UUID topicId,
+            String title,
+            String url,
+            String note,
+            Instant submittedAt,
+            Instant updatedAt,
+            String fileName,
+            String fileType,
+            Long fileSize,
+            String topicTitle,
+            String topicDescription,
+            String departmentName,
+            String groupStatus,
+            String approvalStatus,
+            String submitterFirstName,
+            String submitterLastName,
+            String submitterStudentNumber) { }
 
     /** Download by opaque report id for the repository projection. */
     @Transactional(readOnly = true)
@@ -704,57 +905,6 @@ public class ThesisReportService {
             String studentNumber,
             boolean isExternal,
             boolean isLeader) { }
-
-    private static final class RepositoryBuilder {
-        private final UUID reportId;
-        private final String title;
-        private final String url;
-        private final String note;
-        private final Instant submittedAt;
-        private final Instant updatedAt;
-        private final String fileName;
-        private final String fileType;
-        private final Long fileSize;
-        private final String topicTitle;
-        private final String topicDescription;
-        private final String departmentName;
-        private final String groupStatus;
-        private final String approvalStatus;
-        private final String submittedByDisplayName;
-        private final String submittedByStudentNumber;
-        private final Map<String, RepositoryMemberResponse> members = new LinkedHashMap<>();
-        private final Map<String, RepositorySupervisorResponse> supervisors = new LinkedHashMap<>();
-
-        private RepositoryBuilder(UUID reportId, String title, String url, String note, Instant submittedAt,
-                                  Instant updatedAt, String fileName, String fileType, Long fileSize,
-                                  String topicTitle, String topicDescription, String departmentName,
-                                  String groupStatus, String approvalStatus, String submittedByDisplayName,
-                                  String submittedByStudentNumber) {
-            this.reportId = reportId;
-            this.title = title;
-            this.url = url;
-            this.note = note;
-            this.submittedAt = submittedAt;
-            this.updatedAt = updatedAt;
-            this.fileName = fileName;
-            this.fileType = fileType;
-            this.fileSize = fileSize;
-            this.topicTitle = topicTitle;
-            this.topicDescription = topicDescription;
-            this.departmentName = departmentName;
-            this.groupStatus = groupStatus;
-            this.approvalStatus = approvalStatus;
-            this.submittedByDisplayName = submittedByDisplayName;
-            this.submittedByStudentNumber = submittedByStudentNumber;
-        }
-
-        private RepositoryReportResponse build() {
-            return new RepositoryReportResponse(reportId, title, url, note, submittedAt, updatedAt, fileName,
-                    fileType, fileSize, topicTitle, topicDescription, departmentName, groupStatus,
-                    approvalStatus, submittedByDisplayName, submittedByStudentNumber,
-                    List.copyOf(supervisors.values()), List.copyOf(members.values()));
-        }
-    }
 
     /** The attached document bytes, served only through the authorized download path. */
     public record StoredReport(String fileName, String contentType, byte[] data) { }

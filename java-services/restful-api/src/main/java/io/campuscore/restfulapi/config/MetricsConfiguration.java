@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.config;
 
+import io.campuscore.restfulapi.thesis.assistant.AssistantProperties;
 import io.campuscore.restfulapi.thesis.assistant.AssistantRlsState;
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
@@ -81,7 +82,8 @@ public class MetricsConfiguration {
 
     @Bean
     MeterBinder assistantMeters(ObjectProvider<AssistantRlsState> rls,
-            @Qualifier("assistantDataSource") ObjectProvider<DataSource> assistant) {
+            @Qualifier("assistantDataSource") ObjectProvider<DataSource> assistant,
+            ObjectProvider<AssistantProperties> properties) {
         return registry -> {
             registry.counter("campuscore.assistant.requests", "degraded", "true");
             registry.counter("campuscore.assistant.requests", "degraded", "false");
@@ -92,6 +94,10 @@ public class MetricsConfiguration {
             }).strongReference(true).register(registry);
             Gauge.builder("campuscore.assistant.quota.consumed.daily", assistant,
                     sources -> committedDailyQuota(sources, rls)).strongReference(true).register(registry);
+            Gauge.builder("campuscore.assistant.quota.limit.daily", properties, configured -> {
+                AssistantProperties settings = configured.getIfAvailable();
+                return settings == null ? Double.NaN : settings.globalDailyQuota();
+            }).strongReference(true).register(registry);
         };
     }
 

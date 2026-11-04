@@ -6,6 +6,9 @@ import {
   attendanceGeofenceEn,
   attendanceGeofenceVi,
 } from '@/i18n/messages-attendance-geofence';
+import { teachingPagesEn, teachingPagesVi } from '@/i18n/messages-teaching-pages';
+import { adminPagesEn, adminPagesVi } from '@/i18n/messages-admin-pages';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 
 export const en = {
   common: {
@@ -98,6 +101,22 @@ export const en = {
       TRUONG_KHOA: 'Dean',
       TRUONG_BO_MON: 'Department head',
       USER: 'User',
+    },
+    unsavedChanges: {
+      title: 'Unsaved changes',
+      body: 'You have unsaved changes. Leaving this page will discard them. Continue?',
+      beforeUnload: 'You have unsaved changes. Leaving this page will discard them.',
+    },
+    notFound: {
+      eyebrow: '404 Not Found',
+      title: 'Page Not Found',
+      description: 'The page you requested does not exist or has been moved.',
+      recoveryLinks: 'Recovery links',
+      backHome: 'Back to Home',
+    },
+    theme: {
+      switchToDark: 'Switch to dark theme',
+      switchToLight: 'Switch to light theme',
     },
     campusErrors: {
       network:
@@ -265,6 +284,15 @@ export const en = {
         // Generic
         RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a moment and try again.',
         RESOURCE_NOT_FOUND: 'That record is no longer available.',
+        // Announcement authoring
+        ANNOUNCEMENT_VERSION_CONFLICT:
+          'This notice was changed by another administrator. Reload it and apply your edit again.',
+        UNSAFE_ANNOUNCEMENT_CONTENT:
+          'The notice contains a script, frame or inline handler that is not allowed. Remove it and save again.',
+        LECTURER_ANNOUNCEMENT_FORBIDDEN:
+          'You can only post notices for sections you teach.',
+        ANNOUNCEMENT_WINDOW_INVALID:
+          'The end time must be later than the publish time.',
       },
     },
   },
@@ -346,6 +374,11 @@ export const en = {
       title: 'Admin portal | CampusUTE',
       description: 'Protected administration routes for CampusUTE.',
     },
+    docs: {
+      title: 'Public documents | CampusUTE',
+      description:
+        'Regulations, guides, and reference material published by HCMUTE, current revisions only.',
+    },
     checkinLanding: {
       title: 'Check in with the CampusUTE app | CampusUTE',
       description:
@@ -366,6 +399,23 @@ export const en = {
         'One academic portal',
       ],
     },
+    manifest: {
+      name: 'CampusUTE - Academic Portal & Student Management System | HCM-UTE',
+      shortName: 'CampusUTE',
+      description:
+        'CampusUTE online academic and student portal - Ho Chi Minh City University of Technology and Engineering.',
+      screenshots: {
+        homeEnLabel: 'CampusUTE homepage in English',
+        homeViLabel: 'CampusUTE homepage in Vietnamese',
+      },
+    },
+    jsonLd: {
+      organizationName: 'Ho Chi Minh City University of Technology and Engineering',
+      organizationDescription:
+        'CampusUTE online academic portal of Ho Chi Minh City University of Technology and Engineering.',
+    },
+    emblemAlt: 'HCMUTE Emblem',
+    emblemWatermarkAlt: 'HCMUTE Emblem Watermark',
   },
   home: {
     navSubtitle: 'Campus academic portal',
@@ -588,12 +638,6 @@ export const en = {
     title: 'Sign in to the campus portal.',
     description:
       'Sign in with your campus account to continue across registration, grades, schedules, and updates.',
-    featureTitles: ['The right place to start', 'One sign-in', 'Ready for class'],
-    featureDescriptions: [
-      'Students, lecturers, and admins each arrive in the area they need.',
-      'Sign in once and keep working through registration, grades, and teaching.',
-      'The day starts from a calm campus entry, not a stack of extra steps.',
-    ],
     sectionEyebrow: 'Account access',
     heading: 'Welcome back',
     subheading: 'Sign in with your campus account to continue.',
@@ -610,6 +654,10 @@ export const en = {
     // publishes a known-stale seed password (roadmap 1.5b).
     staleDemoPasswordWarning:
       'This demo password is stale — use password123 per the updated guide.',
+    demoGroupNote:
+      '💡 These four accounts are members of the same thesis group — sign in as each to see the shared group.',
+    demoAccountNote:
+      '💡 This is a demo account provided to experience all features of CampusUTE.',
     reasonMessages: {
       sessionExpired: {
         title: 'Your session ended',
@@ -682,12 +730,6 @@ export const en = {
         destination: 'A matching student account opens the student dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the lecturer or admin sign-in instead.',
-        featureTitles: ['Register', 'Timetable', 'Grades'],
-        featureDescriptions: [
-          'Pick sections while the registration window is open.',
-          'See class times and rooms for the current term.',
-          'Follow published scores without leaving the student desk.',
-        ],
       },
       lecturer: {
         tab: 'Lecturer',
@@ -701,12 +743,6 @@ export const en = {
         destination: 'A matching lecturer account opens the faculty dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the student or admin sign-in instead.',
-        featureTitles: ['SE204', 'GRADE', 'SLOT'],
-        featureDescriptions: [
-          'Class lists stay next to the students you teach.',
-          'Enter and review scores for the sections you teach.',
-          'Check teaching hours without switching to another desk.',
-        ],
       },
       dean: {
         tab: 'Dean',
@@ -720,12 +756,6 @@ export const en = {
         destination: 'A matching dean account opens the faculty observation dashboard.',
         mismatch:
           'This account belongs to another campus portal. Open the student, lecturer, or admin sign-in instead.',
-        featureTitles: ['Rounds', 'Groups', 'Workload'],
-        featureDescriptions: [
-          'Follow every thesis round running in the faculty.',
-          'See group rosters, leaders, and topic status.',
-          'Check supervisor workload across departments.',
-        ],
       },
       admin: {
         tab: 'Admin',
@@ -739,13 +769,6 @@ export const en = {
         destination: 'A matching administrator account opens the admin portal.',
         mismatch:
           'This account belongs to another campus portal. Open the student or lecturer sign-in instead.',
-        opsMark: 'Ops',
-        featureTitles: ['People records', 'Catalog', 'Campus look'],
-        featureDescriptions: [
-          'Review accounts and role assignments.',
-          'Keep courses, sections, and rooms aligned.',
-          'Publish notices and arrange how they appear.',
-        ],
       },
     },
   },
@@ -771,6 +794,7 @@ export const en = {
     registeredTimetableTitle: 'Timetable of registered courses',
     registeredTimetableEmpty: 'No published class meetings yet. Registered courses remain listed above.',
     registeredMissingSchedules: '{count} registered classes have no published schedule yet.',
+    registeredMissingSchedulesOne: '{count} registered class has no published schedule yet.',
     timetableToday: 'TODAY',
     timetableNoMeetings: 'No class meetings.',
     timetableMeeting: 'meeting',
@@ -809,13 +833,16 @@ export const en = {
     creditLimitExceeded: 'This registration would exceed the {limit}-credit term limit.',
     creditLimitReached: 'You have reached the {limit}-credit term limit.',
     creditLimitRemaining: '{count} credits remain available this term.',
+    creditLimitRemainingOne: '{count} credit remains available this term.',
     headerCreditsRemaining: '{count} credits left',
+    headerCreditRemaining: '{count} credit left',
     searchPlaceholder: 'Search by course code or name',
     searchByCode: 'Course code or class',
     searchByName: 'Course name',
     courseCodePlaceholder: 'SE101 or 01',
     courseNamePlaceholder: 'Software engineering',
     groupSectionCount: '{count} classes',
+    groupSectionCountOne: '{count} class',
     semester: 'Semester',
     allSemesters: 'All semesters',
     seatsLeft: 'Seats left',
@@ -836,9 +863,11 @@ export const en = {
     confirmDrop: 'Are you sure you want to drop this course?',
     confirmDropMessage: 'You are about to drop section {section}. Continue?',
     sectionCount: '{count} sections',
+    sectionCountSingular: '{count} section',
     working: 'Working',
     roundUnavailable: 'No registration round is open right now.',
     roundUnavailableDescription: 'Come back when the registrar opens the registration or add/drop window for your semester.',
+    cohortIneligibleDescription: 'This round is limited to a specific cohort. Contact the Academic Office if you believe you belong to it.',
     exportUnavailable: 'A registration slip is not available yet.',
     exportSlip: 'Download registration slip (PDF)',
     exportSlipDownloading: 'Downloading slip...',
@@ -847,6 +876,7 @@ export const en = {
     courseListLabel: 'Course list',
     creditsUnit: 'credits',
     seatsOpen: '{count} seats open',
+    seatsOpenOne: '{count} seat open',
     conflictBadge: 'Schedule conflict',
     railEmpty: 'No sections are registered for this term yet.',
     scheduleConflictTooltip: 'Conflicts with the timetable of a course you already registered',
@@ -915,6 +945,7 @@ export const en = {
     progressLabel: 'Credit progress',
     statusSummaryLabel: 'Curriculum status summary',
     creditsLabel: 'credits',
+    creditLabel: 'credit',
     mandatory: 'Mandatory',
     elective: 'Elective',
     yearPrefix: 'Year',
@@ -936,6 +967,7 @@ export const en = {
     notStartedEmpty: 'No not-started courses remain in this plan.',
     allEmpty: 'No courses in this curriculum yet.',
     openSections: '{count} sections open this term',
+    openSectionsOne: '{count} section open this term',
     noOpenSection: 'No section offered this term',
     registerCta: 'Register',
     prerequisiteLabel: 'Prerequisites:',
@@ -944,6 +976,7 @@ export const en = {
     chainsDescription:
       'Each course must be passed to unlock the next one in the chain. ✓ = completed, blue = in progress, grey = not started.',
     chainsExpand: 'Show {count} chains',
+    chainsExpandOne: 'Show {count} chain',
     chainsCollapse: 'Hide chains',
     emptyTitle: 'No curriculum assigned',
     emptyDescription:
@@ -1005,12 +1038,6 @@ export const en = {
     title: 'Recover account access without guessing.',
     description:
       'Use your campus email to request a reset link. The response stays consistent whether the account exists or not.',
-    featureTitles: ['Verified handoff', 'Clear next steps', 'Safer messaging'],
-    featureDescriptions: [
-      'Password recovery stays aligned with the same sign-in experience used across the portal.',
-      'The screen keeps recovery guidance visible instead of dropping you into a dead end.',
-      'Responses stay intentionally vague so the flow does not confirm whether an email exists.',
-    ],
     sectionEyebrow: 'Recovery flow',
     heading: 'Forgot password',
     beforeSend: 'Enter your email and we will send password reset instructions.',
@@ -1034,12 +1061,6 @@ export const en = {
     title: 'Set a new password and get back into CampusUTE.',
     description:
       'Choose a fresh password for your campus account. Once complete, you will sign in again with the updated credentials.',
-    featureTitles: ['One secure path', 'Clear requirements', 'Consistent recovery'],
-    featureDescriptions: [
-      'The reset link returns you to the same protected sign-in flow instead of a separate experience.',
-      'Users see password guidance and validation before the form submits.',
-      'An expired or invalid link shows a clear recovery step instead of a broken page.',
-    ],
     invalidTitle: 'This reset link is no longer valid',
     invalidDescription:
       'Request a new password reset link and use the latest email to continue.',
@@ -1165,6 +1186,7 @@ export const en = {
       reviewerNoteHint: 'A rejection should include a clear reason for the student.',
       rejectionNoteRequired: 'Add a reviewer note before rejecting a request.',
       reviewed: 'Application decision saved.',
+      alreadyReviewed: 'This request has already been reviewed. The list is refreshed.',
       student: 'Student',
       term: 'Term',
       requestedLimit: 'Requested limit',
@@ -1190,6 +1212,7 @@ export const en = {
       filterAction: 'Action contains',
       filterEntity: 'Entity type',
       filterSearch: 'Search summary/actor/entity',
+      searchPlaceholder: 'e.g. password reset or an email address',
       applyFilters: 'Apply',
       clearFilters: 'Clear',
       tableTitle: 'Recorded operations (newest first)',
@@ -1296,9 +1319,14 @@ export const en = {
       saveFailed: 'The campus look could not be saved right now.',
       saveNotDurable:
         'Saved to this web server only. The central API is unreachable, so other visitors will not see this until it is saved again.',
+      staleVersion:
+        'The campus look changed after you loaded it. Your edits are still here; reload to compare before saving.',
+      reload: 'Reload',
       loadFailed: 'The campus look could not be loaded right now.',
       postsLoadFailed:
         'The announcement list could not be loaded — pinned ordering is unavailable until it loads.',
+      pinsLoadFailed:
+        'Some pinned notices could not be loaded and are hidden here; reload to try again.',
       heroEyebrow: 'Home eyebrow',
       heroTitle: 'Home title',
       heroDescription: 'Home description',
@@ -1318,6 +1346,8 @@ export const en = {
       postsDescription:
         'Move a notice up or down. Student and lecturer feeds follow this order as soon as it is saved.',
       postsEmpty: 'Publish a notice first, then arrange it here.',
+      postSearchLabel: 'Search notices',
+      postsLoadMore: 'Load more',
       moveUp: 'Move up',
       moveDown: 'Move down',
       openAnnouncements: 'Open notices',
@@ -1349,6 +1379,8 @@ export const en = {
       recipientSearchLabel: 'Find a recipient',
       recipientSearchFailed: 'The account directory could not be searched right now.',
       recipientNoMatch: 'No account matches this search.',
+      recipientRefineHint:
+        'Only the first 5 of {total} matching accounts are shown. Refine the search to narrow the list.',
       recipientResultsLabel: 'Search results',
       recipientRemove: 'Remove recipient',
       recipientSingleOnly:
@@ -1451,6 +1483,8 @@ export const en = {
     dashboardShell: {
       portalTitle: 'Academic information portal',
     identityLabel: 'Signed in as',
+    demoTag: 'Demo account',
+    demoAccount: 'Demo experience account',
     menuSections: {
       overview: 'Overview',
       academic: 'Academic records',
@@ -1517,6 +1551,7 @@ export const en = {
       deanOverview: 'Faculty thesis overview',
       events: 'Events & union activities',
       learning: 'Materials & assignments',
+      staffDesks: 'Staff desks',
       profileSettings: 'Profile settings',
       profile: 'Profile',
       settings: 'Settings',
@@ -1529,6 +1564,7 @@ export const en = {
       fallbackTitle: 'New update',
       fallbackContent: 'A new notification has arrived for your account.',
       openAnnouncements: 'Open announcements',
+      academicAffairsNoticeBoard: 'Academic Affairs Notice Board',
       openNotifications: 'Open notifications center',
       description:
         'Keep account alerts, academic deadlines, and workflow updates in one focused inbox.',
@@ -1543,6 +1579,7 @@ export const en = {
       loadFailed: 'Notifications could not be loaded right now.',
       updateFailed: 'The notification could not be updated. Try again.',
       updatedCount: '{count} notifications marked as read.',
+      updatedCountOne: '{count} notification marked as read.',
     },
     controls: {
       openSidebar: 'Open sidebar navigation',
@@ -1577,11 +1614,9 @@ export const en = {
         'Move through your role-based tools with a consistent sign-in.',
     },
     signOutPage: {
-      eyebrow: 'Sign-in handoff',
       title: 'Signing you out',
       description:
         'We are closing your current sign-in and returning you to the login page.',
-      progress: 'Finishing sign-out...',
     },
     routeDescriptions: {
       dashboard:
@@ -1704,6 +1739,7 @@ export const en = {
       content: 'Notice content',
       contentPlaceholder: 'Write the full notice text…',
       charCount: '{count} characters',
+      charCountOne: '{count} character',
       highlights: 'Key highlights',
       highlightPlaceholder: 'Type a highlight and press Add…',
       addHighlight: 'Add highlight',
@@ -2073,6 +2109,7 @@ export const en = {
     profileUpdated: 'Profile updated',
     profileSaveFailed: 'We could not save your profile changes.',
     phoneInvalid: 'Phone number may only contain digits, spaces, and + ( ) - characters.',
+    addressTooLong: 'Address must be 500 characters or fewer.',
     passwordTitle: 'Password and sign-in safety',
     passwordDescription:
       'Use a strong password and expect to sign in again after a successful change.',
@@ -2257,6 +2294,7 @@ export const en = {
     noRound: 'No thesis registration round is available yet.',
     loading: 'Loading thesis area',
     loadFailed: 'Thesis data could not be loaded right now.',
+    topicLoadFailed: 'This topic could not be loaded — it may have been removed, or the connection failed.',
     secondaryLoadFailed: 'Some secondary details could not be loaded — supervisor names or report links may be missing.',
     retry: 'Retry thesis area',
     roundStatus: 'Round status',
@@ -2407,6 +2445,7 @@ export const en = {
     progressGroupRejected: 'Your group was rejected. Review the reason with the thesis office.',
     progressGroupCancelled: 'Your group was cancelled and no longer advances this round.',
     progressReportedStatus: 'Self-reported status',
+    milestoneNotApplicable: 'Not applicable',
     progressSteps: [
       'Round selected',
       'Group created',
@@ -2482,6 +2521,7 @@ export const en = {
       noResults: 'You have no results in this round yet.',
       finalScore: 'Final score',
       council: 'Council',
+      notQualified: 'Not eligible for defense — counter-review score below 5.0',
     },
     councils: {
       title: 'Defense councils',
@@ -2626,7 +2666,7 @@ export const en = {
         openRegistration: 'Open student registration for this round? Groups will be able to register immediately.',
         closeRegistration: 'Close registration for this round? Groups can no longer change their roster or topic afterwards.',
         publishProposals: 'Publish the topic catalog to all student groups in this round?',
-        publishResults: 'Publish final results to students? This is irreversible — every approved group must already carry a finalized score.',
+        publishResults: 'Publish final results to students? This is irreversible — every approved group must already carry a finalized score; an approved group whose counter-review score is below 5.0 after the review deadline publishes as not eligible for defense.',
       },
       editRound: 'Edit schedule',
       editRoundTitle: 'Amend round schedule',
@@ -2740,6 +2780,7 @@ export const en = {
     quotaExceeded: 'Daily assistant limit reached. Try again tomorrow or continue with the cited guidance.',
     quotaResetsAt: 'Limit resets at {time}.',
     rateLimited: 'Too many requests — please wait {seconds} seconds and retry.',
+    rateLimitedOne: 'Too many requests — please wait {seconds} second and retry.',
     rateLimitedGeneric: 'Too many requests — please wait a moment and retry.',
     blockedLabel: 'Blocked request',
     blocked:
@@ -2878,6 +2919,9 @@ export const en = {
   deanOverview: deanOverviewEn,
   content: contentEn,
   attendanceGeofence: attendanceGeofenceEn,
+  teachingPages: teachingPagesEn,
+  adminPages: adminPagesEn,
+  studentPages: studentPagesEn,
   attendance: {
     eyebrow: 'Student area',
     title: 'Attendance',
@@ -2931,8 +2975,11 @@ export const en = {
     saveButton: 'Save attendance',
     savingButton: 'Saving...',
     savedSuccess: 'Attendance recorded successfully for {count} students',
+    savedSuccessSingular: 'Attendance recorded successfully for {count} student',
     saveFailed: 'Failed to record attendance. Please try again.',
+    noteTooLong: 'Notes must be {limit} characters or fewer.',
     existingReadWarning: 'Could not load previously saved attendance. Records shown may be incomplete — saving is locked until you reload this section.',
+    summaryRefreshFailed: 'Saved, but the semester attendance rate could not be refreshed — the shown rate may be out of date.',
     noSectionsTitle: 'No classes assigned',
     noSectionsDescription: 'You are not currently assigned to teach any class sections.',
     noStudentsTitle: 'No students enrolled',
@@ -3118,6 +3165,22 @@ export const vi: I18nMessages = {
       TRUONG_BO_MON: 'Trưởng bộ môn',
       USER: 'Người dùng',
     },
+    unsavedChanges: {
+      title: 'Nội dung chưa được lưu',
+      body: 'Bạn có nội dung chưa được lưu. Rời khỏi sẽ mất các thay đổi. Tiếp tục?',
+      beforeUnload: 'Bạn có nội dung chưa được lưu. Rời khỏi trang sẽ mất thay đổi.',
+    },
+    notFound: {
+      eyebrow: '404 Not Found',
+      title: 'Trang không tồn tại',
+      description: 'Đường dẫn bạn yêu cầu không tồn tại hoặc đã được chuyển sang vị trí mới.',
+      recoveryLinks: 'Liên kết khôi phục',
+      backHome: 'Quay lại trang chủ',
+    },
+    theme: {
+      switchToDark: 'Chuyển sang giao diện tối',
+      switchToLight: 'Chuyển sang giao diện sáng',
+    },
     campusErrors: {
       network:
         'CampusUTE chưa kết nối được cổng học vụ lúc này. Hãy thử lại sau một lát.',
@@ -3284,6 +3347,15 @@ export const vi: I18nMessages = {
         // Chung
         RATE_LIMIT_EXCEEDED: 'Bạn thao tác quá nhanh. Hãy chờ một lát rồi thử lại.',
         RESOURCE_NOT_FOUND: 'Hồ sơ này không còn khả dụng.',
+        // Soạn thông báo
+        ANNOUNCEMENT_VERSION_CONFLICT:
+          'Thông báo này vừa được quản trị viên khác thay đổi. Hãy tải lại rồi áp dụng lại nội dung của bạn.',
+        UNSAFE_ANNOUNCEMENT_CONTENT:
+          'Nội dung chứa thẻ script, iframe hoặc sự kiện nội tuyến không được phép. Hãy xoá rồi lưu lại.',
+        LECTURER_ANNOUNCEMENT_FORBIDDEN:
+          'Bạn chỉ được đăng thông báo cho lớp học phần mình phụ trách.',
+        ANNOUNCEMENT_WINDOW_INVALID:
+          'Thời điểm kết thúc phải sau thời điểm đăng.',
       },
     },
   },
@@ -3365,6 +3437,11 @@ export const vi: I18nMessages = {
       title: 'Cổng quản trị học vụ | CampusUTE',
       description: 'Khu vực quản trị đào tạo và cấu hình hệ thống CampusUTE.',
     },
+    docs: {
+      title: 'Tài liệu công khai | CampusUTE',
+      description:
+        'Quy định, hướng dẫn và tài liệu tham khảo do HCMUTE công bố, chỉ các bản hiện hành.',
+    },
     checkinLanding: {
       title: 'Điểm danh bằng ứng dụng CampusUTE | CampusUTE',
       description:
@@ -3385,6 +3462,23 @@ export const vi: I18nMessages = {
         'Quản trị tập trung',
       ],
     },
+    manifest: {
+      name: 'CampusUTE - Cổng Thông Tin Đào Tạo & Quản Lý Sinh Viên HCM-UTE',
+      shortName: 'CampusUTE',
+      description:
+        'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.',
+      screenshots: {
+        homeEnLabel: 'Trang chủ CampusUTE bằng tiếng Anh',
+        homeViLabel: 'Trang chủ CampusUTE bằng tiếng Việt',
+      },
+    },
+    jsonLd: {
+      organizationName: 'Trường Đại học Công nghệ Kỹ thuật TP.HCM',
+      organizationDescription:
+        'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.',
+    },
+    emblemAlt: 'Biểu trưng HCMUTE',
+    emblemWatermarkAlt: 'Hình chìm biểu trưng HCMUTE',
   },
   home: {
     navSubtitle: 'Cổng học vụ CampusUTE',
@@ -3606,12 +3700,6 @@ export const vi: I18nMessages = {
     title: 'Đăng nhập vào cổng học vụ CampusUTE.',
     description:
       'Đăng nhập bằng tài khoản nhà trường để tiếp tục đăng ký học phần, xem điểm và nhận thông báo.',
-    featureTitles: ['Đúng nơi bắt đầu', 'Một lần đăng nhập', 'Sẵn sàng cho buổi học'],
-    featureDescriptions: [
-      'Sinh viên, giảng viên và quản trị đều vào đúng khu vực mình cần.',
-      'Đăng nhập một lần rồi tiếp tục đăng ký, xem điểm và giảng dạy.',
-      'Ngày học vụ bắt đầu từ một cổng rõ ràng, không thêm bước thừa.',
-    ],
     sectionEyebrow: 'Truy cập tài khoản',
     heading: 'Chào mừng bạn quay lại',
     subheading: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.',
@@ -3628,6 +3716,10 @@ export const vi: I18nMessages = {
     // password cũ đã được xoay (roadmap 1.5b).
     staleDemoPasswordWarning:
       'Mật khẩu demo này đã cũ — dùng password123 theo hướng dẫn mới.',
+    demoGroupNote:
+      '💡 Bốn tài khoản là 4 thành viên cùng một nhóm KLTN — chọn từng tài khoản để xem nhóm chung.',
+    demoAccountNote:
+      '💡 Đây là tài khoản demo dùng để trải nghiệm đầy đủ các tính năng của hệ thống CampusUTE.',
     reasonMessages: {
       sessionExpired: {
         title: 'Lần đăng nhập của bạn đã kết thúc',
@@ -3700,12 +3792,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản sinh viên hợp lệ sẽ mở Cổng Sinh viên.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập giảng viên hoặc quản trị.',
-        featureTitles: ['Đăng ký', 'Thời khóa biểu', 'Điểm'],
-        featureDescriptions: [
-          'Chọn học phần khi cửa sổ đăng ký đang mở.',
-          'Xem giờ học và phòng cho học kỳ hiện tại.',
-          'Theo dõi điểm đã công bố ngay tại bàn sinh viên.',
-        ],
       },
       lecturer: {
         tab: 'Giảng viên',
@@ -3719,12 +3805,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản giảng viên hợp lệ sẽ mở Cổng Giảng viên.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên hoặc quản trị.',
-        featureTitles: ['Lớp giảng dạy', 'Nhập điểm', 'Lịch tuần'],
-        featureDescriptions: [
-          'Danh sách lớp học phần bạn phụ trách.',
-          'Nhập và quản lý điểm cho các lớp học phần.',
-          'Xem thời khóa biểu giảng dạy trực quan.',
-        ],
       },
       dean: {
         tab: 'Trưởng khoa',
@@ -3738,12 +3818,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản trưởng khoa hợp lệ sẽ mở Bảng quan sát khóa luận khoa.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên, giảng viên hoặc quản trị.',
-        featureTitles: ['Đợt khóa luận', 'Nhóm & thành viên', 'Phân bổ GVHD'],
-        featureDescriptions: [
-          'Theo dõi mọi đợt khóa luận đang diễn ra trong khoa.',
-          'Xem danh sách nhóm, nhóm trưởng và trạng thái đề tài.',
-          'Nắm khối lượng hướng dẫn của từng giảng viên theo bộ môn.',
-        ],
       },
       admin: {
         tab: 'Quản trị',
@@ -3757,13 +3831,6 @@ export const vi: I18nMessages = {
         destination: 'Tài khoản quản trị hợp lệ sẽ mở Cổng Quản trị.',
         mismatch:
           'Tài khoản này thuộc cổng khác. Hãy mở đăng nhập sinh viên hoặc giảng viên.',
-        opsMark: 'Quản trị',
-        featureTitles: ['Hồ sơ người dùng', 'Danh mục môn học', 'Diện mạo cổng'],
-        featureDescriptions: [
-          'Rà tài khoản và phân quyền.',
-          'Giữ môn, lớp và phòng học khớp nhau.',
-          'Phát hành thông báo và sắp thứ tự hiển thị.',
-        ],
       },
     },
   },
@@ -3789,6 +3856,7 @@ export const vi: I18nMessages = {
     registeredTimetableTitle: 'Thời khóa biểu các môn đã đăng ký',
     registeredTimetableEmpty: 'Chưa có buổi học được công bố. Các môn đã đăng ký vẫn hiển thị ở trên.',
     registeredMissingSchedules: '{count} lớp đã đăng ký chưa được công bố lịch học.',
+    registeredMissingSchedulesOne: '{count} lớp đã đăng ký chưa được công bố lịch học.',
     timetableToday: 'HÔM NAY',
     timetableNoMeetings: 'Không có buổi học.',
     timetableMeeting: 'buổi học',
@@ -3827,13 +3895,16 @@ export const vi: I18nMessages = {
     creditLimitExceeded: 'Đăng ký này sẽ vượt hạn mức {limit} tín chỉ của học kỳ.',
     creditLimitReached: 'Bạn đã đạt hạn mức {limit} tín chỉ của học kỳ.',
     creditLimitRemaining: 'Học kỳ này còn {count} tín chỉ có thể đăng ký.',
+    creditLimitRemainingOne: 'Học kỳ này còn {count} tín chỉ có thể đăng ký.',
     headerCreditsRemaining: 'Còn {count} tín chỉ',
+    headerCreditRemaining: 'Còn {count} tín chỉ',
     searchPlaceholder: 'Tìm theo mã hoặc tên môn học',
     searchByCode: 'Mã học phần hoặc lớp',
     searchByName: 'Tên học phần',
     courseCodePlaceholder: 'SE101 hoặc 01',
     courseNamePlaceholder: 'Công nghệ phần mềm',
     groupSectionCount: '{count} lớp',
+    groupSectionCountOne: '{count} lớp',
     semester: 'Học kỳ',
     allSemesters: 'Tất cả học kỳ',
     seatsLeft: 'Còn chỗ',
@@ -3853,9 +3924,11 @@ export const vi: I18nMessages = {
     confirmDrop: 'Bạn có chắc muốn hủy học phần này không?',
     confirmDropMessage: 'Bạn đang hủy lớp học phần {section}. Xác nhận tiếp tục?',
     sectionCount: '{count} lớp học phần',
+    sectionCountSingular: '{count} lớp học phần',
     working: 'Đang xử lý',
     roundUnavailable: 'Hiện chưa có đợt đăng ký đang mở.',
     roundUnavailableDescription: 'Vui lòng quay lại khi Phòng Đào tạo mở cửa sổ đăng ký hoặc đăng ký/huỷ môn cho học kỳ của bạn.',
+    cohortIneligibleDescription: 'Đợt đăng ký này chỉ dành cho một nhóm lớp/khóa cụ thể. Liên hệ Phòng Đào tạo nếu bạn cho rằng mình thuộc nhóm đó.',
     exportUnavailable: 'Phiếu đăng ký chưa sẵn sàng.',
     exportSlip: 'Xuất phiếu đăng ký (PDF)',
     exportSlipDownloading: 'Đang tải phiếu...',
@@ -3864,6 +3937,7 @@ export const vi: I18nMessages = {
     courseListLabel: 'Danh sách môn học',
     creditsUnit: 'tín chỉ',
     seatsOpen: '{count} chỗ trống',
+    seatsOpenOne: '{count} chỗ trống',
     conflictBadge: 'Trùng lịch',
     railEmpty: 'Bạn chưa đăng ký lớp học phần nào trong học kỳ này.',
     scheduleConflictTooltip: 'Trùng thời khóa biểu với môn đã đăng ký',
@@ -3932,6 +4006,7 @@ export const vi: I18nMessages = {
     progressLabel: 'Tiến độ tín chỉ',
     statusSummaryLabel: 'Tóm tắt trạng thái CTĐT',
     creditsLabel: 'tín chỉ',
+    creditLabel: 'tín chỉ',
     mandatory: 'Bắt buộc',
     elective: 'Tự chọn',
     yearPrefix: 'Năm học',
@@ -3953,6 +4028,7 @@ export const vi: I18nMessages = {
     notStartedEmpty: 'Không còn môn chưa học nào trong chương trình.',
     allEmpty: 'Chương trình đào tạo chưa có môn nào.',
     openSections: 'Đang mở {count} lớp trong kỳ này',
+    openSectionsOne: 'Đang mở {count} lớp trong kỳ này',
     noOpenSection: 'Kỳ này chưa mở lớp',
     registerCta: 'Đăng ký',
     prerequisiteLabel: 'Tiên quyết:',
@@ -3961,6 +4037,7 @@ export const vi: I18nMessages = {
     chainsDescription:
       'Phải đạt môn trước mới được đăng ký môn sau trong chuỗi. ✓ = đã hoàn tất, xanh dương = đang học, xám = chưa học.',
     chainsExpand: 'Hiện {count} chuỗi',
+    chainsExpandOne: 'Hiện {count} chuỗi',
     chainsCollapse: 'Thu gọn chuỗi',
     emptyTitle: 'Chưa có chương trình đào tạo',
     emptyDescription:
@@ -4023,12 +4100,6 @@ export const vi: I18nMessages = {
     title: 'Lấy lại quyền truy cập mà không cần đoán mò.',
     description:
       'Dùng email nhà trường để yêu cầu liên kết đặt lại mật khẩu. Phản hồi sẽ giữ nhất quán dù tài khoản có tồn tại hay không.',
-    featureTitles: ['Bàn giao đã xác minh', 'Bước kế tiếp rõ ràng', 'Thông điệp an toàn hơn'],
-    featureDescriptions: [
-      'Khôi phục mật khẩu vẫn đi cùng một trải nghiệm đăng nhập nhất quán trong toàn bộ cổng học vụ.',
-      'Màn hình luôn giữ hướng dẫn khôi phục hiển thị thay vì đưa bạn vào ngõ cụt.',
-      'Phản hồi được giữ mơ hồ có chủ đích để không xác nhận email có tồn tại hay không.',
-    ],
     sectionEyebrow: 'Luồng khôi phục',
     heading: 'Quên mật khẩu',
     beforeSend: 'Nhập email của bạn và chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.',
@@ -4052,12 +4123,6 @@ export const vi: I18nMessages = {
     title: 'Tạo mật khẩu mới và quay lại CampusUTE.',
     description:
       'Chọn mật khẩu mới cho tài khoản nhà trường của bạn. Sau khi xong, bạn sẽ đăng nhập lại bằng thông tin vừa cập nhật.',
-    featureTitles: ['Một đường đi an toàn', 'Yêu cầu rõ ràng', 'Khôi phục nhất quán'],
-    featureDescriptions: [
-      'Liên kết đặt lại đưa bạn về cùng luồng đăng nhập được bảo vệ thay vì tách ra thành một trải nghiệm khác.',
-      'Người dùng thấy yêu cầu mật khẩu và kiểm tra hợp lệ trước khi gửi biểu mẫu.',
-      'Liên kết hết hạn hoặc không hợp lệ vẫn hiển thị bước khôi phục rõ ràng thay vì một trang lỗi.',
-    ],
     invalidTitle: 'Liên kết đặt lại này không còn hợp lệ',
     invalidDescription:
       'Hãy yêu cầu một liên kết đặt lại mật khẩu mới và dùng email mới nhất để tiếp tục.',
@@ -4183,6 +4248,7 @@ export const vi: I18nMessages = {
       reviewerNoteHint: 'Nếu từ chối, nên ghi rõ lý do để sinh viên biết hướng xử lý tiếp theo.',
       rejectionNoteRequired: 'Vui lòng nhập ghi chú trước khi từ chối đơn.',
       reviewed: 'Đã lưu quyết định xử lý đơn.',
+      alreadyReviewed: 'Đơn này đã được xử lý. Danh sách đã được làm mới.',
       student: 'Sinh viên',
       term: 'Học kỳ',
       requestedLimit: 'Hạn mức xin cấp',
@@ -4208,6 +4274,7 @@ export const vi: I18nMessages = {
       filterAction: 'Hành động chứa',
       filterEntity: 'Loại thực thể',
       filterSearch: 'Tìm theo mô tả/tác nhân/thực thể',
+      searchPlaceholder: 'Ví dụ: đặt lại mật khẩu hoặc địa chỉ email',
       applyFilters: 'Áp dụng',
       clearFilters: 'Xóa lọc',
       tableTitle: 'Thao tác đã ghi nhận (mới nhất trước)',
@@ -4313,9 +4380,14 @@ export const vi: I18nMessages = {
       saveFailed: 'Hiện chưa thể lưu giao diện cổng.',
       saveNotDurable:
         'Chỉ vừa lưu trên web server này. API trung tâm đang không kết nối được, nên người dùng khác sẽ chưa thấy thay đổi cho tới khi lưu lại.',
+      staleVersion:
+        'Giao diện cổng đã thay đổi sau khi bạn tải. Các chỉnh sửa vẫn được giữ; hãy tải lại để so sánh trước khi lưu.',
+      reload: 'Tải lại',
       loadFailed: 'Hiện chưa thể tải giao diện cổng.',
       postsLoadFailed:
         'Không tải được danh sách thông báo — chưa thể sắp xếp ghim cho tới khi tải lại.',
+      pinsLoadFailed:
+        'Không tải được một số thông báo đã ghim nên chúng đang bị ẩn; hãy tải lại để thử lại.',
       heroEyebrow: 'Dòng dẫn trang chủ',
       heroTitle: 'Tiêu đề trang chủ',
       heroDescription: 'Mô tả trang chủ',
@@ -4335,6 +4407,8 @@ export const vi: I18nMessages = {
       postsDescription:
         'Đưa thông báo lên hoặc xuống. Bảng tin sinh viên và giảng viên theo thứ tự này ngay khi được lưu.',
       postsEmpty: 'Hãy phát hành một thông báo trước, rồi sắp xếp tại đây.',
+      postSearchLabel: 'Tìm thông báo',
+      postsLoadMore: 'Tải thêm',
       moveUp: 'Đưa lên',
       moveDown: 'Đưa xuống',
       openAnnouncements: 'Mở thông báo',
@@ -4363,6 +4437,8 @@ export const vi: I18nMessages = {
       recipientSearchLabel: 'Tìm người nhận',
       recipientSearchFailed: 'Hiện chưa thể tra cứu danh bạ tài khoản.',
       recipientNoMatch: 'Không tìm thấy tài khoản phù hợp.',
+      recipientRefineHint:
+        'Chỉ hiển thị 5 trong {total} tài khoản phù hợp. Tinh chỉnh từ khoá để thu hẹp danh sách.',
       recipientResultsLabel: 'Kết quả tìm kiếm',
       recipientRemove: 'Xoá người nhận',
       recipientSingleOnly:
@@ -4465,6 +4541,8 @@ export const vi: I18nMessages = {
   dashboardShell: {
     portalTitle: 'Cổng thông tin học vụ',
     identityLabel: 'Đăng nhập với vai trò',
+    demoTag: 'TK Demo trải nghiệm',
+    demoAccount: 'Tài khoản demo để trải nghiệm',
     menuSections: {
       overview: 'Tổng quan',
       academic: 'Hồ sơ học vụ',
@@ -4531,6 +4609,7 @@ export const vi: I18nMessages = {
       deanOverview: 'Quan sát khóa luận khoa',
       events: 'Sự kiện & hoạt động Đoàn–Hội',
       learning: 'Học liệu & bài tập',
+      staffDesks: 'Bàn làm việc cán bộ',
       profileSettings: 'Cài đặt hồ sơ',
       profile: 'Hồ sơ',
       settings: 'Cài đặt',
@@ -4543,6 +4622,7 @@ export const vi: I18nMessages = {
       fallbackTitle: 'Cập nhật mới',
       fallbackContent: 'Tài khoản của bạn vừa nhận một thông báo mới.',
       openAnnouncements: 'Mở trang thông báo',
+      academicAffairsNoticeBoard: 'Bảng tin Phòng Đào tạo',
       openNotifications: 'Mở trung tâm thông báo',
       description:
         'Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.',
@@ -4557,6 +4637,7 @@ export const vi: I18nMessages = {
       loadFailed: 'Hiện chưa thể tải thông báo.',
       updateFailed: 'Không thể cập nhật thông báo này. Hãy thử lại.',
       updatedCount: 'Đã đánh dấu {count} thông báo là đã đọc.',
+      updatedCountOne: 'Đã đánh dấu {count} thông báo là đã đọc.',
     },
     controls: {
       openSidebar: 'Mở thanh điều hướng',
@@ -4591,11 +4672,9 @@ export const vi: I18nMessages = {
         'Di chuyển trong khu vực theo vai trò hiện tại với một lần đăng nhập thống nhất.',
     },
     signOutPage: {
-      eyebrow: 'Kết thúc đăng nhập',
       title: 'Đang đăng xuất',
       description:
         'Hệ thống đang kết thúc lần đăng nhập hiện tại và đưa bạn trở lại màn hình đăng nhập.',
-      progress: 'Đang hoàn tất đăng xuất...',
     },
     routeDescriptions: {
       dashboard:
@@ -4718,6 +4797,7 @@ export const vi: I18nMessages = {
       content: 'Nội dung thông báo',
       contentPlaceholder: 'Nhập nội dung thông báo đầy đủ…',
       charCount: '{count} ký tự',
+      charCountOne: '{count} ký tự',
       highlights: 'Điểm nhấn',
       highlightPlaceholder: 'Nhập một điểm nhấn rồi bấm Thêm…',
       addHighlight: 'Thêm điểm nhấn',
@@ -5087,6 +5167,7 @@ export const vi: I18nMessages = {
     profileUpdated: 'Đã cập nhật hồ sơ',
     profileSaveFailed: 'Hiện chưa thể lưu thay đổi hồ sơ.',
     phoneInvalid: 'Số điện thoại chỉ gồm chữ số, khoảng trắng và các ký tự + ( ) -.',
+    addressTooLong: 'Địa chỉ tối đa 500 ký tự.',
     passwordTitle: 'Mật khẩu và an toàn đăng nhập',
     passwordDescription:
       'Dùng mật khẩu mạnh và chờ đăng nhập lại sau khi đổi thành công.',
@@ -5270,6 +5351,7 @@ export const vi: I18nMessages = {
     noRound: 'Chưa có đợt đăng ký đề tài nào.',
     loading: 'Đang tải phân hệ khóa luận tốt nghiệp',
     loadFailed: 'Hiện chưa thể tải dữ liệu luận văn.',
+    topicLoadFailed: 'Không tải được đề tài này — có thể đề tài đã bị gỡ hoặc kết nối bị gián đoạn.',
     secondaryLoadFailed: 'Một số thông tin phụ chưa tải được — tên giảng viên hướng dẫn hoặc liên kết tài liệu có thể đang thiếu.',
     retry: 'Thử tải lại phân hệ khóa luận',
     roundStatus: 'Trạng thái đợt',
@@ -5420,6 +5502,7 @@ export const vi: I18nMessages = {
     progressGroupRejected: 'Nhóm của bạn bị từ chối. Hãy trao đổi với bộ phận luận văn để biết lý do.',
     progressGroupCancelled: 'Nhóm của bạn đã bị hủy và không tiếp tục trong đợt này.',
     progressReportedStatus: 'Trạng thái tự báo cáo',
+    milestoneNotApplicable: 'Không áp dụng',
     progressSteps: [
       'Đã chọn đợt',
       'Đã tạo nhóm',
@@ -5495,6 +5578,7 @@ export const vi: I18nMessages = {
       noResults: 'Bạn chưa có kết quả nào trong đợt này.',
       finalScore: 'Điểm bảo vệ',
       council: 'Hội đồng',
+      notQualified: 'Không đủ điều kiện bảo vệ — điểm phản biện dưới 5,0',
     },
     councils: {
       title: 'Hội đồng đánh giá',
@@ -5639,7 +5723,7 @@ export const vi: I18nMessages = {
         openRegistration: 'Mở đăng ký cho sinh viên trong đợt này? Các nhóm sẽ có thể đăng ký ngay lập tức.',
         closeRegistration: 'Đóng đăng ký của đợt này? Nhóm sẽ không thể đổi thành viên hay đề tài sau đó.',
         publishProposals: 'Công bố danh mục đề tài cho tất cả nhóm sinh viên trong đợt?',
-        publishResults: 'Công bố kết quả cuối cùng cho sinh viên? Hành động không thể hoàn tác — mọi nhóm đã duyệt phải có điểm đã chốt.',
+        publishResults: 'Công bố kết quả cuối cùng cho sinh viên? Hành động không thể hoàn tác — mọi nhóm đã duyệt phải có điểm đã chốt; nhóm có điểm phản biện dưới 5,0 sau hạn phản biện sẽ được công bố là không đủ điều kiện bảo vệ.',
       },
       editRound: 'Sửa lịch đợt',
       editRoundTitle: 'Điều chỉnh lịch đợt',
@@ -5753,6 +5837,7 @@ export const vi: I18nMessages = {
     quotaExceeded: 'Bạn đã chạm giới hạn trợ lý trong ngày. Hãy thử lại vào ngày mai hoặc tiếp tục với hướng dẫn có trích dẫn.',
     quotaResetsAt: 'Giới hạn sẽ được làm mới lúc {time}.',
     rateLimited: 'Bạn đã gửi quá nhiều yêu cầu — vui lòng đợi {seconds} giây rồi thử lại.',
+    rateLimitedOne: 'Bạn đã gửi quá nhiều yêu cầu — vui lòng đợi {seconds} giây rồi thử lại.',
     rateLimitedGeneric: 'Bạn đã gửi quá nhiều yêu cầu — vui lòng đợi một lát rồi thử lại.',
     blockedLabel: 'Câu hỏi đã bị chặn',
     blocked:
@@ -5891,6 +5976,9 @@ export const vi: I18nMessages = {
   deanOverview: deanOverviewVi,
   content: contentVi,
   attendanceGeofence: attendanceGeofenceVi,
+  teachingPages: teachingPagesVi,
+  adminPages: adminPagesVi,
+  studentPages: studentPagesVi,
   attendance: {
     eyebrow: 'Khu vực Sinh viên',
     title: 'Điểm danh',
@@ -5944,8 +6032,11 @@ export const vi: I18nMessages = {
     saveButton: 'Lưu điểm danh',
     savingButton: 'Đang lưu...',
     savedSuccess: 'Đã lưu điểm danh cho {count} sinh viên thành công',
+    savedSuccessSingular: 'Đã lưu điểm danh cho {count} sinh viên thành công',
     saveFailed: 'Không thể lưu điểm danh. Vui lòng thử lại.',
+    noteTooLong: 'Ghi chú tối đa {limit} ký tự.',
     existingReadWarning: 'Không tải được điểm danh đã lưu trước đó. Danh sách hiển thị có thể chưa đầy đủ — chức năng lưu đang bị khóa, hãy tải lại lớp.',
+    summaryRefreshFailed: 'Đã lưu, nhưng không làm mới được tỷ lệ chuyên cần học kỳ — tỷ lệ hiển thị có thể đã cũ.',
     noSectionsTitle: 'Chưa có lớp giảng dạy',
     noSectionsDescription: 'Hiện tại bạn chưa được phân công phụ trách lớp học phần nào.',
     noStudentsTitle: 'Lớp chưa có sinh viên',

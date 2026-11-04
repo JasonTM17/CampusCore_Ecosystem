@@ -50,6 +50,7 @@ function loadRichContentRenderer() {
     'lucide-react': new Proxy({}, { get: () => dummyComponent }),
     // CodeBlock/SafeImage read the locale for copy/broken-image labels.
     '@/i18n': { useI18n: () => ({ locale: 'vi' }) },
+    '@/i18n/messages-editor': loadTs('src/i18n/messages-editor.ts'),
   });
 }
 
@@ -202,8 +203,13 @@ test('rich-content-renderer securely parses and renders markdown structures and 
   // Callouts support
   assert.match(source, /alertMatch/);
   assert.match(source, /AlertCallout/);
-  assert.match(source, /LƯU Ý \(NOTE\)/);
-  assert.match(source, /CẢNH BÁO \(WARNING\)/);
+  assert.match(source, /calloutCopy\.note/);
+  assert.match(source, /calloutCopy\.warning/);
+  const { editorSurfacesEn, editorSurfacesVi } = loadTs('src/i18n/messages-editor.ts');
+  assert.equal(editorSurfacesEn.renderer.callout.note, 'Note');
+  assert.equal(editorSurfacesEn.renderer.callout.warning, 'Warning');
+  assert.equal(editorSurfacesVi.renderer.callout.note, 'LƯU Ý (NOTE)');
+  assert.equal(editorSurfacesVi.renderer.callout.warning, 'CẢNH BÁO (WARNING)');
 
   // Code Block and Table
   assert.match(source, /function CodeBlock/);
@@ -287,7 +293,10 @@ test('admin announcements integration uses RichTextEditor and RichContentRendere
   assert.match(page, /import \{ RichContentRenderer \} from '@\/components\/ui\/rich-content-renderer'/);
   assert.match(page, /<RichTextEditor/);
   assert.match(page, /<RichContentRenderer/);
-  assert.match(page, /fallbackText=\{vi \? 'Nội dung xem trước/);
+  assert.match(page, /fallbackText=\{copy\.previewFallback\}/);
+  const adminPages = read('src/i18n/messages-admin-pages.ts');
+  assert.match(adminPages, /previewFallback: "Preview content will appear here\."/);
+  assert.match(adminPages, /previewFallback: "Nội dung xem trước sẽ hiển thị tại đây\."/);
 });
 
 test('admin assistant-knowledge integration uses RichTextEditor with academic placeholders', () => {
@@ -436,7 +445,7 @@ test('sortablejs integration empowers admin block building and announcement reor
 
 
 
-// --- K3/K4/K5/K6 + F-2: TinyMCE shell and studio action integrity ---
+// --- TinyMCE shell and studio action integrity ---
 
 function loadTinymceEditorModule() {
   const dummyComponent = function DummyComponent() {
@@ -445,9 +454,13 @@ function loadTinymceEditorModule() {
   return loadTsModule('src/components/ui/tinymce-editor.tsx', {
     'lucide-react': new Proxy({}, { get: () => dummyComponent }),
     '@/components/ui/button': { Button: dummyComponent },
-    '@/lib/announcement-limits': loadTs('src/lib/announcement-limits.ts'),
+    '@/lib/announcement-limits': loadTsModule('src/lib/announcement-limits.ts', {
+      '@/i18n/messages-announcements': loadTsModule('src/i18n/messages-announcements.ts', {}),
+    }),
     '@/lib/editor-document': loadTs('src/lib/editor-document.ts'),
     '@/lib/utils': { cn: (...args) => args.filter(Boolean).join(' ') },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
+    '@/i18n/messages-editor': loadTs('src/i18n/messages-editor.ts'),
     sonner: { toast: { success() {}, error() {}, info() {}, warning() {} } },
   });
 }
@@ -512,7 +525,7 @@ test('K6 crash drafts stay restorable while discarded drafts are cleared', () =>
   assert.match(modal, /onClose=\{handleClose\}/, 'Escape/backdrop close uses the scoped cleanup');
 });
 
-test('F-2 the feed-order save is locked against a double submission', () => {
+test('the feed-order save is locked against a double submission', () => {
   const page = read('src/app/dashboard/editor/page.tsx');
   const save = page.slice(
     page.indexOf('const handleSaveNoticeOrder'),
@@ -539,4 +552,72 @@ test('an unterminated code container cannot leave its source as visible text', (
     assert.doesNotMatch(out, /y:z|evil|var q/, `source leaked from ${payload}`);
     assert.match(out, /hi/, 'the prose before the container survives');
   }
+});
+
+test('W14 rich-text-editor dialogs use the shared focus-trapped Modal', () => {
+  const source = read('src/components/ui/rich-text-editor.tsx');
+  const modal = read('src/components/ui/modal.tsx');
+
+  // The shared primitive owns the dialog contract the audit found missing:
+  // dialog semantics, focus trap, Escape dismissal and focus restoration.
+  assert.match(modal, /role="dialog"/);
+  assert.match(modal, /aria-modal="true"/);
+  assert.match(modal, /event\.key === 'Escape'/);
+  assert.match(modal, /previousFocusRef\.current\?\.focus\(\)/);
+
+  assert.match(source, /import \{ Modal \} from '\.\/modal'/);
+  assert.match(source, /<Modal\s+isOpen=\{linkDialogOpen\}/);
+  assert.match(source, /<Modal\s+isOpen=\{helpDialogOpen\}/);
+  // Each dialog is named for screen readers (Modal derives aria-labelledby).
+  assert.match(source, /title=\{copy\.linkDialog\.title\}/);
+  assert.match(
+    source,
+    /title=\{copy\.helpDialog\.title\}/,
+  );
+  // The bare icon-only close buttons are gone; Modal renders its labelled close.
+  assert.doesNotMatch(
+    source,
+    /onClick=\{\(\) => setLinkDialogOpen\(false\)\}\s*className="rounded p-1 text-muted-foreground hover:text-foreground"/,
+  );
+  assert.doesNotMatch(
+    source,
+    /onClick=\{\(\) => setHelpDialogOpen\(false\)\}\s*className="rounded p-1 text-muted-foreground hover:text-foreground"/,
+  );
+});
+
+test('W14 rich-text-editor textareas keep a visible keyboard focus ring', () => {
+  const source = read('src/components/ui/rich-text-editor.tsx');
+  const textareas = source.match(/<textarea[\s\S]*?\/>/g) ?? [];
+
+  assert.equal(textareas.length, 2, 'write and split modes both render the editor textarea');
+  for (const textarea of textareas) {
+    assert.doesNotMatch(textarea, /focus:outline-none/);
+    assert.match(textarea, /focus-visible:ring-2/);
+    assert.match(textarea, /focus-visible:ring-ring/);
+  }
+});
+
+test('W14 tinymce template menu moves focus in and supports arrow-key roving', () => {
+  const editorModule = loadTinymceEditorModule();
+  const { nextTemplateMenuItemIndex } = editorModule;
+  assert.equal(typeof nextTemplateMenuItemIndex, 'function');
+
+  assert.equal(nextTemplateMenuItemIndex(-1, 3, 'ArrowDown'), 0);
+  assert.equal(nextTemplateMenuItemIndex(-1, 3, 'ArrowUp'), 2);
+  assert.equal(nextTemplateMenuItemIndex(2, 3, 'ArrowDown'), 0);
+  assert.equal(nextTemplateMenuItemIndex(0, 3, 'ArrowUp'), 2);
+  assert.equal(nextTemplateMenuItemIndex(1, 3, 'Home'), 0);
+  assert.equal(nextTemplateMenuItemIndex(0, 3, 'End'), 2);
+  assert.equal(nextTemplateMenuItemIndex(1, 3, 'Tab'), null);
+  assert.equal(nextTemplateMenuItemIndex(0, 0, 'ArrowDown'), null);
+
+  const source = read('src/components/ui/tinymce-editor.tsx');
+  assert.match(source, /const templatesMenuRef = useRef<HTMLDivElement>\(null\)/);
+  assert.match(
+    source,
+    /templatesMenuRef\.current\?\.querySelector<HTMLElement>\('\[role="menuitem"\]'\)\?\.focus\(\)/,
+  );
+  assert.match(source, /nextTemplateMenuItemIndex\(/);
+  assert.match(source, /tabIndex=\{-1\}/);
+  assert.match(source, /onKeyDown=\{handleTemplatesKeyDown\}/);
 });

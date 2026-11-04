@@ -37,9 +37,9 @@ function loadTsModule(relativePath, stubs) {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
-      jsx: ts.JsxEmit.React,
-      // The transpiled JSX calls `React.createElement` through the default
-      // import; without the interop helper that binding is undefined in CJS.
+      // The automatic runtime keeps JSX working for pages that (like Next)
+      // never import React themselves.
+      jsx: ts.JsxEmit.ReactJSX,
       esModuleInterop: true,
     },
   }).outputText;
@@ -67,21 +67,40 @@ const lucideStub = new Proxy(
 const utilsStub = { cn: (...args) => args.filter(Boolean).join(' ') };
 
 const sanitizer = loadTs('src/lib/html-sanitizer.ts');
+const attendanceCheckin = loadTs('src/lib/attendance-checkin.ts');
+const announcementWorkspace = loadTs('src/i18n/messages-announcements.ts');
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
 const presentation = loadTs('src/lib/announcement-presentation.ts', {
   '@/lib/html-sanitizer': sanitizer,
   '@/lib/api': {},
   '@/i18n/config': {},
+  '@/i18n/messages-announcements': announcementWorkspace,
 });
 const FIXTURE = JSON.parse(read('tests/fixtures/announcement-content-policy.json'));
 
 function rendererStubs() {
   return {
     '@/lib/html-sanitizer': sanitizer,
+    '@/lib/attendance-checkin': attendanceCheckin,
     '@/lib/utils': utilsStub,
     'lucide-react': lucideStub,
     // CodeBlock/SafeImage read the active locale for their copy-button and
     // broken-image labels; the harness renders with the Vietnamese default.
-    '@/i18n': { useI18n: () => ({ locale: 'vi' }) },
+    '@/i18n': {
+      useI18n: () => ({
+        locale: 'vi',
+        messages: { common: { states: { dataTable: 'Bảng dữ liệu' } } },
+      }),
+    },
+    '@/i18n/config': { localeCodes: { vi: 'vi-VN', en: 'en-US' } },
+    '@/i18n/messages': {
+      getMessages: (locale) => ({
+        meta: {
+          emblemAlt: locale === 'vi' ? 'Biểu trưng HCMUTE' : 'HCMUTE Emblem',
+        },
+      }),
+    },
+    '@/i18n/messages-editor': editorSurfaces,
   };
 }
 
@@ -93,6 +112,7 @@ function loadToc(renderer) {
   return loadTsModule('src/components/announcements/reader/TableOfContents.tsx', {
     ...rendererStubs(),
     '@/components/ui/rich-content-renderer': renderer,
+    '@/i18n/messages-announcements': announcementWorkspace,
   });
 }
 
@@ -112,6 +132,18 @@ const HTML_ARTICLE = [
   '<h3>Phụ lục &amp; biểu mẫu</h3>',
   '<h3><strong>Quy</strong> trình</h3>',
 ].join('');
+
+test('out-of-range numeric URL references do not abort article rendering', () => {
+  const renderer = loadRenderer();
+
+  for (const entity of ['&#1114112;', '&#x110000;']) {
+    let rendered;
+    assert.doesNotThrow(() => {
+      rendered = renderer.renderHtmlDocument(`<p><a href="${entity}">Details</a></p>`);
+    }, entity);
+    assert.doesNotMatch(rendered, /href=/);
+  }
+});
 
 // --- (a) contents for HTML bodies -------------------------------------------
 
@@ -277,6 +309,7 @@ function loadMagazine() {
     '../TableOfContents': { TableOfContents: dummyComponent },
     '../RelatedAnnouncements': { RelatedAnnouncements: dummyComponent },
     '@/components/announcements/ViContentBadge': { ViContentBadge: dummyComponent },
+    '@/i18n/messages-announcements': announcementWorkspace,
   });
 }
 
@@ -407,12 +440,14 @@ test('RT-P3-d an inlined SVG really is unpublishable, so the editor must refuse 
     'the MIME allowlist must run before the file is read',
   );
 
-  // The rejection is visible and localized, like the size rejection beside it.
-  const message = /const svgRejected = isVi\n\s*\? '([^']+)'\n\s*: '([^']+)';/.exec(source);
-  assert.ok(message, 'the rejection must be a vi/en ternary');
-  assert.match(message[1], /SVG/);
-  assert.match(message[2], /SVG/);
-  assert.notEqual(message[1], message[2], 'the two locales must carry different text');
+  // The rejection is visible and localized through the directly imported
+  // editor fragment, like the size rejection beside it.
+  assert.match(source, /const svgRejected = copy\.svgRejected;/);
+  const viMessage = editorSurfaces.editorSurfacesVi.tinyMce.svgRejected;
+  const enMessage = editorSurfaces.editorSurfacesEn.tinyMce.svgRejected;
+  assert.match(viMessage, /SVG/);
+  assert.match(enMessage, /SVG/);
+  assert.notEqual(viMessage, enMessage, 'the two locales must carry different text');
   assert.ok(
     /toast\.error\([\s\S]*?svgRejected/.test(source.slice(source.indexOf('file_picker_callback'))),
     'the picker path must surface the rejection to the author',
@@ -591,4 +626,116 @@ test('the cover keeps the author alt text while skipping an unusable image', () 
   );
   assert.equal(details?.url, 'https://cdn.test/x.png');
   assert.equal(details?.alt, 'Hội thảo', 'the usable candidate carries its own alt');
+});
+
+test('markdown tables name their columns and carry an accessible caption', () => {
+  const markup = renderedBodyHtml('| Mức | Học phần |\n| --- | --- |\n| 1 | Toán |');
+
+  assert.equal(
+    (markup.match(/<th[^>]*scope="col"/g) ?? []).length,
+    2,
+    `every markdown header cell must declare its scope: ${markup}`,
+  );
+  assert.match(markup, /<caption[^>]*>Bảng dữ liệu<\/caption>/);
+});
+
+test('the warning category pill keeps AA contrast on the light reader canvas', () => {
+  const magazine = read('src/components/announcements/reader/layouts/EditorialArticleMagazine.tsx');
+
+  assert.match(magazine, /categoryTone === 'warning' && 'bg-amber-500\/10 text-amber-800 /);
+  assert.doesNotMatch(magazine, /text-amber-600/);
+});
+
+test('feed cards expose one stretched title action instead of a nested button role', () => {
+  const feedCard = read('src/components/announcements/feed/AnnouncementFeedCard.tsx');
+
+  assert.doesNotMatch(feedCard, /<article\s+onClick=/);
+  assert.equal((feedCard.match(/onClick=\{onClick\}/g) ?? []).length, 2);
+  assert.equal(
+    (feedCard.match(/after:absolute after:inset-0/g) ?? []).length,
+    2,
+    'both title buttons stretch their hit area across the card',
+  );
+  assert.match(feedCard, /group relative flex flex-col justify-between overflow-hidden rounded-xl/);
+  assert.equal(
+    (feedCard.match(/className="relative z-10 inline-flex h-8 w-8/g) ?? []).length,
+    2,
+    'share controls stay above the stretched title action',
+  );
+});
+
+test('reader mode toggles expose their pressed state', () => {
+  const toolbar = read('src/components/announcements/reader/ReadingToolbar.tsx');
+
+  assert.equal(
+    (toolbar.match(/aria-pressed=\{preferences\.mode === '(EDITORIAL|OFFICIAL)'\}/g) ?? []).length,
+    2,
+  );
+});
+
+test('table of contents scrolling respects prefers-reduced-motion', () => {
+  const toc = read('src/components/announcements/reader/TableOfContents.tsx');
+
+  assert.match(toc, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
+  assert.match(toc, /behavior: reduceMotion \? 'auto' : 'smooth'/);
+  assert.doesNotMatch(toc, /behavior: 'smooth'/);
+});
+
+// --- public permalink -------------------------------------------------------
+
+const PUBLIC_NEWS_COPY = {
+  backToList: 'Back to news',
+  notFoundTitle: 'Story unavailable',
+  notFoundBody: 'This story is not available.',
+  loadErrorTitle: 'News feed unavailable',
+  loadError: 'Could not load this story.',
+  title: 'News',
+  publishedOn: 'Published {date}',
+};
+
+/**
+ * The anonymous permalink is a client page, so it is rendered with its route,
+ * data, chrome and i18n dependencies stubbed; the body renderer stays the real
+ * one, because the point of this test is which pipeline the page uses.
+ */
+function loadPublicNewsDetail(item) {
+  return loadTsModule('src/app/news/[id]/news-detail-client.tsx', {
+    'next/navigation': { useParams: () => ({ id: encodeURIComponent(item.id) }) },
+    '@/lib/api': { announcementsApi: { getPublicById: async () => item } },
+    '@/components/content/PublicChrome': {
+      PublicChrome: ({ children }) => React.createElement('div', null, children),
+      ContentBackLink: dummyComponent,
+    },
+    '@/components/ui/page-header': { SectionEyebrow: dummyComponent },
+    '@/components/ui/skeleton': { HomeNewsBentoSkeleton: dummyComponent },
+    '@/components/ui/state-block': { ErrorState: dummyComponent },
+    '@/lib/campus-error': { campusErrorKind: () => 'unknown' },
+    '@/i18n': {
+      useI18n: () => ({ locale: 'vi', messages: { content: { news: PUBLIC_NEWS_COPY } } }),
+    },
+    '@/lib/query': { useApiQuery: () => ({ data: item, isLoading: false, isError: false }) },
+    '@/lib/html-sanitizer': sanitizer,
+    '@/lib/announcement-presentation': presentation,
+    '@/components/ui/rich-content-renderer': loadRenderer(),
+  });
+}
+
+test('the public permalink renders a markdown body through the shared reader pipeline', () => {
+  const item = {
+    id: 'ann-public',
+    title: 'Lịch thi học kỳ',
+    content: '# Lịch thi\n\n**Mang thẻ sinh viên**',
+    publishAt: '2026-01-05T07:00:00.000Z',
+    createdAt: '2026-01-05T07:00:00.000Z',
+    publishedBy: null,
+  };
+
+  const markup = renderElement(loadPublicNewsDetail(item).default, {});
+
+  // The body heading is anchored by the shared renderer (the page's own title
+  // is an h1 without an id), and inline markdown becomes real markup.
+  assert.match(markup, /<h1[^>]*id="lich-thi"/);
+  assert.match(markup, /<strong[^>]*>Mang thẻ sinh viên<\/strong>/);
+  assert.doesNotMatch(markup, /# Lịch thi/, 'the markdown heading marker must not reach the reader');
+  assert.doesNotMatch(markup, /\*\*/, 'the markdown bold markers must not reach the reader');
 });

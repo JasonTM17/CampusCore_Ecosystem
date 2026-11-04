@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, RefreshCw } from 'lucide-react';
 
@@ -23,7 +23,9 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { getLocalizedFlatLabel } from '@/lib/academic-content';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import type { Section } from '@/types/api';
 
 const PAGE_LIMIT = 20;
@@ -58,6 +60,7 @@ export default function AdminAttendancePage() {
   const [total, setTotal] = useState(0);
   const [sectionFilter, setSectionFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const attendanceEpoch = useRef(createRequestEpoch()).current;
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
   useEffect(() => {
@@ -66,7 +69,7 @@ export default function AdminAttendancePage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -76,6 +79,7 @@ export default function AdminAttendancePage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchRecords = useCallback(async () => {
+    const epoch = attendanceEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -86,15 +90,22 @@ export default function AdminAttendancePage() {
         ...(sectionFilter ? { sectionId: sectionFilter } : {}),
         ...(dateFilter ? { date: dateFilter } : {}),
       });
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setRecords(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
       setTotal(response.meta?.total || 0);
     } catch {
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setError(copy.errorDescription);
     } finally {
+      if (!attendanceEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy.errorDescription, dateFilter, page, sectionFilter]);
+  }, [attendanceEpoch, copy.errorDescription, dateFilter, page, sectionFilter]);
+
+  useEffect(() => () => {
+    attendanceEpoch.invalidate();
+  }, [attendanceEpoch]);
 
   useEffect(() => {
     if (canAccess) {
@@ -324,14 +335,14 @@ export default function AdminAttendancePage() {
               ))}
             </div>
             <AdminTableScroll className="hidden md:block">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[900px] text-sm" aria-label={copy.title}>
                 <thead>
                   <tr className="border-b border-border/70 text-left text-muted-foreground">
-                    <th className="px-2 py-3 font-medium">{copy.headers.student}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.section}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.date}</th>
-                    <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
-                    <th className="px-2 py-3 text-right font-medium">{copy.headers.notes}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.student}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.section}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.date}</th>
+                    <th scope="col" className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                    <th scope="col" className="px-2 py-3 text-right font-medium">{copy.headers.notes}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">

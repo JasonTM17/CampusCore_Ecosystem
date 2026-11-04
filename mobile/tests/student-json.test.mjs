@@ -70,7 +70,7 @@ test('student screens key enrollment lists by semester and guard profile saves',
   assert.match(grades, /key=\{record\.id\}/);
   assert.doesNotMatch(screens + workspace, /key=\{item\.code\}|key=\{course\.code\}|key=\{grade\.code\}/);
   // Dashboard and courses speak for active enrollments, not dropped history.
-  assert.match(dashboard, /liveEnrollments\.filter\(\(item\) => item\.status === 'ENROLLED'\)/);
+  assert.match(dashboard, /liveEnrollments\.filter\(\(item\) => isActiveEnrollment\(item\.status\)\)/);
   assert.match(dashboard, /String\(activeEnrollments\.length\)/);
   const academicModel = fs.readFileSync(path.join(mobileRoot, 'src/screens/academic/academic-model.ts'), 'utf8');
   assert.match(academicModel, /ACTIVE_STATUSES: readonly string\[\] = \['ENROLLED', 'PENDING', 'CONFIRMED'\]/);
@@ -88,10 +88,11 @@ test('student screens key enrollment lists by semester and guard profile saves',
 
 test('student screens translate service errors into student-friendly copy', () => {
   const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
+  const academicMessages = fs.readFileSync(path.join(mobileRoot, 'src/i18n/academic-messages.ts'), 'utf8');
 
   assert.match(screens, /studentFriendlyErrorMessage/);
-  assert.match(screens, /friendlyErrorMessageByCode/);
-  assert.match(screens, /Registration is not open right now\./);
+  assert.match(screens, /academicMessages\[locale\]\.studentErrors/);
+  assert.match(academicMessages, /Registration is not open right now\./);
   assert.doesNotMatch(screens, /ApiClientError \? nextError\.message/);
   assert.doesNotMatch(screens, /nextError instanceof ApiClientError \? nextError\.message/);
   assert.doesNotMatch(screens, /Java API contract/);

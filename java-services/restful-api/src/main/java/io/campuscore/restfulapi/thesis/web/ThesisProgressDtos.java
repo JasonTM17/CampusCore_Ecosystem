@@ -27,5 +27,9 @@ public final class ThesisProgressDtos {
             UUID councilId,
             BigDecimal finalScore,
             Instant finalScoreFinalizedAt,
-            String userReportedGroupStatus) { }
+            String userReportedGroupStatus,
+            String resultStatus,
+            String resultReason,
+            Instant resultResolvedAt,
+            List<String> skippedMilestones) { }
 }

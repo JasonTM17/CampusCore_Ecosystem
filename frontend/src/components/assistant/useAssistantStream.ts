@@ -155,6 +155,9 @@ export function useAssistantStream({
 }: UseAssistantStreamOptions) {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  // Distinct from isSending for history navigation: a stream can have ended
+  // while its JSON reconciliation is still resolving the committed turn.
+  const [isReconciling, setIsReconciling] = useState(false);
   const [lastPrompt, setLastPrompt] = useState<string>();
   const [state, dispatch] = useReducer(assistantReducer, initialState);
 
@@ -194,6 +197,7 @@ export function useAssistantStream({
       abortRef.current?.abort();
       isSendingRef.current = false;
       lockGenerationRef.current = undefined;
+      setIsReconciling(false);
     };
   }, []);
 
@@ -280,6 +284,7 @@ export function useAssistantStream({
     isSendingRef.current = false;
     lockGenerationRef.current = undefined;
     setIsSending(false);
+    setIsReconciling(false);
     activeRequestIdRef.current = undefined;
     retryRequestIdRef.current = undefined;
     activeConversationIdRef.current = undefined;
@@ -349,15 +354,22 @@ export function useAssistantStream({
       onNewExchange?.();
       const controller = new AbortController();
       casResolvedRef.current = false;
+      // Read the retry key before it is replaced: a live key means this retry
+      // replays the same turn and must keep that turn's canonical conversation
+      // value (which may be "no conversation" even after meta revealed one).
+      // A retired key means the previous turn already settled, so the retry is
+      // a new turn in the conversation currently on screen.
+      const retriedRequestId = isRetry ? retryRequestIdRef.current : undefined;
       const clientRequestId =
         activeRequestIdRef.current ??
-        (isRetry ? retryRequestIdRef.current : undefined) ??
+        retriedRequestId ??
         createAssistantRequestId();
       activeRequestIdRef.current = clientRequestId;
       retryRequestIdRef.current = clientRequestId;
-      const requestedConversationId = isRetry
-        ? retryConversationIdRef.current
-        : state.conversationId;
+      const requestedConversationId =
+        retriedRequestId !== undefined
+          ? retryConversationIdRef.current
+          : state.conversationId;
       activeConversationIdRef.current = requestedConversationId;
       retryConversationIdRef.current = requestedConversationId;
       activePromptRef.current = message;
@@ -483,6 +495,7 @@ export function useAssistantStream({
         // reconcile can never hold the send lock indefinitely.
         let reply: Awaited<ReturnType<typeof thesisApi.chat>> | undefined;
         let fallbackError: unknown;
+        setIsReconciling(true);
         const reconcileBudget = startReconciliationBudget(Date.now());
         while (canAttemptReconciliation(reconcileBudget, Date.now())) {
           reconcileBudget.attemptsStarted += 1;
@@ -620,6 +633,7 @@ export function useAssistantStream({
           lockGenerationRef.current = undefined;
           isSendingRef.current = false;
           setIsSending(false);
+          setIsReconciling(false);
           abortRef.current = null;
           activeRequestIdRef.current = undefined;
           activeConversationIdRef.current = undefined;
@@ -671,6 +685,7 @@ export function useAssistantStream({
       if (status === 409) {
         // Completion won the terminal CAS. Reconcile the committed replay before
         // aborting the reader so a late Stop click cannot erase the answer.
+        setIsReconciling(true);
         try {
           const casBudget = startReconciliationBudget(Date.now());
           const reply = await thesisApi.chat(
@@ -692,6 +707,8 @@ export function useAssistantStream({
           abortRef.current?.abort();
         } catch {
           /* keep the stream alive long enough for its done frame */
+        } finally {
+          setIsReconciling(false);
         }
       } else {
         abortRef.current?.abort();
@@ -732,6 +749,7 @@ export function useAssistantStream({
       isSendingRef.current = false;
       lockGenerationRef.current = undefined;
       setIsSending(false);
+      setIsReconciling(false);
       setLastPrompt(undefined);
       retryRequestIdRef.current = undefined;
       retryConversationIdRef.current = undefined;
@@ -750,6 +768,7 @@ export function useAssistantStream({
     input,
     setInput,
     isSending,
+    isReconciling,
     lastPrompt,
     sendMessage,
     stopGeneration,

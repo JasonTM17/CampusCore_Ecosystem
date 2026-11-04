@@ -1,4 +1,16 @@
-﻿-- 1. Correct role scoping: Student-only announcements (isGlobal = FALSE, targetRoles = ['STUDENT'])
+﻿-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'role_targeted_announcements.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
+
+-- 1. Correct role scoping: Student-only announcements (isGlobal = FALSE, targetRoles = ['STUDENT'])
 UPDATE engagement."Announcement"
 SET "isGlobal" = FALSE, "targetRoles" = ARRAY['STUDENT']::text[]
 WHERE id IN (
@@ -155,3 +167,5 @@ INSERT INTO engagement."Announcement" (
   "targetRoles" = EXCLUDED."targetRoles",
   "isGlobal" = EXCLUDED."isGlobal",
   "publishedBy" = EXCLUDED."publishedBy";
+
+COMMIT;

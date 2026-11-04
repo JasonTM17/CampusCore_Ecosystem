@@ -1,18 +1,27 @@
 package io.campuscore.restfulapi.thesis;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
+import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisNotificationService;
+import io.campuscore.restfulapi.web.DomainException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +38,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -56,7 +66,65 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    @MockitoSpyBean
+    private ThesisNotificationService notificationSpy;
+
     private final List<String> attempts = new CopyOnWriteArrayList<>();
+
+    @Test
+    void belowThresholdClassificationRollsBackWithThePublicationTransitionFailure() {
+        UUID topicId = insertBelowThresholdCandidate();
+        int topicAuditCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" WHERE \"entityId\" = ?",
+                Integer.class, topicId.toString());
+        jdbc.execute("ALTER TABLE thesis.thesis_registration_round "
+                + "ADD CONSTRAINT fixture_reject_results_publication CHECK (status <> 'RESULTS_PUBLISHED')");
+        try {
+            assertThatThrownBy(() -> mutations.publishResults(roundId, admin()))
+                    .isNotInstanceOf(DomainException.class);
+
+            assertThat(roundStatus()).isEqualTo("REGISTRATION_CLOSED");
+            assertThat(jdbc.queryForMap("SELECT result_status, result_reason, result_resolved_by, "
+                            + "result_resolved_at, final_score FROM thesis.thesis_topic WHERE id = ?", topicId))
+                    .containsEntry("result_status", null)
+                    .containsEntry("result_reason", null)
+                    .containsEntry("result_resolved_by", null)
+                    .containsEntry("result_resolved_at", null)
+                    .containsEntry("final_score", null);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                            + "WHERE \"entityId\" = ? AND \"action\" = 'THESIS_RESULT_DISPOSITION_RESOLVED'",
+                    Integer.class, topicId.toString())).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                            + "WHERE \"entityId\" = ?", Integer.class, topicId.toString()))
+                    .isEqualTo(topicAuditCount);
+            assertThat(inboxCount()).isZero();
+            assertThat(attempts).isEmpty();
+            verify(notificationSpy, never()).notifyResultsPublished(roundId);
+            verify(notificationSpy, never()).notifyScoreFinalized(topicId);
+            verifyNoInteractions(email);
+        } finally {
+            jdbc.execute("ALTER TABLE thesis.thesis_registration_round "
+                    + "DROP CONSTRAINT fixture_reject_results_publication");
+        }
+    }
+
+    @Test
+    void publishedResultNoticeUsesNeutralWordingAndDoesNotFinalizeTheCounterReviewAsDefense() {
+        UUID topicId = insertBelowThresholdCandidate();
+
+        assertThatCode(() -> mutations.publishResults(roundId, admin())).doesNotThrowAnyException();
+
+        assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
+        assertThat(jdbc.queryForList("SELECT message FROM notifications.notification", String.class))
+                .allSatisfy(message -> assertThat(message)
+                        .contains("xem kết quả")
+                        .doesNotContain("xem điểm"));
+        verify(notificationSpy).notifyResultsPublished(roundId);
+        verify(notificationSpy, never()).notifyScoreFinalized(topicId);
+    }
 
     @BeforeEach
     void captureMailBoundary() {
@@ -79,6 +147,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         }).when(email).sendHtmlEmail(anyString(), anyString(), anyString(), anyMap());
 
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
         assertThat(inboxCount()).isEqualTo(6);
@@ -94,6 +163,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         jdbc.execute("ALTER TABLE notifications.notification ADD CONSTRAINT fixture_reject_results CHECK (type <> 'SUCCESS')");
         try {
             mutations.publishResults(roundId, admin());
+            awaitMailIdle();
 
             assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
             assertThat(inboxCount()).isZero();
@@ -102,6 +172,87 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         } finally {
             jdbc.execute("ALTER TABLE notifications.notification DROP CONSTRAINT fixture_reject_results");
         }
+    }
+
+    @Test
+    void failedInboxFanOutCanBeRetriedByAdminWithoutDuplicateNotices() throws Exception {
+        var failures = meterRegistry.counter("campuscore.thesis.results.inbox.fanout.failures");
+        double failuresBefore = failures.count();
+        doThrow(new IllegalStateException("test-only-inbox-fault"))
+                .doCallRealMethod()
+                .when(notificationSpy).notifyResultsPublished(roundId);
+
+        mutations.publishResults(roundId, admin());
+        awaitMailIdle();
+
+        assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
+        assertThat(inboxCount()).isZero();
+        assertThat(failures.count()).isEqualTo(failuresBefore + 1);
+
+        String retryPath = "/api/v1/thesis/rounds/" + roundId + "/publish-results/notifications/retry";
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-student-1", "STUDENT")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+        assertThat(inboxCount()).isEqualTo(6);
+
+        mvc.perform(post(retryPath)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+        assertThat(inboxCount()).isEqualTo(6);
+    }
+
+    @Test
+    void retryDoesNotDuplicateLegacyResultNotices() throws Exception {
+        Instant publishedAt = Instant.now();
+        jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED', updated_at=? WHERE id=?",
+                Timestamp.from(publishedAt), roundId);
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + ROUND_NAME.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        for (int student = 1; student <= 6; student++) {
+            Instant createdAt = publishedAt.plusSeconds(1);
+            jdbc.update("""
+                    INSERT INTO notifications.notification
+                        (id, user_id, title, message, type, link, is_read, read_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'SUCCESS', '/dashboard/thesis', FALSE, NULL, ?, ?)
+                    """, "legacy-results-notice-" + student, "rmv-user-" + student,
+                    title, message, Timestamp.from(createdAt), Timestamp.from(createdAt));
+        }
+        assertThat(inboxCount()).isEqualTo(6);
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results/notifications/retry", roundId)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+
+        assertThat(inboxCount()).isEqualTo(6);
+    }
+
+    @Test
+    void laterNoticesWithTheSameWordingDoNotSuppressTheRetry() throws Exception {
+        Instant publishedAt = Instant.now().minusSeconds(86_400);
+        jdbc.update("UPDATE thesis.thesis_registration_round SET status='RESULTS_PUBLISHED', updated_at=? WHERE id=?",
+                Timestamp.from(publishedAt), roundId);
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + ROUND_NAME.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        Instant laterAt = publishedAt.plusSeconds(3_600);
+        for (int student = 1; student <= 6; student++) {
+            jdbc.update("""
+                    INSERT INTO notifications.notification
+                        (id, user_id, title, message, type, link, is_read, read_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'SUCCESS', '/dashboard/thesis', FALSE, NULL, ?, ?)
+                    """, "later-results-notice-" + student, "rmv-user-" + student,
+                    title, message, Timestamp.from(laterAt), Timestamp.from(laterAt));
+        }
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/publish-results/notifications/retry", roundId)
+                        .with(ThesisAuthorityFixture.role(jdbc, "rmv-admin", "ADMIN")))
+                .andExpect(status().isNoContent());
+
+        assertThat(inboxCount()).isEqualTo(12);
     }
 
     @Test
@@ -123,6 +274,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         jdbc.update("UPDATE campuscore_auth.\"User\" SET \"email\"='  ' WHERE \"id\"='rmv-user-3'");
 
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
         assertThat(attempts).containsExactlyInAnyOrder(
@@ -170,6 +322,8 @@ abstract class ThesisPublicationFixture {
     protected PlatformTransactionManager transactionManager;
     @Autowired
     protected MailConfig mailConfig;
+    @Autowired
+    protected MailDispatchQueue mailDispatch;
 
     protected UUID roundId;
 
@@ -242,6 +396,13 @@ abstract class ThesisPublicationFixture {
                 checkpoint, roundStatus(), inboxCount(), mailAttempts);
     }
 
+    /** Mail runs on the bounded queue; tests observe the drained state, not the request return. */
+    protected void awaitMailIdle() {
+        assertThat(mailDispatch.awaitIdle(Duration.ofSeconds(20)))
+                .as("mail dispatch queue drained")
+                .isTrue();
+    }
+
     private void clearPrivateRows() {
         // These contexts use dedicated in-memory databases, never a shared DB.
         jdbc.update("DELETE FROM notifications.notification");
@@ -280,6 +441,20 @@ abstract class ThesisPublicationFixture {
                 VALUES (?, ?, 'department-demo', ?, 'Private result mail fixture', 3, 'PUBLISHED',
                         'rmv-admin', ?, 'rmv-chair', CURRENT_TIMESTAMP, 'GRADED')
                 """, id, round, title, score);
+        return id;
+    }
+
+    protected UUID insertBelowThresholdCandidate() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO thesis.thesis_topic "
+                        + "(id, round_id, department_id, title, description, max_groups, status, created_by, gvpb_lecturer_id) "
+                        + "VALUES (?, ?, 'department-demo', 'Below threshold candidate', 'Fixture', 2, 'PUBLISHED', 'rmv-admin', 'rmv-reviewer')",
+                id, roundId);
+        jdbc.update("INSERT INTO thesis.thesis_topic_score "
+                        + "(id, topic_id, council_id, lecturer_id, component, score, comment) "
+                        + "VALUES (?, ?, NULL, 'rmv-reviewer', 'GVPB', 4.90, 'Counter-review')",
+                UUID.randomUUID(), id);
+        insertGroup(roundId, id, "APPROVED", "SUBMITTED", 16);
         return id;
     }
 

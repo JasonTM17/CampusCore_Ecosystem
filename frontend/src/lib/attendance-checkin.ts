@@ -26,6 +26,8 @@ export const GEOFENCE_LNG_MAX = 180;
 export const GEOFENCE_NAME_MAX = 240;
 export const GEOFENCE_CAMPUS_CODE_MAX = 60;
 export const GEOFENCE_NOTE_MAX = 500;
+/** Student attendance note and check-in review note cap on the API. */
+export const ATTENDANCE_NOTE_MAX = 1000;
 
 // Opaque id as issued by the backend (UUID today, any safe token tomorrow):
 // letter/digit start, then letters, digits, '-' or '_', 6–128 total.
@@ -33,6 +35,42 @@ const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{5,127}$/;
 
 export function isValidAttendanceSessionId(value: unknown): value is string {
   return typeof value === 'string' && SESSION_ID_PATTERN.test(value);
+}
+
+export function activeSessionStorageKey(sectionId: string, date: string): string {
+  return `cc_checkin_active_${sectionId}_${date}`;
+}
+
+export function saveActiveCheckinSession(sectionId: string, date: string, sessionId: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage && isValidAttendanceSessionId(sessionId)) {
+      window.sessionStorage.setItem(activeSessionStorageKey(sectionId, date), sessionId);
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+export function readActiveCheckinSession(sectionId: string, date: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const stored = window.sessionStorage.getItem(activeSessionStorageKey(sectionId, date));
+      return isValidAttendanceSessionId(stored) ? stored : null;
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
+  return null;
+}
+
+export function clearActiveCheckinSession(sectionId: string, date: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(activeSessionStorageKey(sectionId, date));
+    }
+  } catch {
+    // sessionStorage unavailable
+  }
 }
 
 /** Canonical web landing path — session id only, never the rotating code. */
@@ -115,6 +153,69 @@ export function campusLocalTimeToUtcIso(date: string, hhmm: string): string | nu
   const utcMs = Date.UTC(year, month - 1, day, hour, minute) - CAMPUS_OFFSET_MINUTES * 60_000;
   const instant = new Date(utcMs);
   return Number.isNaN(instant.getTime()) ? null : instant.toISOString();
+}
+
+const CAMPUS_LOCAL_DATETIME =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/;
+
+/**
+ * Convert a datetime-local value (campus wall clock) into an instant. The
+ * value has no zone, so it must be read on the fixed campus offset instead of
+ * the browser's — a UTC laptop would otherwise store 09:00 as 16:00 campus.
+ * Seconds and milliseconds are preserved; an impossible calendar value or a
+ * bare date returns null so the caller can refuse the submit.
+ */
+export function campusLocalDateTimeToUtcIso(value: string): string | null {
+  const match = CAMPUS_LOCAL_DATETIME.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = '00', fractionText = '0'] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59) {
+    return null;
+  }
+  const millis = Number(fractionText.padEnd(3, '0'));
+  const localMs = Date.UTC(year, month - 1, day, hour, minute, second, millis);
+  const check = new Date(localMs);
+  if (
+    check.getUTCFullYear() !== year
+    || check.getUTCMonth() !== month - 1
+    || check.getUTCDate() !== day
+    || check.getUTCHours() !== hour
+    || check.getUTCMinutes() !== minute
+    || check.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return new Date(localMs - CAMPUS_OFFSET_MINUTES * 60_000).toISOString();
+}
+
+/**
+ * Inverse of campusLocalDateTimeToUtcIso: render an instant as the
+ * datetime-local value a campus author sees. `seconds: false` matches a
+ * minute-precision input; the default keeps seconds and milliseconds so a
+ * prefilled value round-trips to the same instant.
+ */
+export function toCampusLocalDateTimeInput(
+  iso?: string | null,
+  options: { seconds?: boolean } = {},
+): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const campus = new Date(date.getTime() + CAMPUS_OFFSET_MINUTES * 60_000);
+  const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+  const value =
+    `${pad(campus.getUTCFullYear(), 4)}-${pad(campus.getUTCMonth() + 1)}-${pad(campus.getUTCDate())}`
+    + `T${pad(campus.getUTCHours())}:${pad(campus.getUTCMinutes())}`;
+  if (options.seconds === false) return value;
+  return `${value}:${pad(campus.getUTCSeconds())}.${pad(campus.getUTCMilliseconds(), 3)}`;
 }
 
 export function addMinutesToIso(iso: string, minutes: number): string | null {

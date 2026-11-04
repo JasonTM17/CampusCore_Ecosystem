@@ -27,6 +27,7 @@ export interface ThesisCopy {
   save: string;
   back: string;
   topicCount: string;
+  topicCountOne: string;
 
   roundPicker: string;
   roundChange: string;
@@ -44,6 +45,7 @@ export interface ThesisCopy {
   emptyTopicsFiltered: string;
   topicDepartment: string;
   topicGroupsMax: string;
+  topicGroupsMaxOne: string;
   topicBrief: string;
   topicNotFound: string;
   openTopic: string;
@@ -54,7 +56,9 @@ export interface ThesisCopy {
   advisorsEmpty: string;
   advisorsBody: string;
   advisorTopics: string;
+  advisorTopicsOne: string;
   advisorsCapped: string;
+  advisorsCappedOne: string;
   advisorsLoadFailed: string;
 
   groupTitle: string;
@@ -62,6 +66,7 @@ export interface ThesisCopy {
   groupNone: string;
   groupRule: string;
   groupMembersCount: string;
+  groupMembersCountOne: string;
   groupLeader: string;
   groupMember: string;
   groupRejectedReason: string;
@@ -91,6 +96,7 @@ export interface ThesisCopy {
   progressPercent: string;
   progressNoGroup: string;
   progressNoGroupBody: string;
+  progressFailed: string;
   startRegistration: string;
   finalScore: string;
   askAssistant: string;
@@ -100,6 +106,7 @@ export interface ThesisCopy {
   milestoneCurrent: string;
   milestoneDone: string;
   milestonePending: string;
+  milestoneSkipped: string;
 
   report: string;
   reportNone: string;
@@ -146,7 +153,6 @@ export interface ThesisCopy {
   status: Record<string, string>;
   errors: {
     generic: string;
-    session: string;
     forbidden: string;
     offline: string;
     notFound: string;
@@ -170,7 +176,7 @@ const vi: ThesisCopy = {
   viewLabel: 'Nội dung hiển thị',
 
   search: 'Tìm đề tài',
-  searchLabel: 'Tìm trong các đề tài đã tải',
+  searchLabel: 'Tìm đề tài',
   loadMore: 'Tải thêm',
   loadingMore: 'Đang tải thêm',
   loading: 'Đang tải',
@@ -181,6 +187,7 @@ const vi: ThesisCopy = {
   save: 'Lưu',
   back: 'Quay lại',
   topicCount: '{count} đề tài',
+  topicCountOne: '{count} đề tài',
 
   roundPicker: 'Đợt đang xem',
   roundChange: 'Đổi đợt',
@@ -198,6 +205,7 @@ const vi: ThesisCopy = {
   emptyTopicsFiltered: 'Không có đề tài khớp',
   topicDepartment: 'Bộ môn',
   topicGroupsMax: 'Tối đa {count} nhóm',
+  topicGroupsMaxOne: 'Tối đa {count} nhóm',
   topicBrief: 'Mô tả',
   topicNotFound: 'Không tìm thấy đề tài',
   openTopic: 'Xem đề tài',
@@ -208,7 +216,9 @@ const vi: ThesisCopy = {
   advisorsEmpty: 'Chưa có giảng viên hướng dẫn',
   advisorsBody: 'Tổng hợp từ các đề tài đã công bố trong đợt.',
   advisorTopics: '{count} đề tài',
+  advisorTopicsOne: '{count} đề tài',
   advisorsCapped: 'Hiển thị tối đa {count} đề tài đầu tiên.',
+  advisorsCappedOne: 'Hiển thị tối đa {count} đề tài đầu tiên.',
   advisorsLoadFailed: 'Một số đề tài chưa tải được giảng viên.',
 
   groupTitle: 'Nhóm',
@@ -216,6 +226,7 @@ const vi: ThesisCopy = {
   groupNone: 'Bạn chưa có nhóm trong đợt này',
   groupRule: 'Mỗi nhóm cần từ 3 đến 5 thành viên.',
   groupMembersCount: '{count} thành viên',
+  groupMembersCountOne: '{count} thành viên',
   groupLeader: 'Nhóm trưởng',
   groupMember: 'Thành viên',
   groupRejectedReason: 'Lý do từ chối',
@@ -245,6 +256,7 @@ const vi: ThesisCopy = {
   progressPercent: '{value}%',
   progressNoGroup: 'Bạn chưa tham gia đợt này',
   progressNoGroupBody: 'Tạo nhóm và chọn đề tài để bắt đầu.',
+  progressFailed: 'Không tải được tiến độ.',
   startRegistration: 'Bắt đầu đăng ký',
   finalScore: 'Điểm cuối',
   askAssistant: 'Hỏi trợ lý luận văn',
@@ -257,6 +269,7 @@ const vi: ThesisCopy = {
     GROUP_INVALID_MEMBER_COUNT: 'Số thành viên chưa hợp lệ. Cần từ 3 đến 5.',
     PROGRESS_INCONSISTENT: 'Tiến độ chưa nhất quán. Liên hệ khoa.',
     RESULT_NOT_AVAILABLE: 'Chưa có điểm cho đợt đã công bố.',
+    NOT_QUALIFIED: 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0',
   },
   milestones: {
     ROUND_SELECTED: 'Chọn đợt',
@@ -271,6 +284,7 @@ const vi: ThesisCopy = {
   milestoneCurrent: 'Hiện tại',
   milestoneDone: 'Xong',
   milestonePending: 'Chưa',
+  milestoneSkipped: 'Không áp dụng',
 
   report: 'Báo cáo',
   reportNone: 'Chưa nộp báo cáo',
@@ -334,7 +348,6 @@ const vi: ThesisCopy = {
   },
   errors: {
     generic: 'Không tải được dữ liệu khóa luận.',
-    session: 'Phiên đã hết hạn. Đăng nhập lại.',
     forbidden: 'Bạn không có quyền xem nội dung này.',
     offline: 'Không có kết nối. Hiển thị dữ liệu đã lưu nếu có.',
     notFound: 'Không tìm thấy dữ liệu.',
@@ -385,7 +398,7 @@ const en: ThesisCopy = {
   viewLabel: 'View',
 
   search: 'Search topics',
-  searchLabel: 'Search the loaded topics',
+  searchLabel: 'Search topics',
   loadMore: 'Load more',
   loadingMore: 'Loading more',
   loading: 'Loading',
@@ -396,6 +409,7 @@ const en: ThesisCopy = {
   save: 'Save',
   back: 'Back',
   topicCount: '{count} topics',
+  topicCountOne: '{count} topic',
 
   roundPicker: 'Round',
   roundChange: 'Change round',
@@ -413,6 +427,7 @@ const en: ThesisCopy = {
   emptyTopicsFiltered: 'No matching topics',
   topicDepartment: 'Department',
   topicGroupsMax: 'Up to {count} groups',
+  topicGroupsMaxOne: 'Up to {count} group',
   topicBrief: 'Brief',
   topicNotFound: 'Topic not found',
   openTopic: 'View topic',
@@ -423,7 +438,9 @@ const en: ThesisCopy = {
   advisorsEmpty: 'No advisors yet',
   advisorsBody: 'Collected from the topics published in this round.',
   advisorTopics: '{count} topics',
+  advisorTopicsOne: '{count} topic',
   advisorsCapped: 'Showing the first {count} topics only.',
+  advisorsCappedOne: 'Showing the first {count} topic only.',
   advisorsLoadFailed: 'Advisors could not be loaded for some topics.',
 
   groupTitle: 'Group',
@@ -431,6 +448,7 @@ const en: ThesisCopy = {
   groupNone: 'You have no group in this round',
   groupRule: 'A group needs 3 to 5 members.',
   groupMembersCount: '{count} members',
+  groupMembersCountOne: '{count} member',
   groupLeader: 'Leader',
   groupMember: 'Member',
   groupRejectedReason: 'Reason for rejection',
@@ -460,6 +478,7 @@ const en: ThesisCopy = {
   progressPercent: '{value}%',
   progressNoGroup: 'You are not in this round',
   progressNoGroupBody: 'Create a group and choose a topic to begin.',
+  progressFailed: 'Progress could not be loaded.',
   startRegistration: 'Start registration',
   finalScore: 'Final score',
   askAssistant: 'Ask the thesis assistant',
@@ -472,6 +491,7 @@ const en: ThesisCopy = {
     GROUP_INVALID_MEMBER_COUNT: 'The member count is not valid. 3 to 5 are required.',
     PROGRESS_INCONSISTENT: 'Progress is inconsistent. Contact the faculty.',
     RESULT_NOT_AVAILABLE: 'No score is available for the published round.',
+    NOT_QUALIFIED: 'Not eligible for defense - counter-review score below 5.0',
   },
   milestones: {
     ROUND_SELECTED: 'Round chosen',
@@ -486,6 +506,7 @@ const en: ThesisCopy = {
   milestoneCurrent: 'Current',
   milestoneDone: 'Done',
   milestonePending: 'Pending',
+  milestoneSkipped: 'Not applicable',
 
   report: 'Report',
   reportNone: 'No report submitted',
@@ -549,7 +570,6 @@ const en: ThesisCopy = {
   },
   errors: {
     generic: 'Thesis data could not be loaded.',
-    session: 'Your session expired. Sign in again.',
     forbidden: 'You do not have access to this content.',
     offline: 'You are offline. Saved data is shown when available.',
     notFound: 'Nothing found.',

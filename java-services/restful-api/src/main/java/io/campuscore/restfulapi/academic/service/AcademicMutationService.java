@@ -10,11 +10,15 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -178,16 +182,15 @@ public class AcademicMutationService {
                     new MapSqlParameterSource("sectionId", enrollment.get("section_id")));
         }
         if (actorId != null && !actorId.isBlank()) {
-            audit.recordDeletion(
-                    actorId,
-                    null,
-                    "ENROLLMENT",
-                    enrollmentId,
-                    Map.of(
-                            "studentId", String.valueOf(enrollment.get("student_id")),
-                            "sectionId", String.valueOf(enrollment.get("section_id")),
-                            "status", status,
-                            "gradeStatus", String.valueOf(enrollment.get("grade_status"))));
+            Map<String, Object> before = new LinkedHashMap<>();
+            before.put("studentId", enrollment.get("student_id"));
+            before.put("sectionId", enrollment.get("section_id"));
+            before.put("status", status);
+            before.put("gradeStatus", enrollment.get("grade_status"));
+            before.put("finalGrade", enrollment.get("final_grade"));
+            before.put("letterGrade", enrollment.get("letter_grade"));
+            before.put("creditsSnapshot", enrollment.get("credits_snapshot"));
+            audit.recordDeletion(actorId, null, "ENROLLMENT", enrollmentId, before);
         }
     }
 
@@ -246,8 +249,7 @@ public class AcademicMutationService {
         // memory. A CSV past this bound would be unusable anyway; the caller
         // narrows filters instead of streaming the entire history.
         parameters.addValue("exportLimit", EXPORT_LIMIT + 1);
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT e.\"id\", student.\"studentId\" AS student_number,"
+        String sql = "SELECT e.\"id\", student.\"studentId\" AS student_number,"
                         + " student_user.\"email\", student_user.\"firstName\", student_user.\"lastName\","
                         + " course.\"code\" AS course_code, course.\"name\" AS course_name,"
                         + " section.\"sectionNumber\", semester.\"name\" AS semester_name,"
@@ -258,31 +260,36 @@ public class AcademicMutationService {
                         + " JOIN " + SECTION + " section ON section.\"id\" = e.\"sectionId\""
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                         + " JOIN " + SEMESTER + " semester ON semester.\"id\" = e.\"semesterId\""
-                        + where + " ORDER BY e.\"enrolledAt\" DESC, e.\"id\" DESC LIMIT :exportLimit",
-                parameters);
-        if (rows.size() > EXPORT_LIMIT) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    HttpStatus.PAYLOAD_TOO_LARGE,
-                    "Enrollment export exceeds the supported row limit");
-        }
-        StringBuilder csv = new StringBuilder(
-                "id,studentNumber,email,studentName,courseCode,courseName,section,semester,status,enrolledAt,finalGrade,letterGrade\r\n");
-        for (Map<String, Object> row : rows) {
-            csv.append(csv(row.get("id"))).append(',')
-                    .append(csv(row.get("student_number"))).append(',')
-                    .append(csv(row.get("email"))).append(',')
-                    .append(csv((String.valueOf(row.get("lastName")) + " "
-                            + String.valueOf(row.get("firstName"))).trim())).append(',')
-                    .append(csv(row.get("course_code"))).append(',')
-                    .append(csv(row.get("course_name"))).append(',')
-                    .append(csv(row.get("sectionNumber"))).append(',')
-                    .append(csv(row.get("semester_name"))).append(',')
-                    .append(csv(row.get("status"))).append(',')
-                    .append(csv(row.get("enrolledAt"))).append(',')
-                    .append(csv(row.get("finalGrade"))).append(',')
-                    .append(csv(row.get("letterGrade"))).append("\r\n");
-        }
-        return csv.toString();
+                        + where + " ORDER BY e.\"enrolledAt\" DESC, e.\"id\" DESC LIMIT :exportLimit";
+        return jdbc.execute(sql, parameters, statement -> {
+            statement.setFetchSize(256);
+            StringBuilder csv = new StringBuilder(
+                    "id,studentNumber,email,studentName,courseCode,courseName,section,semester,status,enrolledAt,finalGrade,letterGrade\r\n");
+            try (java.sql.ResultSet rows = statement.executeQuery()) {
+                int rowCount = 0;
+                while (rows.next()) {
+                    if (++rowCount > EXPORT_LIMIT) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                HttpStatus.PAYLOAD_TOO_LARGE,
+                                "Enrollment export exceeds the supported row limit");
+                    }
+                    csv.append(csv(rows.getObject("id"))).append(',')
+                            .append(csv(rows.getObject("student_number"))).append(',')
+                            .append(csv(rows.getObject("email"))).append(',')
+                            .append(csv((String.valueOf(rows.getObject("lastName")) + " "
+                                    + String.valueOf(rows.getObject("firstName"))).trim())).append(',')
+                            .append(csv(rows.getObject("course_code"))).append(',')
+                            .append(csv(rows.getObject("course_name"))).append(',')
+                            .append(csv(rows.getObject("sectionNumber"))).append(',')
+                            .append(csv(rows.getObject("semester_name"))).append(',')
+                            .append(csv(rows.getObject("status"))).append(',')
+                            .append(csv(rows.getObject("enrolledAt"))).append(',')
+                            .append(csv(rows.getObject("finalGrade"))).append(',')
+                            .append(csv(rows.getObject("letterGrade"))).append("\r\n");
+                }
+            }
+            return csv.toString();
+        });
     }
 
     /** Compatibility entry point; grade saves without a known actor record no audit trail. */
@@ -321,7 +328,8 @@ public class AcademicMutationService {
         List<String> enrollmentIds = List.copyOf(mergedGrades.keySet());
         List<Map<String, Object>> enrollmentRows = jdbc.queryForList(
                 "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
-                        + " \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
+                        + " \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade,"
+                        + " \"version\""
                         + " FROM " + ENROLLMENT + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("ids", enrollmentIds));
 
@@ -352,37 +360,46 @@ public class AcademicMutationService {
                 throw problem(HttpStatus.CONFLICT, "GRADES_PUBLISHED_LOCKED",
                         "Published grades can no longer be edited");
             }
+            // Optional optimistic guard: a client that sends the version it
+            // loaded is rejected when another editor moved the row first. The
+            // whole batch is refused, so one stale row cannot half-apply.
+            int expectedVersion = storedVersion(enrollment);
+            if (grade.version() != null && grade.version() != expectedVersion) {
+                throw staleVersion();
+            }
             // Both-null clears a mistakenly saved draft: the batch DELETE below
             // removes the component rows and the enrollment update restores the
             // untouched NOT_GRADED state. A processScore can be saved alone as a
             // mid-term draft, but a finalExamScore without processScore cannot average.
-            boolean cleared = grade.processScore() == null && grade.finalExamScore() == null;
-            if (grade.processScore() == null && grade.finalExamScore() != null) {
+            BigDecimal processScore = storedScore(grade.processScore());
+            BigDecimal finalExamScore = storedScore(grade.finalExamScore());
+            boolean cleared = processScore == null && finalExamScore == null;
+            if (processScore == null && finalExamScore != null) {
                 throw problem(HttpStatus.BAD_REQUEST, "GRADE_PARTIAL_SCORE",
                         "processScore is required when finalExamScore is provided");
             }
             if (!cleared) {
-                requireScoreRange(grade.processScore(), "processScore");
-                if (grade.finalExamScore() != null) {
-                    requireScoreRange(grade.finalExamScore(), "finalExamScore");
+                requireScoreRange(processScore, "processScore");
+                if (finalExamScore != null) {
+                    requireScoreRange(finalExamScore, "finalExamScore");
                 }
             }
-            boolean midTermOnly = grade.processScore() != null && grade.finalExamScore() == null;
-            BigDecimal total = (cleared || midTermOnly) ? null : calculateFinalGrade(grade.processScore(), grade.finalExamScore());
+            boolean midTermOnly = processScore != null && finalExamScore == null;
+            BigDecimal total = (cleared || midTermOnly) ? null : calculateFinalGrade(processScore, finalExamScore);
 
             if (!cleared) {
                 componentBatch.add(new MapSqlParameterSource()
                         .addValue("id", UUID.randomUUID().toString())
                         .addValue("enrollmentId", grade.enrollmentId())
                         .addValue("gradeItemId", processItemId)
-                        .addValue("score", grade.processScore()));
+                        .addValue("score", processScore));
 
                 if (!midTermOnly) {
                     componentBatch.add(new MapSqlParameterSource()
                             .addValue("id", UUID.randomUUID().toString())
                             .addValue("enrollmentId", grade.enrollmentId())
                             .addValue("gradeItemId", finalItemId)
-                            .addValue("score", grade.finalExamScore()));
+                            .addValue("score", finalExamScore));
                 }
             }
 
@@ -390,6 +407,7 @@ public class AcademicMutationService {
                     .addValue("finalGrade", total)
                     .addValue("letterGrade", total == null ? null : letterGrade(total))
                     .addValue("gradeStatus", cleared ? "NOT_GRADED" : "DRAFT")
+                    .addValue("expectedVersion", expectedVersion)
                     .addValue("id", grade.enrollmentId()));
         }
 
@@ -413,11 +431,20 @@ public class AcademicMutationService {
                 componentBatch.toArray(new MapSqlParameterSource[0]));
 
         // Batch update enrollment final grades and status — cleared rows carry
-        // NOT_GRADED in the batch so the statement must read the parameter.
-        jdbc.batchUpdate(
+        // NOT_GRADED in the batch so the statement must read the parameter. The
+        // version predicate is the final guard: a zero-row update means the
+        // row moved despite the lock and the whole batch must roll back.
+        int[] enrollmentUpdates = jdbc.batchUpdate(
                 "UPDATE " + ENROLLMENT + " SET \"finalGrade\" = :finalGrade, \"letterGrade\" = :letterGrade,"
-                        + " \"gradeStatus\" = :gradeStatus, \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id",
+                        + " \"gradeStatus\" = :gradeStatus, \"updatedAt\" = CURRENT_TIMESTAMP,"
+                        + " \"version\" = \"version\" + 1"
+                        + " WHERE \"id\" = :id AND \"version\" = :expectedVersion",
                 enrollmentBatch.toArray(new MapSqlParameterSource[0]));
+        for (int updatedRows : enrollmentUpdates) {
+            if (updatedRows == 0) {
+                throw staleVersion();
+            }
+        }
 
         // One fixed-shape state pair per enrollment avoids a section-sized audit
         // payload. Scores stay in the authorized store, never in summaries/logs.
@@ -464,6 +491,8 @@ public class AcademicMutationService {
         Long incomplete = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM " + ENROLLMENT + " e WHERE e.\"sectionId\" = :sectionId"
                         + " AND e.\"status\" IN (:gradeableStatuses)"
+                        + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND (SELECT COUNT(DISTINCT gi.\"type\")"
                         + " FROM " + STUDENT_GRADE + " sg JOIN " + GRADE_ITEM + " gi ON gi.\"id\" = sg.\"gradeItemId\""
                         + " WHERE sg.\"enrollmentId\" = e.\"id\" AND sg.\"score\" IS NOT NULL"
@@ -473,6 +502,8 @@ public class AcademicMutationService {
         if (incomplete != null && incomplete > 0) {
             Long blockers = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM " + ENROLLMENT + " e WHERE e.\"sectionId\" = :sectionId"
+                            + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                            + " WHERE \"id\" = :sectionId)"
                             + " AND e.\"status\" NOT IN ('ENROLLED', 'CONFIRMED', 'COMPLETED', 'DROPPED', 'CANCELLED')",
                     new MapSqlParameterSource("sectionId", sectionId), Long.class);
             String detail = blockers != null && blockers > 0
@@ -488,8 +519,11 @@ public class AcademicMutationService {
                 "SELECT \"id\", \"status\", \"gradeStatus\" AS grade_status,"
                         + " \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
                         + " FROM " + ENROLLMENT + " WHERE \"sectionId\" = :sectionId"
+                        + " AND \"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND \"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL"
                         + " ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("sectionId", sectionId)
@@ -498,12 +532,16 @@ public class AcademicMutationService {
         String sectionLabel = sectionLabel(sectionId);
         int updated = jdbc.update(
                 "UPDATE " + ENROLLMENT + " SET \"gradeStatus\" = 'PUBLISHED', \"status\" = 'COMPLETED',"
-                        + " \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"sectionId\" = :sectionId"
+                        + " \"updatedAt\" = CURRENT_TIMESTAMP, \"version\" = \"version\" + 1"
+                        + " WHERE \"sectionId\" = :sectionId"
+                        + " AND \"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         // A repeat publish must not re-touch or re-notify rows
-                        // already published; IS DISTINCT FROM keeps NULL-gradeStatus
-                        // pre-publish rows eligible.
+                        // already published or under appeal; IS DISTINCT FROM keeps
+                        // NULL-gradeStatus pre-publish rows eligible.
                         + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND \"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL",
                 new MapSqlParameterSource("sectionId", sectionId)
                         .addValue("gradeableStatuses", GRADEABLE_STATUSES));
@@ -513,14 +551,19 @@ public class AcademicMutationService {
             // (dropped/cancelled) enrollment that publish must not resurrect.
             throw problem(HttpStatus.CONFLICT, "GRADES_EMPTY", "No complete grades are ready to publish");
         }
-        for (Map<String, Object> row : beforeRows) {
-            Map<String, Object> before = gradeAuditState(row);
-            Map<String, Object> after = new LinkedHashMap<>(before);
-            after.put("gradeStatus", "PUBLISHED");
-            after.put("enrollmentStatus", "COMPLETED");
-            after.put("reason", "PUBLISH");
-            audit.record(actorId, null, admin ? "GRADE_PUBLISH_BY_ADMIN" : "GRADE_PUBLISH",
-                    "SECTION", sectionId, "Official grade published", before, after);
+        if (!beforeRows.isEmpty()) {
+            String action = admin ? "GRADE_PUBLISH_BY_ADMIN" : "GRADE_PUBLISH";
+            List<AdminAuditRecorder.AuditEntry> entries = new ArrayList<>(beforeRows.size());
+            for (Map<String, Object> row : beforeRows) {
+                Map<String, Object> before = gradeAuditState(row);
+                Map<String, Object> after = new LinkedHashMap<>(before);
+                after.put("gradeStatus", "PUBLISHED");
+                after.put("enrollmentStatus", "COMPLETED");
+                after.put("reason", "PUBLISH");
+                entries.add(new AdminAuditRecorder.AuditEntry(actorId, null, action,
+                        "SECTION", sectionId, "Official grade published", before, after));
+            }
+            audit.recordAll(entries);
         }
         if (gradeNotifier != null && !audience.isEmpty()) {
             if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -580,26 +623,27 @@ public class AcademicMutationService {
         }
     }
 
-    /** Auth user ids of enrollments matching the exact publish predicate. */
+    /**
+     * Auth user ids of enrollments matching the exact publish predicate. A
+     * failed lookup propagates so the publication transaction rolls back
+     * instead of silently committing grades with no notification audience; a
+     * successfully queried empty audience is still valid.
+     */
     private List<String> publishAudience(String sectionId) {
-        try {
-            return jdbc.queryForList(
+        return jdbc.queryForList(
                 "SELECT DISTINCT student.\"userId\" FROM " + ENROLLMENT + " e"
                         + " JOIN " + STUDENT + " student ON student.\"id\" = e.\"studentId\""
                         + " WHERE e.\"sectionId\" = :sectionId"
+                        + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND e.\"status\" IN (:gradeableStatuses)"
                         + " AND e.\"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND e.\"gradeStatus\" IS DISTINCT FROM 'APPEALED'"
                         + " AND e.\"finalGrade\" IS NOT NULL AND e.\"letterGrade\" IS NOT NULL"
                         + " AND student.\"userId\" IS NOT NULL",
                 new MapSqlParameterSource("sectionId", sectionId)
                         .addValue("gradeableStatuses", GRADEABLE_STATUSES),
                 String.class);
-        } catch (DataAccessException exception) {
-            // Fixtures or deployments without the Student/notification join
-            // tables must still publish grades; the fan-out just has no
-            // audience to reach.
-            return List.of();
-        }
     }
 
     private String sectionLabel(String sectionId) {
@@ -617,7 +661,17 @@ public class AcademicMutationService {
     }
 
     private String canonicalGradeItem(String sectionId, String type, String name) {
-        String id = sectionId + "-" + type.toLowerCase() + "-50";
+        String suffix = "-" + type.toLowerCase(Locale.ROOT) + "-50";
+        String id = sectionId + suffix;
+        if (id.length() > 120) {
+            try {
+                byte[] digest = MessageDigest.getInstance("MD5")
+                        .digest(sectionId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                id = "v36-" + type.toLowerCase(Locale.ROOT) + "-" + HexFormat.of().formatHex(digest);
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IllegalStateException("MD5 is unavailable", exception);
+            }
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sectionId", sectionId)
@@ -660,6 +714,10 @@ public class AcademicMutationService {
 
     static BigDecimal calculateFinalGrade(BigDecimal processScore, BigDecimal finalExamScore) {
         return processScore.add(finalExamScore).divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal storedScore(BigDecimal score) {
+        return score == null ? null : score.setScale(2, RoundingMode.HALF_UP);
     }
 
     static String letterGrade(BigDecimal score) {
@@ -722,7 +780,9 @@ public class AcademicMutationService {
         try {
             return jdbc.queryForMap(
                     "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
-                            + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status"
+                            + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status,"
+                            + " \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade,"
+                            + " \"creditsSnapshot\" AS credits_snapshot"
                             + " FROM " + ENROLLMENT + " WHERE \"id\" = :id FOR UPDATE",
                     new MapSqlParameterSource("id", enrollmentId));
         } catch (EmptyResultDataAccessException exception) {
@@ -756,11 +816,20 @@ public class AcademicMutationService {
         }
         char first = text.charAt(0);
         return first == '=' || first == '+' || first == '-' || first == '@'
-                || first == '\t' || first == '\r';
+                || first == '\t' || first == '\r' || first == '\n';
     }
 
     private static DomainException problem(HttpStatus status, String code, String message) {
         return new DomainException(status, code, message);
+    }
+
+    private static DomainException staleVersion() {
+        return problem(HttpStatus.CONFLICT, "STALE_VERSION", "The record changed; reload before editing");
+    }
+
+    private static int storedVersion(Map<String, Object> enrollment) {
+        Object version = enrollment.get("version");
+        return version == null ? 0 : ((Number) version).intValue();
     }
 
     /** Defense-in-depth score bound; the web DTO also enforces 0..10 via @DecimalMin/@DecimalMax. */

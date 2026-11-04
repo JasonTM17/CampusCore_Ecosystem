@@ -40,7 +40,7 @@ const jwt = (payload) => `${b64url({ alg: 'none' })}.${b64url(payload)}.sig`;
 const stubs = {
   react: `import { createRequire } from 'node:module';
 const R = createRequire(${pkgJson})('react');
-export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } = R;
+export const { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } = R;
 export default R;`,
   'jsx-runtime': `import { createRequire } from 'node:module';
 const J = createRequire(${pkgJson})('react/jsx-runtime');
@@ -74,6 +74,7 @@ transpile('query-cache', 'src/hooks/query-cache.ts');
 transpile('capabilities', 'src/auth/capabilities.ts');
 transpile('oidc-core', 'src/auth/oidc-core.ts');
 transpile('lane-flags', 'src/config/lane-flags.ts');
+transpile('thesis-selection', 'src/screens/thesis/thesis-selection.ts', { map: { react: url('stub-react') } });
 const cacheModule = await import(url('query-cache'));
 const {
   clearQueryCache,
@@ -101,6 +102,7 @@ function transpileSession(tag, laneModule) {
       '../auth/mobile-session-store': url('stub-store'),
       '../config/lane-flags': url(laneModule),
       '../hooks/query-cache': url('query-cache'),
+      '../screens/thesis/thesis-selection': url('thesis-selection'),
     },
   });
 }
@@ -133,11 +135,14 @@ async function withSession({ laneEnv = {}, accessToken, store = {}, push = {} },
   globalThis.__installationThrows = push.installationThrows ?? false;
   globalThis.__onExpired = undefined;
   let token = accessToken;
+  let epoch = 0;
   globalThis.__sessionStoreStub = {
     loadBootstrap: async () => ({ refreshToken: null }),
     refreshAccessToken: async () => ({ accessToken: null }),
     getAccessToken: () => token,
-    sessionEpoch: () => 0,
+    setAccessToken: (next) => { token = next; },
+    sessionEpoch: () => epoch,
+    bumpEpoch: () => { epoch += 1; },
     signOut: store.signOut ?? (async () => { token = null; }),
   };
   const { SessionProvider, useSession } = await mountSession(laneEnv);
@@ -152,6 +157,7 @@ async function withSession({ laneEnv = {}, accessToken, store = {}, push = {} },
   await TestRenderer.act(async () => {
     renderer = TestRenderer.create(React.createElement(SessionProvider, null, React.createElement(Probe)));
   });
+  globalThis.__sessionStoreStub.setAccessToken(accessToken);
   try {
     await body(holder, (fn) => TestRenderer.act(fn));
   } finally {

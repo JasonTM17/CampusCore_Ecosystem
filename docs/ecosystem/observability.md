@@ -1,5 +1,9 @@
 # Observability contract — correlation id, metrics, log redaction, SLOs & alerts
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Phần cold-start/hosted-platform và severity runbook là **chuẩn bị cho go-live tương lai**;
+> local quick start: [README.md](../../README.md#quick-start-local).
+
 Pha: P03 step 3 · Owner: controller · Review: Kongming + tester contract
 Audit reference: AUD-26 (Service SLOs, Operational Alert Definitions, and Probe Semantics)
 Liên quan: `contracts/ecosystem/domain-contracts.md`, gate `contracts` trong
@@ -33,7 +37,7 @@ Khi người dùng gặp sự cố hoặc alert kích hoạt, quy trình đối 
        "status": 500,
        "code": "INTERNAL_ERROR",
        "message": "An unexpected internal error occurred",
-       "path": "/api/v1/academic/me/enrollments",
+       "path": "/api/v1/me/enrollments",
        "requestId": "req-m490f2-1a2b3c4d5e"
      }
      ```
@@ -46,7 +50,7 @@ Khi người dùng gặp sự cố hoặc alert kích hoạt, quy trình đối 
    - Tìm kiếm log qua lệnh container hoặc log aggregator:
      ```bash
      # Local / Docker Compose
-     docker compose logs api | grep "<requestId>"
+     docker compose logs restful-api | grep "<requestId>"
 
      # Aggregated Log System (Loki / CloudWatch / Datadog)
      {service="restful-api"} |= "<requestId>"
@@ -100,15 +104,19 @@ Disable export with `management.prometheus.metrics.export.enabled=false`, or rem
 | `hikaricp_connections_active`, `_max`, `_pending`, `_timeout_total` | Boot/Hikari automatic binding; actual physical `pool` names | Identity's transaction-aware datasource shares the primary physical pool; do not invent or sum a second identity pool. A fail-closed unavailable assistant datasource is not a healthy pool. |
 | `campuscore_assistant_requests_total` | Public and internal response completion boundaries; only `degraded="true|false"` | Both counters start at zero. Each JSON answer or first SSE done event is counted once at its boundary, including local/remote fallback. Error-only/incomplete streams are not answers. |
 | `campuscore_assistant_quota_consumed_daily` | Gauge: committed current campus-day GLOBAL `usage_bucket` row | No user/date labels. Separate actual Assistant-pool borrow and 1-second statement timeout; no charge/refund/readiness policy changes. Empty current bucket is zero; unavailable datasource/query or unverified PostgreSQL RLS state is NaN. Reflects dispatch, standalone charge/refund, restart and Asia/Ho_Chi_Minh day rollover. |
+| `campuscore_assistant_quota_limit_daily` | [`MetricsConfiguration.java`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/config/MetricsConfiguration.java): configured `AssistantProperties.globalDailyQuota` | No labels. NaN when the properties bean is unavailable. Used as the denominator for the configured quota alert. |
 | `campuscore_assistant_turn_stale_recovered_total` | Successful repository recovery CAS, incremented after commit | Includes sweep and opportunistic recovery; rollback and lost CAS do not increment. Process-local counter resets on restart. |
 | `campuscore_assistant_rls_verified` | Actual `AssistantRlsState` | 1 only after verification; absent/disabled/degraded verifier is 0. No reason string or raw state detail is exported. |
 | `campuscore_assistant_executor_active`, `_queued`, `_max`, `_rejected_total` | Both direct-handoff executors; only `executor="student|internal"` | Queue remains zero by existing policy; rejection increments before the original exception is rethrown. No new queue/SLO thresholds. |
-| `probe_success` | External blackbox exporter, not the Java registry | Requires separately authorized deployment/collection setup. Relabel `instance` to a stable service-instance identity shared by its liveness/readiness probes. Send `X-Health-Key` securely for the primary readiness probe. |
+| `probe_success` | External blackbox exporter, not the Java registry; rules use its standard `job` and `instance` labels | Configure `blackbox-http-api-liveness`, `blackbox-http-api-readiness`, and `blackbox-http-frontend-health` scrape jobs. The API jobs must use the same stable `instance` value for each service instance so cold-start rules can join them. No custom `endpoint` or `service` labels are required. Send `X-Health-Key` securely for the primary readiness probe. |
 
-The quota alert now uses `max(campuscore_assistant_quota_consumed_daily) > 180`:
-a gauge can decrease after refunds/day rollover, and replicas observe the same
-persisted bucket, so summing replicas would multiply usage. Scrape one shared
-quota domain per alert evaluation. The threshold and five-minute hold are unchanged.
+The quota alert evaluates `max(campuscore_assistant_quota_consumed_daily) /`
+`max(campuscore_assistant_quota_limit_daily > 0) > 0.9`. Missing, zero, and NaN
+limits do not produce a denominator or alert. A gauge can decrease after refunds
+or day rollover, and replicas observe the same persisted bucket, so summing
+replicas would multiply usage. Scrape one shared quota domain per evaluation;
+the five-minute hold is unchanged. The metric names and producer references are
+maintained in the [monitoring README](../../ops/monitoring/README.md).
 All other SLO thresholds and hold durations remain unchanged.
 
 On PostgreSQL the aggregate observation requires a verified runtime state. Its
@@ -156,7 +164,7 @@ Nguyên tắc bất biến: Thông tin xác thực (Bearer token, refresh token,
 
 Gate `contracts` case `contract-probes` chạy sentinel test tự động:
 - Gửi Bearer token dạng `SENTINEL-BEARER-*` và mật khẩu dạng `SENTINEL-PASS-*` tới API thật.
-- Quét toàn bộ log sinh ra (`docker compose logs api`).
+- Quét toàn bộ log sinh ra (`docker compose logs restful-api`).
 - Bất kỳ sự xuất hiện literal nào của chuỗi sentinel trong log lập tức bị đánh trượt (**FAIL** gate).
 
 ---
@@ -224,11 +232,11 @@ flowchart TD
 4. **Web Frontend Health (`/health`)**:
    - Được định nghĩa tại `frontend/src/app/health/route.ts`. Proxy trực tiếp tới `/api/v1/health/liveness` với `X-Request-Id` tương ứng.
 
-### 5.2 Cơ chế giảm thiểu Cold-Start (Render / Serverless)
+### 5.2 Cơ chế giảm thiểu Cold-Start (hosted platform — tương lai)
 
-- Trên Render free-tier, container bị sleep sau thời gian nhàn rỗi. Thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây.
+- Trên một hosted platform có chế độ sleep theo thời gian nhàn rỗi (ví dụ Render free-tier), thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây. Local-first stack hiện tại không có cold start kiểu này.
 - **Client-side Absorption**: Interceptor axios của frontend tự động retry một lần (với 3s backoff) đối với các request GET idempotent khi nhận mã 502/503/504 từ gateway trong quá trình cold start.
-- **Warm Ping Mitigation**: Database migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` hỗ trợ gửi ping định kỳ 10 phút qua `pg_cron` + `pg_net` nhằm giữ container không bị sleep (xem chi tiết tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render-cold-start-mitigation)).
+- **Warm Ping Mitigation**: migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` là di sản của mô hình host cũ (ping định kỳ 10 phút qua `pg_cron` + `pg_net` để giữ container không bị sleep). Host Render đã ngừng sử dụng nên migration này không còn lập lịch gì; migration kế tiếp `supabase/migrations/20261103000000_unschedule_render_keepalive_warm_ping.sql` gỡ job `render_keepalive_warm_ping` nếu job còn tồn tại. Không dùng cho stack local-first và không còn runbook vận hành tương ứng trong repo này.
 
 ---
 
@@ -239,9 +247,9 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 | Critical Journey | Endpoints Sở hữu | SLI Độ trễ (P95) | SLO Độ trễ | SLI Tỷ lệ Lỗi (5xx) | SLO Tỷ lệ Lỗi | Availability SLO (30 ngày) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Sign-in (Đăng nhập)** | `POST /api/v1/auth/login`<br>`POST /oauth2/token` | P95 latency của HTTP request | **< 800 ms** (bao gồm chi phí Argon2/BCrypt hashing) | Số request 5xx / Tổng số request đăng nhập | **< 0.1%** (Loại trừ lỗi nhập sai pass 401) | **99.9%** |
-| **Course Registration (Đăng ký học phần)** | `POST /api/v1/academic/me/enrollments`<br>`DELETE /api/v1/academic/me/enrollments/{sectionId}` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 400 CREDIT_CAP) | **99.8%** |
+| **Course Registration (Đăng ký học phần)** | `POST /api/v1/me/enrollments`<br>`POST /api/v1/me/enrollments/{id}/drop` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 422 CREDIT_CAP_EXCEEDED) | **99.8%** |
 | **Attendance Check-in (Điểm danh)** | `POST /api/v1/attendance/sessions/{id}/checkin` | P95 latency của check-in | **< 600 ms** (bao gồm geofence check & idempotency lock) | Số request 5xx / Tổng lượt điểm danh | **< 0.1%** (Loại trừ 422 OUTSIDE_AREA, 409 ALREADY_CHECKED_IN) | **99.9%** |
-| **Grades Read (Xem điểm/Bảng điểm)** | `GET /api/v1/enrollments/my/grades`<br>`GET /api/v1/enrollments/my/transcript`<br>`GET /api/v1/grades/.*` | P95 latency của read query | **< 300 ms** | Số query 5xx / Tổng số lượt đọc điểm | **< 0.05%** | **99.95%** |
+| **Grades Read (Xem điểm/Bảng điểm)** | `GET /api/v1/enrollments/my/grades`<br>`GET /api/v1/enrollments/my/transcript`<br>`GET /api/v1/sections/{id}/grades` | P95 latency của read query | **< 300 ms** | Số query 5xx / Tổng số lượt đọc điểm | **< 0.05%** | **99.95%** |
 
 ---
 
@@ -269,10 +277,10 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 - Hạn mức (`AssistantProperties.java`):
   - `user-daily-quota`: 20 turns/ngày.
   - `global-daily-quota`: 200 turns/ngày.
-- **Outage & Degraded Contract**: Khi DeepSeek gặp timeout (>15s), provider error hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` tương ứng (`PROVIDER_TIMEOUT`, `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN`).
+- **Outage & Degraded Contract**: Khi DeepSeek gặp timeout, provider error, output không an toàn hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` là một trong `QUOTA_EXCEEDED`, `QUOTA_ACCOUNTING_UNAVAILABLE`, `PROVIDER_UNAVAILABLE`, `PROVIDER_UNSAFE_OUTPUT`, `PROVIDER_TRUNCATED`, `PROVIDER_DISABLED`, `KNOWLEDGE_UNAVAILABLE`; `resetAt` chỉ đi kèm `QUOTA_EXCEEDED`. Các mã không suy giảm là `ANSWERED`, `RAG_GROUNDED`, `NO_MATCH`. Dịch vụ không phát `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN` hay `PROVIDER_TIMEOUT`; timeout của provider rơi vào `PROVIDER_UNAVAILABLE`.
 - **Ngưỡng Cảnh báo**:
   - Tỷ lệ câu trả lời degraded `> 20%` trong 10 phút.
-  - Hạn mức toàn hệ thống vượt `180/200` turns (`> 180`, giữ 5 phút).
+  - Tỷ lệ quota toàn hệ thống trên hạn mức đã cấu hình vượt `90%` (giữ 5 phút).
   - Recovery CAS đã commit (sweep hoặc opportunistic) thu hồi `> 5` lease quá hạn trong 10 phút, giữ 2 phút; gồm `FAILED_PRE_DISPATCH` và `FAILED_AMBIGUOUS`.
 
 ---
@@ -289,8 +297,8 @@ Tất cả các định nghĩa cảnh báo được lưu trữ dạng tệp cấ
 
 | Mức độ | Thời gian Phản hồi | Kênh Thông báo | Hành động Xử lý & Liên kết Runbook |
 | :--- | :--- | :--- | :--- |
-| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Tra cứu tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#start-and-smoke). |
-| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render--neon-operating-notes). |
+| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Quy trình go-live/rollback tương lai: [release-runbook.md](release-runbook.md). |
+| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [release-runbook.md](release-runbook.md) và các gate trong [verification.md](verification.md). |
 | `info` | Trong ngày | Dashboard Review | Theo dõi xu hướng sử dụng tài nguyên hoặc reset quota. Xem [deepseek-assistant.md](../integrations/deepseek-assistant.md). |
 
 ---

@@ -5,6 +5,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { Card, UiText } from '../../components/Ui';
 import { FilterChip, StatusPill } from '../../components/ui/index';
 import type { MobilePublicAnnouncement } from '../../api/client';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -21,6 +23,8 @@ const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 /** Public campus news: paged feed, priority filter and a detail view. */
 export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
   const { locale, formatDate } = useContentCopy();
+  const { window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const copy = campusMessages[locale];
   const categoryLabels = copy.newsCategoryLabels as Readonly<Record<string, string>>;
   const params = useLocalSearchParams<{ focus?: string }>();
@@ -83,7 +87,7 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
                 <View style={styles.rowCopy}>
                   <UiText variant="label">{item.title}</UiText>
                   {item.summary || item.content ? (
-                    <UiText variant="bodySmall" tone="muted" numberOfLines={2}>{item.summary ?? excerptOf(item.content)}</UiText>
+                    <UiText variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{item.summary ?? excerptOf(item.content)}</UiText>
                   ) : null}
                   <View style={styles.meta}>
                     {item.categoryId && categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]

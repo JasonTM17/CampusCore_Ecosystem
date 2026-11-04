@@ -244,7 +244,11 @@ test('real group full modal uses the current five-member policy in both locales'
   }).outputText;
   for (const locale of ['vi', 'en']) {
     const record = { exports: {} };
-    Function('locale', 'messages', 'module', output)(locale, getMessages(locale), record);
+    // Member copy spreads thesisWorkflow.workspace.members; the locale
+    // copy now comes from the mounted fragment.
+    const messages = getMessages(locale);
+    Function('locale', 'messages', 'workspaceCopy', 'module', output)(
+      locale, messages, messages.thesisWorkflow.workspace, record);
     assert.match(record.exports.groupFull, /\b5\b/, `${locale} real modal states maximum five`);
     assert.doesNotMatch(record.exports.groupFull, /\b3\b/, `${locale} no stale maximum three`);
   }

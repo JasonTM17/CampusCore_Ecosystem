@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { editorSurfacesEn, editorSurfacesVi } from '@/i18n/messages-editor';
 import { announcementsApi, type AnnouncementRecord } from '@/lib/api';
 import { AnnouncementReaderModal } from '@/components/announcements/AnnouncementReaderModal';
 import {
@@ -73,6 +74,7 @@ import { announcementPriorityLabel } from '@/lib/announcement-presentation';
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
+import { countLabel } from '@/lib/plural';
 import { cn } from '@/lib/utils';
 import {
   buildDocumentFilename,
@@ -81,16 +83,15 @@ import {
   type StoredEditorDocument,
 } from '@/lib/editor-document';
 import {
-  EDITOR_BLOCK_HTML,
   EDITOR_BLOCK_TYPES,
   EDITOR_SEED_HTML,
   EDITOR_SEED_MARKDOWN,
-  EDITOR_TEMPLATE_HTML,
   EDITOR_TEMPLATE_IDS,
+  getEditorBlockHtml,
+  getEditorTemplateHtml,
   type EditorBlockType,
   type EditorTemplateId,
 } from '@/lib/editor-templates';
-import { getMessages } from '@/i18n/messages';
 
 export interface ContentBlock {
   id: string;
@@ -110,14 +111,17 @@ interface EditorBlockCopy {
  * The block list is metadata (titles/descriptions) from the `editor.blocks`
  * messages plus the shared HTML bodies from lib/editor-templates.ts.
  */
-function buildDefaultBlocks(copy: Record<EditorBlockType, EditorBlockCopy>): ContentBlock[] {
+function buildDefaultBlocks(
+  copy: Record<EditorBlockType, EditorBlockCopy>,
+  isVi: boolean,
+): ContentBlock[] {
   return EDITOR_BLOCK_TYPES.map((type) => ({
     id: `block-${type}`,
     type,
     title: copy[type].title,
     description: copy[type].description,
     enabled: true,
-    htmlContent: EDITOR_BLOCK_HTML[type],
+    htmlContent: getEditorBlockHtml(type, isVi),
   }));
 }
 
@@ -140,17 +144,13 @@ function audienceFor(role: TargetRoleOption) {
 
 const STORAGE_KEY_PREFIX = 'campuscore_editor_document';
 const EDITOR_TYPE_KEY_PREFIX = 'campuscore_editor_engine';
-const EDITOR_LOADING_LABEL = {
-  vi: 'Đang tải trung tâm điều khiển...',
-  en: 'Loading control studio...',
-} as const;
-
 export default function AcademicEditorPageGate() {
   const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth([
     'ADMIN',
     'SUPER_ADMIN',
   ]);
   const { locale } = useI18n();
+  const copy = locale === 'vi' ? editorSurfacesVi.studio : editorSurfacesEn.studio;
   // Every draft surface below is keyed to this resolved account id, so no
   // editor may mount — and no storage may be read or written — before an
   // authorized administrator identity actually exists.
@@ -158,7 +158,7 @@ export default function AcademicEditorPageGate() {
     !authLoading && !isForbidden && hasAccess ? (user?.id ?? null) : null;
 
   if (authLoading) {
-    return <LoadingState label={EDITOR_LOADING_LABEL[locale === 'vi' ? 'vi' : 'en']} />;
+    return <LoadingState label={copy.loading} />;
   }
 
   // Strict Admin Gate: Only Admins can access!
@@ -167,7 +167,7 @@ export default function AcademicEditorPageGate() {
   }
 
   if (!draftOwnerId) {
-    return <LoadingState label={EDITOR_LOADING_LABEL[locale === 'vi' ? 'vi' : 'en']} />;
+    return <LoadingState label={copy.loading} />;
   }
 
   // Remounting per owner is the isolation boundary: a different
@@ -188,7 +188,12 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const STORAGE_KEY = `${STORAGE_KEY_PREFIX}:${encodeURIComponent(draftOwnerId)}`;
   const EDITOR_TYPE_KEY = `${EDITOR_TYPE_KEY_PREFIX}:${encodeURIComponent(draftOwnerId)}`;
   const isVi = locale === 'vi';
+  const copy = isVi ? editorSurfacesVi.studio : editorSurfacesEn.studio;
+  const templateLabels = isVi ? editorSurfacesVi.templates.library : editorSurfacesEn.templates.library;
   const editorCopy = messages.editor;
+  // Author fallback for drafts and previews with no publisher: the English
+  // workspace must not print a Vietnamese office name.
+  const fallbackPublisher = copy.authorFallback;
 
   // Navigation tab state: 'announcement' (Editor) | 'hero' (Site Controls) | 'templates' (Document Library)
   const [activeTab, setActiveTab] = useState<'announcement' | 'hero' | 'templates'>('announcement');
@@ -203,6 +208,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const [priorityKnown, setPriorityKnown] = useState(true);
   const [audienceKnown, setAudienceKnown] = useState(true);
   const [isPublishingNotice, setIsPublishingNotice] = useState(false);
+  const publishInFlightRef = useRef(false);
+  const pendingSubmitRef = useRef<{ id: string; key: string } | null>(null);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -238,18 +245,19 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       [title, content, defaultBodyFor],
     ),
     enabled: !isPublishingNotice,
+    interceptRouteChanges: true,
   });
 
-  // Sortable Content Blocks Builder State. Block titles/descriptions come from
-  // the `editor.blocks` messages, HTML bodies from lib/editor-templates.ts.
+  // Sortable Content Blocks Builder State. Block labels come from the local
+  // editor fragment; bilingual HTML bodies stay in lib/editor-templates.ts.
   const [showBlockBuilder, setShowBlockBuilder] = useState(true);
   const defaultBlocks = useMemo(
-    () => buildDefaultBlocks(messages.editor.blocks),
-    [messages.editor.blocks],
+    () => buildDefaultBlocks(copy.blocks, isVi),
+    [copy.blocks, isVi],
   );
   const [blocks, setBlocks] = useState<ContentBlock[]>(defaultBlocks);
   const [hasUnsavedNoticeOrder, setHasUnsavedNoticeOrder] = useState(false);
-  // F-2: the order save runs a site-appearance PUT plus one PUT per dragged
+  // The order save runs a site-appearance PUT plus one PUT per dragged
   // row; without an in-flight lock a double click re-runs the whole chain.
   const [isSavingNoticeOrder, setIsSavingNoticeOrder] = useState(false);
   // The pinned-notices list is a `tbody` SortableList, which cannot carry its own
@@ -269,96 +277,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const [appearanceReady, setAppearanceReady] = useState(false);
   const [appearanceLoadFailed, setAppearanceLoadFailed] = useState(false);
 
-  // Copy text definitions
-  const copy = useMemo(
-    () =>
-      isVi
-        ? {
-            eyebrow: 'TRUNG TÂM SOẠN THẢO VĂN BẢN & QUẢN TRỊ NỘI DUNG',
-            title: 'Trình Soạn Thảo & Quản Trị Nội Dung Học Vụ',
-            description:
-              'Bộ công cụ dành riêng cho Ban Quản trị: Soạn thảo văn bản học vụ điện tử, phát hành thông báo đào tạo và điều hành cổng thông tin trường.',
-            tabs: {
-              announcement: 'Soạn thảo & Phát hành Thông báo',
-              hero: 'Điều khiển Banners & Trang chủ',
-              templates: 'Thư viện Mẫu Văn bản Chuẩn',
-            },
-            docTitleLabel: 'Tiêu đề tài liệu / Thông báo',
-            docTitlePlaceholder: 'Nhập tiêu đề thông báo học vụ...',
-            categoryLabel: 'Thể loại',
-            priorityLabel: 'Mức độ ưu tiên',
-            targetRoleLabel: 'Đối tượng nhận tin',
-            categories: {
-              notice: 'Thông báo học vụ',
-              syllabus: 'Đề cương môn học',
-              thesis: 'Đề tài tốt nghiệp & Hội đồng',
-              notes: 'Quyết định / Quy chế đào tạo',
-            },
-            editorEngine: 'Chế độ soạn thảo',
-            tinymceMode: 'Soạn thảo trực quan',
-            markdownMode: 'Soạn thảo ký hiệu / Markdown',
-            newDoc: 'Tạo mới',
-            saveDraft: 'Lưu nháp',
-            copyContent: 'Sao chép nội dung',
-            downloadDoc: 'Tải tệp về máy',
-            publishAnnouncement: 'Đăng lên Bảng tin Học vụ',
-            copiedToast: 'Đã sao chép nội dung vào bộ nhớ tạm',
-            savedToast: 'Đã lưu bản nháp vào trình duyệt',
-            draftSaveFailed: 'Không thể lưu bản nháp (bộ nhớ trình duyệt đầy). Hãy xuất file trước khi tiếp tục.',
-            copyFailed: 'Không thể sao chép vào bộ nhớ tạm',
-            newDocConfirm: 'Bạn có chắc chắn muốn làm mới toàn bộ nội dung tài liệu?',
-            savedAt: 'Lưu gần nhất',
-            statsTitle: 'Thống kê tài liệu',
-            words: 'Từ',
-            characters: 'Ký tự',
-            readingTime: 'Thời gian đọc ước tính',
-            minutes: 'phút',
-            loading: EDITOR_LOADING_LABEL.vi,
-          }
-        : {
-            eyebrow: 'ADMIN SITE CONTROL & ACADEMIC EDITOR',
-            title: 'Academic Document Studio & Content Management',
-            description:
-              'Admin publishing workstation: Compose official academic documents, publish live announcements, and configure portal appearance.',
-            tabs: {
-              announcement: 'Compose & Publish Notices',
-              hero: 'Hero Banner & Site Appearance',
-              templates: 'Official Templates Library',
-            },
-            docTitleLabel: 'Document / Announcement Title',
-            docTitlePlaceholder: 'Enter official academic announcement title...',
-            categoryLabel: 'Category',
-            priorityLabel: 'Priority',
-            targetRoleLabel: 'Target Audience',
-            categories: {
-              notice: 'Academic Notice',
-              syllabus: 'Course Syllabus',
-              thesis: 'Thesis & Defense Council',
-              notes: 'Regulations & Policies',
-            },
-            editorEngine: 'Editor Mode',
-            tinymceMode: 'Rich Visual Editor',
-            markdownMode: 'Markdown Editor',
-            newDoc: 'New Document',
-            saveDraft: 'Save Draft',
-            copyContent: 'Copy Content',
-            downloadDoc: 'Export File',
-            publishAnnouncement: 'Publish to Campus Feed',
-            copiedToast: 'Content copied to clipboard',
-            savedToast: 'Draft saved to browser storage',
-            draftSaveFailed: 'Could not save the draft (browser storage is full). Export the file before continuing.',
-            copyFailed: 'Could not copy to clipboard',
-            newDocConfirm: 'Reset and create a new document?',
-            savedAt: 'Last saved',
-            statsTitle: 'Document Statistics',
-            words: 'Words',
-            characters: 'Characters',
-            readingTime: 'Estimated reading time',
-            minutes: 'min',
-            loading: EDITOR_LOADING_LABEL.en,
-          },
-    [isVi],
-  );
+  // Studio labels come from the directly imported editorSurfaces fragment.
 
   // Initialize from storage or default exactly once. The locale must never
   // reseed this editor afterwards: an in-progress edit (a loaded announcement)
@@ -411,9 +330,10 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     }
     // The seed is frozen at mount locale (seedLocaleRef) so a later locale
     // switch never reseeds over an in-progress edit or a hydrated draft.
-    const seedMessages = getMessages(seedLocaleRef.current ? 'vi' : 'en');
     setTitle(
-      seedLocaleRef.current ? seedMessages.editor.seedTitleVi : seedMessages.editor.seedTitleEn,
+      seedLocaleRef.current
+        ? editorSurfacesVi.studio.seedTitle
+        : editorSurfacesEn.studio.seedTitle,
     );
     setContent(seedLocaleRef.current ? EDITOR_SEED_HTML.vi : EDITOR_SEED_HTML.en);
   }, [STORAGE_KEY, EDITOR_TYPE_KEY]);
@@ -567,7 +487,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const handleCompileBlocksToTinyMce = () => {
     const active = blocks.filter((b) => b.enabled);
     if (active.length === 0) {
-      toast.error(isVi ? 'Vui lòng chọn ít nhất một khối để biên dịch!' : 'Please enable at least one block!');
+      toast.error(copy.notifications.blocksRequired);
       return;
     }
     const compiled = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">\n${active.map((b) => b.htmlContent).join('\n\n')}\n</div>`;
@@ -576,26 +496,20 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     // Document and Cancel — a one-click replace must not bypass the prompt.
     unsaved.requestLeave(() => {
       setContent(compiled);
-      toast.success(
-        isVi
-          ? `Đã áp dụng ${active.length} khối cấu trúc vào văn bản đang soạn!`
-          : `Applied ${active.length} structured blocks into document!`
-      );
+      toast.success(countLabel(active.length, copy.notifications.blocksAppliedOne, copy.notifications.blocksApplied).replace('{count}', String(active.length)));
     });
   };
 
   // Insert a single block into TinyMCE
   const handleInsertSingleBlock = (block: ContentBlock) => {
     setContent((prev) => `${prev}\n\n${block.htmlContent}`);
-    toast.success(
-      isVi ? `Đã chèn khối "${block.title}" vào nội dung!` : `Inserted "${block.title}" into editor!`
-    );
+    toast.success(copy.notifications.blockInserted.replace('{title}', block.title));
   };
 
   // Reset blocks to default order
   const handleResetBlocks = () => {
     setBlocks(defaultBlocks);
-    toast.info(isVi ? 'Đã khôi phục các khối cấu trúc mẫu mặc định.' : 'Reset blocks to default.');
+    toast.info(copy.notifications.blocksReset);
   };
 
   // Active cover image detection from content
@@ -615,8 +529,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     setContent(replaced ?? figureMarkup + content);
     toast.success(
       replaced !== null
-        ? (isVi ? `Đã đổi ảnh bìa sang "${bannerTitle}"!` : `Changed cover banner to "${bannerTitle}"!`)
-        : (isVi ? `Đã thêm ảnh bìa "${bannerTitle}"!` : `Added cover banner "${bannerTitle}"!`),
+        ? copy.notifications.bannerChanged.replace('{title}', bannerTitle)
+        : copy.notifications.bannerAdded.replace('{title}', bannerTitle),
     );
   };
 
@@ -626,7 +540,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     if (removed !== null) {
       setContent(removed);
     }
-    toast.info(isVi ? 'Đã gỡ ảnh bìa học thuật khỏi văn bản.' : 'Removed cover banner from document.');
+    toast.info(copy.notifications.bannerRemoved);
   };
 
   // Reorder announcements via SortableJS
@@ -637,7 +551,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
 
   // Save announcements order to site appearance & Spring Boot backend
   const handleSaveNoticeOrder = async () => {
-    // F-2: the header button is rendered with animate-pulse while the order is
+    // The header button is rendered with animate-pulse while the order is
     // unsaved, which invites the double click that used to re-run the whole
     // PUT chain. One run at a time, and both triggers reflect it.
     if (isSavingNoticeOrder) return;
@@ -678,9 +592,9 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         // server rather than leave a success notice over a half-applied order.
         void fetchPublishedNotices();
         toast.error(
-          isVi
-            ? `Đã lưu danh sách ghim, nhưng ${failed} / ${ranked.length} bài không cập nhật được thứ tự trên máy chủ. Danh sách đã được tải lại.`
-            : `Pins saved, but ${failed} of ${ranked.length} announcements could not be updated on the server. The list has been reloaded.`,
+          copy.noticeOrder.partialFailure
+            .replace('{failed}', String(failed))
+            .replace('{total}', String(ranked.length)),
         );
         return;
       }
@@ -689,37 +603,21 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       if (ranked.length === 0) {
         // Nothing here carried a rank, so no server write could express the drag
         // at all; the pins are saved but the feed order is unchanged.
-        toast.warning(
-          isVi
-            ? 'Đã lưu danh sách ghim, nhưng chưa bài nào có thứ tự trên máy chủ nên thứ tự hiển thị chưa đổi.'
-            : 'Pins saved, but no notice carries a server rank yet, so the displayed order could not change.',
-        );
+        toast.warning(copy.noticeOrder.noRank);
       } else if (rankless > 0) {
         toast.info(
-          isVi
-            ? `Đã đổi thứ tự ${ranked.length} bài đã có thứ tự; ${rankless} bài chưa xếp hạng vẫn đứng sau nhóm ghim.`
-            : `Reordered the ${ranked.length} ranked notices; ${rankless} unranked notice(s) stay after the pinned group.`,
+          copy.noticeOrder.rankless
+            .replace('{ranked}', String(ranked.length))
+            .replace('{unranked}', String(rankless)),
         );
       }
       if (saved.persisted === false) {
-        toast.warning(
-          isVi
-            ? 'Thứ tự đã lưu trên web server này và sẽ mất ở lần deploy kế tiếp; API trung tâm đang không kết nối được.'
-            : 'Saved on this web server only; the central API is unreachable, so this order is lost on the next deploy.',
-        );
+        toast.warning(copy.noticeOrder.localOnly);
       } else {
-        toast.success(
-          isVi
-            ? 'Đã lưu và đồng bộ thứ tự ghim bài viết lên Bảng tin toàn trường!'
-            : 'Saved and broadcast announcement feed order!'
-        );
+        toast.success(copy.noticeOrder.saved);
       }
     } catch {
-      toast.error(
-        isVi
-          ? 'Không thể lưu thứ tự ghim bài viết.'
-          : 'Could not save announcement order.'
-      );
+      toast.error(copy.noticeOrder.saveFailed);
       void fetchPublishedNotices();
     } finally {
       setIsSavingNoticeOrder(false);
@@ -730,7 +628,9 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const fetchPublishedNotices = useCallback(async () => {
     setLoadingNotices(true);
     try {
-      const res = await announcementsApi.getAll({ page: 1, limit: 15 });
+      // The card is the live feed order: drafts and review copies must not be
+      // dragged into the published page order.
+      const res = await announcementsApi.getAll({ page: 1, limit: 15, status: 'PUBLISHED' });
       const raw = res.data || [];
       const ordered = siteAppearance.postOrder?.length > 0 ? orderByIds(raw, siteAppearance.postOrder) : raw;
       setPublishedNotices(ordered);
@@ -760,7 +660,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
     const updated = await announcementsApi.update(id, payload);
-    toast.success(isVi ? 'Đã lưu thay đổi thông báo thành công!' : 'Notice updated successfully!');
+    toast.success(copy.notifications.noticeUpdated);
     setPublishedNotices((prev) =>
       prev.map((n) => (n.id === id ? { ...n, ...updated, ...payload } : n))
     );
@@ -801,10 +701,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         workspaceEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }, 100);
-    toast.success(
-      isVi ? `Đang chỉnh sửa bài viết: "${ann.title.slice(0, 32)}..."` : `Editing notice: "${ann.title.slice(0, 32)}..."`
-    );
-  }, [isVi]);
+    toast.success(copy.notifications.editStarted.replace('{title}', ann.title.slice(0, 32)));
+  }, [copy]);
 
   // Auto load announcement from query param ?editId=... or ?id=...
   // Runs once per mount: the effect keyed on isVi re-fired on every language
@@ -837,37 +735,29 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
           // The editor would otherwise show its blank seed document; the
           // author must know the requested draft was not loaded.
           setDeepLinkNotice({ targetId, reason: 'not-found' });
-          toast.error(
-            isVi
-              ? `Không tìm thấy thông báo cần sửa (mã ${targetId}). Trình soạn thảo đang hiển thị bản nháp mới.`
-              : `The notice to edit (id ${targetId}) was not found. The editor is showing a new blank draft.`,
-          );
+          toast.error(copy.notices.notFound.replace('{id}', targetId));
         }
       })
       .catch(() => {
         if (!cancelled) {
           markLoaded();
           setDeepLinkNotice({ targetId, reason: 'load-failed' });
-          toast.error(
-            isVi
-              ? 'Không thể tải thông báo cần sửa. Trình soạn thảo đang hiển thị bản nháp mới.'
-              : 'The notice to edit could not be loaded. The editor is showing a new blank draft.',
-          );
+          toast.error(copy.notices.loadFailed);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [handleLoadAnnouncement, isVi]);
+  }, [copy, handleLoadAnnouncement]);
 
   // Preview current draft in Official Administrative modal
   const handlePreviewCurrentDraft = () => {
     const authorName = user
       ? (`${user.lastName || ''} ${user.firstName || ''}`.trim() || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email)
-      : 'Phòng Đào Tạo & Ban Giám Hiệu';
+      : copy.publisherFallback;
     setPreviewingNotice({
       id: editingId || 'draft-preview',
-      title: title || (isVi ? 'THÔNG BÁO HỌC VỤ & HƯỚNG DẪN ĐÀO TẠO' : 'Official Academic Notice'),
+      title: title || copy.notices.previewTitle,
       content: content,
       priority: priority,
       createdAt: new Date().toISOString(),
@@ -897,12 +787,13 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         // ignore
       }
       clearTinyMceAutosaveDrafts(studioEditorRef.current?.id);
-      toast.info(isVi ? 'Đã hủy chế độ sửa, bắt đầu soạn thảo văn bản mới' : 'Cancelled edit mode');
+      toast.info(copy.notifications.editCancelled);
     });
   };
 
   // Publish announcement to backend feed
   const handlePublishAnnouncement = async () => {
+    if (publishInFlightRef.current || isPublishingNotice) return;
     // K1: when a saved announcement is open in the editor, "Publish" means
     // "save this document". It must update the live record instead of pushing a
     // duplicate of it; the create-new flow is reached by cancelling the edit or
@@ -912,7 +803,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
     if (!title.trim()) {
-      toast.error(isVi ? 'Vui lòng nhập tiêu đề thông báo!' : 'Please enter announcement title!');
+      toast.error(copy.notifications.titleRequired);
       return;
     }
     // Gate before the request. Letting an oversized body reach the server returns an
@@ -924,41 +815,55 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
 
+    publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
-      await announcementsApi.create({
-        title,
-        content,
-        priority,
-        targetYears: [],
-        ...audienceFor(targetRole),
-      });
+      // A draft whose review submission failed is reused while the document is unchanged,
+      // so a retry cannot leave a second copy of it behind.
+      const draftKey = JSON.stringify([title, content, priority, targetRole]);
+      const pending = pendingSubmitRef.current;
+      const created = pending && pending.key === draftKey
+        ? { id: pending.id, status: 'DRAFT' }
+        : await announcementsApi.create({
+          title,
+          content,
+          priority,
+          targetYears: [],
+          ...audienceFor(targetRole),
+        });
+      pendingSubmitRef.current = created.status === 'DRAFT' ? { id: created.id, key: draftKey } : null;
+
+      // Creating stores the caller as the author, and the review step refuses
+      // the author, so a fresh draft can only be queued for review here. The
+      // server's returned status is the only evidence a success toast may report.
+      const submitted = created.status === 'DRAFT'
+        ? await announcementsApi.submit(created.id)
+        : created;
 
       // A published document must not resurrect from the persisted draft —
       // reloading used to hydrate the pre-publish body and re-Publish wrote a
       // duplicate (or conflicted on a stale expectedVersion for edits).
+      pendingSubmitRef.current = null;
       clearPersistedDraft();
-      toast.success(
-        isVi
-          ? 'Đã phát hành thông báo thành công lên toàn trường!'
-          : 'Announcement successfully published to campus feed!',
-      );
+      if (submitted.status === 'PUBLISHED') {
+        toast.success(copy.notifications.announcementPublished);
+      } else {
+        toast.success(messages.content.lifecycle.submitted);
+      }
       void fetchPublishedNotices();
     } catch (err) {
-      toast.error(
-        isVi
-          ? 'Có lỗi khi phát hành thông báo. Vui lòng kiểm tra lại.'
-          : 'Could not publish announcement.',
-      );
+      toast.error(copy.notifications.announcementSubmitFailed);
     } finally {
+      publishInFlightRef.current = false;
       setIsPublishingNotice(false);
     }
   };
 
   // Update existing announcement in backend
   const handleUpdateAnnouncement = async () => {
+    if (publishInFlightRef.current || isPublishingNotice) return;
     if (!editingId || !title.trim()) {
-      toast.error(isVi ? 'Vui lòng nhập tiêu đề bài viết!' : 'Please enter title!');
+      toast.error(copy.notifications.postTitleRequired);
       return;
     }
     // Same gate as publish: an update that exceeds the cap fails identically.
@@ -968,6 +873,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
 
+    publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
       await announcementsApi.update(editingId, {
@@ -975,7 +881,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         content,
         ...(priorityKnown ? { priority } : {}),
         ...(audienceKnown ? audienceFor(targetRole) : {}),
-        reason: isVi ? 'Cập nhật nội dung văn bản học vụ' : 'Update academic notice content',
+        reason: copy.notifications.updateReason,
         expectedVersion: editingVersion,
       });
 
@@ -984,13 +890,12 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       // so the persisted copy is dropped to keep reloads from reopening a
       // stale editingVersion (which the next update then 409s on).
       clearPersistedDraft();
-      toast.success(
-        isVi ? 'Đã cập nhật bài viết thành công vào cơ sở dữ liệu!' : 'Announcement updated in database!'
-      );
+      toast.success(copy.notifications.announcementUpdated);
       void fetchPublishedNotices();
     } catch {
-      toast.error(isVi ? 'Không thể cập nhật thông báo.' : 'Failed to update announcement.');
+      toast.error(copy.notifications.announcementUpdateFailed);
     } finally {
+      publishInFlightRef.current = false;
       setIsPublishingNotice(false);
     }
   };
@@ -1020,24 +925,12 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         // "published live", and saying so is the difference between an admin
         // leaving the page believing the banner changed everywhere and it
         // disappearing on the next deploy.
-        toast.warning(
-          isVi
-            ? 'Hero đã lưu trên web server này; API trung tâm đang không kết nối được nên có thể mất ở lần deploy kế tiếp.'
-            : 'Hero saved on this web server only; the central API is unreachable, so it may be lost on the next deploy.',
-        );
+        toast.warning(copy.appearance.saveLocalWarning);
       } else {
-        toast.success(
-          isVi
-            ? 'Đã cập nhật và xuất bản trực tiếp lên Trang chủ!'
-            : 'Homepage appearance updated and published live!',
-        );
+        toast.success(copy.appearance.published);
       }
     } catch {
-      toast.error(
-        isVi
-          ? 'Không thể lưu cấu hình trang chủ.'
-          : 'Failed to update homepage appearance.',
-      );
+      toast.error(copy.appearance.saveFailed);
     } finally {
       setIsSavingHero(false);
     }
@@ -1052,7 +945,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       setContent(templateContent);
       setTitle(templateTitle);
       setActiveTab('announcement');
-      toast.success(isVi ? 'Đã nạp mẫu văn bản vào trình soạn thảo!' : 'Template applied to editor!');
+      toast.success(copy.notifications.templateApplied);
     });
   };
 
@@ -1077,14 +970,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
 
   const deepLinkCopy = deepLinkNotice
     ? deepLinkNotice.reason === 'not-found'
-      ? {
-          vi: `Không tìm thấy thông báo cần sửa (mã ${deepLinkNotice.targetId}). Trình soạn thảo đang hiển thị bản nháp mới.`,
-          en: `The notice to edit (id ${deepLinkNotice.targetId}) was not found. The editor is showing a new blank draft.`,
-        }
-      : {
-          vi: `Không thể tải thông báo cần sửa (mã ${deepLinkNotice.targetId}). Trình soạn thảo đang hiển thị bản nháp mới.`,
-          en: `The notice to edit (id ${deepLinkNotice.targetId}) could not be loaded. The editor is showing a new blank draft.`,
-        }
+      ? copy.notices.notFound.replace('{id}', deepLinkNotice.targetId)
+      : copy.notices.deepLinkLoadFailed.replace('{id}', deepLinkNotice.targetId)
     : null;
 
   return (
@@ -1099,14 +986,14 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         <div
           role="alert"
           aria-live="polite"
-          className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground"
         >
-          <span>{isVi ? deepLinkCopy.vi : deepLinkCopy.en}</span>
+          <span>{deepLinkCopy}</span>
           <button
             type="button"
             onClick={() => setDeepLinkNotice(null)}
-            aria-label={isVi ? 'Đóng cảnh báo liên kết' : 'Dismiss deep-link warning'}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-destructive transition-colors hover:bg-destructive/10"
+            aria-label={copy.dismissDeepLinkWarning}
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-status-danger-foreground transition-colors hover:bg-destructive/10"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1243,12 +1130,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                 {!appearanceReady && (
                   <p className="text-xs text-muted-foreground">
                     {appearanceLoadFailed
-                      ? isVi
-                        ? 'Chưa tải được cấu hình hiện tại — nạp lại trang để xuất bản.'
-                        : 'Current appearance could not be loaded — reload the page to publish.'
-                      : isVi
-                        ? 'Đang tải cấu hình hiện tại…'
-                        : 'Loading current appearance…'}
+                      ? copy.appearance.loadFailed
+                      : copy.appearance.loading}
                   </p>
                 )}
                 <Button
@@ -1316,7 +1199,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       setPriority(e.target.value as (typeof PRIORITY_VALUES)[number]);
                       setPriorityKnown(true);
                     }}
-                    options={[...(editingId && !priorityKnown ? [{ value: '', label: isVi ? 'Giữ nguyên mức ưu tiên đã lưu' : 'Keep saved priority' }] : []), ...PRIORITY_VALUES.map((value) => ({
+                    options={[...(editingId && !priorityKnown ? [{ value: '', label: copy.keepSavedPriority }] : []), ...PRIORITY_VALUES.map((value) => ({
                       value,
                       label: editorCopy.priorityOptions[value],
                     }))]}
@@ -1334,7 +1217,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       setTargetRole(e.target.value as (typeof TARGET_ROLE_VALUES)[number]);
                       setAudienceKnown(true);
                     }}
-                    options={[...(editingId && !audienceKnown ? [{ value: '', label: isVi ? 'Giữ nguyên đối tượng đã lưu' : 'Keep saved audience' }] : []), ...TARGET_ROLE_VALUES.map((value) => ({
+                    options={[...(editingId && !audienceKnown ? [{ value: '', label: copy.keepSavedAudience }] : []), ...TARGET_ROLE_VALUES.map((value) => ({
                       value,
                       label: editorCopy.targetRoleOptions[value],
                     }))]}
@@ -1416,7 +1299,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       ? editorCopy.publishing
                       : editingId
                       ? editorCopy.publishChanges
-                      : copy.publishAnnouncement}
+                      : messages.content.lifecycle.actions.submit}
                   </Button>
                   <Button
                     type="button"
@@ -1738,17 +1621,13 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                     <Megaphone className="h-4 w-4 text-primary" />
-                    {isVi
-                      ? 'Kho Bài Viết & Thông Báo Đang Lưu Trong Cơ Sở Dữ Liệu'
-                      : 'Live Announcements in Campus Records'}
+                    {copy.noticeOrder.title}
                     <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-300 border border-blue-500/20">
-                      {isVi ? 'Kéo thả thứ tự' : 'Custom Order'}
+                      {copy.noticeOrder.customOrder}
                     </span>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isVi
-                      ? 'Kéo thả các dòng bài viết ⠿ để thiết lập thứ tự ghim ưu tiên trên Bảng tin toàn trường. Bấm nút "Chỉnh sửa" để mở văn bản trong trình soạn thảo.'
-                      : 'Drag and drop rows ⠿ to set priority feed display order. Click "Edit" to open in document editor.'}
+                    {copy.noticeOrder.hint}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1769,9 +1648,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       <span>
                         {isSavingNoticeOrder
                           ? editorCopy.saving
-                          : isVi
-                          ? 'Lưu thứ tự ghim bài viết'
-                          : 'Save Feed Order'}
+                          : copy.noticeOrder.saveButton}
                       </span>
                     </Button>
                   )}
@@ -1784,7 +1661,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                     className="h-8 gap-1.5 text-xs"
                   >
                     <RefreshCw className={cn('h-3.5 w-3.5', loadingNotices && 'animate-spin')} />
-                    <span>{isVi ? 'Làm mới' : 'Refresh'}</span>
+                    <span>{copy.noticeOrder.refresh}</span>
                   </Button>
                 </div>
               </div>
@@ -1795,9 +1672,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                 <div className="flex items-center gap-2">
                   <ArrowUpDown className="h-4 w-4 shrink-0 text-status-info-foreground" />
                   <span>
-                    {isVi
-                      ? 'Bạn vừa kéo thả sắp xếp lại thứ tự bài viết. Bấm nút "Lưu thứ tự ghim bài viết" để đồng bộ ngay lập tức lên Bảng tin sinh viên & giảng viên.'
-                      : 'You changed the order of announcements. Click "Save Feed Order" to broadcast.'}
+                    {copy.noticeOrder.unsavedHint}
                   </span>
                 </div>
                 <Button
@@ -1808,7 +1683,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                   className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shrink-0 shadow-xs"
                 >
                   <Save className="h-3.5 w-3.5 mr-1" />
-                  {isSavingNoticeOrder ? editorCopy.saving : isVi ? 'Lưu ngay' : 'Save Now'}
+                  {isSavingNoticeOrder ? editorCopy.saving : copy.noticeOrder.saveNow}
                 </Button>
               </div>
             )}
@@ -1818,23 +1693,23 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                 <div className="py-8 text-center text-xs text-muted-foreground">
                   <div className="flex items-center justify-center gap-2">
                     <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                    <span>{isVi ? 'Đang tải danh sách bài viết từ CSDL...' : 'Loading announcements...'}</span>
+                    <span>{copy.noticeOrder.loading}</span>
                   </div>
                 </div>
               ) : noticesLoadError ? (
                 <div className="py-8 text-center text-xs text-destructive">
-                  <p>{isVi ? 'Không tải được danh sách thông báo từ máy chủ.' : 'Could not load announcements from the server.'}</p>
+                  <p>{copy.noticeOrder.loadFailed}</p>
                   <button
                     type="button"
                     className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
                     onClick={() => void fetchPublishedNotices()}
                   >
-                    {isVi ? 'Thử lại' : 'Retry'}
+                    {copy.noticeOrder.retry}
                   </button>
                 </div>
               ) : publishedNotices.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
-                  {isVi ? 'Chưa có thông báo nào trong cơ sở dữ liệu.' : 'No announcements in database.'}
+                  {copy.noticeOrder.empty}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1845,13 +1720,13 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                     <thead className="border-b border-border/60 bg-muted/40 text-muted-foreground font-semibold">
                       <tr>
                         <th className="py-2.5 px-3 w-10 text-center">#</th>
-                        <th className="py-2.5 px-3 w-14 text-center">{isVi ? 'Ghim' : 'Pin'}</th>
-                        <th className="py-2.5 px-4 min-w-[200px]">{isVi ? 'Tiêu đề văn bản' : 'Title'}</th>
-                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">{isVi ? 'Ưu tiên' : 'Priority'}</th>
-                        <th className="py-2.5 px-3 w-28 whitespace-nowrap">{isVi ? 'Đối tượng' : 'Audience'}</th>
-                        <th className="py-2.5 px-3 max-w-[160px] truncate">{isVi ? 'Người đăng' : 'Publisher'}</th>
-                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">{isVi ? 'Ngày ban hành' : 'Date'}</th>
-                        <th className="sticky right-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-4 min-w-[190px] text-right shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)]">{isVi ? 'Thao tác' : 'Actions'}</th>
+                        <th className="py-2.5 px-3 w-14 text-center">{copy.noticeOrder.pin}</th>
+                        <th className="py-2.5 px-4 min-w-[200px]">{copy.noticeOrder.titleColumn}</th>
+                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">{copy.noticeOrder.priorityColumn}</th>
+                        <th className="py-2.5 px-3 w-28 whitespace-nowrap">{copy.noticeOrder.audienceColumn}</th>
+                        <th className="py-2.5 px-3 max-w-[160px] truncate">{copy.noticeOrder.publisherColumn}</th>
+                        <th className="py-2.5 px-3 w-24 whitespace-nowrap">{copy.noticeOrder.dateColumn}</th>
+                        <th className="sticky right-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-4 min-w-[190px] text-right shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)]">{copy.noticeOrder.actionsColumn}</th>
                       </tr>
                     </thead>
                     <SortableList<AnnouncementRecord>
@@ -1861,9 +1736,11 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                       keyExtractor={(ann) => ann.id}
                       onOrderChange={handleSortableNoticeReorder}
                       announceMove={({ item, from, to, total }) => {
-                        const message = isVi
-                          ? `Đã chuyển "${item.title}" từ vị trí ${from + 1} sang ${to + 1} trong ${total} bài.`
-                          : `Moved "${item.title}" from position ${from + 1} to ${to + 1} of ${total}.`;
+                        const message = copy.noticeOrder.moved
+                          .replace('{title}', item.title)
+                          .replace('{from}', String(from + 1))
+                          .replace('{to}', String(to + 1))
+                          .replace('{total}', String(total));
                         setNoticeMove(message);
                         return message;
                       }}
@@ -1873,8 +1750,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                           <td className="py-3 px-3 text-center">
                             <DragHandle
                               className="mx-auto cursor-grab hover:text-primary active:cursor-grabbing"
-                              label={isVi ? 'Kéo thả để sắp xếp thứ tự hiển thị' : 'Drag to reorder notice'}
-                              title={isVi ? 'Kéo thả để sắp xếp thứ tự hiển thị' : 'Drag to reorder notice'}
+                              label={copy.noticeOrder.dragLabel}
+                              title={copy.noticeOrder.dragLabel}
                             />
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
@@ -1886,7 +1763,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                   : 'bg-muted text-muted-foreground'
                               )}
                             >
-                              {index === 0 ? (isVi ? 'Top 1' : 'Top 1') : `#${index + 1}`}
+                              {index === 0 ? copy.noticeOrder.topRank : `#${index + 1}`}
                             </span>
                           </td>
                           <td className="py-3 px-4 min-w-[200px] max-w-sm">
@@ -1895,8 +1772,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                             </div>
                             <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                               {ann.isGlobal
-                                ? (isVi ? 'Phạm vi: Toàn trường' : 'Scope: Campus-wide')
-                                : (isVi ? 'Phạm vi: Phân quyền đối tượng' : 'Scope: Targeted audience')}
+                                ? copy.noticeOrder.campusScope
+                                : copy.noticeOrder.targetedScope}
                             </div>
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
@@ -1906,7 +1783,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                 ann.priority === 'URGENT'
                                   ? 'bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/30'
                                   : ann.priority === 'HIGH'
-                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'
                                   : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/30'
                               )}
                             >
@@ -1916,14 +1793,14 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                           <td className="py-3 px-3 whitespace-nowrap">
                             <span className="inline-flex items-center rounded bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
                               {ann.isGlobal
-                                ? (isVi ? 'Toàn trường' : 'All')
+                                ? copy.noticeOrder.allAudience
                                 : ann.targetRoles?.includes('STUDENT')
-                                ? (isVi ? 'Sinh viên' : 'Students')
-                                : (isVi ? 'Giảng viên' : 'Lecturers')}
+                                ? copy.noticeOrder.studentsAudience
+                                : copy.noticeOrder.lecturersAudience}
                             </span>
                           </td>
-                          <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px] max-w-[160px] truncate" title={ann.publishedBy || 'Phòng Đào tạo'}>
-                            {ann.publishedBy || 'Phòng Đào tạo'}
+                          <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px] max-w-[160px] truncate" title={ann.publishedBy || fallbackPublisher}>
+                            {ann.publishedBy || fallbackPublisher}
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px]">
                             {ann.createdAt ? formatDate(ann.createdAt) : '—'}
@@ -1936,10 +1813,10 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                 size="sm"
                                 onClick={() => setPreviewingNotice(ann)}
                                 className="h-7 px-2.5 text-[11.5px] gap-1 hover:bg-primary/10 hover:text-primary"
-                                title={isVi ? 'Xem trước công văn chuẩn e-Office' : 'Preview document'}
+                                title={copy.noticeOrder.previewTitle}
                               >
                                 <Eye className="h-3.5 w-3.5 text-primary" />
-                                <span>{isVi ? 'Xem trước' : 'Preview'}</span>
+                                <span>{copy.noticeOrder.preview}</span>
                               </Button>
                               <Button
                                 type="button"
@@ -1947,10 +1824,10 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                 size="sm"
                                 onClick={() => setEditingNoticeModal(ann)}
                                 className="h-7 px-2.5 text-[11.5px] gap-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs"
-                                title={isVi ? 'Chỉnh sửa nhanh bài viết này' : 'Edit announcement'}
+                                title={copy.noticeOrder.editTitle}
                               >
                                 <FileEdit className="h-3.5 w-3.5" />
-                                <span>{isVi ? 'Chỉnh sửa' : 'Edit'}</span>
+                                <span>{copy.noticeOrder.edit}</span>
                               </Button>
                             </div>
                           </td>
@@ -1965,18 +1842,18 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         </div>
       )}
 
-      {/* TAB 3: TEMPLATES REPOSITORY. Names/descriptions from `editor.templates`
-          messages; HTML bodies from lib/editor-templates.ts. */}
+      {/* TAB 3: TEMPLATES REPOSITORY. Labels come from the editor fragment;
+          bilingual HTML bodies stay in lib/editor-templates.ts. */}
       {activeTab === 'templates' && (
         <div className="grid gap-5 md:grid-cols-2">
           {EDITOR_TEMPLATE_IDS.map((templateId) => {
-            const templateCopy = editorCopy.templates[templateId];
+            const templateCopy = templateLabels[templateId];
             return (
               <Card key={templateId} className="flex flex-col justify-between hover:border-primary/50 transition-colors">
                 <CardHeader>
                   <CardTitle className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <BookOpen className="h-4 w-4 text-primary" />
-                    {templateCopy.name}
+                    {templateCopy.title}
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">
                     {templateCopy.description}
@@ -1987,7 +1864,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={() => applyTemplate(EDITOR_TEMPLATE_HTML[templateId], templateCopy.name)}
+                    onClick={() => applyTemplate(getEditorTemplateHtml(templateId, isVi), templateCopy.title)}
                     className="gap-1.5 text-xs font-semibold"
                   >
                     <Send className="h-3.5 w-3.5" />

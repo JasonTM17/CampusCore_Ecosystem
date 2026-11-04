@@ -116,6 +116,140 @@ class ThesisAssistantGovernanceWebTest {
     }
 
     @Test
+    void knowledgeDraftUpdateDetectsStaleVersionsAndKeepsLegacyClientsWorking() throws Exception {
+        String slug = "test-knowledge-version-" + UUID.randomUUID();
+        String created = mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge")
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "\",\"locale\":\"en\",\"title\":\"Original title\",\"content\":\"Original grounded content\",\"source\":\"test\",\"priority\":10}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var createdRevision = mapper.readTree(created);
+        createdDocument = UUID.fromString(createdRevision.get("documentId").asText());
+        String originalRevisionId = createdRevision.get("revisionId").asText();
+
+        var firstSave = mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-first\",\"locale\":\"en\",\"title\":\"First edit\",\"content\":\"First grounded content\",\"source\":\"test\",\"priority\":20,\"expectedVersion\":1}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-stale\",\"locale\":\"en\",\"title\":\"Stale edit\",\"content\":\"Stale grounded content\",\"source\":\"test\",\"priority\":30,\"expectedVersion\":1}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(2, mapper.readTree(firstSave).get("version").asInt());
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-matched\",\"locale\":\"en\",\"title\":\"Matched edit\",\"content\":\"Matched grounded content\",\"source\":\"test\",\"priority\":40,\"expectedVersion\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-legacy\",\"locale\":\"en\",\"title\":\"Legacy edit\",\"content\":\"Legacy grounded content\",\"source\":\"test\",\"priority\":50}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(4));
+
+        String otherAdminSave = mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-other-admin\",\"locale\":\"en\",\"title\":\"Other admin edit\",\"content\":\"Other admin grounded content\",\"source\":\"test\",\"priority\":60,\"expectedVersion\":4}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var otherAdminRevision = mapper.readTree(otherAdminSave);
+
+        org.junit.jupiter.api.Assertions.assertNotEquals(originalRevisionId, otherAdminRevision.get("revisionId").asText());
+        var originalDraft = jdbc.queryForMap(
+                "SELECT version,created_by,title,content FROM assistant.knowledge_document_revision WHERE id=:id",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("id", UUID.fromString(originalRevisionId)));
+        org.junit.jupiter.api.Assertions.assertEquals(4, ((Number) originalDraft.get("version")).intValue());
+        org.junit.jupiter.api.Assertions.assertEquals("admin-a", originalDraft.get("created_by"));
+        org.junit.jupiter.api.Assertions.assertEquals("Legacy edit", originalDraft.get("title"));
+        org.junit.jupiter.api.Assertions.assertEquals("Legacy grounded content", originalDraft.get("content"));
+    }
+
+    @Test
+    void knowledgeExpectedVersionUsesTheLatestDocumentRevisionForOwnedAndForkedDrafts() throws Exception {
+        String slug = "test-knowledge-document-version-" + UUID.randomUUID();
+        String created = mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge")
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "\",\"locale\":\"en\",\"title\":\"Version one\",\"content\":\"Grounded version one content\",\"source\":\"test\",\"priority\":10}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        createdDocument = UUID.fromString(mapper.readTree(created).get("documentId").asText());
+
+        for (int expectedVersion = 1; expectedVersion < 5; expectedVersion++) {
+            mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                            .with(admin("admin-a"))
+                            .contentType("application/json")
+                            .content("{\"slug\":\"" + slug + "-v" + (expectedVersion + 1) + "\",\"locale\":\"en\",\"title\":\"Version " + (expectedVersion + 1) + "\",\"content\":\"Grounded version " + (expectedVersion + 1) + " content\",\"source\":\"test\",\"priority\":20,\"expectedVersion\":" + expectedVersion + "}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(expectedVersion + 1));
+        }
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v6\",\"locale\":\"en\",\"title\":\"Version six\",\"content\":\"Grounded version six content\",\"source\":\"test\",\"priority\":30,\"expectedVersion\":5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+        mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge/{id}/submit", createdDocument)
+                        .with(admin("admin-b")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge/{id}/publish", createdDocument)
+                        .with(admin("admin-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+
+        mvc.perform(get("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6));
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-stale\",\"locale\":\"en\",\"title\":\"Stale version\",\"content\":\"Stale grounded content\",\"source\":\"test\",\"priority\":40,\"expectedVersion\":5}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-a"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v7\",\"locale\":\"en\",\"title\":\"Version seven\",\"content\":\"Grounded version seven content\",\"source\":\"test\",\"priority\":50,\"expectedVersion\":6}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(7));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-stale-fork\",\"locale\":\"en\",\"title\":\"Stale fork\",\"content\":\"Stale grounded fork content\",\"source\":\"test\",\"priority\":60,\"expectedVersion\":6}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-v8\",\"locale\":\"en\",\"title\":\"Version eight\",\"content\":\"Grounded version eight content\",\"source\":\"test\",\"priority\":70,\"expectedVersion\":7}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(8));
+
+        mvc.perform(put("/api/v1/admin/thesis/assistant/knowledge/{id}", createdDocument)
+                        .with(admin("admin-b"))
+                        .contentType("application/json")
+                        .content("{\"slug\":\"" + slug + "-legacy\",\"locale\":\"en\",\"title\":\"Legacy version\",\"content\":\"Legacy grounded content\",\"source\":\"test\",\"priority\":80}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(9));
+    }
+
+    @Test
     void adminPriorityIsBoundedAndStudentsCannotReadKnowledgeAdminApi() throws Exception {
         mvc.perform(post("/api/v1/admin/thesis/assistant/knowledge")
                         .with(admin("admin-a"))

@@ -16,6 +16,8 @@ import org.springframework.stereotype.Component;
 )
 public class ThesisAssistantRetentionJob {
     private static final Logger log = LoggerFactory.getLogger(ThesisAssistantRetentionJob.class);
+    private static final int RETENTION_BATCH_SIZE = 100;
+    private static final int MAX_PURGE_BATCHES_PER_RUN = 100;
 
     private final ThesisAssistantRepository repository;
     private final ThesisAssistantTurnRepository turns;
@@ -63,9 +65,20 @@ public class ThesisAssistantRetentionJob {
     @Scheduled(cron = "0 20 3 * * *", zone = "UTC")
     public void purgeExpiredConversations() {
         try {
-            turns.purgeExpiredConversations((owner, handle) ->
-                    cancellations.fence(owner, handle.clientRequestId(), handle.leaseGeneration()));
-            repository.purgeExpired();
+            int batches = 0;
+            boolean moreExpiredRows;
+            do {
+                var purged = turns.purgeExpiredConversations((owner, handle) ->
+                        cancellations.fence(owner, handle.clientRequestId(), handle.leaseGeneration()));
+                int legacyPurged = repository.purgeExpired();
+                moreExpiredRows = purged.size() >= RETENTION_BATCH_SIZE
+                        || legacyPurged >= RETENTION_BATCH_SIZE;
+                batches++;
+            } while (moreExpiredRows && batches < MAX_PURGE_BATCHES_PER_RUN);
+            if (moreExpiredRows) {
+                log.warn("Assistant retention purge stopped at the {}-batch limit; expired rows may remain",
+                        MAX_PURGE_BATCHES_PER_RUN);
+            }
         } catch (Exception ex) {
             log.warn("Failed to purge expired assistant conversations: {}", ex.getMessage(), ex);
         }

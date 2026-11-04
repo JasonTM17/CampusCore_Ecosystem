@@ -10,6 +10,17 @@ function readSource(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
 }
 
+/** Loads the real URL guard — it is dependency-free, so no stub is needed. */
+function loadSafeUrl() {
+  const { outputText } = ts.transpileModule(readSource('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: 'safe-url.ts',
+  });
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', outputText)(require, mod, mod.exports);
+  return mod.exports;
+}
+
 // Loads src/lib/query.ts with @tanstack/react-query stubbed so the module
 // code really executes: the fake client records clear() calls and every
 // `new QueryClient()` is observable through the instances array.
@@ -244,7 +255,18 @@ function mountAuthProvider(options = {}) {
     react,
     'next/navigation': { useRouter: () => router, usePathname: () => pathname.value },
     '@/i18n': { useI18n: () => ({ href: (p) => `/en${p}` }) },
+    '@/i18n/paths': {
+      addLocalePrefix: (value) => value,
+      stripLocaleFromPathname: (value) => {
+        const match = value.match(/^\/(en|vi)(?=\/|$)/);
+        return {
+          locale: match ? match[1] : '',
+          pathname: match ? value.replace(/^\/(en|vi)/, '') || '/' : value,
+        };
+      },
+    },
     '@/types/api': {},
+    '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/api': {
       authApi,
       SessionVerificationError: SessionVerificationErrorStub,
@@ -281,6 +303,7 @@ function mountAuthProvider(options = {}) {
     },
     '@/lib/login-portal': {
       loginHref: () => '/en/login',
+      sessionExpiredLoginHref: () => '/en/login?reason=session-expired',
       portalFromPathname: () => 'student',
       portalFromUser: () => 'student',
     },
@@ -890,7 +913,7 @@ test('login clears a stale shared logout marker before starting', async () => {
   await settle();
 });
 
-function loadApiModule() {
+function loadApiModule(options = {}) {
   const postCalls = [];
   const getCalls = [];
   const logoutInProgress = { value: false };
@@ -968,7 +991,8 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
-    '@/lib/surfaces': { surfaceFromHost: () => null },
+    '@/lib/safe-url': loadSafeUrl(),
+    '@/lib/surfaces': { surfaceFromHost: () => options.surface ?? null },
     '@/lib/observability': {
       REQUEST_ID_HEADER: 'X-Request-Id',
       newRequestId: () => 'test-request-id',
@@ -1335,6 +1359,66 @@ test('session race transport: a pending two-factor verify must hold the logout d
   assert.equal(await verifyOutcome, 'resolved');
 });
 
+test('legacy sign-out refreshes an expired access token and retries once', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { exports: apiModule, postCalls } = loadApiModule();
+    const logout = apiModule.authApi.logout().then(
+      () => 'resolved',
+      () => 'rejected',
+    );
+    await settle();
+    assert.equal(postCalls[0].args[0], '/auth/logout');
+    postCalls[0].reject({ response: { status: 401 } });
+    await settle();
+
+    assert.equal(postCalls.length, 2, 'a 401 logout must try the refresh cookie');
+    assert.equal(postCalls[1].args[0], '/auth/refresh');
+    postCalls[1].resolve({ data: loginResponse(USER_A) });
+    await settle();
+
+    assert.equal(postCalls.length, 3, 'a successful refresh must retry logout once');
+    assert.equal(postCalls[2].args[0], '/auth/logout');
+    postCalls[2].resolve({ data: {} });
+    assert.equal(await logout, 'resolved');
+  } finally {
+    env.restore();
+  }
+});
+
+test('BFF sign-out posts to the session endpoint with the CSRF cookie', async () => {
+  const env = mountApiBrowserGlobals();
+  const previousFetch = globalThis.fetch;
+  const fetchCalls = [];
+  globalThis.fetch = async (url, init) => {
+    fetchCalls.push({ url, init });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ logoutUrl: 'https://identity.example/connect/logout' }),
+    };
+  };
+  try {
+    const { exports: apiModule, postCalls } = loadApiModule({ surface: { mode: 'bff' } });
+    const logout = apiModule.authApi.logout();
+    await settle();
+    postCalls[0]?.resolve({ data: {} });
+    const result = await logout;
+
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].url, '/session/logout');
+    assert.equal(fetchCalls[0].init.method, 'POST');
+    assert.equal(fetchCalls[0].init.headers['X-CSRF-Token'], 'hint-a');
+    assert.equal(fetchCalls[0].init.credentials, 'same-origin');
+    assert.equal(postCalls.length, 0, 'BFF sign-out must not use the legacy API path');
+    assert.equal(result.logoutUrl, 'https://identity.example/connect/logout');
+  } finally {
+    env.restore();
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
+});
+
 
 test('session race: sign-in must reject when every session probe fails', async () => {
   const mounted = mountAuthProvider({ sessionHint: false });
@@ -1657,7 +1741,7 @@ test('session transport: the cold-start retry honors the opt-out flag only', asy
   await warmed;
 });
 
-test('session transport: a discovered 401 publishes signed-out to sibling tabs before redirecting', async () => {
+test('session transport: a discovered 401 publishes session-expired to sibling tabs before redirecting', async () => {
   const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
@@ -1673,7 +1757,7 @@ test('session transport: a discovered 401 publishes signed-out to sibling tabs b
     await settle();
     assert.deepEqual(
       sessionSyncPublished,
-      ['signed-out'],
+      ['session-expired'],
       'siblings must hear about the dead shared session, not discover it one-by-one',
     );
     assert.ok(location.href.includes('/login'), 'the failing tab still navigates to login');
@@ -1697,7 +1781,7 @@ test('session transport: a dead cookie on /login does not reload the page in a l
     assert.equal(meCalls.length, 1, 'the redirect boundary confirms the cookie once');
     meCalls[0].reject({ response: { status: 401 } });
     await settle();
-    assert.deepEqual(sessionSyncPublished, ['signed-out'], 'siblings still converge on the dead session');
+    assert.deepEqual(sessionSyncPublished, ['session-expired'], 'siblings still converge on the dead session');
     assert.equal(location.href, '', 'already on /login — navigating again would reload the login page forever');
   } finally {
     globalThis.window = previousWindow;
@@ -2678,7 +2762,7 @@ test('api 401: a protected 401 confirms me() first and stays put while the cooki
   }
 });
 
-test('api 401: a dead shared cookie publishes signed-out and navigates once under concurrent 401s', async () => {
+test('api 401: a dead shared cookie publishes session-expired and navigates once under concurrent 401s', async () => {
   const env = mountApiBrowserGlobals();
   try {
     const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
@@ -2701,7 +2785,7 @@ test('api 401: a dead shared cookie publishes signed-out and navigates once unde
     await first;
     await second;
     await settle();
-    assert.deepEqual(sessionSyncPublished, ['signed-out']);
+    assert.deepEqual(sessionSyncPublished, ['session-expired']);
     assert.equal(env.navigations.length, 1, 'concurrent 401s share one redirect');
     assert.match(env.navigations[0], /\/login/);
     assert.match(env.navigations[0], /reason=unauthorized/);
@@ -2838,6 +2922,7 @@ function mountPollGlobals() {
   const cleared = [];
   const reloads = [];
   const replaces = [];
+  const assignments = [];
   const hadWindow = 'window' in globalThis;
   const hadDocument = 'document' in globalThis;
   const documentObj = { visibilityState: 'visible', cookie: 'cc_csrf=hint-a' };
@@ -2847,6 +2932,7 @@ function mountPollGlobals() {
       pathname: '/en/dashboard',
       reload: () => reloads.push('reload'),
       replace: (url) => replaces.push(url),
+      assign: (url) => assignments.push(url),
     },
     setInterval: (fn, ms) => {
       ticks.push({ fn, ms });
@@ -2859,6 +2945,7 @@ function mountPollGlobals() {
     cleared,
     reloads,
     replaces,
+    assignments,
     documentObj,
     restore() {
       if (!hadWindow) delete globalThis.window;
@@ -2914,6 +3001,59 @@ test('session poll: a stable signature survives consecutive ticks with no reload
     assert.deepEqual(mounted.sessionSync.published, []);
     assert.equal(mounted.render().user?.id, USER_A.id);
     assert.equal(mounted.render().isLoading, false, 'an unchanged poll must not raise loading');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: an expired access token refreshes before keeping the session', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+
+    assert.equal(mounted.refreshCalls.length, 1, 'a 401 must attempt the shared refresh');
+    mounted.refreshCalls[0].resolve(loginResponse(USER_A));
+    await settle();
+
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(env.replaces.length, 0, 'a refreshed session must not navigate to sign-in');
+    assert.equal(env.reloads.length, 0);
+    assert.equal(mounted.render().user?.id, USER_A.id);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a transient refresh failure preserves the session without a logout broadcast', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.equal(mounted.refreshCalls.length, 1);
+    mounted.refreshCalls[0].reject({ response: { status: 503 } });
+    await settle();
+
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(env.replaces.length, 0);
+    assert.equal(mounted.render().user?.id, USER_A.id);
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 3, 'the next interval retries after a transient refresh failure');
+    mounted.meCalls[2].resolve(USER_A);
+    await settle();
   } finally {
     env.restore();
   }
@@ -2981,7 +3121,28 @@ test('session poll: a logged-out document never probes', async () => {
   }
 });
 
-test('session poll: a confirmed 401 publishes signed-out once and navigates to localized login', async () => {
+test('BFF sign-out follows the issuer logout URL even when local redirection is disabled', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    const logout = mounted.context.logout({ redirect: false });
+    await settle();
+    mounted.refreshWaiterCalls[0].resolve();
+    await settle();
+    assert.equal(mounted.logoutCalls.length, 1);
+    mounted.logoutCalls[0].resolve({ logoutUrl: 'https://identity.example/connect/logout' });
+    await logout;
+
+    assert.deepEqual(env.assignments, ['https://identity.example/connect/logout']);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a definitive refresh rejection publishes session-expired once and navigates to localized login', async () => {
   const env = mountPollGlobals();
   try {
     const mounted = mountAuthProvider();
@@ -2993,11 +3154,33 @@ test('session poll: a confirmed 401 publishes signed-out once and navigates to l
     assert.equal(mounted.meCalls.length, 2);
     mounted.meCalls[1].reject({ response: { status: 401 } });
     await settle();
-    assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
+    assert.equal(mounted.refreshCalls.length, 1, 'the poll confirms expiry through refresh first');
+    mounted.refreshCalls[0].reject({ response: { status: 401 } });
+    await settle();
+    assert.deepEqual(mounted.sessionSync.published, ['session-expired']);
     assert.equal(env.replaces.length, 1);
     assert.match(env.replaces[0], /\/en\/login/);
     assert.equal(env.reloads.length, 0);
     assert.equal(mounted.render().isLoading, true, 'the fence stays raised behind the redirect');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a 401 on a BFF surface signs out without a browser refresh', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider({ surface: { mode: 'bff' } });
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.equal(mounted.refreshCalls.length, 0, 'the BFF lane has no browser refresh route');
+    assert.deepEqual(mounted.sessionSync.published, ['session-expired']);
+    assert.equal(env.replaces.length, 1);
   } finally {
     env.restore();
   }
@@ -3200,14 +3383,30 @@ test('real QueryClient.clear() evicts every cached entry', () => {
 });
 
 function loadMobileClientModule() {
-  const mobileClientPath = path.resolve(root, '..', 'mobile', 'src', 'api', 'client.ts');
-  const source = fs.readFileSync(mobileClientPath, 'utf8');
+  const mobileApiDir = path.resolve(root, '..', 'mobile', 'src', 'api');
+  const platform = { OS: 'android' };
+  const loadTypeScriptModule = (fileName, localRequire) => {
+    const source = fs.readFileSync(path.join(mobileApiDir, fileName), 'utf8');
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+      fileName,
+    });
+    const moduleRecord = { exports: {} };
+    new Function('require', 'module', 'exports', outputText)(localRequire, moduleRecord, moduleRecord.exports);
+    return moduleRecord.exports;
+  };
+  const baseUrlModule = loadTypeScriptModule('base-url.ts', (spec) => {
+    if (spec === 'react-native') return { Platform: platform };
+    throw new Error(`unexpected import in mobile base-url.ts: ${spec}`);
+  });
+  const source = fs.readFileSync(path.join(mobileApiDir, 'client.ts'), 'utf8');
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
     fileName: 'client.ts',
   });
   const requireStub = (spec) => {
-    if (spec === 'react-native') return { Platform: { OS: 'android' } };
+    if (spec === 'react-native') return { Platform: platform };
+    if (spec === './base-url') return baseUrlModule;
     if (spec === './observability') {
       return { recordApiMetric: () => {}, pathTemplate: (p) => p };
     }
@@ -3220,7 +3419,9 @@ function loadMobileClientModule() {
     throw new Error(`unexpected import in mobile client.ts: ${spec}`);
   };
   const mod = { exports: {} };
-  new Function('require', 'module', 'exports', outputText)(requireStub, mod, mod.exports);
+  // The test uses an HTTP fixture URL, so run the client with Expo's development
+  // flag enabled while preserving the real base-url validation behavior.
+  new Function('require', 'module', 'exports', '__DEV__', outputText)(requireStub, mod, mod.exports, true);
   return { exports: mod.exports };
 }
 
@@ -3246,6 +3447,7 @@ test('mobile sessionEpoch keeps a stale lane from evicting the newer session', a
         sessionEpoch: () => epoch,
         onSessionExpired: () => { expired += 1; },
       });
+      assert.equal(client.baseUrl, 'http://example.test');
       const pending = client.requestWithMeta('/me').then(
         () => ({ ok: true }),
         (err) => ({ ok: false, err }),

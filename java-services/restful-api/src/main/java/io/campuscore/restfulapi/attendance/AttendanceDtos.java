@@ -53,11 +53,25 @@ public final class AttendanceDtos {
             @NotBlank @Size(max=60) String campusCode,
             @NotNull @DecimalMin("-90") @DecimalMax("90") Double centerLat,
             @NotNull @DecimalMin("-180") @DecimalMax("180") Double centerLng,
-            @NotNull @Min(30) @Max(1000) Integer radiusMeters, @NotNull Boolean isActive,
-            @Size(max=500) String note) { }
+            @NotNull @Min(30) @Max(1000) Integer radiusMeters,
+            @Schema(description="Optional on update; omit to keep the stored activation state. Defaults to inactive on create.")
+            Boolean isActive,
+            @Size(max=500) String note,
+            @Schema(description="Optional expected version for update conflict checking",
+                    requiredMode=Schema.RequiredMode.NOT_REQUIRED) Long expectedVersion) {
+        public GeofenceRequest(String name, String campusCode, Double centerLat, Double centerLng,
+                Integer radiusMeters, Boolean isActive, String note) {
+            this(name,campusCode,centerLat,centerLng,radiusMeters,isActive,note,null);
+        }
+    }
     @Schema(name="AttendanceGeofenceResponse")
     public record GeofenceResponse(String id, String name, String campusCode, double centerLat,
-            double centerLng, int radiusMeters, boolean isActive, String note) { }
+            double centerLng, int radiusMeters, boolean isActive, String note, long version) {
+        public GeofenceResponse(String id, String name, String campusCode, double centerLat,
+                double centerLng, int radiusMeters, boolean isActive, String note) {
+            this(id,name,campusCode,centerLat,centerLng,radiusMeters,isActive,note,1L);
+        }
+    }
     @Schema(name="AttendanceActiveGeofenceResponse")
     public record ActiveGeofenceResponse(String id, String name, String campusCode, double centerLat,
             double centerLng, int radiusMeters) { }

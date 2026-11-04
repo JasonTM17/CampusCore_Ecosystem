@@ -6,9 +6,12 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../src/design/theme';
 
 const mockApi = { mode: 'preview' as 'preview' | 'live' };
+type QueryField<T> = T | ((key: string) => T);
+type QueryValue = { data: QueryField<unknown>; error: QueryField<string | null>; warning: QueryField<string | null>; isLoading: QueryField<boolean> };
 const mockQuery = {
-  value: { data: undefined as unknown, error: null as string | null, warning: null as string | null, isLoading: false },
+  value: { data: undefined, error: null, warning: null, isLoading: false } as QueryValue,
 };
+const mockReloads: Record<string, ReturnType<typeof jest.fn>> = {};
 
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode, get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }; },
@@ -22,22 +25,30 @@ jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'preview', role: 'student', capabilities: [] }),
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: (key: string) => ({
-    ...mockQuery.value,
-    data: typeof mockQuery.value.data === 'function' ? (mockQuery.value.data as (key: string) => unknown)(key) : mockQuery.value.data,
-    errorStatus: null,
-    reload: jest.fn(async () => {}),
-    setData: jest.fn(),
-  }),
+  useScreenQuery: (key: string) => {
+    const value = mockQuery.value;
+    const resolve = (field: unknown) => typeof field === 'function' ? (field as (key: string) => unknown)(key) : field;
+    return {
+      ...value,
+      data: resolve(value.data),
+      error: resolve(value.error),
+      warning: resolve(value.warning),
+      isLoading: resolve(value.isLoading),
+      errorStatus: null,
+      reload: mockReloads[key] ?? (mockReloads[key] = jest.fn(async () => {})),
+      setData: jest.fn(),
+    };
+  },
 }));
 
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('../../src/api/parity-api', () => ({
   parityApi: new Proxy({}, { get: () => jest.fn(async () => ({ items: [], hasMore: false })) }),
 }));
 
 import { AdmissionsScreen } from '../../src/screens/student/AdmissionsScreen';
 import { CareersScreen } from '../../src/screens/student/CareersScreen';
+import { CertificatesScreen } from '../../src/screens/content/CertificatesScreen';
 import { DocsScreen } from '../../src/screens/student/DocsScreen';
 import { EventsScreen } from '../../src/screens/student/EventsScreen';
 import { LearningScreen } from '../../src/screens/student/LearningScreen';
@@ -53,6 +64,7 @@ import { learningMessages } from '../../src/i18n/learning-messages';
 import { libraryMessages } from '../../src/i18n/library-messages';
 import { recordsMessages } from '../../src/i18n/records-messages';
 import { contentMessages } from '../../src/i18n/content-messages';
+import { previewAdmissions } from '../../src/screens/content/preview-data';
 
 const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student' } as MobileScreenProps;
@@ -63,6 +75,7 @@ afterEach(() => {
   jest.restoreAllMocks();
   mockApi.mode = 'preview';
   mockQuery.value = { data: undefined, error: null, warning: null, isLoading: false };
+  for (const key of Object.keys(mockReloads)) delete mockReloads[key];
 });
 
 function setWidth(width: number) {
@@ -131,6 +144,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     await renderThemed(<AdmissionsScreen {...props} />);
     await fireEvent.press(screen.getByRole('button', { name: new RegExp('2026-Q1-DEMO') }));
     expect(screen.getByText(admissionsMessages.vi.returnedHint)).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.simulatedBanner)).toBeOnTheScreen();
     expect(screen.getByText('Bổ sung bảng điểm')).toBeOnTheScreen();
     const submit = screen.getByRole('button', { name: admissionsMessages.vi.resubmit });
     expect(submit.props.accessibilityState?.disabled).toBe(true);
@@ -147,6 +161,42 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
 });
 
 describe('service screens in live mode', () => {
+  test('learning shows a stale section warning while keeping tabs available', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => key === 'content.learning.sections'
+        ? [{ sectionId: 'section-1', courseCode: 'CS101', courseName: 'Introduction' }]
+        : [],
+      error: null,
+      warning: (key: string) => key === 'content.learning.sections' ? 'Showing cached sections.' : null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<LearningScreen {...props} />);
+    expect(screen.getByText('Showing cached sections.')).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: learningMessages.vi.assignments })).toBeOnTheScreen();
+  });
+
+  test('certificates keep partial curriculum data visible and retry only the failed source', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => key === 'content.certificates.curriculum' ? {
+        curriculum: { id: 'program-1', code: 'CNTT', name: 'Information Technology', nameVi: 'Công nghệ thông tin', nameEn: 'Information Technology', totalCredits: 130 },
+        courses: [{ courseId: 'course-1', code: 'CS101', name: 'Intro', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' }],
+      } : undefined,
+      error: (key: string) => key === 'content.certificates.conduct' ? 'Conduct data is unavailable.' : null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CertificatesScreen {...props} />);
+    expect(screen.getByText('Conduct data is unavailable.')).toBeOnTheScreen();
+    expect(screen.getByText('Công nghệ thông tin')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReloads['content.certificates.conduct']).toHaveBeenCalledTimes(1);
+    expect(mockReloads['content.certificates.curriculum']).toHaveBeenCalledTimes(0);
+  });
+
   test('a failed load shows an error state with retry, never an empty list', async () => {
     mockApi.mode = 'live';
     mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false };
@@ -154,6 +204,38 @@ describe('service screens in live mode', () => {
     await renderThemed(<LibraryScreen {...props} />);
     expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
     expect(screen.queryByText(libraryMessages.vi.emptyCatalogue)).toBeNull();
+    expect(screen.queryByText(libraryMessages.vi.simulatedBanner)).toBeNull();
+  });
+
+  test('a failed admissions read is a retryable error with no simulated banner', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? undefined : []),
+      error: (key: string) => (key === 'content.admissions.mine' ? 'Không thể tải dữ liệu' : null),
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
+    expect(screen.queryByText(admissionsMessages.vi.emptyApplications)).toBeNull();
+    expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
+  });
+
+  test('a live admissions detail shows no simulated banner', async () => {
+    mockApi.mode = 'live';
+    const application = previewAdmissions('vi')[0];
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? [application] : []),
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(application.cycle) }));
+    expect(screen.getByText(admissionsMessages.vi.returnedHint)).toBeOnTheScreen();
+    expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
   });
 
   test('learning shows its own error state when sections cannot be read', async () => {
@@ -173,5 +255,6 @@ describe('service screens in live mode', () => {
     setWidth(360);
     await renderThemed(<CareersScreen {...props} />);
     expect(screen.getByText(careersMessages.vi.emptyBoard)).toBeOnTheScreen();
+    expect(screen.queryByText(careersMessages.vi.simulatedBanner)).toBeNull();
   });
 });

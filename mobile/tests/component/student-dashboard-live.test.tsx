@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider, useLocale } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'live' as 'preview' | 'live' };
 const mockRequests = { announcements: jest.fn() };
+const mockReload = jest.fn();
+const mockKeys: string[] = [];
 const mockPendingRequests = new Set<string>();
 type QueryValue = {
   data?: unknown;
@@ -14,25 +16,37 @@ type QueryValue = {
   isLoading?: boolean;
   isStale?: boolean;
   errorStatus?: number | null;
+  errorInput?: unknown;
 };
 const mockQueries: Record<string, QueryValue> = {};
 
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode }; },
   campusApi: { announcements: (...args: unknown[]) => mockRequests.announcements(...args) },
-  ApiClientError: class ApiClientError extends Error {},
+  ApiClientError: class ApiClientError extends Error {
+    status: number;
+    code?: string;
+
+    constructor(message: string, status: number, _requestId: string, code?: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: (key: string, request?: () => Promise<unknown>) => {
+  useScreenQuery: (key: string, request?: () => Promise<unknown>, options?: { mapError?: (error: unknown) => string }) => {
+    mockKeys.push(key);
     if (mockPendingRequests.has(key) && request) void request();
+    const { errorInput, ...query } = mockQueries[key] ?? {};
     return {
       data: undefined,
-      error: null,
       warning: null,
       isLoading: false,
       errorStatus: null,
-      ...(mockQueries[key] ?? {}),
-      reload: jest.fn(),
+      ...query,
+      error: errorInput === undefined ? query.error ?? null : options?.mapError?.(errorInput) ?? query.error ?? null,
+      reload: () => mockReload(key),
       setData: jest.fn(),
     };
   },
@@ -44,6 +58,7 @@ jest.mock('../../src/session/SessionContext', () => ({
 jest.mock('../../src/screens/attendance-checkin/CheckinEntryCard', () => ({ CheckinEntryCard: () => null }));
 
 import { StudentDashboardScreen } from '../../src/screens/student/StudentDashboardScreen';
+import { ApiClientError } from '../../src/api/client';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -68,23 +83,34 @@ const renderScreen = (locale: 'vi' | 'en' = 'vi') => render(screenElement(locale
 afterEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
+  mockApi.mode = 'live';
+  mockReload.mockClear();
   mockPendingRequests.clear();
+  mockKeys.length = 0;
   for (const key of Object.keys(mockQueries)) delete mockQueries[key];
 });
 
 describe('student dashboard live mode', () => {
+  test('the enrollment read shares the academic cache entry the dashboard prefetch fills', async () => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
+    await renderScreen();
+    expect(mockKeys).toContain('academic.enrollments');
+    expect(mockKeys).not.toContain('enrollments');
+  });
+
   test('a sparse enrollment never renders its raw sectionId as the course code (ux-m1-05)', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{ id: 'enr-1', sectionId: '9f8b2c-section-uuid', semesterId: 'sem-1', status: 'ENROLLED' }],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen();
     expect(screen.queryByText('9f8b2c-section-uuid')).toBeNull();
     expect(screen.getByText('Học phần')).toBeOnTheScreen();
   });
 
   test('a section number still shows when no course code exists (ux-m1-05)', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{
         id: 'enr-2',
         sectionId: 'sec-x',
@@ -93,45 +119,70 @@ describe('student dashboard live mode', () => {
         section: { id: 'sec-x', sectionNumber: 'N02', semesterId: 'sem-1', capacity: 40, enrolledCount: 10, status: 'OPEN' },
       }],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
     await renderScreen();
     expect(screen.getByText('N02')).toBeOnTheScreen();
   });
 
   test('a failed announcements fetch shows the neutral error copy, not a fabricated zero (ux-m1-06)', async () => {
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { error: 'Không tải được thông báo.' };
     await renderScreen();
-    expect(screen.getByText('Không tải được thông báo.')).toBeOnTheScreen();
+    expect(screen.getAllByText('Không tải được thông báo.')).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledWith('announcements');
     expect(screen.queryByText('0 thông báo của trường')).toBeNull();
   });
 
+  test('a widget-level 401 shows retry copy instead of session-expired copy', async () => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = {
+      errorInput: new ApiClientError('unauthorized', 401, 'req-1', 'HTTP_401'),
+    };
+    await renderScreen();
+
+    expect(screen.getByText('Không tải được thông báo.')).toBeOnTheScreen();
+    expect(screen.queryByText('Vui lòng đăng nhập lại để tiếp tục.')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledWith('announcements');
+  });
+
   test('a healthy announcements fetch still shows the real count', async () => {
-    mockQueries.enrollments = { data: [] };
-    mockQueries.announcements = { data: [{ id: 'a' }, { id: 'b' }] };
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }, { id: 'b' }], meta: { total: 2 } } };
     await renderScreen();
     expect(screen.getByText('2 thông báo của trường')).toBeOnTheScreen();
+  });
+
+  test('the hero counts every announcement, not just the first page', async () => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = {
+      data: { data: Array.from({ length: 20 }, (_, index) => ({ id: `a${index}` })), meta: { total: 45 } },
+    };
+    await renderScreen('en');
+    expect(screen.getByText('45 campus announcements')).toBeOnTheScreen();
+    expect(screen.queryByText('20 campus announcements')).toBeNull();
   });
 
   test('hides an initial zero while announcements load and keeps cached count during revalidation', async () => {
     const pending = new Promise<{ data: unknown[] }>(() => {});
     mockRequests.announcements.mockReturnValue(pending);
     mockPendingRequests.add('announcements');
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { isLoading: true };
 
     const view = await renderScreen('en');
     expect(mockRequests.announcements).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('0 campus announcements')).toBeNull();
 
-    mockQueries.announcements = { data: [{ id: 'a' }, { id: 'b' }], isLoading: false, isStale: true };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }, { id: 'b' }], meta: { total: 2 } }, isLoading: false, isStale: true };
     await view.rerender(screenElement('en'));
     expect(mockRequests.announcements).toHaveBeenCalledTimes(2);
     expect(screen.getByText('2 campus announcements')).toBeOnTheScreen();
   });
 
   test('selects the course name for the active locale with academic fallback order', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [
         {
           id: 'enr-bilingual',
@@ -165,7 +216,7 @@ describe('student dashboard live mode', () => {
         },
       ],
     };
-    mockQueries.announcements = { data: [] };
+    mockQueries.announcements = { data: { data: [] } };
 
     const english = await renderScreen('en');
     expect(screen.getByText(/Introduction to Computing/)).toBeOnTheScreen();
@@ -173,5 +224,107 @@ describe('student dashboard live mode', () => {
     await act(async () => changeDashboardLocale('vi'));
     expect(screen.getByText(/Nhập môn máy tính/)).toBeOnTheScreen();
     english.unmount();
+  });
+
+  test('preview mode leaves the preview disclosure to the app bar', async () => {
+    mockApi.mode = 'preview';
+    await renderScreen();
+    expect(screen.queryByText('Xem thử')).toBeNull();
+    expect(screen.queryByText('Học kỳ xem thử')).toBeNull();
+    expect(screen.getByText('3 lớp đang học')).toBeOnTheScreen();
+  });
+
+  test('a single section and a single announcement use the singular English count', async () => {
+    mockQueries['academic.enrollments'] = {
+      data: [{
+        id: 'enr-one',
+        sectionId: 'sec-one',
+        semesterId: 'sem-1',
+        status: 'ENROLLED',
+        section: {
+          id: 'sec-one',
+          sectionNumber: 'N01',
+          semesterId: 'sem-1',
+          capacity: 40,
+          enrolledCount: 1,
+          status: 'OPEN',
+          course: { code: 'PE101', name: 'Physical Education', credits: 1 },
+        },
+      }],
+    };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }], meta: { total: 1 } } };
+    await renderScreen('en');
+    expect(screen.getByText('1 active section')).toBeOnTheScreen();
+    expect(screen.getByText('1 campus announcement')).toBeOnTheScreen();
+    expect(screen.queryByText('1 active sections')).toBeNull();
+    expect(screen.queryByText('1 campus announcements')).toBeNull();
+  });
+
+  test('PENDING and CONFIRMED active enrollments count and keep their meetings', async () => {
+    mockQueries['academic.enrollments'] = {
+      data: [
+        {
+          id: 'enr-pending',
+          sectionId: 'sec-pending',
+          semesterId: 'sem-1',
+          status: 'PENDING',
+          section: {
+            id: 'sec-pending',
+            sectionNumber: 'N01',
+            semesterId: 'sem-1',
+            capacity: 40,
+            enrolledCount: 1,
+            status: 'OPEN',
+            course: { code: 'CS201', name: 'Pending course' },
+            schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '08:30' }],
+          },
+        },
+        {
+          id: 'enr-confirmed',
+          sectionId: 'sec-confirmed',
+          semesterId: 'sem-1',
+          status: 'CONFIRMED',
+          section: {
+            id: 'sec-confirmed',
+            sectionNumber: 'N02',
+            semesterId: 'sem-1',
+            capacity: 40,
+            enrolledCount: 1,
+            status: 'OPEN',
+            course: { code: 'CS202', name: 'Confirmed course' },
+            schedules: [{ dayOfWeek: 3, startTime: '09:00', endTime: '10:30' }],
+          },
+        },
+      ],
+    };
+    mockQueries.announcements = { data: { data: [] } };
+    await renderScreen('vi');
+    expect(screen.getByText('2 lớp đang học')).toBeOnTheScreen();
+    expect(screen.getByText('CS201')).toBeOnTheScreen();
+    expect(screen.getByText('CS202')).toBeOnTheScreen();
+  });
+
+  test('the Vietnamese count copy keeps its single form', async () => {
+    mockQueries['academic.enrollments'] = {
+      data: [{
+        id: 'enr-one',
+        sectionId: 'sec-one',
+        semesterId: 'sem-1',
+        status: 'ENROLLED',
+        section: {
+          id: 'sec-one',
+          sectionNumber: 'N01',
+          semesterId: 'sem-1',
+          capacity: 40,
+          enrolledCount: 1,
+          status: 'OPEN',
+          course: { code: 'PE101', name: 'Giáo dục thể chất', credits: 1 },
+        },
+      }],
+    };
+    mockQueries.announcements = { data: { data: [{ id: 'a' }], meta: { total: 1 } } };
+    await renderScreen('vi');
+    expect(screen.getByText('1 lớp đang học')).toBeOnTheScreen();
+    expect(screen.getByText('1 thông báo của trường')).toBeOnTheScreen();
   });
 });

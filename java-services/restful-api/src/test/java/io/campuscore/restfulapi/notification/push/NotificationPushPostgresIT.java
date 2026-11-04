@@ -330,6 +330,53 @@ class NotificationPushPostgresIT {
     }
 
     @Test
+    void batchFanOutWritesOneOutboxRowPerActiveDeviceAndReplaysIdempotently() {
+        String none = "push-none-" + suffix;
+        String one = "push-one-" + suffix;
+        String several = "push-several-" + suffix;
+        seedUser(none);
+        seedUser(one);
+        seedUser(several);
+        deviceService.register(one, "one-" + suffix,
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-one-" + suffix));
+        deviceService.register(several, "several-a-" + suffix,
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-a-" + suffix));
+        deviceService.register(several, "several-b-" + suffix,
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-b-" + suffix));
+        deviceService.register(several, "several-c-" + suffix,
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-c-" + suffix));
+        deviceService.delete(several, "several-c-" + suffix);
+
+        Instant createdAt = Instant.now().minusSeconds(2).truncatedTo(ChronoUnit.MICROS);
+        String prefix = "batch-" + suffix;
+        List<CreateNotificationCommand> commands = List.of(
+                new CreateNotificationCommand(prefix + "-none", none,
+                        "Fixture title", "Fixture message", "INFO", null, createdAt),
+                new CreateNotificationCommand(prefix + "-one", one,
+                        "Fixture title", "Fixture message", "INFO", null, createdAt),
+                new CreateNotificationCommand(prefix + "-several", several,
+                        "Fixture title", "Fixture message", "INFO", null, createdAt),
+                new CreateNotificationCommand(prefix + "-one-again", one,
+                        "Fixture title", "Fixture message", "INFO", null, createdAt));
+        List<DeliveryOutboxRepository.EnqueueRequest> requests = commands.stream()
+                .map(command -> new DeliveryOutboxRepository.EnqueueRequest(
+                        command.id(), command.userId(), command.createdAt()))
+                .toList();
+
+        try {
+            assertThat(notifications.createBatch(commands)).isEqualTo(4);
+
+            assertThat(batchOutboxCount(prefix)).isEqualTo(4);
+            outbox.enqueueBatch(requests);
+            assertThat(batchOutboxCount(prefix)).isEqualTo(4);
+        } finally {
+            // Rows left PENDING would be claimed by every later dispatch test.
+            jdbc.update("DELETE FROM notifications.delivery_outbox WHERE notification_id LIKE :p",
+                    new MapSqlParameterSource("p", prefix + "%"));
+        }
+    }
+
+    @Test
     void concurrentRebindLeavesOneOwnerAndAuditsThePreviousOwner() throws Exception {
         String token = "shared-token-" + suffix;
         CountDownLatch start = new CountDownLatch(1);
@@ -405,6 +452,13 @@ class NotificationPushPostgresIT {
                         .addValue("recipientUserId", recipientUserId)
                         .addValue("createdAt", Timestamp.from(createdAt)));
         return id;
+    }
+
+    private int batchOutboxCount(String prefix) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notifications.delivery_outbox WHERE notification_id LIKE :p",
+                new MapSqlParameterSource("p", prefix + "%"), Integer.class);
+        return count == null ? 0 : count;
     }
 
     private void awaitLeaseExpiry(Claim claim) throws InterruptedException {

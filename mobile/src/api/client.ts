@@ -5,12 +5,15 @@ import {
   type AssistantTransport,
 } from './assistant-stream';
 import { recordApiMetric, pathTemplate } from './observability';
+import { isLocalCleartextUrl, resolveApiBaseUrl } from './base-url';
 import type {
   PushDeviceRegistrationBody,
   PushDeviceRegistrationResponse,
 } from './push-notifications';
 import type { DiskDownload, NativeFileRuntime, TransferProgress } from './native-file-adapter';
 import type { components as GeneratedApiComponents } from './generated-api';
+
+export { DEFAULT_API_BASE_URL } from './base-url';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
@@ -169,6 +172,12 @@ export interface MobileEnrollment {
   section?: MobileSection;
 }
 
+/** `{ data, meta }` body of the role-scoped announcement feed (1-based pages). */
+export interface MobileAnnouncementPage {
+  data: JsonObject[];
+  meta?: { total?: number; page?: number; limit?: number; totalPages?: number };
+}
+
 export interface MobileGrade {
   id: string;
   courseCode: string;
@@ -320,6 +329,10 @@ export interface MobileLearningSubmission {
   submittedAt?: string | null;
   returnedAt?: string | null;
   reviewedAt?: string | null;
+  draftText?: string | null;
+  draftFileName?: string | null;
+  draftContentType?: string | null;
+  draftSizeBytes?: number | null;
   version: number;
 }
 
@@ -601,9 +614,11 @@ export interface SectionGradeEnrollment {
   letterGrade?: string | null;
   gradeStatus?: string;
   enrollmentStatus?: string;
+  /** Enrollment row version for optimistic concurrency; absent on legacy responses. */
+  version?: number;
 }
 
-interface SectionGradesResponse {
+export interface SectionGradesResponse {
   sectionId: string;
   enrollments: SectionGradeEnrollment[];
 }
@@ -619,6 +634,8 @@ export interface StudentGradeRow {
   gradeStatus?: string;
   processScore?: number | null;
   finalExamScore?: number | null;
+  /** The version the grade sheet loaded with; omitted by legacy responses. */
+  version?: number;
   grades?: Array<{
     gradeItemId?: string;
     gradeItemName?: string;
@@ -629,6 +646,45 @@ export interface StudentGradeRow {
   }>;
 }
 
+/** One PUT /sections/{id}/grades item. Omit `version` only for a legacy save. */
+export interface GradeUpdate {
+  enrollmentId: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  version?: number;
+}
+
+/** Maps the grade-sheet read model, keeping each enrollment's row version. */
+export function sectionGradeRows(response: SectionGradesResponse): StudentGradeRow[] {
+  return response.enrollments.map((entry) => ({
+    enrollmentId: entry.id,
+    studentId: entry.studentId,
+    studentCode: entry.studentCode,
+    studentName: entry.studentName,
+    processScore: entry.processScore,
+    finalExamScore: entry.finalExamScore,
+    finalGrade: entry.finalGrade,
+    letterGrade: entry.letterGrade,
+    gradeStatus: entry.gradeStatus,
+    version: entry.version,
+  }));
+}
+
+/**
+ * Request body for a draft save. A row without a numeric version (a legacy
+ * response) omits the property, so the server keeps last-write-wins for it.
+ */
+export function gradeSaveBody(grades: readonly GradeUpdate[]) {
+  return {
+    grades: grades.map(({ enrollmentId, processScore, finalExamScore, version }) => ({
+      enrollmentId,
+      processScore,
+      finalExamScore,
+      ...(typeof version === 'number' ? { version } : {}),
+    })),
+  };
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   mode?: ApiMode;
@@ -637,9 +693,10 @@ export interface ApiClientOptions {
   /**
    * Delegated session refresh (mobile-policy §3, KM-7): the apiClient owns the
    * shared single-flight promise; the actual grant lives in session-store so
-   * refresh material never enters client memory.
+   * refresh material never enters client memory. A boolean return is the legacy
+   * shape: true = refreshed, false = signed out.
    */
-  refreshSession?: () => Promise<boolean>;
+  refreshSession?: () => Promise<boolean | SessionRefreshOutcome>;
   onSessionExpired?: () => void;
   /**
    * Session epoch reader (mobile-policy §3): a request that started under an
@@ -659,11 +716,21 @@ export interface ApiClientOptions {
 export type ApiMode = 'preview' | 'live';
 
 /**
+ * Result of a delegated refresh. `signedOut` is a definitive rejection;
+ * `reauthRequired` quarantines a dispatched attempt whose rotation is unknown.
+ * Only pre-dispatch `unavailable` failures remain locally retryable.
+ */
+export type SessionRefreshOutcome = 'refreshed' | 'signedOut' | 'reauthRequired' | 'unavailable';
+
+/**
  * `protected` (default) sends the Bearer token and joins the single-flight
  * refresh on 401. `public` is anonymous: no Authorization header is ever sent
- * and a 401 never triggers a refresh or a session-expired bridge.
+ * and a 401 never triggers a refresh or a session-expired bridge. `snapshot`
+ * sends only the caller-supplied credential (e.g. a pre-wipe token) — it is
+ * never overwritten by the live token and a 401 fails once, outside the
+ * refresh lane.
  */
-export type ApiAuthPolicy = 'protected' | 'public';
+export type ApiAuthPolicy = 'protected' | 'public' | 'snapshot';
 
 export interface ApiRequestInit extends RequestInit {
   auth?: ApiAuthPolicy;
@@ -746,7 +813,7 @@ const ABORT_CODES = new Set(['REQUEST_ABORTED', 'SESSION_CHANGED']);
 
 export function classifyApiError(status: number, code?: string): ApiErrorKind {
   if (code !== undefined && ABORT_CODES.has(code)) return 'aborted';
-  if (code === 'NETWORK_ERROR') return 'network';
+  if (code === 'NETWORK_ERROR' || code === 'API_NOT_CONFIGURED') return 'network';
   if (status === 401) return 'unauthorized';
   if (status === 403) return 'denied';
   if (status === 404) return 'not_found';
@@ -762,19 +829,23 @@ export class ApiClientError extends Error {
   readonly code?: string;
   readonly requestId: string;
   readonly kind: ApiErrorKind;
+  /** The response's Retry-After header, when the server sent one. */
+  readonly retryAfter: string | null;
 
-  constructor(message: string, status: number, requestId: string, code?: string) {
+  constructor(message: string, status: number, requestId: string, code?: string, retryAfter: string | null = null) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.requestId = requestId;
     this.code = code;
     this.kind = classifyApiError(status, code);
+    this.retryAfter = retryAfter;
   }
 
   /** A retry of the same intent may succeed; callers must still reuse the idempotency key. */
   get retryable() {
-    return this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited';
+    return this.code !== 'API_NOT_CONFIGURED'
+      && (this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited');
   }
 }
 
@@ -807,16 +878,8 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   return { kind: 'network', status: 0, code: 'NETWORK_ERROR', message, retryable: true };
 }
 
-export const DEFAULT_API_BASE_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:4010/api/v1'
-  : 'http://127.0.0.1:4010/api/v1';
-
 const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
 const configuredApiMode: ApiMode = process.env.EXPO_PUBLIC_API_MODE === 'preview' ? 'preview' : 'live';
-
-function normalizeBaseUrl(value: string) {
-  return value.replace(/\/+$/, '');
-}
 
 function normalizePath(path: string) {
   return path.startsWith('/') ? path : `/${path}`;
@@ -929,9 +992,15 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     try { nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime(); }
     catch { /* Web/node or an older native binary keeps the existing bytes lane. */ }
   }
-  const baseUrl = normalizeBaseUrl(
-    options.baseUrl ?? configuredApiBaseUrl ?? DEFAULT_API_BASE_URL,
+  const developmentBuild = typeof __DEV__ !== 'undefined' && __DEV__;
+  const allowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL === '1';
+  const baseUrl = resolveApiBaseUrl(
+    options.baseUrl ?? configuredApiBaseUrl,
+    developmentBuild,
+    Platform.OS,
+    allowCleartextLocal,
   );
+  const resolvedBaseUrl = baseUrl ?? '';
   const apiMode = options.mode ?? configuredApiMode;
   let accessToken: string | undefined;
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
@@ -939,14 +1008,26 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   let onSessionExpired = options.onSessionExpired;
   // All transports in one session epoch share a refresh: the issuer rotates
   // refresh tokens, but a replacement session must never join the old flight.
-  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<boolean> } | null = null;
+  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<SessionRefreshOutcome> } | null = null;
 
-  function refreshSessionOnce(requestEpoch: number | undefined): Promise<boolean> {
-    if (epochChanged(requestEpoch)) return Promise.resolve(false);
+  function normalizeRefreshOutcome(value: boolean | SessionRefreshOutcome | undefined): SessionRefreshOutcome {
+    if (typeof value === 'boolean') return value ? 'refreshed' : 'signedOut';
+    return value ?? 'signedOut';
+  }
+
+  function refreshSessionOnce(requestEpoch: number | undefined): Promise<SessionRefreshOutcome> {
+    if (epochChanged(requestEpoch)) return Promise.resolve('signedOut');
     if (!sessionRefreshFlight || sessionRefreshFlight.epoch !== requestEpoch) {
-      const flight = { epoch: requestEpoch, promise: Promise.resolve(false) };
+      const flight = { epoch: requestEpoch, promise: Promise.resolve<SessionRefreshOutcome>('signedOut') };
       flight.promise = Promise.resolve()
-        .then(() => epochChanged(requestEpoch) ? false : options.refreshSession?.() ?? false)
+        .then(() => epochChanged(requestEpoch) ? 'signedOut' : options.refreshSession?.())
+        .then(normalizeRefreshOutcome)
+        .then((outcome) => {
+          if ((outcome === 'signedOut' || outcome === 'reauthRequired') && !epochChanged(requestEpoch)) {
+            onSessionExpired?.();
+          }
+          return outcome;
+        })
         .finally(() => {
           // A late old flight cannot clear the replacement session's flight.
           if (sessionRefreshFlight === flight) sessionRefreshFlight = null;
@@ -975,17 +1056,19 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     headers: Headers,
     transfer: boolean,
   ): Promise<{ response: Response; sameOrigin: boolean }> {
-    if (!transfer) {
-      return { response: await fetch(url, { ...fetchInit, headers }), sameOrigin: true };
-    }
-    const apiOrigin = originOf(baseUrl);
+    const apiOrigin = originOf(resolvedBaseUrl);
+    const requireHttpsRedirects = !developmentBuild || /^https:\/\//i.test(resolvedBaseUrl);
+    const allowLocalCleartextRedirects = !developmentBuild
+      && allowCleartextLocal
+      && isLocalCleartextUrl(resolvedBaseUrl);
     const requestId = headers.get('X-Request-Id') ?? '';
+    const fetchRequest = transfer ? (nativeFiles?.fetch ?? fetch) : fetch;
     let currentUrl = url;
     let currentInit: RequestInit = { ...fetchInit, redirect: 'manual' };
     let currentHeaders = headers;
     let sameOrigin = true;
     for (let hop = 0; ; hop += 1) {
-      const response = await (nativeFiles?.fetch ?? fetch)(currentUrl, { ...currentInit, headers: currentHeaders });
+      const response = await fetchRequest(currentUrl, { ...currentInit, headers: currentHeaders });
       if (response.type === 'opaqueredirect') {
         throw new ApiClientError('The server redirect could not be followed', 0, requestId, 'REDIRECT_UNSUPPORTED');
       }
@@ -999,6 +1082,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
       await response.body?.cancel().catch(() => {});
       currentUrl = resolveLocation(currentUrl, location);
+      const localCleartextRedirect = allowLocalCleartextRedirects && isLocalCleartextUrl(currentUrl);
+      if (requireHttpsRedirects && !/^https:\/\//i.test(currentUrl) && !localCleartextRedirect) {
+        throw new ApiClientError('The server redirect must use HTTPS', 0, requestId, 'INSECURE_REDIRECT');
+      }
       if (originOf(currentUrl) !== apiOrigin) {
         sameOrigin = false;
         currentHeaders = new Headers(currentHeaders);
@@ -1028,10 +1115,19 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         'MOBILE_API_PREVIEW',
       );
     }
+    if (!resolvedBaseUrl) {
+      throw new ApiClientError(
+        'The mobile API is not configured for this build',
+        0,
+        requestId,
+        'API_NOT_CONFIGURED',
+      );
+    }
     const transfer = mode !== 'json';
     const isPublic = auth === 'public';
+    const isSnapshot = auth === 'snapshot';
     const headers = new Headers(init.headers);
-    const token = isPublic ? undefined : getAccessToken();
+    const token = isPublic || isSnapshot ? undefined : getAccessToken();
 
     headers.set('Accept', mode === 'download' ? '*/*' : 'application/json');
     headers.set('X-Request-Id', requestId);
@@ -1044,7 +1140,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const url = `${baseUrl}${normalizePath(path)}`;
+    const url = `${resolvedBaseUrl}${normalizePath(path)}`;
     let diskDownload: DiskDownload | undefined;
     const readBody = async (response: Response): Promise<unknown> => {
       if (mode !== 'download' || !response.ok) return readResponseBody(response);
@@ -1100,8 +1196,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
       let body = await readBody(response);
 
-      if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
-        const refreshed = await refreshSessionOnce(requestEpoch);
+      if (!isPublic && !isSnapshot && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
+        const refreshOutcome = await refreshSessionOnce(requestEpoch);
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
         // previous account's dying request can never evict the session that
@@ -1111,11 +1207,14 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           sessionChanged = true;
           throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
         }
-        if (!refreshed || !rotated) {
-          // Failed refresh = dead session: the store already wiped; bridge
-          // back to sign-in instead of leaving screens in a dead end.
+        if (refreshOutcome !== 'refreshed' || !rotated) {
           if (!staleLane) {
-            onSessionExpired?.();
+            // A transient grant failure keeps the session: report a retryable
+            // network state and let the next request start a fresh flight.
+            if (refreshOutcome === 'unavailable') {
+              throw new ApiClientError('The network request failed', 0, requestId, 'NETWORK_ERROR');
+            }
+            // Terminal outcomes notify once in the shared refresh flight.
           }
         } else if (!staleLane) {
           headers.set('Authorization', `Bearer ${rotated}`);
@@ -1149,6 +1248,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           response.status,
           requestId,
           details.code,
+          response.headers.get('Retry-After'),
         );
       }
 
@@ -1178,7 +1278,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   }
 
   const client: ApiClient = {
-    baseUrl,
+    baseUrl: resolvedBaseUrl,
     mode: apiMode,
 
     setAccessToken(token) {
@@ -1275,7 +1375,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     session: {
       epoch: () => options.sessionEpoch?.(),
-      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch),
+      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch)
+        .then((outcome) => outcome === 'refreshed'),
     },
   };
 
@@ -1285,8 +1386,13 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 export const apiClient = createApiClient({
   getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
   setAccessToken: (token) => sessionStore.setAccessToken(token ?? null),
-  refreshSession: async () =>
-    (await sessionStore.refreshAccessToken()).accessToken !== null,
+  refreshSession: async () => {
+    const result = await sessionStore.refreshAccessToken();
+    // Legacy refresh mirrors have no outcome kind; a rotated token is success.
+    if (result.accessToken !== null) return 'refreshed';
+    if (result.kind === 'reauthRequired') return 'reauthRequired';
+    return result.kind === 'unavailable' ? 'unavailable' : 'signedOut';
+  },
   sessionEpoch: () => sessionStore.sessionEpoch(),
 });
 
@@ -1362,7 +1468,7 @@ export const campusApi = {
   registrationSections: () =>
     apiClient.get<RegistrationCatalogSection[]>('/me/registration/sections'),
   transcript: () => apiClient.get<JsonObject>('/enrollments/my/transcript'),
-  announcements: () => apiClient.get<{ data: JsonObject[] }>('/announcements/my'),
+  announcements: () => apiClient.get<MobileAnnouncementPage>('/announcements/my'),
   updateProfile: (body: JsonObject) => apiClient.put<AuthUser>('/auth/profile', body),
   changePassword: (oldPassword: string, newPassword: string) =>
     apiClient.post<JsonObject>('/auth/change-password', { oldPassword, newPassword }),
@@ -1384,7 +1490,7 @@ export const campusApi = {
     apiClient.delete<void>(
       `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
       accessToken
-        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        ? { auth: 'snapshot', headers: { Authorization: `Bearer ${accessToken}` } }
         : undefined,
     ),
   markNotificationRead: (id: string) =>
@@ -1429,25 +1535,15 @@ export const campusApi = {
     const response = await apiClient.get<SectionGradesResponse>(
       `/sections/${encodeURIComponent(sectionId)}/grades`,
     );
-    return response.enrollments.map((entry) => ({
-      enrollmentId: entry.id,
-      studentId: entry.studentId,
-      studentCode: entry.studentCode,
-      studentName: entry.studentName,
-      processScore: entry.processScore,
-      finalExamScore: entry.finalExamScore,
-      finalGrade: entry.finalGrade,
-      letterGrade: entry.letterGrade,
-      gradeStatus: entry.gradeStatus,
-    }));
+    return sectionGradeRows(response);
   },
   saveSectionGrades: (
     sectionId: string,
-    grades: Array<{ enrollmentId: string; processScore?: number | null; finalExamScore?: number | null }>,
+    grades: readonly GradeUpdate[],
   ) =>
     apiClient.put<JsonObject>(
       `/sections/${encodeURIComponent(sectionId)}/grades`,
-      { grades },
+      gradeSaveBody(grades),
     ),
   publishSectionGrades: (sectionId: string) =>
     apiClient.post<JsonObject>(
@@ -1553,8 +1649,6 @@ export const campusApi = {
     apiClient.get<MobileLibraryTitle>(
       `/library/catalogue/${encodeURIComponent(titleId)}`,
     ),
-  libraryMyLoans: () =>
-    apiClient.get<MobileLibraryLoan[]>('/library/requests/my'),
   libraryRequest: (copyId: string) =>
     apiClient.post<MobileLibraryLoan>(
       '/library/requests',

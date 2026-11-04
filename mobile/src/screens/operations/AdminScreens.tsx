@@ -21,6 +21,8 @@ import {
 import { Avatar } from '../../components/ui/avatar';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { HandoffButton, isOpsPreview } from './lecturer-ui';
@@ -164,7 +166,7 @@ const SAMPLE_LECTURERS: LecturerDirectoryItem[] = [
     email: 'vdd@hcmute.edu.vn',
     phone: '028 3722 1226',
     status: 'AVAILABLE',
-    groupsCount: 4,
+    groupsCount: 1,
     studentsCount: 10,
     maxStudents: 15,
     researchAreas: 'Kiến trúc phần mềm, DevOps & Cloud',
@@ -223,6 +225,7 @@ export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
 export function AdminStudentsScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const { formatNumber } = useLocale();
   const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -336,7 +339,7 @@ export function AdminStudentsScreen() {
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>GPA</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.gpa.toFixed(2)}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{formatNumber(selectedStudent.gpa, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</UiText>
             </View>
             <HandoffButton label={copy.openOnWeb} path="/admin/users" />
           </View>
@@ -430,7 +433,7 @@ export function AdminLecturersScreen() {
                 <View style={styles.slotRow}>
                   <IconChip icon="account-group-outline" size={32} tone="neutral" />
                   <UiText variant="bodySmall" tone="muted" style={{ flex: 1 }}>
-                    {`${copy.supervising}: ${fillCopy(copy.groupsCount, { n: lecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: lecturer.studentsCount, max: lecturer.maxStudents })}`}
+                    {`${copy.supervising}: ${fillCopy(countForm(lecturer.groupsCount, copy.groupsCountOne, copy.groupsCount), { n: lecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: lecturer.studentsCount, max: lecturer.maxStudents })}`}
                   </UiText>
                 </View>
               </View>
@@ -475,7 +478,7 @@ export function AdminLecturersScreen() {
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.supervising}</UiText>
               <UiText variant="bodyMedium" style={styles.detailValue}>
-                {`${fillCopy(copy.groupsCount, { n: selectedLecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: selectedLecturer.studentsCount, max: selectedLecturer.maxStudents })}`}
+                {`${fillCopy(countForm(selectedLecturer.groupsCount, copy.groupsCountOne, copy.groupsCount), { n: selectedLecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: selectedLecturer.studentsCount, max: selectedLecturer.maxStudents })}`}
               </UiText>
             </View>
             <View style={styles.detailRow}>

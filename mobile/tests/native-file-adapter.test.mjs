@@ -3,6 +3,8 @@ import test from 'node:test';
 import { loadTs } from './helpers/load-ts.mjs';
 
 const native = await loadTs('src/api/native-file-adapter.ts');
+const csv = await loadTs('src/screens/operations/lecturer-csv.ts');
+const ical = await loadTs('src/screens/academic/ical-export.ts');
 const MB = 1024 * 1024;
 const PDF = 'application/pdf';
 
@@ -21,7 +23,7 @@ function fixture(overrides = {}) {
     create() { assert.equal(this.exists, false); files.set(this.uri, { bytes: new Uint8Array() }); }
     delete() { deleted.push(this.uri); files.delete(this.uri); }
     copy(other) { files.set(other.uri, { ...files.get(this.uri) }); }
-    write(data) { files.set(this.uri, { bytes: new Uint8Array(Buffer.from(data, 'base64')) }); }
+    write(data, options = {}) { files.set(this.uri, { bytes: new Uint8Array(Buffer.from(data, options.encoding === 'utf8' ? 'utf8' : 'base64')) }); }
     async bytes() { return files.get(this.uri).bytes; }
     open() {
       let closed = false;
@@ -69,6 +71,18 @@ test('native pick stats the cached copy and sanitizes the display name', async (
   assert.equal(result.file.sizeBytes, 4, 'actual stat beats inaccurate picker metadata');
   assert.match(result.file.uri, /^file:\/\/\/cache\/attachment-[\w-]+\.pdf$/);
   assert.equal(f.files.has(f.source), false, 'picker cache copy is removed');
+});
+
+test('native picked copy exposes a release that deletes it', async () => {
+  const f = fixture();
+  const result = await f.adapter.pick({ mimeTypes: [PDF], maxBytes: 5 * MB });
+  assert.equal(result.status, 'picked');
+  assert.equal(typeof result.file.release, 'function');
+  result.file.release();
+  assert.equal(f.files.has(result.file.uri), false);
+  assert.equal(f.deleted.filter(uri => uri === result.file.uri).length, 1);
+  result.file.release(); // Idempotent after an upload or discard already released it.
+  assert.equal(f.files.has(result.file.uri), false);
 });
 
 test('native picker rejects oversize and MIME and removes its cache copy', async () => {
@@ -162,6 +176,27 @@ test('native save accepts bounded legacy data URI and rejects remote/arbitrary p
   for (const uri of ['https://foreign.test/file', 'file:///etc/private', 'data:application/x-msdownload;base64,AA==']) {
     assert.equal((await f.adapter.save({ uri, name: 'x' })).status, 'failed');
   }
+});
+
+test('native share materialises generated CSV and ICS text as typed cache files', async () => {
+  const f = fixture();
+  const csvText = '\uFEFFa,b\r\n1,2\r\nMã,Điểm\r\n';
+  const icsText = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n';
+
+  assert.deepEqual(await f.adapter.share({ uri: csv.csvDataUri(csvText), name: '../../.grades.csv', mimeType: 'text/csv' }), { status: 'done' });
+  assert.deepEqual(await f.adapter.share({ uri: ical.icsDataUri(icsText), name: 'campusute-timetable.ics', mimeType: 'text/calendar' }), { status: 'done' });
+
+  assert.equal(f.shared.length, 2);
+  assert.match(f.shared[0].uri, /^file:\/\/\/cache\/attachment-[\w-]+\.csv$/);
+  assert.equal(f.shared[0].options.mimeType, 'text/csv');
+  assert.equal(f.shared[0].options.dialogTitle, 'grades.csv');
+  assert.deepEqual(Buffer.from(f.shared[0].bytes), Buffer.from(csvText, 'utf8'));
+  assert.match(f.shared[1].uri, /^file:\/\/\/cache\/attachment-[\w-]+\.ics$/);
+  assert.equal(f.shared[1].options.mimeType, 'text/calendar');
+  assert.deepEqual(Buffer.from(f.shared[1].bytes), Buffer.from(icsText, 'utf8'));
+
+  assert.equal((await f.adapter.share({ uri: csv.csvDataUri('a,b'), name: 'x.csv', mimeType: 'text/plain' })).status, 'failed');
+  assert.equal((await f.adapter.share({ uri: 'data:text/csv;charset=utf-8,%E0%A4%A', name: 'x.csv', mimeType: 'text/csv' })).reason, 'ATTACHMENT_DATA_INVALID');
 });
 
 test('native multipart preparation validates real file size, lane MIME and sanitized filename', async () => {

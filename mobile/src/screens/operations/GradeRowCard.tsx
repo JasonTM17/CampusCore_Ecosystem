@@ -14,6 +14,8 @@ export interface GradeRowCardProps {
   row: GradeRowLike;
   edit: ScoreEdit | undefined;
   problems: Partial<Record<'processScore' | 'finalExamScore', ScoreProblem>> | undefined;
+  /** The row moved on the server at the last explicit reload after a conflict. */
+  changed?: boolean;
   copy: OperationsCopy;
   onEdit: (enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => void;
   disabled?: boolean;
@@ -23,7 +25,7 @@ const problemText = (copy: OperationsCopy, problem: ScoreProblem | undefined) =>
   problem === 'invalid' ? copy.invalidScore : problem === 'needsProcess' ? copy.needsProcess : undefined;
 
 /** One student's two scores. Published rows are read-only; a total shows once both scores parse. */
-function Row({ row, edit, problems, copy, onEdit, disabled = false }: GradeRowCardProps) {
+function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = false }: GradeRowCardProps) {
   const styles = useOpsStyles();
   const { formatNumber } = useLocale();
   const name = row.studentName ?? row.studentCode ?? row.enrollmentId;
@@ -45,6 +47,7 @@ function Row({ row, edit, problems, copy, onEdit, disabled = false }: GradeRowCa
           <View style={styles.rowCopy}>
             <UiText variant="label">{name}</UiText>
             {row.studentCode ? <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText> : null}
+            {changed ? <StatusPill label={copy.changedOnServer} tone="warning" /> : null}
           </View>
         </View>
         <StatusPill

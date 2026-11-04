@@ -13,10 +13,9 @@
  *   node scripts/probe-assistant-matrix.mjs [--base-url http://127.0.0.1:4010] \
  *        [--json report.json] [--timeout-ms 60000]
  *
- * Env: ASSISTANT_PROBE_BASE_URL (default http://127.0.0.1:4010; prod backend
- * https://campuscore-backend-p4em.onrender.com), ASSISTANT_PROBE_EMAIL /
- * ASSISTANT_PROBE_PASSWORD — required, exit 2 when absent (same contract as
- * frontend/scripts/e2e-production-verify.mjs).
+ * Env: ASSISTANT_PROBE_BASE_URL (default http://127.0.0.1:4010 — the local
+ * stack), ASSISTANT_PROBE_EMAIL / ASSISTANT_PROBE_PASSWORD — required, exit 2
+ * when absent.
  *
  * Quota note: ~15 chat turns of the 100/day user quota per full run — run
  * serially, not in parallel shells.

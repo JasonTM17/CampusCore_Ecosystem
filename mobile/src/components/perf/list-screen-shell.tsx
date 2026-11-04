@@ -14,13 +14,14 @@ export function ScrollableScreenShell<T>({ list, ...props }: ScreenShellProps & 
 
 /** ScreenShell's heading and responsive width, with the header inside the list. */
 export function ListScreenShell<T>({ title, eyebrow, subtitle, headerAction, hideHeader,
-  contentStyle, children, list }: ListScreenShellProps<T>) {
+  contentStyle, children, list, refreshControl }: ListScreenShellProps<T>) {
   const { colors, window } = useTheme();
   const maxWidth = window.class === 'compact' ? undefined : tokens.windowClasses.contentMaxWidth[window.class];
   return <View style={[styles.screen, { backgroundColor: colors.background }]}>
     <PerformanceList
       key={list.numColumns ?? 1}
       {...list}
+      refreshControl={refreshControl ?? list.refreshControl}
       style={[maxWidth ? { alignSelf: 'center', maxWidth, width: '100%' } : undefined, list.style]}
       contentContainerStyle={[contentStyle, list.contentContainerStyle]}
       header={<>

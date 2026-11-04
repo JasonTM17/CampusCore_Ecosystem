@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -155,9 +156,9 @@ describe('Markdown-aware link parser fixtures', () => {
   });
 
   test('classifies link targets correctly', () => {
-    assert.equal(classifyTarget('file:///D:/CampusUTE_EcoSystem/docs/guide.md'), 'host-specific');
-    assert.equal(classifyTarget('D:/CampusUTE_EcoSystem/foo.md'), 'host-specific');
-    assert.equal(classifyTarget('C:\\Users\\Admin\\doc.md'), 'host-specific');
+    assert.equal(classifyTarget('file:///D:/workspace/repo/docs/guide.md'), 'host-specific');
+    assert.equal(classifyTarget('D:/workspace/repo/foo.md'), 'host-specific');
+    assert.equal(classifyTarget('C:\\Users\\example\\doc.md'), 'host-specific');
     assert.equal(classifyTarget('/Users/user/doc.md'), 'host-specific');
 
     assert.equal(classifyTarget('https://example.com'), 'external');
@@ -170,6 +171,38 @@ describe('Markdown-aware link parser fixtures', () => {
 
     assert.equal(classifyTarget('attendance-geofence-spec.md'), 'relative');
     assert.equal(classifyTarget('../../contracts/ecosystem/domain-contracts.md#L5-L15'), 'relative');
+  });
+});
+
+describe('Tracked-file host path hygiene', () => {
+  // Generic placeholders (example/user) document the shape, not a real host.
+  const genericNames = new Set(['example', 'user', 'username', 'name']);
+  const windowsProfile = /[A-Za-z]:[\\/]+Users[\\/]+([A-Za-z0-9_.-]+)/g;
+  const macProfile = /\/Users\/([A-Za-z0-9_.-]+)/g;
+
+  test('no tracked file embeds a checkout path or a concrete user-profile directory', () => {
+    const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' })
+      .split('\0')
+      .filter(Boolean);
+    const rootPosix = repoRoot.replace(/\\/g, '/');
+    const rootWindows = repoRoot.replace(/\//g, '\\');
+    const offenders = [];
+    for (const file of tracked) {
+      const absolute = path.join(repoRoot, file);
+      if (!statSync(absolute).isFile()) continue;
+      const content = readFileSync(absolute, 'utf8');
+      if (content.includes(rootPosix) || content.includes(rootWindows)
+          || /[A-Za-z]:[\\/]+CampusUTE/.test(content)) {
+        offenders.push(`${file}: embeds a checkout-specific absolute path`);
+        continue;
+      }
+      const profiles = [...content.matchAll(windowsProfile), ...content.matchAll(macProfile)]
+        .map((match) => match[1]);
+      if (profiles.some((name) => !genericNames.has(name.toLowerCase()))) {
+        offenders.push(`${file}: embeds a host user-profile path`);
+      }
+    }
+    assert.deepEqual(offenders, []);
   });
 });
 
@@ -267,5 +300,57 @@ describe('Residual version and onboarding contract invariants', () => {
       /^- \[Demo acceptance criteria \(historical\)\]\(demo-acceptance\.md\)$/m,
       'docs/ecosystem/README.md must mark demo acceptance criteria as historical',
     );
+  });
+});
+
+describe('Ecosystem policy documentation contract invariants', () => {
+  function readPolicy(relativePath) {
+    return readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  }
+
+  test('mobile policy states the boot-refresh deadline and terminal outcome consistently', () => {
+    const doc = readPolicy('docs/ecosystem/mobile-policy.md');
+    const start = doc.indexOf('**Boot sequence & timeout (KM-17)**');
+    assert.ok(start !== -1, 'boot-sequence policy is required');
+    const boot = doc.slice(start, doc.indexOf('## 4.', start)).replace(/\s+/g, ' ');
+
+    assert.match(boot, /20 giây/, 'boot refresh must use the 20-second session-store deadline');
+    assert.match(boot, /reauthRequired/, 'a boot-refresh timeout must end the session');
+    assert.match(boot, /OIDC authorization code/, 'the 10-second deadline belongs to the code exchange');
+    assert.match(boot, /10 giây/, 'the code exchange must document its 10-second deadline');
+    assert.doesNotMatch(
+      boot,
+      /Cả boot refresh và trao đổi OIDC code/,
+      'boot refresh and the OIDC code exchange must not share one deadline',
+    );
+  });
+
+  test('host policy separates BFF-generated errors from proxied upstream errors', () => {
+    const doc = readPolicy('docs/ecosystem/host-policy.md');
+    const bullet = doc.split(/\r?\n/).find((line) => line.startsWith('- `ANY /bff/api/**`'));
+    assert.ok(bullet, 'business-proxy error contract is required');
+
+    assert.match(bullet, /BFF/, 'BFF-generated errors must be named as the error+code envelope owner');
+    assert.match(bullet, /ErrorResponse/, 'proxied upstream errors must name ErrorResponse');
+    assert.match(bullet, /không có trường `error`/, 'proxied upstream errors must state the code-only shape');
+  });
+
+  test('identity contract separates a missing refresh token from a replay', () => {
+    const doc = readPolicy('docs/ecosystem/identity-contract.md');
+    const rows = doc.split(/\r?\n/);
+    const missing = rows.find((line) => line.startsWith('| C2 |'));
+    const replay = rows.find((line) => line.startsWith('| C2a |'));
+
+    assert.ok(missing, 'C2 must cover the missing/blank refresh token');
+    assert.match(missing, /thiếu\/rỗng/);
+    assert.match(missing, /401/);
+    assert.match(missing, /không revoke/);
+    assert.match(missing, /không warn/);
+    assert.doesNotMatch(missing, /deleteAllRefreshSessions/, 'a missing credential has no family to revoke');
+
+    assert.ok(replay, 'C2a must cover refresh replay');
+    assert.match(replay, /revokeAllLanes/);
+    assert.match(replay, /REFRESH_TOKEN_REUSE/);
+    assert.match(replay, /401/);
   });
 });

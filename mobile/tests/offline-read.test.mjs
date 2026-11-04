@@ -72,9 +72,11 @@ test('screen query passes scope and age, and session expiry purges memory cache'
   assert.match(hook, /readQueryCache<T>\(cacheKey, optionsRef\.current\.maxAge\)/);
   assert.match(cacheSource, /export interface QueryCacheScope/);
 
-  const expiryHandler = context.match(/setOnSessionExpired\(\(\) => \{([\s\S]*?)\n    \}\);/)?.[1];
+  const expiryHandler = context.match(/const expireSession = useCallback\(\(\) => \{([\s\S]*?)\n  \}, \[updateBootStatus\]\);/)?.[1];
   assert.ok(expiryHandler, 'SessionContext registers an expiry handler');
   assert.match(expiryHandler, /clearQueryCache\(\)/);
+  assert.match(expiryHandler, /sessionStore\.bumpEpoch\(\)/);
+  assert.match(context, /apiClient\.setOnSessionExpired\(expireSession\)/);
 
   writeQueryCache('account-a:grades', ['memory-only']);
   assert.deepEqual(readQueryCache('account-a:grades'), ['memory-only']);

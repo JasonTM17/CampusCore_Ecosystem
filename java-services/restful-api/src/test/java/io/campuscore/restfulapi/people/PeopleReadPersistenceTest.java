@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.people;
 
 import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -9,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,8 +52,8 @@ class PeopleReadPersistenceTest {
         jdbc.update("DELETE FROM \"academic\".\"Curriculum\"");
         jdbc.update("DELETE FROM \"academic\".\"Department\"");
         jdbc.update("DELETE FROM \"campuscore_auth\".\"User\"");
-        insertDepartment("department-se", "SE", "Software Engineering");
-        insertDepartment("department-cs", "CS", "Computer Science");
+        insertDepartment("department-se", "SE", "Software Engineering", "fac-eng");
+        insertDepartment("department-cs", "CS", "Computer Science", "fac-sci");
     }
 
     @Test
@@ -64,7 +65,7 @@ class PeopleReadPersistenceTest {
         mvc.perform(get("/api/v1/students")
                         .queryParam("page", "1")
                         .queryParam("limit", "2")
-                        .with(lecturerJwt()))
+                        .with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("student-other"))
@@ -189,7 +190,7 @@ class PeopleReadPersistenceTest {
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
         mvc.perform(get("/api/v1/lecturers/lecturer-old")
-                        .with(lecturerJwt()))
+                        .with(adminJwt()))
                 .andExpect(status().isOk());
     }
 
@@ -335,7 +336,36 @@ class PeopleReadPersistenceTest {
                 CREATE TABLE IF NOT EXISTS "academic"."Department" (
                     "id" VARCHAR(120) PRIMARY KEY,
                     "code" VARCHAR(40) NOT NULL,
-                    "name" VARCHAR(200) NOT NULL
+                    "name" VARCHAR(200) NOT NULL,
+                    "facultyId" VARCHAR(120)
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "campuscore_auth"."Lecturer" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "userId" VARCHAR(120) UNIQUE,
+                    "isActive" BOOLEAN NOT NULL DEFAULT TRUE
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "academic"."Course" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "departmentId" VARCHAR(120) NOT NULL
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "academic"."Section" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "courseId" VARCHAR(120) NOT NULL,
+                    "lecturerId" VARCHAR(120)
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "academic"."Enrollment" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "studentId" VARCHAR(120) NOT NULL,
+                    "sectionId" VARCHAR(120) NOT NULL,
+                    "status" VARCHAR(40) NOT NULL
                 )
                 """);
         jdbc.execute("""
@@ -354,9 +384,9 @@ class PeopleReadPersistenceTest {
                     "curriculumId" VARCHAR(120) NOT NULL,
                     "year" INTEGER NOT NULL,
                     "status" VARCHAR(40) NOT NULL,
-                    "admissionDate" TIMESTAMP NOT NULL,
-                    "createdAt" TIMESTAMP NOT NULL,
-                    "updatedAt" TIMESTAMP NOT NULL
+                    "admissionDate" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
                 )
                 """);
         jdbc.execute("""
@@ -370,15 +400,26 @@ class PeopleReadPersistenceTest {
                     "office" VARCHAR(120),
                     "phone" VARCHAR(80),
                     "isActive" BOOLEAN NOT NULL,
-                    "createdAt" TIMESTAMP NOT NULL,
-                    "updatedAt" TIMESTAMP NOT NULL
+                    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
                 )
                 """);
     }
 
-    private void insertDepartment(String id, String code, String name) {
-        jdbc.update("INSERT INTO \"academic\".\"Department\" (\"id\", \"code\", \"name\") VALUES (?, ?, ?)",
-                id, code, name);
+    private void insertDepartment(String id, String code, String name, String facultyId) {
+        jdbc.update("INSERT INTO \"academic\".\"Department\" (\"id\", \"code\", \"name\", \"facultyId\") VALUES (?, ?, ?, ?)",
+                id, code, name, facultyId);
+    }
+
+    private void insertSectionScope(String sectionId, String courseId, String departmentId, String lecturerId) {
+        jdbc.update("INSERT INTO \"academic\".\"Course\" (\"id\", \"departmentId\") VALUES (?, ?)", courseId, departmentId);
+        jdbc.update("INSERT INTO \"academic\".\"Section\" (\"id\", \"courseId\", \"lecturerId\") VALUES (?, ?, ?)",
+                sectionId, courseId, lecturerId);
+    }
+
+    private void enroll(String enrollmentId, String studentId, String sectionId) {
+        jdbc.update("INSERT INTO \"academic\".\"Enrollment\" (\"id\", \"studentId\", \"sectionId\", \"status\") VALUES (?, ?, ?, ?)",
+                enrollmentId, studentId, sectionId, "ENROLLED");
     }
 
     private void insertStudent(
@@ -400,8 +441,8 @@ class PeopleReadPersistenceTest {
                         + " (\"id\", \"userId\", \"studentId\", \"curriculumId\", \"year\", \"status\","
                         + " \"admissionDate\", \"createdAt\", \"updatedAt\") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 id, userId, studentId, curriculumId, year, status,
-                localDateTime(BASE_TIME.minusSeconds(31_536_000)),
-                localDateTime(createdAt), localDateTime(createdAt));
+                zonedDateTime(BASE_TIME.minusSeconds(31_536_000)),
+                zonedDateTime(createdAt), zonedDateTime(createdAt));
     }
 
     private void insertLecturer(String id, String employeeId, Instant createdAt) {
@@ -413,7 +454,7 @@ class PeopleReadPersistenceTest {
                         + " \"specialization\", \"office\", \"phone\", \"isActive\", \"createdAt\", \"updatedAt\")"
                         + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 id, userId, "department-se", employeeId, "Dr.", "Distributed Systems", "A-101",
-                "+84123456789", true, localDateTime(createdAt), localDateTime(createdAt));
+                "+84123456789", true, zonedDateTime(createdAt), zonedDateTime(createdAt));
     }
 
     private void insertUser(String id, String email, String firstName, String lastName) {
@@ -448,7 +489,62 @@ class PeopleReadPersistenceTest {
         return departmentId.endsWith("cs") ? "CS" : "SE";
     }
 
-    private static LocalDateTime localDateTime(Instant value) {
-        return LocalDateTime.ofInstant(value, ZoneOffset.UTC);
+    private static OffsetDateTime zonedDateTime(Instant value) {
+        return OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
     }
+    @Test
+    void lecturerDirectoryScopeIsLimitedToOwnSections() throws Exception {
+        AccountAuthorityFixture.lecturer(jdbc, "user-lect-a", "lect-a");
+        AccountAuthorityFixture.lecturer(jdbc, "user-lect-b", "lect-b");
+        insertLecturer("lect-a", "E501", BASE_TIME);
+        insertLecturer("lect-b", "E502", BASE_TIME);
+        insertStudent("student-scoped", "S010", "ACTIVE", 1, BASE_TIME, "department-se");
+        insertStudent("student-foreign", "S011", "ACTIVE", 2, BASE_TIME.plusSeconds(10), "department-se");
+        insertSectionScope("section-a", "course-a", "department-se", "lect-a");
+        insertSectionScope("section-b", "course-b", "department-cs", "lect-b");
+        enroll("en-1", "student-scoped", "section-a");
+        enroll("en-2", "student-foreign", "section-b");
+
+        mvc.perform(get("/api/v1/students")
+                        .queryParam("page", "1").queryParam("limit", "20")
+                        .with(fixtureJwt(jdbc, "user-lect-a", "LECTURER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].id").value("student-scoped"));
+
+        mvc.perform(get("/api/v1/students")
+                        .with(fixtureJwt(jdbc, "user-lect-b", "LECTURER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].id").value("student-foreign"));
+
+        mvc.perform(get("/api/v1/students/student-scoped")
+                        .with(fixtureJwt(jdbc, "user-lect-b", "LECTURER")))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/students/student-scoped")
+                        .with(fixtureJwt(jdbc, "user-lect-a", "LECTURER")))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/students/student-scoped")
+                        .with(adminJwt()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void departmentHeadSeesStudentsOfDepartmentCourseSections() throws Exception {
+        AccountAuthorityFixture.lecturer(jdbc, "user-lect-head", "lect-head");
+        insertLecturer("lect-head", "E777", BASE_TIME);
+        insertStudent("student-dept", "S020", "ACTIVE", 1, BASE_TIME, "department-cs");
+        insertStudent("student-out", "S021", "ACTIVE", 2, BASE_TIME.plusSeconds(10), "department-cs");
+        insertSectionScope("section-d1", "course-d1", "department-se", "lect-other");
+        insertSectionScope("section-d2", "course-d2", "department-cs", "lect-other2");
+        enroll("en-3", "student-dept", "section-d1");
+        enroll("en-4", "student-out", "section-d2");
+
+        mvc.perform(get("/api/v1/students")
+                        .with(fixtureJwt(jdbc, "user-lect-head", "LECTURER", "TRUONG_BO_MON")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].id").value("student-dept"));
+    }
+
 }

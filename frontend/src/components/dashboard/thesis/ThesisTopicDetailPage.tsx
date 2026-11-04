@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2, FileStack } from 'lucide-react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ export default function ThesisTopicDetailPage() {
   // URL while the Choose button assigned B (route id), so a student could read
   // one topic and commit to another.
   const [directTopic, setDirectTopic] = useState<{ id: string; topic: ThesisTopic | null } | null>(null);
+  const [directError, setDirectError] = useState('');
   const [directLoading, setDirectLoading] = useState(false);
   const [isChoosing, setIsChoosing] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -72,32 +73,41 @@ export default function ThesisTopicDetailPage() {
 
   const { topics, selectedRoundId, setSelectedRoundId } = workspace;
 
-  useEffect(() => {
-    if (!topicId || topics.some((item) => item.id === topicId)) {
-      return;
-    }
+  const fetchDirectTopic = useCallback((id: string) => {
     let cancelled = false;
     setDirectLoading(true);
-    thesisApi
-      .getTopic(topicId)
+    setDirectError('');
+    const request = thesisApi
+      .getTopic(id)
       .then((t) => {
         if (!cancelled) {
-          setDirectTopic({ id: topicId, topic: t });
+          setDirectTopic({ id, topic: t });
           if (t?.roundId && t.roundId !== selectedRoundId) {
             setSelectedRoundId(t.roundId);
           }
         }
       })
       .catch(() => {
-        if (!cancelled) setDirectTopic({ id: topicId, topic: null });
+        if (!cancelled) {
+          // A rejected read is not an empty catalog: pair the failure with
+          // the id so the page can offer a retryable load error.
+          setDirectTopic({ id, topic: null });
+          setDirectError(id);
+        }
       })
       .finally(() => {
         if (!cancelled) setDirectLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [topicId, topics, selectedRoundId, setSelectedRoundId]);
+    return { request, cancel: () => { cancelled = true; } };
+  }, [selectedRoundId, setSelectedRoundId]);
+
+  useEffect(() => {
+    if (!topicId || topics.some((item) => item.id === topicId)) {
+      return;
+    }
+    const { cancel } = fetchDirectTopic(topicId);
+    return cancel;
+  }, [topicId, topics, fetchDirectTopic]);
 
   useEffect(() => {
     const matched = topics.find((item) => item.id === topicId);
@@ -123,6 +133,18 @@ export default function ThesisTopicDetailPage() {
 
   if (workspace.error && workspace.rounds.length === 0) {
     return <ErrorState title={messages.thesis.loadFailed} description={workspace.error} onRetry={() => void workspace.reload()} />;
+  }
+
+  if (!topic && directError === topicId) {
+    return (
+      <ErrorState
+        title={messages.thesis.loadFailed}
+        description={messages.thesis.topicLoadFailed}
+        onRetry={() => {
+          void fetchDirectTopic(topicId).request;
+        }}
+      />
+    );
   }
 
   if (!topic) {

@@ -5,11 +5,19 @@ import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -37,6 +45,7 @@ public class NotificationWriteRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final DeliveryOutboxRepository deliveryOutbox;
+    private volatile Boolean postgres;
 
     @Autowired
     public NotificationWriteRepository(
@@ -94,6 +103,74 @@ public class NotificationWriteRepository {
     }
 
     /**
+     * Insert behind the client-supplied idempotency contract: returns the new
+     * row, or empty when a row already holds the derived id (a replayed
+     * request). The push outbox enqueue runs only on a real insert, so a
+     * replay cannot queue a second delivery round either.
+     */
+    @Transactional
+    public Optional<NotificationResponse> createIfAbsent(CreateNotificationCommand command) {
+        // ON CONFLICT keeps a racing duplicate's transaction valid on
+        // PostgreSQL. The non-PostgreSQL mirror reports the same race as a
+        // duplicate key, or as a lock timeout while the winner is still
+        // uncommitted; both mean the committed row is the answer.
+        boolean postgres = isPostgres();
+        String insert = INSERT_SQL + (postgres ? " ON CONFLICT (id) DO NOTHING" : "");
+        try {
+            if (jdbc.update(insert, insertParameters(command)) == 0) {
+                return Optional.empty();
+            }
+        } catch (DuplicateKeyException duplicate) {
+            return Optional.empty();
+        } catch (QueryTimeoutException | PessimisticLockingFailureException locked) {
+            if (postgres) {
+                throw locked;
+            }
+            awaitCommitted(command.id());
+            return Optional.empty();
+        }
+        if (deliveryOutbox != null) {
+            deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
+        }
+        return findById(command.id());
+    }
+
+    /**
+     * A non-PostgreSQL winner may still be uncommitted when the racing insert
+     * hits its lock timeout; wait briefly for the committed row instead of
+     * turning a legitimate replay into a failure.
+     */
+    private void awaitCommitted(String id) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (findById(id).isPresent()) {
+                return;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private boolean isPostgres() {
+        Boolean detected = postgres;
+        if (detected != null) {
+            return detected;
+        }
+        synchronized (this) {
+            if (postgres == null) {
+                postgres = Boolean.TRUE.equals(jdbc.getJdbcTemplate().execute(
+                        (ConnectionCallback<Boolean>) connection -> connection.getMetaData()
+                                .getDatabaseProductName().equalsIgnoreCase("PostgreSQL")));
+            }
+            return postgres;
+        }
+    }
+
+    /**
      * Multi-row insert for the announcement fan-out (R7). One JDBC batch keeps
      * a campus-wide broadcast to a handful of round-trips instead of one
      * {@link #create(CreateNotificationCommand)} per student (which would also
@@ -112,11 +189,47 @@ public class NotificationWriteRepository {
                 .toArray(SqlParameterSource[]::new);
         jdbc.batchUpdate(INSERT_SQL, batch);
         if (deliveryOutbox != null) {
-            for (CreateNotificationCommand command : commands) {
-                deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
-            }
+            deliveryOutbox.enqueueBatch(commands.stream()
+                    .map(command -> new DeliveryOutboxRepository.EnqueueRequest(
+                            command.id(), command.userId(), command.createdAt()))
+                    .toList());
         }
         return commands.size();
+    }
+
+    public Set<String> findExistingIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT id FROM " + TABLE + " WHERE id IN (:ids)",
+                new MapSqlParameterSource("ids", ids), String.class));
+    }
+
+    public Set<String> findMatchingUsers(
+            List<String> userIds,
+            String title,
+            String message,
+            String type,
+            String link,
+            Instant createdAfter,
+            Instant createdBefore) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT user_id FROM " + TABLE
+                        + " WHERE user_id IN (:userIds) AND title = :title AND message = :message"
+                        + " AND type = :type AND link = :link AND created_at >= :createdAfter AND created_at <= :createdBefore",
+                new MapSqlParameterSource()
+                        .addValue("userIds", userIds)
+                        .addValue("title", title)
+                        .addValue("message", message)
+                        .addValue("type", type)
+                        .addValue("link", link)
+                        .addValue("createdAfter", Timestamp.from(createdAfter))
+                        .addValue("createdBefore", Timestamp.from(createdBefore)),
+                String.class));
     }
 
     private static MapSqlParameterSource insertParameters(CreateNotificationCommand command) {
@@ -178,6 +291,10 @@ public class NotificationWriteRepository {
         add(assignments, parameters, "message", "message", command.message());
         add(assignments, parameters, "type", "type", command.type());
         add(assignments, parameters, "link", "link", command.link());
+        if (command.userId().present()) {
+            assignments.add("is_read = CASE WHEN user_id <> :userId THEN FALSE ELSE is_read END");
+            assignments.add("read_at = CASE WHEN user_id <> :userId THEN NULL ELSE read_at END");
+        }
         if (assignments.isEmpty()) {
             return;
         }

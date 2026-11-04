@@ -2,6 +2,8 @@ package io.campuscore.restfulapi.thesis.assistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tools.jackson.databind.ObjectMapper;
@@ -20,11 +22,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import io.campuscore.restfulapi.web.DomainException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class RagAssistantGatewayTest {
+    private static final String ASSERTION_SECRET = "rag-gateway-test-owner-assertion-key";
     private HttpServer server;
+
+    @BeforeEach
+    void authenticateAssistantOwner() {
+        authenticate("owner-a");
+    }
 
     @Test
     void stalledSseBodyEndsWithinTheAbsoluteReadDeadline() throws Exception {
@@ -65,10 +78,13 @@ class RagAssistantGatewayTest {
         try {
             var result = reader.submit(() -> {
                 try {
+                    authenticate("owner-a");
                     gateway.stream(new ChatRequest("Quy chế học vụ", "vi"), "owner-a", event -> { });
                     return null;
                 } catch (DomainException failure) {
                     return failure;
+                } finally {
+                    SecurityContextHolder.clearContext();
                 }
             });
             assertTrue(headersFlushed.await(2, TimeUnit.SECONDS));
@@ -114,10 +130,13 @@ class RagAssistantGatewayTest {
         try {
             var result = reader.submit(() -> {
                 try {
+                    authenticate("owner-a");
                     gateway().stream(new ChatRequest("Quy chế học vụ", "vi"), "owner-a", events::add);
                     return null;
                 } catch (DomainException failure) {
                     return failure;
+                } finally {
+                    SecurityContextHolder.clearContext();
                 }
             });
             DomainException failure = result.get(1_500, TimeUnit.MILLISECONDS);
@@ -138,6 +157,7 @@ class RagAssistantGatewayTest {
 
     @AfterEach
     void stopServer() {
+        SecurityContextHolder.clearContext();
         if (server != null) {
             server.stop(0);
         }
@@ -146,10 +166,12 @@ class RagAssistantGatewayTest {
     void chatSendsInternalTokenAndOwnerToRagService() throws Exception {
         AtomicReference<String> token = new AtomicReference<>();
         AtomicReference<String> owner = new AtomicReference<>();
+        AtomicReference<String> assertion = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();
         startServer(exchange -> {
             token.set(exchange.getRequestHeaders().getFirst("X-Rag-Service-Token"));
             owner.set(exchange.getRequestHeaders().getFirst("X-Assistant-Owner"));
+            assertion.set(exchange.getRequestHeaders().getFirst(AssistantOwnerAssertion.HEADER));
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] response = """
                     {"answer":"ok","model":"curated-lexical-rag","degraded":false,"reasonCode":"ANSWERED","locale":"vi","citations":[]}
@@ -166,6 +188,9 @@ class RagAssistantGatewayTest {
         assertEquals("ok", response.answer());
         assertEquals("internal-token", token.get());
         assertEquals("owner-a", owner.get());
+        assertEquals("owner-a", new AssistantOwnerAssertion(new AssistantRagProperties(
+                "", "", ASSERTION_SECRET, true, 1_000, 30_000))
+                .verifyAssistant(assertion.get(), "owner-a"));
         assertTrue(body.get().contains("\"message\":\"Xin chào\""));
     }
 
@@ -208,6 +233,7 @@ class RagAssistantGatewayTest {
         assertEquals(1, answered.citations().size());
 
         stopServer();
+        authenticate("owner-a");
         startServer(exchange -> {
             byte[] response = ("""
                     {"answer":"Mình chưa tìm thấy hướng dẫn phù hợp.","model":"curated-lexical-rag","degraded":false,"reasonCode":"NO_MATCH","locale":"vi","citations":[%s]}
@@ -499,6 +525,87 @@ class RagAssistantGatewayTest {
         assertEquals("msg-4", response.messageId());
     }
 
+    @Test
+    void chatSanitizesRemoteAnswerLinksAtTheGatewayBoundary() throws Exception {
+        startServer(exchange -> {
+            byte[] response = ("""
+                    {"answer":"Read [the rule](/docs/registration) and [outside](https://example.edu/policy) after.","model":"m","degraded":false,"reasonCode":"ANSWERED","locale":"en","citations":[]}
+                    """).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Find the rule", "en"), "owner-a");
+
+        assertEquals("Read [the rule](/docs/registration) and outside after.", response.answer());
+    }
+
+    @Test
+    void remoteHistoryMessagesAreSanitizedAtTheGatewayBoundary() throws Exception {
+        UUID messageId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        startServer(exchange -> {
+            byte[] response = ("""
+                    [{"id":"%s","role":"ASSISTANT","content":"Read [outside](javascript:alert(1)) after.","model":"m","degraded":false,"reasonCode":"ANSWERED","createdAt":"2026-11-01T00:00:00Z","citations":[]}]
+                    """).formatted(messageId).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/conversations/");
+
+        var page = gateway().messages(conversationId, "owner-a", null, null);
+
+        assertEquals("Read outside after.", page.data().getFirst().content());
+        assertNull(page.nextCursor());
+    }
+
+    @Test
+    void remoteSseLinkSplitAcrossDeltaEventsIsSanitizedBeforeForwarding() throws Exception {
+        startServer(exchange -> {
+            String body = "event:meta\ndata:{}\n\n"
+                    + "event:delta\ndata:{\"sequence\":0,\"text\":\"Before [outside](https://exa\",\"sourceIds\":[]}\n\n"
+                    + "event:delta\ndata:{\"sequence\":1,\"text\":\"mple.edu/policy) after.\",\"sourceIds\":[]}\n\n"
+                    + "event:done\ndata:{\"reasonCode\":\"ANSWERED\",\"degraded\":false,\"terminalStatus\":\"COMPLETED\"}\n\n";
+            byte[] response = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat/stream");
+
+        List<ThesisAssistantService.StreamEvent> events = new ArrayList<>();
+        gateway().stream(new ChatRequest("Find a policy", "en"), "owner-a", events::add);
+
+        String answer = events.stream().filter(ThesisAssistantService.StreamDelta.class::isInstance)
+                .map(ThesisAssistantService.StreamDelta.class::cast)
+                .map(ThesisAssistantService.StreamDelta::text).reduce("", String::concat);
+        assertEquals("Before outside after.", answer);
+        assertTrue(events.stream().anyMatch(ThesisAssistantService.StreamDone.class::isInstance));
+    }
+
+    @Test
+    void nonStandardUpstreamStatusIsATransientGatewayFailure() throws Exception {
+        startServer(exchange -> {
+            byte[] response = "{\"message\":\"origin down\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(520, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        DomainException failure = assertThrows(DomainException.class,
+                () -> gateway().chat(new ChatRequest("Quy chế học vụ", "vi", UUID.randomUUID(), null), "owner-a"));
+
+        // A CDN/LB status Spring does not enumerate is an upstream outage, not
+        // a caller error: it must stay on the designed local-fallback chain.
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, failure.status());
+        assertEquals("RAG_SERVICE_UNAVAILABLE", failure.code());
+        assertTrue(gateway().isTransientFailure(failure));
+    }
+
     private RagAssistantGateway gateway() {
         return gateway(30_000);
     }
@@ -508,10 +615,16 @@ class RagAssistantGatewayTest {
         return new RagAssistantGateway(new AssistantRagProperties(
                 "http://127.0.0.1:" + port,
                 "internal-token",
+                ASSERTION_SECRET,
                 false,
                 1_000,
                 readTimeoutMs),
                 new ObjectMapper());
+    }
+
+    private static void authenticate(String subject) {
+        Jwt jwt = Jwt.withTokenValue("fixture").header("alg", "none").subject(subject).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
     }
 
     private void startServer(com.sun.net.httpserver.HttpHandler handler, String path) throws IOException {

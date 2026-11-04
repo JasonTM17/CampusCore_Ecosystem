@@ -178,15 +178,45 @@ class NotificationPushContractPersistenceTest {
     @Test
     void foreignInstallationIsNotVisibleAndDeleteRemainsIdempotentForUnknownIds() throws Exception {
         register(ownerJwt, "private-install", "push-fixture-token-two");
-        mvc.perform(put("/api/v1/notifications/my/devices/private-install").with(otherJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(registrationBody("push-fixture-token-three")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         mvc.perform(delete("/api/v1/notifications/my/devices/private-install").with(otherJwt))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         mvc.perform(delete("/api/v1/notifications/my/devices/unknown-install").with(otherJwt))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void rotatedTokenOnSharedInstallationTransfersOwnershipWithoutExposingPreviousRegistration() throws Exception {
+        String previousToken = "push-fixture-rotated-token-old";
+        String rotatedToken = "push-fixture-rotated-token-new";
+        register(ownerJwt, "shared-install", previousToken);
+
+        String response = register(otherJwt, "shared-install", rotatedToken);
+
+        assertThat(response).doesNotContain(OWNER, previousToken, rotatedToken);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notifications.device_registration WHERE installation_id=?",
+                Integer.class, "shared-install")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT user_id FROM notifications.device_registration WHERE installation_id=?",
+                String.class, "shared-install")).isEqualTo(OTHER);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM notifications.device_registration WHERE installation_id=?",
+                String.class, "shared-install")).isEqualTo("ACTIVE");
+        assertThat(cryptography.decrypt(jdbc.queryForObject(
+                "SELECT token_ciphertext FROM notifications.device_registration WHERE installation_id=?",
+                String.class, "shared-install"))).isEqualTo(rotatedToken);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notifications.device_registration WHERE token_fingerprint=?",
+                Integer.class, cryptography.fingerprint(previousToken))).isZero();
+
+        mvc.perform(delete("/api/v1/notifications/my/devices/shared-install").with(ownerJwt))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM notifications.device_registration WHERE installation_id=?",
+                String.class, "shared-install")).isEqualTo("ACTIVE");
+        mvc.perform(delete("/api/v1/notifications/my/devices/shared-install").with(otherJwt))
                 .andExpect(status().isNoContent());
     }
 

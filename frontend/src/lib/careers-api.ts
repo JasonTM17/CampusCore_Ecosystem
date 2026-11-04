@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { fetchArrayListPage, type ArrayListPage } from '@/lib/array-list-page';
 import { assertUploadFile } from '@/lib/upload-validation';
 
 /**
@@ -171,6 +172,14 @@ export const careersApi = {
     });
     return response.data;
   },
+  opportunityQueuePage: async (status: OpportunityStatus | '' | undefined, page: number,
+      limit: number): Promise<ArrayListPage<CareerOpportunity>> =>
+    fetchArrayListPage(page, limit, async (requestPage, requestLimit) => {
+      const response = await api.get<CareerOpportunity[]>('/careers/staff/opportunities', {
+        params: { ...(status ? { status } : {}), page: requestPage, limit: requestLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   staffOpportunity: async (opportunityId: string): Promise<CareerOpportunity> => {
     const response = await api.get<CareerOpportunity>(
       `/careers/staff/opportunities/${opportunityId}`);
@@ -211,6 +220,13 @@ export const careersApi = {
     const response = await api.get<CareerOpportunity[]>('/careers/staff/review-queue');
     return response.data;
   },
+  reviewQueuePage: async (page: number, limit: number): Promise<ArrayListPage<CareerOpportunity>> =>
+    fetchArrayListPage(page, limit, async (requestPage, requestLimit) => {
+      const response = await api.get<CareerOpportunity[]>('/careers/staff/review-queue', {
+        params: { page: requestPage, limit: requestLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   publish: async (opportunityId: string, expectedVersion: number): Promise<CareerOpportunity> => {
     const response = await api.post<CareerOpportunity>(
       `/careers/staff/opportunities/${opportunityId}/publish`, { expectedVersion });
@@ -232,6 +248,18 @@ export const careersApi = {
     const response = await api.get<CareerApplication[]>('/careers/staff/applications', { params });
     return response.data;
   },
+  applicationQueuePage: async (opportunityId: string | undefined,
+      status: ApplicationStatus | '' | undefined, page: number,
+      limit: number): Promise<ArrayListPage<CareerApplication>> =>
+    fetchArrayListPage(page, limit, async (requestPage, requestLimit) => {
+      const params: Record<string, string | number> = {};
+      if (opportunityId) params.opportunityId = opportunityId;
+      if (status) params.status = status;
+      params.page = requestPage;
+      params.limit = requestLimit;
+      const response = await api.get<CareerApplication[]>('/careers/staff/applications', { params });
+      return { data: response.data, headers: response.headers };
+    }),
   staffApplication: async (applicationId: string): Promise<CareerApplication> => {
     const response = await api.get<CareerApplication>(
       `/careers/staff/applications/${applicationId}`);

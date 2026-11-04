@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import { EventsConsolePage } from '@/components/events/EventsConsolePage';
 import { useAuth } from '@/context/AuthContext';
+import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { useI18n } from '@/i18n';
 
 /**
@@ -15,16 +16,16 @@ import { useI18n } from '@/i18n';
  * admin shell chrome must not wrap a non-admin audience.
  */
 export default function AdminEventsPage() {
-  const { locale } = useI18n();
+  const { href, locale } = useI18n();
   const { isAdmin, isSuperAdmin, isLoading } = useAuth();
   const router = useRouter();
   const fullAdminAccess = isAdmin || isSuperAdmin;
 
   useEffect(() => {
     if (!isLoading && !fullAdminAccess) {
-      router.replace('/dashboard/events');
+      router.replace(href('/dashboard/events'));
     }
-  }, [isLoading, fullAdminAccess, router]);
+  }, [href, isLoading, fullAdminAccess, router]);
 
   if (!fullAdminAccess) {
     return null;
@@ -32,16 +33,8 @@ export default function AdminEventsPage() {
 
   return (
     <AdminFrame
-      title={
-        locale === 'en'
-          ? 'Events & union activities'
-          : 'Sự kiện & hoạt động Đoàn–Hội'
-      }
-      description={
-        locale === 'en'
-          ? 'Lifecycle, roster and manual attendance for staff-managed events.'
-          : 'Vòng đời, danh sách đăng ký và điểm danh thủ công cho sự kiện Đoàn–Hội.'
-      }
+      title={(locale === 'vi' ? adminOpsVi : adminOpsEn).events.header.title}
+      description={(locale === 'vi' ? adminOpsVi : adminOpsEn).events.header.description}
     >
       <EventsConsolePage />
     </AdminFrame>

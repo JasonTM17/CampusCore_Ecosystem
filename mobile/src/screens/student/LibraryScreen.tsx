@@ -10,8 +10,8 @@ import { fillCopy } from '../../i18n/academic-messages';
 import { libraryMessages } from '../../i18n/library-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { contentErrorMessage, errorCode } from '../content/content-errors';
-import { filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
+import { contentErrorMessage } from '../content/content-errors';
+import { copyFailureMessage, filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
 import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { LibraryTitleDetail } from '../content/LibraryTitleDetail';
 import { previewLibraryLoans, previewLibraryTitles } from '../content/preview-data';
@@ -28,6 +28,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
   const [loanTab, setLoanTab] = useState<LoanTab>('active');
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
+  const live = apiClient.mode === 'live';
   const [selected, setSelected] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<{ availability?: string[] }>({});
@@ -62,14 +63,15 @@ export function LibraryScreen(_props: MobileScreenProps) {
       await action();
       success(ok);
       setReloadToken((value) => value + 1);
-      void catalogue.reload();
-      void loans.reload();
+      // The loan row keeps its pre-write version until the reads land; hold the
+      // lock across them so a second tap cannot resend the old version.
+      await Promise.all([catalogue.reload(), loans.reload()]);
     } catch (error) {
-      fail(errorCode(error) === 'NO_COPY' ? copy.noCopiesAvailable : contentErrorMessage(common, error, copy.failed));
+      fail(copyFailureMessage(copy, error) ?? contentErrorMessage(common, error, copy.failed));
     } finally {
       setBusy(false);
     }
-  }, [busy, catalogue, clear, common, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
+  }, [busy, catalogue, clear, common, copy.copyUnavailable, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
 
   const hold = (title: MobileLibraryTitle) => ask({
     title: copy.holdTitle,
@@ -118,7 +120,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
       options={[{ value: 'catalogue', label: copy.catalogue }, { value: 'loans', label: copy.myLoans }]}
     />
   );
-  const banner = <DataNotice message={copy.simulatedBanner} />;
+  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
+  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
   const rows = availableOnly ? catalogue.items.filter((item) => item.availableCopies > 0) : catalogue.items;
 
   return (

@@ -174,15 +174,17 @@ class AdminAuditReadRepositoryTest {
     }
 
     @Test
-    void genericAuditSearchRequiresEveryLiteralTokenWithoutNameSearchTruncation() {
+    void genericAuditSearchUsesTheBoundedLengthAndTokenLimits() {
         insert("cn", "admin-user", "Admin", "UPDATED", "COURSE", "c-1", "Updated CN course");
         insert("se", "admin-user", "Admin", "UPDATED", "COURSE", "c-2", "Updated SE course");
         assertThat(repository.page(1, 20, null, null, null, null, "CN updated").data())
                 .extracting(AdminAuditReadRepository.AuditEntry::id).containsExactly("cn");
         String prefix = "x".repeat(64);
         insert("long", "admin-user", "Admin", "UPDATED", "COURSE", "c-3", prefix + "a");
-        assertThat(repository.page(1, 20, null, null, null, null, prefix + "b").data()).isEmpty();
+        assertThat(repository.page(1, 20, null, null, null, null, prefix + "b").data())
+                .extracting(AdminAuditReadRepository.AuditEntry::id).containsExactly("long");
         insert("many", "admin-user", "Admin", "UPDATED", "COURSE", "c-4", "one two three four five six seven eight nine");
-        assertThat(repository.page(1, 20, null, null, null, null, "one two three four five six seven eight missing").data()).isEmpty();
+        assertThat(repository.page(1, 20, null, null, null, null, "one two three four five six seven eight missing").data())
+                .extracting(AdminAuditReadRepository.AuditEntry::id).containsExactly("many");
     }
 }

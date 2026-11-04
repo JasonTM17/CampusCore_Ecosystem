@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class AssistantRagPropertiesTest {
         // Bug do-tre-1: a broken remote chain must degrade after 15s, not 30s.
         assertEquals(15000, properties.readTimeoutMs());
         assertEquals(1000, properties.connectTimeoutMs());
+        assertEquals("", properties.ownerAssertionSecret());
     }
 
     @Test
@@ -51,6 +53,19 @@ class AssistantRagPropertiesTest {
                 new AssistantRagProperties("", "", false, 1000, 15000);
         assertEquals(15000, properties.readTimeoutMs());
         assertEquals(1000, properties.connectTimeoutMs());
+    }
+
+    @Test
+    void ownerAssertionSecretIsTrimmedAndHasNoShippedDefault() {
+        AssistantRagProperties configured = new AssistantRagProperties(
+                "", "svc", "  a-dedicated-generated-key-with-at-least-32-characters  ",
+                true, 1_000, 15_000);
+        AssistantRagProperties omitted = new AssistantRagProperties("", "svc", true, 1_000, 15_000);
+
+        assertEquals("a-dedicated-generated-key-with-at-least-32-characters", configured.ownerAssertionSecret());
+        assertEquals("", omitted.ownerAssertionSecret());
+        assertFalse(configured.toString().contains(configured.ownerAssertionSecret()));
+        assertFalse(configured.toString().contains("svc"));
     }
 
     @Test

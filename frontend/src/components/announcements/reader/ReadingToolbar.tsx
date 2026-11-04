@@ -19,6 +19,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Locale } from '@/i18n/config';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 export type ReaderTheme = 'light' | 'sepia' | 'dark';
 export type ReaderFontFamily = 'sans' | 'serif';
@@ -56,7 +60,7 @@ export function ReadingToolbar({
   onEdit,
   locale = 'vi',
 }: ReadingToolbarProps) {
-  const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.toolbar;
 
   const currentFontIndex = fontSizes.indexOf(preferences.fontSize);
 
@@ -106,10 +110,11 @@ export function ReadingToolbar({
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
           )}
-          title={isVi ? 'Giao diện Báo chí Học thuật' : 'Academic Magazine View'}
+          title={copy.modeMagazineTitle}
+          aria-pressed={preferences.mode === 'EDITORIAL'}
         >
           <BookOpen className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{isVi ? 'Dạng Bản tin' : 'Magazine'}</span>
+          <span className="hidden sm:inline">{copy.modeMagazine}</span>
         </button>
 
         <button
@@ -121,10 +126,11 @@ export function ReadingToolbar({
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
           )}
-          title={isVi ? 'Giao diện Công văn Hành chính e-Office' : 'Official Institutional Dispatch'}
+          title={copy.modeDispatchTitle}
+          aria-pressed={preferences.mode === 'OFFICIAL'}
         >
           <FileText className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{isVi ? 'Công văn' : 'Dispatch'}</span>
+          <span className="hidden sm:inline">{copy.modeDispatch}</span>
         </button>
       </div>
 
@@ -137,8 +143,8 @@ export function ReadingToolbar({
             onClick={handleDecreaseFont}
             disabled={currentFontIndex === 0}
             className="inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40 sm:h-7 sm:w-7"
-            title={isVi ? 'Giảm cỡ chữ (A-)' : 'Decrease font size'}
-            aria-label={isVi ? 'Giảm cỡ chữ' : 'Decrease font size'}
+            title={copy.fontDecreaseTitle}
+            aria-label={copy.fontDecreaseLabel}
           >
             <Minus className="h-3 w-3" />
           </button>
@@ -150,8 +156,8 @@ export function ReadingToolbar({
             onClick={handleIncreaseFont}
             disabled={currentFontIndex === fontSizes.length - 1}
             className="inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40 sm:h-7 sm:w-7"
-            title={isVi ? 'Tăng cỡ chữ (A+)' : 'Increase font size'}
-            aria-label={isVi ? 'Tăng cỡ chữ' : 'Increase font size'}
+            title={copy.fontIncreaseTitle}
+            aria-label={copy.fontIncreaseLabel}
           >
             <Plus className="h-3 w-3" />
           </button>
@@ -167,12 +173,8 @@ export function ReadingToolbar({
           )}
           title={
             preferences.fontFamily === 'serif'
-              ? isVi
-                ? 'Đang dùng phông có chân (Serif). Bấm để đổi sang Sans.'
-                : 'Serif font. Click for Sans.'
-              : isVi
-                ? 'Đang dùng phông không chân (Sans). Bấm để đổi sang Serif.'
-                : 'Sans font. Click for Serif.'
+              ? copy.fontSerifActive
+              : copy.fontSansActive
           }
         >
           <Type className="h-3.5 w-3.5" />
@@ -190,8 +192,8 @@ export function ReadingToolbar({
                 ? 'reader-theme-light shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
-            title={isVi ? 'Nền sáng tiêu chuẩn' : 'Light background'}
-            aria-label={isVi ? 'Nền sáng tiêu chuẩn' : 'Light background'}
+            title={copy.themeLight}
+            aria-label={copy.themeLight}
           >
             <Sun className="h-3.5 w-3.5" />
           </button>
@@ -205,8 +207,8 @@ export function ReadingToolbar({
                 ? 'reader-theme-sepia shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
-            title={isVi ? 'Nền Sepia dịu mắt ban đêm' : 'Warm eye-care Sepia mode'}
-            aria-label={isVi ? 'Nền Sepia dịu mắt ban đêm' : 'Warm eye-care Sepia mode'}
+            title={copy.themeSepia}
+            aria-label={copy.themeSepia}
           >
             S
           </button>
@@ -220,8 +222,8 @@ export function ReadingToolbar({
                 ? 'reader-theme-dark shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
-            title={isVi ? 'Nền tối chống chói' : 'Dark mode'}
-            aria-label={isVi ? 'Nền tối chống chói' : 'Dark mode'}
+            title={copy.themeDark}
+            aria-label={copy.themeDark}
           >
             <Moon className="h-3.5 w-3.5" />
           </button>
@@ -237,10 +239,10 @@ export function ReadingToolbar({
             size="sm"
             onClick={onEdit}
             className="h-11 gap-1.5 rounded-lg text-xs font-semibold shadow-xs sm:h-8"
-            title={isVi ? 'Chỉnh sửa bài viết' : 'Edit announcement'}
+            title={copy.editTitle}
           >
             <FileEdit className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{isVi ? 'Chỉnh sửa' : 'Edit'}</span>
+            <span className="hidden sm:inline">{copy.editAction}</span>
           </Button>
         )}
 
@@ -250,10 +252,10 @@ export function ReadingToolbar({
           size="sm"
           onClick={onPrint}
           className="h-11 gap-1.5 rounded-lg text-xs sm:h-8"
-          title={isVi ? 'In tài liệu (chuẩn khổ A4)' : 'Print document'}
+          title={copy.printTitle}
         >
           <Printer className="h-3.5 w-3.5" />
-          <span className="hidden md:inline">{isVi ? 'In' : 'Print'}</span>
+          <span className="hidden md:inline">{copy.printAction}</span>
         </Button>
 
         <Button
@@ -262,24 +264,24 @@ export function ReadingToolbar({
           size="sm"
           onClick={onShare}
           className="h-11 gap-1.5 rounded-lg text-xs sm:h-8"
-          title={isVi ? 'Sao chép liên kết bài viết' : 'Copy notice link'}
+          title={copy.shareTitle}
         >
           {copyState === 'copied' ? (
             <>
               <Check className="h-3.5 w-3.5 text-status-success" />
-              <span className="text-status-success-foreground font-semibold">{isVi ? 'Đã chép!' : 'Copied!'}</span>
+              <span className="text-status-success-foreground font-semibold">{copy.copied}</span>
             </>
           ) : copyState === 'failed' ? (
             <>
               <AlertCircle className="h-3.5 w-3.5 text-status-warning" />
               <span className="text-status-warning-foreground font-semibold" role="status">
-                {isVi ? 'Không chép được liên kết' : 'Could not copy the link'}
+                {copy.copyFailed}
               </span>
             </>
           ) : (
             <>
               <Share2 className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{isVi ? 'Chia sẻ' : 'Share'}</span>
+              <span className="hidden md:inline">{copy.shareAction}</span>
             </>
           )}
         </Button>
@@ -289,8 +291,8 @@ export function ReadingToolbar({
           type="button"
           onClick={onClose}
           className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 focus:outline-none focus:ring-2 focus:ring-destructive/40"
-          title={isVi ? 'Đóng cửa sổ đọc (Esc)' : 'Close reader (Esc)'}
-          aria-label={isVi ? 'Đóng cửa sổ đọc' : 'Close reader'}
+          title={copy.closeTitle}
+          aria-label={copy.closeLabel}
         >
           <X className="h-4 w-4" />
         </button>

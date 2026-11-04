@@ -6,6 +6,10 @@ import { cn } from '@/lib/utils';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
+import {
   calculateReadingTime,
   extractAnnouncementExcerpt,
   formatRelativeTime,
@@ -31,6 +35,7 @@ export function RelatedAnnouncements({
   locale = 'vi',
 }: RelatedAnnouncementsProps) {
   const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.related;
   const { categories } = useArticleTaxonomy();
 
   // Filter out current announcement and pick up to 3
@@ -47,7 +52,7 @@ export function RelatedAnnouncements({
       <div className="flex items-center gap-2 mb-4">
         <Sparkles className="h-4 w-4 text-primary" />
         <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-          {isVi ? 'Bài viết liên quan & Đáng chú ý' : 'Related & Notable Articles'}
+          {copy.heading}
         </h4>
       </div>
 
@@ -105,7 +110,7 @@ export function RelatedAnnouncements({
               <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
                 <span>{relativeTime}</span>
                 <span className="inline-flex items-center gap-1 font-semibold text-primary group-hover:translate-x-0.5 transition-transform">
-                  <span>{isVi ? 'Đọc tiếp' : 'Read'}</span>
+                  <span>{copy.read}</span>
                   <ArrowRight className="h-3 w-3" />
                 </span>
               </div>

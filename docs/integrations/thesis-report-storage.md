@@ -86,7 +86,9 @@ approval or its submission window has closed. Read access and permission to
 change it are separate decisions. The [student page](../../frontend/src/app/dashboard/thesis/page.tsx)
 owns presentation; [report persistence](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis/service/ThesisReportService.java)
 owns authorization, artifact preservation and the write boundary shared with
-group membership and round publication.
+group membership and round publication. Round publication may also record a
+below-threshold counter-review outcome without changing the report; see
+[thesis result disposition](thesis-result-disposition.md).
 
 A missing deadline is not a closed submission window, and a rounded day count
 is not permission to write. Keep the timeline aligned with the form's lifecycle

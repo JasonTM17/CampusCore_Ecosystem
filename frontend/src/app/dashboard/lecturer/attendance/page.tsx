@@ -28,6 +28,7 @@ import {
   type StudentAttendanceEntry,
 } from '@/lib/api';
 import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
+import { countLabel } from '@/lib/plural';
 import { GradingSection, Semester } from '@/types/api';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -45,15 +46,14 @@ import {
 import { GeofenceCheckinPanel } from '@/components/lecturer/GeofenceCheckinPanel';
 import { metricToneClass } from '@/components/ui/status';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { UnsavedChangesConfirmDialog } from '@/components/ui/unsaved-changes-confirm';
+import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
+import { ATTENDANCE_NOTE_MAX, campusTodayIso } from '@/lib/attendance-checkin';
 import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 function getTodayString(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return campusTodayIso();
 }
 
 type StudentRowState = {
@@ -67,11 +67,13 @@ type StudentRowState = {
 export default function LecturerAttendancePage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
   const { locale, formatNumber, messages } = useI18n();
-  const copy = messages.lecturerAttendance;
+  const attendanceMessages = messages.lecturerAttendance;
+  const attendancePrint = messages.teachingPages.attendancePrint;
   const controlId = useId().replace(/:/g, '');
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [semesterError, setSemesterError] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
   const [sections, setSections] = useState<GradingSection[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState('');
@@ -84,25 +86,51 @@ export default function LecturerAttendancePage() {
   const [sectionsLoadFailed, setSectionsLoadFailed] = useState(false);
 
   const [roster, setRoster] = useState<StudentRowState[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // Rows cleared via Reset whose RESET entry has not been saved yet.
   const [resetStudentIds, setResetStudentIds] = useState<Set<string>>(new Set());
   const [sectionSummary, setSectionSummary] = useState<SectionAttendanceSummary | null>(null);
+  const [summaryRefreshFailed, setSummaryRefreshFailed] = useState(false);
   const [existingReadFailed, setExistingReadFailed] = useState(false);
+  const [noteErrors, setNoteErrors] = useState<Record<string, string>>({});
   // Request generations: a stale sections/roster response must never overwrite
   // the newer selection — writing D1's roster under D2 would persist marks to
   // the wrong students on Save.
   const sectionsGenerationRef = useRef(0);
   const rosterGenerationRef = useRef(0);
+  // The save completion belongs to the selection it started under; switching
+  // section/date mid-flight must not clear or overwrite the new selection.
+  const saveSelectionRef = useRef(0);
+  const selectionRef = useRef({ sectionId: selectedSectionId, date: selectedDate });
+  selectionRef.current = { sectionId: selectedSectionId, date: selectedDate };
+  const unsaved = useUnsavedChangesGuard({
+    isDirty: useCallback(() => hasUnsavedChanges, [hasUnsavedChanges]),
+    interceptRouteChanges: true,
+  });
+
+  const requestSheetChange = (action: () => void) => {
+    unsaved.requestLeave(() => {
+      setHasUnsavedChanges(false);
+      action();
+    });
+  };
+  const handleSemesterChange = (value: string) =>
+    requestSheetChange(() => setSelectedSemester(value));
+  const handleSectionChange = (value: string) =>
+    requestSheetChange(() => setSelectedSectionId(value));
+  const handleDateChange = (value: string) =>
+    requestSheetChange(() => setSelectedDate(value));
 
   // 1. Fetch semesters
   const fetchSemesters = useCallback(async () => {
+    setSemesterError('');
     try {
       const response = await semestersApi.getAll();
       setSemesters(response.data ?? []);
     } catch {
-      // Non-fatal, fallback to all sections
+      setSemesterError(messages.lecturerGrades.errors.semestersFailed);
     }
-  }, []);
+  }, [messages.lecturerGrades.errors.semestersFailed]);
 
   // 2. Fetch lecturer's assigned sections
   const fetchSections = useCallback(async () => {
@@ -144,6 +172,7 @@ export default function LecturerAttendancePage() {
     const generation = ++rosterGenerationRef.current;
     setRoster([]);
     setSectionSummary(null);
+    setSummaryRefreshFailed(false);
     setExistingReadFailed(false);
     if (!sectionId) {
       return;
@@ -193,17 +222,19 @@ export default function LecturerAttendancePage() {
       });
 
       setRoster(rows);
+      setNoteErrors({});
+      setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
       setSectionSummary(summary);
     } catch {
       if (rosterGenerationRef.current !== generation) return;
-      setError(copy.rosterLoadErrorDescription);
+      setError(attendanceMessages.rosterLoadErrorDescription);
     } finally {
       if (rosterGenerationRef.current === generation) {
         setIsLoadingRoster(false);
       }
     }
-  }, [copy.rosterLoadErrorDescription]);
+  }, [attendanceMessages.rosterLoadErrorDescription]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -228,26 +259,35 @@ export default function LecturerAttendancePage() {
     setRoster((prev) =>
       prev.map((row) => (row.studentId === studentId ? { ...row, status } : row)),
     );
+    setHasUnsavedChanges(true);
   };
 
   const handleNotesChange = (studentId: string, notes: string) => {
     setRoster((prev) =>
       prev.map((row) => (row.studentId === studentId ? { ...row, notes } : row)),
     );
+    setNoteErrors((prev) => {
+      if (!prev[studentId]) return prev;
+      const next = { ...prev };
+      delete next[studentId];
+      return next;
+    });
+    setHasUnsavedChanges(true);
   };
 
   const handleMarkAllPresent = () => {
     setRoster((prev) => prev.map((row) => ({ ...row, status: 'PRESENT' })));
-    toast.info(copy.markAllPresent);
+    setHasUnsavedChanges(true);
+    toast.info(attendanceMessages.markAllPresent);
   };
 
   const handleResetStatuses = async () => {
     const hasMarks = roster.some((row) => row.status !== null || row.notes.trim() !== '');
     if (!hasMarks) return;
     const shouldReset = await confirm({
-      title: copy.resetTitle,
-      message: copy.resetMessage,
-      confirmText: copy.resetConfirm,
+      title: attendanceMessages.resetTitle,
+      message: attendanceMessages.resetMessage,
+      confirmText: attendanceMessages.resetConfirm,
       cancelText: messages.common.actions.cancel,
       variant: 'destructive',
     });
@@ -263,6 +303,7 @@ export default function LecturerAttendancePage() {
       ),
     );
     setRoster((prev) => prev.map((row) => ({ ...row, status: null, notes: '' })));
+    setHasUnsavedChanges(true);
   };
 
   const handleSave = async () => {
@@ -272,7 +313,7 @@ export default function LecturerAttendancePage() {
     // (would mass-reset real records).
     if (!selectedSectionId || roster.length === 0 || isLoadingRoster) return;
     if (existingReadFailed) {
-      toast.error(copy.existingReadWarning);
+      toast.error(attendanceMessages.existingReadWarning);
       return;
     }
 
@@ -292,30 +333,75 @@ export default function LecturerAttendancePage() {
     const records: StudentAttendanceEntry[] = [...marked, ...resets];
 
     if (records.length === 0) {
-      toast.warning(copy.noStatusSelected);
+      toast.warning(attendanceMessages.noStatusSelected);
       return;
     }
 
+    const oversizedNotes = marked.filter(
+      (row) => (row.notes?.length ?? 0) > ATTENDANCE_NOTE_MAX,
+    );
+    if (oversizedNotes.length > 0) {
+      const message = attendanceMessages.noteTooLong.replace(
+        '{limit}',
+        String(ATTENDANCE_NOTE_MAX),
+      );
+      setNoteErrors(
+        Object.fromEntries(oversizedNotes.map((row) => [row.studentId, message])),
+      );
+      toast.error(message);
+      return;
+    }
+    setNoteErrors({});
+
     setIsSaving(true);
+    const saveGeneration = ++saveSelectionRef.current;
+    const savedSectionId = selectedSectionId;
+    const savedDate = selectedDate;
+    const saveIsCurrent = () =>
+      saveSelectionRef.current === saveGeneration
+      && selectionRef.current.sectionId === savedSectionId
+      && selectionRef.current.date === savedDate;
     try {
-      const response = await attendanceApi.saveSectionAttendance(selectedSectionId, {
-        date: selectedDate,
+      const response = await attendanceApi.saveSectionAttendance(savedSectionId, {
+        date: savedDate,
         records,
       });
 
+      if (!saveIsCurrent()) return;
       toast.success(
-        copy.savedSuccess.replace('{count}', String(response.updatedCount)),
+        countLabel(
+          response.updatedCount,
+          attendanceMessages.savedSuccessSingular,
+          attendanceMessages.savedSuccess,
+        ).replace('{count}', String(response.updatedCount)),
       );
+      setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
 
-      // Refresh section summary after saving
-      const summary = await attendanceApi.getSectionSummary(selectedSectionId).catch(() => null);
-      if (summary) setSectionSummary(summary);
+      // Refresh section summary after saving — a failed read must not leave
+      // the pre-save rate on screen looking freshly confirmed.
+      const summary = await attendanceApi.getSectionSummary(savedSectionId).catch(() => null);
+      if (!saveIsCurrent()) return;
+      if (summary) {
+        setSectionSummary(summary);
+      }
+      setSummaryRefreshFailed(!summary);
     } catch {
-      toast.error(copy.saveFailed);
+      toast.error(attendanceMessages.saveFailed);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const refreshSummary = async () => {
+    const sectionId = selectedSectionId;
+    if (!sectionId) return;
+    const summary = await attendanceApi.getSectionSummary(sectionId).catch(() => null);
+    if (selectionRef.current.sectionId !== sectionId) return;
+    if (summary) {
+      setSectionSummary(summary);
+    }
+    setSummaryRefreshFailed(!summary);
   };
 
   const selectedSection = useMemo(
@@ -331,7 +417,7 @@ export default function LecturerAttendancePage() {
 
   const handleExportCsv = useCallback(() => {
     if (roster.length === 0) {
-      toast.info(copy.exportCsvEmpty);
+      toast.info(attendanceMessages.exportCsvEmpty);
       return;
     }
     const currentSemester = semesters.find((s) => s.id === selectedSemester);
@@ -362,11 +448,11 @@ export default function LecturerAttendancePage() {
     const safeSecNum = (selectedSection?.sectionNumber || selectedSectionId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `diem-danh-${safeSecNum}-${selectedDate}.csv`;
     downloadCsvFile(filename, csvContent);
-    toast.success(copy.exportCsvSuccess);
+    toast.success(attendanceMessages.exportCsvSuccess);
   }, [
     absentCount,
-    copy.exportCsvEmpty,
-    copy.exportCsvSuccess,
+    attendanceMessages.exportCsvEmpty,
+    attendanceMessages.exportCsvSuccess,
     excusedCount,
     lateCount,
     locale,
@@ -383,8 +469,15 @@ export default function LecturerAttendancePage() {
     window.print();
   }, []);
 
+  const [printYear, printMonth, printDay] = selectedDate.split('-');
+  const dateParts = attendancePrint.datePartsTemplate
+    .replace('{year}', printYear)
+    .replace('{month}', printMonth)
+    .replace('{day}', printDay);
+  const printDate = attendancePrint.dateTemplate.replace('{date}', dateParts);
+
   if (authLoading) {
-    return <LoadingState label={copy.loadingAuth} />;
+    return <LoadingState label={attendanceMessages.loadingAuth} />;
   }
 
   if (!hasAccess) {
@@ -394,9 +487,9 @@ export default function LecturerAttendancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
-        title={copy.title}
-        description={copy.description}
+        eyebrow={<SectionEyebrow>{attendanceMessages.eyebrow}</SectionEyebrow>}
+        title={attendanceMessages.title}
+        description={attendanceMessages.description}
         actions={
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             <Button
@@ -405,10 +498,10 @@ export default function LecturerAttendancePage() {
               onClick={handleExportCsv}
               disabled={isLoadingRoster || roster.length === 0}
               className="gap-2"
-              title={copy.exportCsv}
+              title={attendanceMessages.exportCsv}
             >
               <Download className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>{copy.exportCsv}</span>
+              <span>{attendanceMessages.exportCsv}</span>
             </Button>
             <Button
               type="button"
@@ -416,30 +509,40 @@ export default function LecturerAttendancePage() {
               onClick={handlePrint}
               disabled={isLoadingRoster || roster.length === 0}
               className="gap-2"
-              title={copy.printRoster}
+              title={attendanceMessages.printRoster}
             >
               <Printer className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>{copy.printRoster}</span>
+              <span>{attendanceMessages.printRoster}</span>
             </Button>
           </div>
         }
       />
 
+      {semesterError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground print:hidden">
+          <span>{semesterError}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void fetchSemesters()}>
+            {messages.common.actions.retry}
+          </Button>
+        </div>
+      ) : null}
+
       {/* Control bar: Semester, Section & Date */}
-      <WorkspacePanel title={copy.selectSection} className="p-4 sm:p-5 print:hidden">
+      <WorkspacePanel title={attendanceMessages.selectSection} className="p-4 sm:p-5 print:hidden">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Semester Filter */}
           <div className="space-y-1.5">
             <label htmlFor={`${controlId}-semester`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {copy.selectSemester}
+              {attendanceMessages.selectSemester}
             </label>
             <Select
               id={`${controlId}-semester`}
               value={selectedSemester}
-              onChange={(e) => setSelectedSemester(e.target.value)}
+              onChange={(e) => handleSemesterChange(e.target.value)}
               className="w-full"
+              disabled={isSaving}
             >
-              <option value="">{copy.allSemesters}</option>
+              <option value="">{attendanceMessages.allSemesters}</option>
               {semesters.map((s) => (
                 <option key={s.id} value={s.id}>
                   {getLocalizedName(locale, s, s.name)}
@@ -451,17 +554,17 @@ export default function LecturerAttendancePage() {
           {/* Section Selector */}
           <div className="space-y-1.5">
             <label htmlFor={`${controlId}-section`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {copy.selectSection}
+              {attendanceMessages.selectSection}
             </label>
             <Select
               id={`${controlId}-section`}
               value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
+              onChange={(e) => handleSectionChange(e.target.value)}
               className="w-full font-medium"
-              disabled={isLoadingSections || sections.length === 0}
+              disabled={isSaving || isLoadingSections || sections.length === 0}
             >
               {sections.length === 0 ? (
-                <option value="">{copy.noSectionsTitle}</option>
+                <option value="">{attendanceMessages.noSectionsTitle}</option>
               ) : (
                 sections.map((s) => (
                   <option key={s.sectionId} value={s.sectionId}>
@@ -475,14 +578,15 @@ export default function LecturerAttendancePage() {
           {/* Date Picker */}
           <div className="space-y-1.5">
             <label htmlFor={`${controlId}-date`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {copy.dateLabel}
+              {attendanceMessages.dateLabel}
             </label>
             <Input
               id={`${controlId}-date`}
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               className="w-full"
+              disabled={isSaving}
             />
           </div>
         </div>
@@ -494,7 +598,7 @@ export default function LecturerAttendancePage() {
         sectionLabel={
           selectedSection
             ? `${selectedSection.courseCode} - ${getLocalizedFlatLabel(locale, selectedSection.courseName, selectedSection.courseNameEn, selectedSection.courseNameVi)} (${selectedSection.sectionNumber})`
-            : selectedSectionId || copy.noSectionsTitle
+            : selectedSectionId || attendanceMessages.noSectionsTitle
         }
         date={selectedDate}
         roster={roster}
@@ -505,103 +609,112 @@ export default function LecturerAttendancePage() {
       {selectedSectionId && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 print:hidden">
           <WorkspaceMetricCard
-            label={copy.statsTotalStudents}
+            label={attendanceMessages.statsTotalStudents}
             value={formatNumber(roster.length)}
             icon={<Users className="h-5 w-5" aria-hidden="true" />}
             toneClassName={metricToneClass('info')}
           />
           <WorkspaceMetricCard
-            label={copy.statuses.PRESENT}
+            label={attendanceMessages.statuses.PRESENT}
             value={formatNumber(presentCount)}
-            detail={markedCount > 0 ? `${Math.round((presentCount / markedCount) * 100)}${copy.statPresentTodaySuffix}` : undefined}
+            detail={markedCount > 0 ? `${Math.round((presentCount / markedCount) * 100)}${attendanceMessages.statPresentTodaySuffix}` : undefined}
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
             toneClassName={metricToneClass('success')}
           />
           <WorkspaceMetricCard
-            label={copy.statuses.ABSENT}
+            label={attendanceMessages.statuses.ABSENT}
             value={formatNumber(absentCount)}
-            detail={excusedCount > 0 ? `${excusedCount} ${copy.statExcusedSuffix}` : undefined}
+            detail={excusedCount > 0 ? `${excusedCount} ${attendanceMessages.statExcusedSuffix}` : undefined}
             icon={<XCircle className="h-5 w-5" aria-hidden="true" />}
             toneClassName={metricToneClass('danger')}
           />
           <WorkspaceMetricCard
-            label={copy.statsPresentRate}
+            label={attendanceMessages.statsPresentRate}
             value={
               sectionSummary
                 ? `${formatNumber(sectionSummary.attendanceRate)}%`
                 : '—'
             }
-            detail={sectionSummary ? `${sectionSummary.totalSessions} ${copy.statSessionsHeldSuffix}` : undefined}
+            detail={sectionSummary ? `${sectionSummary.totalSessions} ${attendanceMessages.statSessionsHeldSuffix}` : undefined}
             icon={<CalendarCheck className="h-5 w-5" aria-hidden="true" />}
             toneClassName={metricToneClass('info')}
           />
         </div>
       )}
 
+      {summaryRefreshFailed ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 print:hidden">
+          <span>{attendanceMessages.summaryRefreshFailed}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refreshSummary()}>
+            {messages.common.actions.retry}
+          </Button>
+        </div>
+      ) : null}
+
       {/* Roster & Attendance Sheet */}
       {isLoadingSections ? (
-        <LoadingState label={copy.loadingSections} />
+        <LoadingState label={attendanceMessages.loadingSections} />
       ) : sectionsLoadFailed ? (
         <ErrorState
-          title={copy.sectionsLoadError}
-          description={copy.sectionsLoadErrorDescription}
+          title={attendanceMessages.sectionsLoadError}
+          description={attendanceMessages.sectionsLoadErrorDescription}
           onRetry={() => void fetchSections()}
         />
       ) : sections.length === 0 ? (
         <EmptyState
           icon={Users}
-          title={copy.noSectionsTitle}
-          description={copy.noSectionsDescription}
+          title={attendanceMessages.noSectionsTitle}
+          description={attendanceMessages.noSectionsDescription}
         />
       ) : isLoadingRoster ? (
-        <LoadingState label={copy.loadingRoster} />
+        <LoadingState label={attendanceMessages.loadingRoster} />
       ) : error ? (
         <ErrorState
-          title={copy.rosterLoadError}
+          title={attendanceMessages.rosterLoadError}
           description={error}
-          onRetry={() => void fetchRosterAndAttendance(selectedSectionId, selectedDate)}
+          onRetry={() => requestSheetChange(() => void fetchRosterAndAttendance(selectedSectionId, selectedDate))}
         />
       ) : roster.length === 0 ? (
         <EmptyState
           icon={Users}
-          title={copy.noStudentsTitle}
-          description={copy.noStudentsDescription}
+          title={attendanceMessages.noStudentsTitle}
+          description={attendanceMessages.noStudentsDescription}
         />
       ) : (
-        <WorkspacePanel title={copy.sheetTitle} className="space-y-4 p-4 sm:p-6">
+        <WorkspacePanel title={attendanceMessages.sheetTitle} className="space-y-4 p-4 sm:p-6">
           {/* Printable Official Institutional Header */}
           <div className="hidden print:block mb-6 border-b-2 border-primary/40 pb-4 text-center">
             <div className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-              {copy.printOfficialHeader}
+              {attendanceMessages.printOfficialHeader}
             </div>
             <div className="text-sm font-extrabold text-foreground">
               {(locale === 'vi'
                 ? selectedSection?.departmentNameVi
                 : selectedSection?.departmentNameEn) ||
                 selectedSection?.departmentName ||
-                copy.printDepartment}
+                attendanceMessages.printDepartment}
             </div>
             <h1 className="text-xl font-black text-primary mt-2 uppercase tracking-wide">
-              {copy.printReportTitle}
+              {attendanceMessages.printReportTitle}
             </h1>
             <div className="flex flex-wrap justify-center gap-6 mt-3 text-xs text-foreground font-medium">
-              <span><strong>{locale === 'vi' ? 'Lớp học phần:' : 'Section:'}</strong> {selectedSection?.sectionNumber || selectedSectionId}</span>
-              <span><strong>{locale === 'vi' ? 'Học phần:' : 'Course:'}</strong> {selectedSection?.courseName} ({selectedSection?.courseCode})</span>
-              <span><strong>{copy.dateLabel}:</strong> {selectedDate}</span>
-              <span><strong>{copy.statsTotalStudents}:</strong> {roster.length}</span>
-              <span><strong>{copy.statsPresentRate}:</strong> {((presentCount + lateCount) / (roster.length || 1) * 100).toFixed(1)}%</span>
+              <span><strong>{attendancePrint.sectionLabel}</strong> {selectedSection?.sectionNumber || selectedSectionId}</span>
+              <span><strong>{attendancePrint.courseLabel}</strong> {selectedSection?.courseName} ({selectedSection?.courseCode})</span>
+              <span><strong>{attendanceMessages.dateLabel}:</strong> {selectedDate}</span>
+              <span><strong>{attendanceMessages.statsTotalStudents}:</strong> {roster.length}</span>
+              <span><strong>{attendanceMessages.statsPresentRate}:</strong> {((presentCount + lateCount) / (roster.length || 1) * 100).toFixed(1)}%</span>
             </div>
           </div>
 
           {/* Quick action bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4 print:hidden">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{formatNumber(roster.length)}</span> {copy.statsTotalStudents}
+              <span className="font-semibold text-foreground">{formatNumber(roster.length)}</span> {attendanceMessages.statsTotalStudents}
               <span>•</span>
-              <span className="text-emerald-700 dark:text-emerald-400 font-medium">{formatNumber(presentCount)} {copy.statuses.PRESENT}</span>
+              <span className="text-emerald-700 dark:text-emerald-400 font-medium">{formatNumber(presentCount)} {attendanceMessages.statuses.PRESENT}</span>
               <span>•</span>
-              <span className="text-rose-600 dark:text-rose-400 font-medium">{formatNumber(absentCount)} {copy.statuses.ABSENT}</span>
-              {lateCount > 0 && <span className="text-amber-700 dark:text-amber-400 font-medium">• {formatNumber(lateCount)} {copy.statuses.LATE}</span>}
+              <span className="text-rose-600 dark:text-rose-400 font-medium">{formatNumber(absentCount)} {attendanceMessages.statuses.ABSENT}</span>
+              {lateCount > 0 && <span className="text-amber-700 dark:text-amber-400 font-medium">• {formatNumber(lateCount)} {attendanceMessages.statuses.LATE}</span>}
             </div>
 
             <div className="flex items-center gap-2">
@@ -612,7 +725,7 @@ export default function LecturerAttendancePage() {
                 className="text-xs"
               >
                 <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
-                {copy.markAllPresent}
+                {attendanceMessages.markAllPresent}
               </Button>
               <Button
                 variant="outline"
@@ -621,7 +734,7 @@ export default function LecturerAttendancePage() {
                 className="text-xs text-muted-foreground"
               >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                {copy.resetStatuses}
+                {attendanceMessages.resetStatuses}
               </Button>
               <Button
                 size="sm"
@@ -630,7 +743,7 @@ export default function LecturerAttendancePage() {
                 className="bg-primary text-primary-foreground font-semibold"
               >
                 <Save className="mr-1.5 h-4 w-4" />
-                {isSaving ? copy.savingButton : copy.saveButton}
+                {isSaving ? attendanceMessages.savingButton : attendanceMessages.saveButton}
               </Button>
             </div>
           </div>
@@ -640,7 +753,7 @@ export default function LecturerAttendancePage() {
               role="alert"
               className="mb-3 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
             >
-              {copy.existingReadWarning}
+              {attendanceMessages.existingReadWarning}
             </div>
           ) : null}
 
@@ -650,10 +763,10 @@ export default function LecturerAttendancePage() {
               <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-3 px-4 font-semibold w-12 text-center">#</th>
-                  <th className="py-3 px-4 font-semibold w-32">{copy.columnStudentCode}</th>
-                  <th className="py-3 px-4 font-semibold">{copy.columnStudent}</th>
-                  <th className="py-3 px-4 font-semibold min-w-[280px]">{copy.columnStatus}</th>
-                  <th className="py-3 px-4 font-semibold min-w-[200px]">{copy.columnNotes}</th>
+                  <th className="py-3 px-4 font-semibold w-32">{attendanceMessages.columnStudentCode}</th>
+                  <th className="py-3 px-4 font-semibold">{attendanceMessages.columnStudent}</th>
+                  <th className="py-3 px-4 font-semibold min-w-[280px]">{attendanceMessages.columnStatus}</th>
+                  <th className="py-3 px-4 font-semibold min-w-[200px]">{attendanceMessages.columnNotes}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -674,7 +787,7 @@ export default function LecturerAttendancePage() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="hidden print:inline-block font-medium text-xs">
-                          {row.status ? copy.statuses[row.status] : '—'}
+                          {row.status ? attendanceMessages.statuses[row.status] : '—'}
                         </span>
                         <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1 print:hidden">
                           <button
@@ -688,7 +801,7 @@ export default function LecturerAttendancePage() {
                             }`}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            {copy.statuses.PRESENT}
+                            {attendanceMessages.statuses.PRESENT}
                           </button>
                           <button
                             type="button"
@@ -701,7 +814,7 @@ export default function LecturerAttendancePage() {
                             }`}
                           >
                             <XCircle className="h-3.5 w-3.5" />
-                            {copy.statuses.ABSENT}
+                            {attendanceMessages.statuses.ABSENT}
                           </button>
                           <button
                             type="button"
@@ -714,7 +827,7 @@ export default function LecturerAttendancePage() {
                             }`}
                           >
                             <Clock className="h-3.5 w-3.5" />
-                            {copy.statuses.LATE}
+                            {attendanceMessages.statuses.LATE}
                           </button>
                           <button
                             type="button"
@@ -727,7 +840,7 @@ export default function LecturerAttendancePage() {
                             }`}
                           >
                             <AlertCircle className="h-3.5 w-3.5" />
-                            {copy.statuses.EXCUSED}
+                            {attendanceMessages.statuses.EXCUSED}
                           </button>
                         </div>
                       </td>
@@ -739,8 +852,10 @@ export default function LecturerAttendancePage() {
                           type="text"
                           value={row.notes}
                           onChange={(e) => handleNotesChange(row.studentId, e.target.value)}
-                          placeholder={copy.notesPlaceholder}
-                          aria-label={`${copy.notesPlaceholder} — ${row.studentName}`}
+                          placeholder={attendanceMessages.notesPlaceholder}
+                          aria-label={`${attendanceMessages.notesPlaceholder} — ${row.studentName}`}
+                          maxLength={ATTENDANCE_NOTE_MAX}
+                          error={noteErrors[row.studentId]}
                           className="h-8 text-xs print:hidden"
                         />
                       </td>
@@ -759,7 +874,7 @@ export default function LecturerAttendancePage() {
               className="bg-primary text-primary-foreground font-semibold px-6"
             >
               <Save className="mr-2 h-4 w-4" />
-              {isSaving ? copy.savingButton : copy.saveButton}
+              {isSaving ? attendanceMessages.savingButton : attendanceMessages.saveButton}
             </Button>
           </div>
 
@@ -767,14 +882,12 @@ export default function LecturerAttendancePage() {
           <div className="hidden print:flex justify-end mt-12 pr-8 text-center">
             <div className="space-y-16">
               <p className="text-xs text-muted-foreground italic">
-                {locale === 'vi'
-                  ? `TP. Hồ Chí Minh, ngày ${selectedDate.split('-')[2]} tháng ${selectedDate.split('-')[1]} năm ${selectedDate.split('-')[0]}`
-                  : `Date: ${selectedDate}`}
+                {printDate}
               </p>
               <div className="space-y-1">
-                <p className="text-sm font-bold text-foreground">{copy.printInstructorSignature}</p>
+                <p className="text-sm font-bold text-foreground">{attendanceMessages.printInstructorSignature}</p>
                 <p className="text-xs text-muted-foreground italic">
-                  ({locale === 'vi' ? 'Ký và ghi rõ họ tên' : 'Signature & full name'})
+                  ({attendancePrint.signatureNotice})
                 </p>
               </div>
             </div>
@@ -782,6 +895,15 @@ export default function LecturerAttendancePage() {
         </WorkspacePanel>
       )}
       {confirmationDialog}
+      <UnsavedChangesConfirmDialog
+        open={unsaved.confirmOpen}
+        title={unsaved.confirmTitle}
+        description={unsaved.confirmBody}
+        confirmLabel={messages.common.actions.confirm}
+        cancelLabel={messages.common.actions.cancel}
+        onConfirm={unsaved.confirmLeave}
+        onCancel={unsaved.cancelLeave}
+      />
     </div>
   );
 }

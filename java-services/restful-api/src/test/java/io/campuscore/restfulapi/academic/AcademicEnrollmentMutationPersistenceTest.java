@@ -150,6 +150,31 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void confirmedEnrollmentCanBeDroppedDuringAddDrop() throws Exception {
+        LocalDateTime now = localDateTime(BASE_TIME);
+        jdbc.update(
+                "INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"enrolledAt\","
+                        + " \"gradeStatus\", \"courseId\", \"creditsSnapshot\", \"version\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "enrollment-confirmed", "student-1", "section-open", "semester-1", "CONFIRMED", now,
+                "NOT_GRADED", "course-open", 3, 0);
+        jdbc.update("UPDATE \"academic\".\"Section\" SET \"enrolledCount\" = 1 WHERE \"id\" = 'section-open'");
+
+        mvc.perform(post("/api/v1/enrollments/enrollment-confirmed/drop")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", "drop-confirmed-1"))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enrollment-confirmed'",
+                String.class)).isEqualTo("DROPPED");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"enrolledCount\" FROM \"academic\".\"Section\" WHERE \"id\" = 'section-open'",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void enrollPersistsRegistrationSlipWithSha256Header() throws Exception {
         mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
@@ -493,6 +518,25 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void corequisiteCanBeSatisfiedByAPriorTermCompletion() throws Exception {
+        // A corequisite passed in an earlier term satisfies the gate: the
+        // regulation allows concurrent registration OR prior completion.
+        jdbc.update(
+                "INSERT INTO \"academic\".\"CourseRequirement\""
+                        + " (\"id\", \"courseId\", \"requiredCourseId\", \"kind\", \"minLetterGrade\")"
+                        + " VALUES ('req-test-coreq-prior', 'course-open', 'course-two', 'COREQ', null)");
+        seedCompletedEnrollment("enrollment-coreq-prior-pass", "section-two", "course-two", "B");
+
+        mvc.perform(post("/api/v1/enrollments/enroll")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", "enroll-coreq-prior-pass")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sectionId\":\"section-open\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ENROLLED"));
+    }
+
+    @Test
     void legacyPrerequisiteSpellingDoesNotGateRegistrationAfterTheV97Normalization() throws Exception {
         // V97 normalizes seeded data to 'PREREQ'; the enforcement contract is
         // an exact match, so a row still spelled 'PREREQUISITE' (unmigrated
@@ -818,6 +862,23 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void oversizedIdempotencyKeyIsRejectedBeforePersistence() throws Exception {
+        String key = "k".repeat(240);
+
+        mvc.perform(post("/api/v1/me/enrollments")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sectionId\":\"section-open\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_INVALID"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"RegistrationIdempotency\"",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void sameIdempotencyKeyReplaysWithoutSecondActiveRow() throws Exception {
         MvcResult first = mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
@@ -1129,6 +1190,42 @@ class AcademicEnrollmentMutationPersistenceTest {
                 .andExpect(status().isOk())
                 // The console feed is newest-first and capped at 500 rows
                 // (pre-fix the listing was unbounded).
+                .andExpect(jsonPath("$.length()").value(500));
+    }
+
+    @Test
+    void adminApplicationListingPagesPastTheFiveHundredRowCap() throws Exception {
+        // The feed cap drops the oldest rows out of reach once the queue
+        // grows past it. page/limit opt into the shared X-Total-Count window
+        // so the console can walk the whole backlog; without them the legacy
+        // bare-array-of-500 contract is unchanged.
+        String oldestId = "cl-page-0";
+        for (int index = 0; index < 501; index++) {
+            jdbc.update(
+                    "INSERT INTO \"academic\".\"CreditLimitApplication\""
+                            + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"requestedLimit\", \"reason\","
+                            + " \"status\", \"createdAt\")"
+                            + " VALUES (?, 'student-1', 'semester-1', 'round-open', 30, ?, 'PENDING', ?)",
+                    "cl-page-" + index,
+                    "Cần đăng ký vượt định mức vì thiếu tín chỉ tốt nghiệp, đã được cố vấn học tập xác nhận.",
+                    localDateTime(BASE_TIME.plusSeconds(index)));
+        }
+
+        mvc.perform(get("/api/v1/admin/registration/credit-limit-applications")
+                        .queryParam("status", "PENDING")
+                        .queryParam("page", "5")
+                        .queryParam("limit", "100")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "501"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(oldestId));
+
+        mvc.perform(get("/api/v1/admin/registration/credit-limit-applications")
+                        .queryParam("status", "PENDING")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
                 .andExpect(jsonPath("$.length()").value(500));
     }
 

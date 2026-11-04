@@ -194,11 +194,12 @@ public class EventStudentService {
             return replayResponse(replay);
         }
         Map<String, Object> event = events.lockEvent(eventId);
-        if ("DRAFT".equals(String.valueOf(event.get("status")))) {
-            // §1.1: a draft is not visible to students, so deny exactly like a missing id.
+        String status = String.valueOf(event.get("status"));
+        if ("DRAFT".equals(status) || ("CANCELLED".equals(status) && !isStudentVisible(eventId))) {
+            // Hidden drafts and unpublished cancellations use the missing-event response.
             throw EventService.problem(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found");
         }
-        if (!"REGISTRATION_OPEN".equals(String.valueOf(event.get("status")))) {
+        if (!"REGISTRATION_OPEN".equals(status)) {
             throw EventService.problem(HttpStatus.CONFLICT, "EVENT_NOT_OPEN",
                     "Event registration is not open");
         }
@@ -335,6 +336,13 @@ public class EventStudentService {
                 "Bạn đã hủy đăng ký tham gia: " + event.get("title"),
                 "INFO", "/dashboard/events?event=" + eventId, Instant.now())));
         return completeIdempotency(studentId, idempotencyKey, registrationId, hash);
+    }
+
+    private boolean isStudentVisible(String eventId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM " + EVENT + " e WHERE e.\"id\" = :id AND "
+                        + PUBLISHED_VISIBILITY + ")",
+                new MapSqlParameterSource("id", eventId), Boolean.class));
     }
 
     // ------------------------------------------------------------------

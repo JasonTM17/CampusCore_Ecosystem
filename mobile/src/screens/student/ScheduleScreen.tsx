@@ -2,11 +2,13 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from '../academic/academic-api';
 import {
@@ -15,6 +17,7 @@ import {
   buildAgenda,
   civilKey,
   defaultTermId,
+  dayOfWeekOf,
   termOptions,
   weekDates,
   weekStartOf,
@@ -22,6 +25,7 @@ import {
 } from '../academic/academic-model';
 import { previewEnrollments, previewSemester } from '../academic/academic-preview';
 import { ScheduleExport } from '../academic/ScheduleExport';
+import { WeekStrip } from '../academic/WeekStrip';
 import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 
 type View_ = 'week' | 'term';
@@ -62,7 +66,7 @@ const SessionCard = memo(function SessionCard({ item, expanded, onToggle }: { it
           <View style={academicStyles.actions}>
             {item.sectionNumber ? <UiText variant="bodySmall">{copy.sectionLabel}: {item.sectionNumber}</UiText> : null}
             {item.lecturer ? <UiText variant="bodySmall">{copy.lecturer}: {item.lecturer}</UiText> : null}
-            {item.credits > 0 ? <UiText variant="bodySmall">{fillCopy(copy.credits, { n: item.credits })}</UiText> : null}
+            {item.credits > 0 ? <UiText variant="bodySmall">{fillCopy(countForm(item.credits, copy.creditsOne, copy.credits), { n: item.credits })}</UiText> : null}
           </View>
         ) : null}
       </Card>
@@ -79,16 +83,21 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
+  const pull = usePullToRefresh(() => Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()]));
   const [view, setView] = useState<View_>('week');
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (new Date().getDay() + 6) % 7);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (dayOfWeekOf(new Date()) + 5) % 7);
   const [termChoice, setTermChoice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const enrollments = useMemo(() => (preview ? previewEnrollments : enrollmentsQuery.data ?? []), [preview, enrollmentsQuery.data]);
   const semesters = useMemo(() => (preview ? [previewSemester] : semestersQuery.data ?? []), [preview, semestersQuery.data]);
   const options = useMemo(() => termOptions(enrollments, semesters, locale), [enrollments, semesters, locale]);
-  const termId = termChoice ?? defaultTermId(semesters, enrollments) ?? '';
+  const warning = preview
+    ? null
+    : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
+  const semestersFailed = !preview && semestersQuery.error !== null && (semestersQuery.data?.length ?? 0) === 0;
+  const termId = termChoice ?? (semestersFailed ? '' : defaultTermId(semesters, enrollments) ?? '');
   const semester = semesters.find((entry) => entry.id === termId);
   const termEnrollments = useMemo(
     () => enrollments.filter((item) => item.semesterId === termId),
@@ -115,8 +124,10 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       title={copy.scheduleTitle}
       loading={!preview && enrollmentsQuery.isLoading}
       error={preview ? null : enrollmentsQuery.error}
-      warning={preview ? null : enrollmentsQuery.warning}
-      onRetry={() => void enrollmentsQuery.reload()}
+      warning={warning}
+      onRetry={() => void Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()])}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
       list={{ data: scheduleRows,
         keyExtractor: (row) => row.kind === 'heading' ? `day:${row.day}` : row.item.id,
         renderItem: ({ item: row }) => row.kind === 'session'
@@ -125,6 +136,9 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
         footer: <><ScreenSpacer /><ScheduleExport enrollments={termEnrollments} semester={semester} /></>,
       }}
     >
+      {semestersFailed ? (
+        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+      ) : null}
       <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
       <SegmentTabs
         label={copy.viewLabel}
@@ -141,28 +155,14 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
             <UiText variant="label" accessibilityLiveRegion="polite">{weekLabel}</UiText>
             <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" />
           </View>
-          <View style={styles.dayStrip}>
-            {days.map((date, index) => {
-              const selected = index === selectedDayIndex;
-              const isToday = civilKey(date) === civilKey(today);
-              return (
-                <Pressable
-                  key={civilKey(date)}
-                  testID={`day-${civilKey(date)}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${copy.dayShort[index]} ${date.getDate()}`}
-                  accessibilityState={{ selected }}
-                  onPress={() => { setSelectedDayIndex(index); setOpenId(null); }}
-                  style={[styles.dayCell, { backgroundColor: selected ? colors.primaryFixed : 'transparent' }]}
-                >
-                  <UiText variant="meta" tone="muted" numberOfLines={1}>{copy.dayShort[index]}</UiText>
-                  <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate}>
-                    {date.getDate()}
-                  </UiText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <WeekStrip
+            days={days}
+            selectedIndex={selectedDayIndex}
+            todayKey={civilKey(today)}
+            labels={copy.dayShort}
+            todayLabel={copy.today}
+            onSelect={(index) => { setSelectedDayIndex(index); setOpenId(null); }}
+          />
           {(() => {
             const date = days[selectedDayIndex];
             const items = agendaForDate(agenda, date, semester);
@@ -195,9 +195,6 @@ const styles = StyleSheet.create({
   courseLine: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   courseName: { flex: 1, minWidth: 120 },
   roomLine: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  dayStrip: { flexDirection: 'row', marginTop: tokens.spacing.sm },
-  dayCell: { alignItems: 'center', borderRadius: tokens.radii.control, flex: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
-  dayDate: { fontVariant: ['tabular-nums'] },
   dayContent: { marginTop: tokens.spacing.md },
   dayHeading: { marginBottom: tokens.spacing.sm },
   emptyDay: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },

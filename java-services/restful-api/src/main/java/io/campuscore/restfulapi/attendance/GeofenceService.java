@@ -2,11 +2,13 @@ package io.campuscore.restfulapi.attendance;
 
 import static io.campuscore.restfulapi.attendance.AttendanceDtos.*;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
+import io.campuscore.restfulapi.web.DomainException;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,10 +32,12 @@ public class GeofenceService {
         boolean create=id==null;
         if(create) id=UUID.randomUUID().toString();
         GeofenceResponse before=create?null:store.geofence(id,true);
+        if(!create && r.expectedVersion()!=null && r.expectedVersion()!=before.version())
+            throw new DomainException(HttpStatus.CONFLICT,"STALE_VERSION","The geofence changed; reload before editing");
         store.saveGeofence(id,r,actor,create,clock.instant());
         GeofenceResponse after=store.geofence(id,false);
         audit.record(actor,null,create?"CREATED":"UPDATED","AttendanceGeofence",id,
-                r.isActive()?"Geofence enabled/updated after admin verification":"Geofence saved inactive",before,after);
+                after.isActive()?"Geofence enabled/updated after admin verification":"Geofence saved inactive",before,after);
         return after;
     }
     // There is deliberately no hard-delete route. PUT isActive=false preserves references and audit.

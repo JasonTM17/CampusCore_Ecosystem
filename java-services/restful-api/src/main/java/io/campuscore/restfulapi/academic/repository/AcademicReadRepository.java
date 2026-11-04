@@ -20,8 +20,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -895,7 +893,7 @@ public class AcademicReadRepository {
                 ), progress AS (
                     SELECT "courseId" AS course_id,
                            MAX(CASE
-                               WHEN "gradeStatus" = 'PUBLISHED' AND "letterGrade" IS NOT NULL AND "letterGrade" <> 'F' THEN 2
+                               WHEN "gradeStatus" IN ('PUBLISHED', 'APPEALED') AND "letterGrade" IS NOT NULL AND "letterGrade" <> 'F' THEN 2
                                WHEN "status" IN ('ENROLLED', 'CONFIRMED', 'PENDING') THEN 1
                                ELSE 0 END) AS progress_level
                     FROM student_enrollments
@@ -906,7 +904,7 @@ public class AcademicReadRepository {
                                ORDER BY CASE WHEN "finalGrade" IS NULL THEN 1 ELSE 0 END,
                                         "finalGrade" DESC, "id" ASC) AS attempt_rank
                     FROM student_enrollments
-                    WHERE "gradeStatus" = 'PUBLISHED' AND "letterGrade" IS NOT NULL AND "letterGrade" <> 'F'
+                    WHERE "gradeStatus" IN ('PUBLISHED', 'APPEALED') AND "letterGrade" IS NOT NULL AND "letterGrade" <> 'F'
                 )
                 SELECT p.course_id, p.progress_level,
                        a."finalGrade" AS passed_grade, a."letterGrade" AS passed_letter
@@ -944,10 +942,6 @@ public class AcademicReadRepository {
     }
 
     private static Instant instant(Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        LocalDateTime localDateTime = timestamp.toLocalDateTime();
-        return localDateTime.toInstant(ZoneOffset.UTC);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 }

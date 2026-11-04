@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(root, '..');
@@ -13,6 +14,50 @@ function read(relativePath) {
 function readFromRepo(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
+
+/** Transpile and evaluate a TS/TSX module with the same stub resolver the
+ *  route-metadata suite uses. */
+function loadTsModule(relativePath, stubs = {}) {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  const resolve = (specifier) =>
+    Object.prototype.hasOwnProperty.call(stubs, specifier)
+      ? stubs[specifier]
+      : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
+  return moduleRecord.exports;
+}
+
+/** Extract one declaration from a page and run it with injected dependencies,
+ *  the convention the thesis governance suite established. */
+function executeDeclaration(file, name, dependencies) {
+  const source = fs.readFileSync(path.join(root, 'src', file), 'utf8');
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name) declaration = node;
+    if (ts.isFunctionDeclaration(node) && node.name?.getText(tree) === name) declaration = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(declaration, `${file} contains ${name}`);
+  const text = ts.isVariableDeclaration(declaration)
+    ? `const ${declaration.getText(tree)};`
+    : declaration.getText(tree).replace(/^export\s+/, '');
+  const output = ts.transpileModule(text, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return Function(...Object.keys(dependencies), 'useCallback', `${output}; return ${name};`)(
+    ...Object.values(dependencies), (fn) => fn,
+  );
+}
+
 
 // ---------------------------------------------------------------------------
 // Phase 03 — the certificate surface mints nothing official and invents nobody
@@ -107,8 +152,11 @@ test('conduct activity record uses only real fields and claims no issuance', () 
   // Real fields only, guarded em-dash otherwise.
   assert.match(source, /displayLabel\(summary\?\.studentCode\)/);
   // Explicitly labelled as a preview record.
-  assert.match(source, /copy\.previewTitle/);
-  assert.match(source, /copy\.previewNote/);
+  assert.match(source, /conductMessages\.previewTitle/);
+  assert.match(source, /conductMessages\.previewNote/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("previewTitle: 'Activity record — unofficial preview'"), 'the preview title lives in the catalogue');
+  assert.ok(catalog.includes('not an issued certificate'), 'the preview note lives in the catalogue');
 });
 
 // ---------------------------------------------------------------------------
@@ -122,7 +170,8 @@ test('announcements page renders no fabricated notices on error or empty feed', 
   assert.doesNotMatch(source, /notice-official-/);
 
   // The catch surfaces the real failure; the shared ErrorState retries it.
-  assert.match(source, /setError\(copy\.loadFailed\)/);
+  assert.match(source, /setError\(announcementMessages\.loadFailed\)/);
+  assert.match(read('src/i18n/messages-student-pages.ts'), /loadFailed: 'Could not load notices from academic server right now\.'/, 'the failure copy lives in the catalogue');
   assert.match(source, /setItems\(\[\]\)/);
   assert.match(source, /<ErrorState/);
   assert.match(source, /onRetry=\{\(\) => void fetchFeed\(\)\}/);
@@ -142,18 +191,22 @@ test('conduct badges and claims follow the status and score the API returned', (
   assert.match(source, /statusView\(activeSemesterScore\?\.status\)/);
   assert.match(source, /statusView\(item\.status\)/);
   // No unconditional "approved" badge renders anywhere.
-  assert.doesNotMatch(source, />\{copy\.approvedBadge\}</);
-  assert.match(source, /semesterStatus\.approved \? copy\.approvedBadge/);
+  assert.doesNotMatch(source, />\{conductMessages\.approvedBadge\}</);
+  assert.match(source, /semesterStatus\.approved \? conductMessages\.approvedBadge/);
 
   // Unknown or blank classifications never read as a passing rank.
-  assert.match(source, /copy\.notClassified/);
-  assert.doesNotMatch(source, /return fallback \|\| copy\.good/);
+  assert.match(source, /conductMessages\.notClassified/);
+  assert.doesNotMatch(source, /return fallback \|\| conductMessages\.good/);
   // No default-to-TOT badge class.
   assert.doesNotMatch(source, /getRankBadgeClass\(activeSemesterScore\?\.classification \|\| 'TOT'\)/);
 
   // Scholarship claim is gated on the real score (>= 70).
   assert.match(source, /cumulativeScore >= 70/);
-  assert.match(source, /copy\.scholarshipBelow/);
+  assert.match(source, /conductMessages\.scholarshipBelow/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("approvedBadge: 'Approved'"), 'the approved badge lives in the catalogue');
+  assert.ok(catalog.includes("notClassified: 'Not yet classified'"), 'the unclassified label lives in the catalogue');
+  assert.ok(catalog.includes("scholarshipBelow: 'Below requirement'"), 'the scholarship label lives in the catalogue');
 });
 
 // ---------------------------------------------------------------------------
@@ -235,10 +288,11 @@ test('conduct controller no longer aliases literal demo ids to a real student', 
 
 test('grade component inputs have distinct screen-reader labels', () => {
   const source = read('src/app/dashboard/lecturer/grades/[id]/page.tsx');
-  assert.match(source, /processScoreLabel:/);
-  assert.match(source, /finalExamScoreLabel:/);
-  assert.match(source, /aria-label=\{copy\.processScoreLabel\(/);
-  assert.match(source, /aria-label=\{copy\.finalExamScoreLabel\(/);
+  const catalog = read('src/i18n/messages-teaching-pages.ts');
+  assert.ok(catalog.includes("processScoreLabel: 'Coursework (50%) for {studentName}'"));
+  assert.ok(catalog.includes("finalExamScoreLabel: 'Final exam score (50%) for {studentName}'"));
+  assert.match(source, /aria-label=\{gradeEntry\.processScoreLabel\.replace\(/);
+  assert.match(source, /aria-label=\{gradeEntry\.finalExamScoreLabel\.replace\(/);
   assert.doesNotMatch(source, /finalScoreLabel/);
 });
 
@@ -267,8 +321,10 @@ test('removing a supervised group member asks for confirmation', () => {
 
 test('transcript header and GPA card describe the cumulative figure', () => {
   const source = read('src/app/dashboard/transcript/page.tsx');
-  assert.match(source, /Cumulative GPA, all semesters \(4\.0 scale\)/);
-  assert.match(source, /GPA hệ 4 tích lũy toàn khóa/);
+  const catalog = read('src/i18n/messages-student-pages.ts');
+  assert.ok(catalog.includes("cumulativeGpa: 'Cumulative GPA, all semesters (4.0 scale)'"));
+  assert.ok(catalog.includes("cumulativeGpa: 'GPA hệ 4 tích lũy toàn khóa'"));
+  assert.match(source, /transcriptMessages\.cumulativeGpa/);
   // The page description no longer claims a per-semester GPA.
   assert.doesNotMatch(source, /GPA, tín chỉ và kết quả môn học cho \$\{selectedSemesterName\}/);
   assert.doesNotMatch(source, /GPA, credits, and course outcomes for \$\{selectedSemesterName\}/);
@@ -419,6 +475,329 @@ test('library desk separates staff denial from retryable failures', () => {
   const source = read('src/components/library/LibraryDeskPage.tsx');
   assert.match(source, /<ForbiddenState/);
   assert.match(source, /<LinkButton href="\/dashboard"/);
-  assert.match(source, /onRetry=\{\(\) => void load\(filter\)\}/);
+  assert.match(source, /onRetry=\{\(\) => void reloadCurrent\(\)\}/);
   assert.match(source, /setDenied\(true\)/);
+});
+
+// ---------------------------------------------------------------------------
+// W13 audit DATA-01..05 / STATE-01/02/04 — silent data loss and stale loads
+// ---------------------------------------------------------------------------
+
+test('a failed curriculum read on the certificate page is surfaced with retry', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.match(source, /const \[curriculumError, setCurriculumError\]/);
+  assert.match(source, /setCurriculumError\(true\)/);
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => setCurriculumReloadToken\(\(token\) => token \+ 1\)\}/);
+  // The empty catch that rendered em-dashes without a signal is gone.
+  assert.doesNotMatch(source, /\} catch \{\s*\/\/ No curriculum data/);
+});
+
+test('a failed events roster read surfaces an error with retry', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  assert.match(source, /const \[rosterError, setRosterError\] = useState\(false\)/);
+  assert.match(source, /setRosterError\(true\)/);
+  assert.match(source, /onRetry=\{\(\) => void loadRoster\(/);
+  assert.match(source, /title=\{copy\.failed\}/);
+  // A roster failure must not default the table to an honest-looking zero.
+  assert.doesNotMatch(source, /\} catch \{\s*if \(current\(\)\) setRoster\(\[\]\);/);
+});
+
+test('the public news feed pages through every published story', () => {
+  const source = read('src/app/news/news-list-client.tsx');
+  assert.match(source, /const PAGE_SIZE = 50/);
+  assert.match(source, /const \[page, setPage\] = useState\(1\)/);
+  assert.match(source, /\['public-news', page\]/, 'the query key carries the active page');
+  assert.match(source, /getPublic\(\{ page, limit: PAGE_SIZE \}\)/);
+  assert.match(source, /meta\?\.totalPages/);
+  assert.match(source, /hasNextPage\(page, totalPages\)/);
+  assert.match(source, /messages\.common\.states\.goToPreviousPage/);
+  assert.match(source, /messages\.common\.states\.goToNextPage/);
+});
+
+test('the public document catalogue pages through every published document', () => {
+  const source = read('src/app/docs/page.tsx');
+  assert.match(source, /const PAGE_SIZE = 50/);
+  assert.match(source, /const \[page, setPage\] = useState\(1\)/);
+  assert.match(source, /\['public-docs', search, page\]/, 'the query key carries search and page');
+  assert.match(source, /list\(\{ page, limit: PAGE_SIZE, search: search \|\| undefined \}\)/);
+  assert.match(source, /meta\?\.totalPages/);
+  assert.match(source, /hasNextPage\(page, totalPages\)/);
+  assert.match(source, /messages\.common\.states\.goToPreviousPage/);
+  assert.match(source, /messages\.common\.states\.goToNextPage/);
+});
+
+test('the notification inbox exposes older pages instead of silently capping', () => {
+  const source = read('src/components/dashboard/NotificationsCenterPage.tsx');
+  assert.match(source, /const \[loadedPages, setLoadedPages\]/);
+  assert.match(source, /const \[totalPages, setTotalPages\]/);
+  assert.match(source, /loadedPages < totalPages/, 'the control appears only while older pages exist');
+  assert.match(source, /const loadOlder = useCallback|async function loadOlder/);
+  assert.match(source, /setLoadedPages\(Math\.max\(0, nextPage - \(removalsRef\.current - removalsBefore\)\)\)/);
+  // The first paint reads one bounded page plus the server-side unread count.
+  assert.match(source, /notificationsApi\.getMy\(\{\s*page: 1,\s*limit: INBOX_PAGE_SIZE/);
+  assert.match(source, /notificationsApi\.unreadCount\(\{ force: true \}\)/);
+  assert.match(source, /activeFilter === 'unread' \? \{ isRead: false \}/,
+    'the unread tab filters on the server');
+});
+
+test('learning section loads are epoch-guarded per surface and cancelled at unmount', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  assert.match(source, /import \{ createRequestEpoch \} from '@\/lib\/request-epoch'/);
+  assert.equal(
+    (source.match(/const sectionEpoch = useRef\(createRequestEpoch\(\)\)\.current;/g) || []).length,
+    2,
+    'the student and lecturer surfaces each own an epoch',
+  );
+  assert.ok(
+    (source.match(/if \(!sectionEpoch\.isCurrent\(epoch\)\) return;/g) || []).length >= 4,
+    'success and failure paths check freshness before setState or toast',
+  );
+  assert.match(source, /sectionEpoch\.invalidate\(\)/);
+});
+
+test('the request epoch accepts only the newest request and retires at unmount', () => {
+  const ts = require('typescript');
+  const output = ts.transpileModule(read('src/lib/request-epoch.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const { createRequestEpoch } = moduleRecord.exports;
+
+  const epoch = createRequestEpoch();
+  assert.equal(epoch.isCurrent(0), false, 'nothing is current before a request starts');
+  const first = epoch.begin();
+  assert.equal(epoch.isCurrent(first), true);
+  const second = epoch.begin();
+  assert.equal(epoch.isCurrent(first), false, 'a newer section load supersedes the older one');
+  assert.equal(epoch.isCurrent(second), true);
+  epoch.invalidate();
+  assert.equal(epoch.isCurrent(second), false, 'unmount retires the in-flight request');
+  assert.equal(epoch.isCurrent(epoch.begin()), true, 'a fresh mount starts a new era');
+});
+
+test('learning lifecycle mutations are guarded against double submission', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  assert.match(source, /const pendingActionRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[pendingActionId, setPendingActionId\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(pendingActionRef\.current !== null\) return;/);
+  assert.match(source, /disabled=\{pendingActionId === actionKey\}/);
+});
+
+test('a failed learning section load renders a retryable error state', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  const errors = source.match(
+    /catch \{\s*if \(!sectionEpoch\.isCurrent\(epoch\)\) return;\s*setSectionLoadError\(true\);/g,
+  ) || [];
+  const retries = source.match(
+    /<ErrorState title=\{copy\.failed\} description="" onRetry=\{\(\) => void loadSection\(sectionId\)\} \/>/g,
+  ) || [];
+  assert.equal(errors.length, 2, 'both surfaces preserve the loaded rows and record the read error');
+  assert.equal(retries.length, 2, 'both surfaces retry the current section load');
+});
+
+test('the event create dialog names every input for screen readers', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  for (const label of [
+    'copy.titleField',
+    'copy.organizer',
+    'copy.where',
+    'copy.capacity',
+    'copy.descriptionField',
+    'copy.cancelReason',
+  ]) {
+    assert.match(source, new RegExp(`aria-label=\\{${label.replace('.', '\\.')}\\}`), label);
+  }
+});
+
+test('the lecturer review-queue error offers retry', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(
+    source,
+    /queueError \? \([\s\S]*?<ErrorState[\s\S]*?onRetry=\{\(\) => void fetchQueue\(\)\}/,
+    'the queue error branch retries only the review queue',
+  );
+});
+
+test('lecturer announcement mutations have keyed pending state and synchronous guards', () => {
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /const queueMutationRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[queueMutationKey, setQueueMutationKey\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(queueMutationRef\.current !== null\) return false;/);
+  assert.match(source, /if \(!beginQueueMutation\(actionKey\)\) return;/);
+  assert.match(source, /const actionKey = `return:\$\{returnTarget\.id\}`;\s*if \(!beginQueueMutation\(actionKey\)\) return;/);
+  assert.match(source, /const actionKey = `archive:\$\{announcement\.id\}`;\s*if \(!beginQueueMutation\(actionKey\)\) return;/);
+  for (const action of ['submit', 'approve', 'return', 'archive']) {
+    assert.ok(
+      source.includes(`disabled={queueMutationKey === \`${action}:`),
+      `${action} is disabled while its request is pending`,
+    );
+  }
+});
+
+test('a conduct summary failure keeps the certificate preview usable and offers source-only retry', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.ok(source.includes('const [conductError, setConductError] = useState(false)'),
+    'conduct failures have a retryable degraded state');
+  assert.match(source, /const \[conductReloadToken, setConductReloadToken\] = useState\(0\)/);
+  assert.match(source, /if \(!cancelled\) setConductError\(true\)/);
+  assert.match(source, /conductError \? \([\s\S]*?sectionErrorDescription[\s\S]*?onRetry=\{\(\) => setConductReloadToken/);
+  assert.match(source, /\}, \[hasAccess, conductReloadToken\]\);/);
+});
+
+test('a conduct summary failure on the certificate page leaves the other sections rendered', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.doesNotMatch(source, /if \(conductError\)\s*\{?\s*return/);
+  assert.match(source, /conductError \? \(/);
+  // The printable preview and the curriculum notice still render independently.
+  assert.match(source, /curriculumError \? \(/);
+  assert.match(source, /!hasIdentity \? \(/);
+  assert.match(source, /certCopy\.previewBanner/);
+});
+
+test('the notifications load-older action reads the dedicated fragment key', () => {
+  const source = read('src/components/dashboard/NotificationsCenterPage.tsx');
+  assert.match(source, /messages\.studentPages\.notifications\.loadMore/);
+  assert.doesNotMatch(source, /messages\.assistant\.loadMoreMessages/);
+});
+
+test('student learning section-list loads are retired on unmount', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  const loadStart = source.indexOf('const loadSections = useCallback', source.indexOf('export function StudentLearningPage'));
+  const loadEnd = source.indexOf('const loadSection = useCallback', loadStart);
+  const loadSections = source.slice(loadStart, loadEnd);
+  assert.match(loadSections, /const epoch = sectionsListEpoch\.begin\(\)/);
+  assert.equal((loadSections.match(/if \(!sectionsListEpoch\.isCurrent\(epoch\)\) return;/g) || []).length, 2);
+  assert.match(loadSections, /if \(sectionsListEpoch\.isCurrent\(epoch\)\) setIsLoading\(false\)/);
+  assert.match(source, /useEffect\(\(\) => \(\) => \{\s*sectionsListEpoch\.invalidate\(\);\s*\}, \[sectionsListEpoch\]\)/);
+});
+
+test('event staff lifecycle mutations use per-action pending state and reject re-entry', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  assert.match(source, /const pendingStaffActionRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[pendingStaffActionKey, setPendingStaffActionKey\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(pendingStaffActionRef\.current !== null\) return;/);
+  assert.match(source, /runStaffAction\(\s*`publish:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`open:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`close:\$\{event\.id\}`/);
+  assert.match(source, /runStaffAction\(\s*`complete:\$\{event\.id\}`/);
+  for (const action of ['publish', 'open', 'close', 'complete']) {
+    assert.ok(source.includes(`disabled={pendingStaffActionKey === \`${action}:`),
+      `${action} is disabled while pending`);
+  }
+  assert.match(source, /runStaffAction\('create',/);
+  assert.match(source, /runStaffAction\(\s*`attendance:/);
+  assert.match(source, /runStaffAction\(\s*`cancel:/);
+});
+
+// ---------------------------------------------------------------------------
+// Password recovery answers uniformly, never "no such account"
+// ---------------------------------------------------------------------------
+
+test('forgot-password folds every lookup answer into the same confirmation', () => {
+  const { campusErrorCode } = loadTsModule('src/lib/campus-error.ts');
+  const { AxiosError } = require('axios');
+  const outcome = executeDeclaration('app/forgot-password/page.tsx', 'forgotPasswordOutcome', {
+    campusErrorCode,
+    AxiosError,
+  });
+
+  const response = (status, data = {}) =>
+    new AxiosError('request failed', AxiosError.ERR_BAD_RESPONSE, undefined, undefined, {
+      status,
+      statusText: '',
+      headers: {},
+      config: {},
+      data,
+    });
+
+  // The audit's premise (400/404 for an unknown mailbox) is what the page must
+  // survive: both become the uniform "check your email" banner.
+  for (const status of [400, 404, 409, 422]) {
+    assert.equal(outcome(response(status)), 'sent', `${status} must not reveal the mailbox state`);
+  }
+
+  // Genuine service and gate conditions stay visible: they say nothing about
+  // the account, and a fake success would strand someone waiting for a mail
+  // that never queued.
+  assert.equal(outcome(response(401)), 'failed');
+  assert.equal(outcome(response(403)), 'failed');
+  assert.equal(outcome(response(429)), 'rate-limited');
+  assert.equal(outcome(response(429, { code: 'RATE_LIMIT_EXCEEDED' })), 'rate-limited');
+  assert.equal(outcome(response(400, { code: 'RATE_LIMIT_EXCEEDED' })), 'rate-limited');
+  assert.equal(outcome(response(500)), 'failed');
+  assert.equal(outcome(response(503)), 'failed');
+  assert.equal(outcome(new AxiosError('Network Error', AxiosError.ERR_NETWORK)), 'network');
+  assert.equal(outcome(new Error('unexpected client error')), 'failed');
+
+  const page = read('src/app/forgot-password/page.tsx');
+  // The 'sent' branch renders the shared conditional banner, not a new claim,
+  // and the honest branches are the only visible failure copy.
+  assert.match(page, /if \(outcome === 'sent'\) \{[\s\S]*?setSent\(true\);/);
+  assert.match(page, /setFormError\(copy\.rateLimited\)/);
+  assert.match(page, /setFormError\(messages\.common\.campusErrors\.network\)/);
+  assert.match(page, /setFormError\(copy\.failedToast\)/);
+
+  // Both dictionaries keep the banner conditional instead of asserting delivery.
+  const messages = read('src/i18n/messages.ts');
+  assert.match(messages, /sentBanner:\s*\n?\s*'If an account matches \{email\}, a reset link is on the way\.'/);
+  assert.match(messages, /sentBanner:\s*\n?\s*'Nếu có tài khoản khớp với \{email\}, một liên kết đặt lại đang được gửi đi\.'/);
+});
+
+// ---------------------------------------------------------------------------
+// A 403 on sign-in is an infrastructure gate, not an account oracle
+// ---------------------------------------------------------------------------
+
+test('sign-in 403 semantics cannot enumerate accounts, so the generic blocked copy stays', () => {
+  const service = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/auth/service/AuthLoginService.java',
+  );
+  const handler = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/exception/GlobalExceptionHandler.java',
+  );
+  const accountState = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/security/AccountStateFilter.java',
+  );
+  const login = read('src/app/login/page.tsx');
+  const messages = read('src/i18n/messages.ts');
+
+  // Inactive and locked accounts answer exactly like a wrong password, and that
+  // gate runs BEFORE the password comparison, so it is not a "correct password
+  // revealed the account is disabled" answer either.
+  const stateGate = service.indexOf('!"ACTIVE".equals(user.status()) || locked');
+  const passwordCheck = service.indexOf('passwordEncoder.matches(password, user.passwordHash())');
+  assert.ok(stateGate > 0, 'the account-state gate exists');
+  assert.ok(passwordCheck > stateGate, 'the account-state gate runs before the password comparison');
+  assert.match(
+    service.slice(stateGate, stateGate + 160),
+    /throw new BadCredentialsException\("Invalid credentials"\)/,
+    'a disabled or locked account answers as invalid credentials, not 403',
+  );
+
+  // AuthenticationException is mapped to 401 by the shared handler.
+  assert.match(
+    handler,
+    /@ExceptionHandler\(AuthenticationException\.class\)[\s\S]*?HttpStatus\.UNAUTHORIZED/,
+  );
+
+  // The one filter that does answer 403 for account state never sees /auth/login.
+  assert.match(accountState, /"\/api\/v1\/auth\/login"\.equals\(uri\)/);
+
+  // So the page keeps its generic "attempt blocked" copy for the residual 403
+  // (CSRF, origin, or a proxy in front), and that copy claims nothing about the
+  // account: no locked/disabled/exists wording, in either locale.
+  assert.match(login, /error\.response\.status === 403\) \{\s*return messages\.login\.errors\.blocked;/);
+  const english = /invalidCredentials: 'The email address or password is incorrect\.',\s*blocked: '([^']+)'/.exec(messages);
+  const vietnamese = /invalidCredentials: 'Email hoặc mật khẩu không đúng\.',\s*blocked: '([^']+)'/.exec(messages);
+  assert.ok(english, 'the English blocked copy exists');
+  assert.ok(vietnamese, 'the Vietnamese blocked copy exists');
+  for (const copy of [english[1], vietnamese[1]]) {
+    assert.match(copy, /blocked|bị chặn/i, 'the copy says the attempt was blocked');
+    assert.doesNotMatch(
+      copy,
+      /\b(account|locked|disabled|exists)\b|wrong password|tài khoản|bị khóa|không tồn tại/i,
+      `the copy must not name account state, but reads: ${copy}`,
+    );
+  }
 });

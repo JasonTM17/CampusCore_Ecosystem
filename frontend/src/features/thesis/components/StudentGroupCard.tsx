@@ -177,7 +177,7 @@ export default function StudentGroupCard({
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-status-danger-foreground flex items-start gap-2">
                 <Shield className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
                   <strong>{pageCopy.topicRejectedLabel}</strong> {group.rejectionReason || pageCopy.rejectedTopicFallback}
@@ -231,7 +231,7 @@ export default function StudentGroupCard({
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                           {member.identifier && !member.isExternal ? (
-                            <span>MSSV: <strong className="font-mono text-foreground/80">{member.identifier}</strong></span>
+                            <span>{messages.thesis.studentIdLabel}: <strong className="font-mono text-foreground/80">{member.identifier}</strong></span>
                           ) : null}
                           {member.contact ? (
                             <span>{member.contact}</span>

@@ -70,7 +70,12 @@ test('the grade matrix inline validator rejects bad scores and keeps the last va
   // badInput is the reliable signal that a type="number" input rejected text.
   assert.match(source, /event\.target\.validity\.badInput/);
   // Out-of-range / non-numeric drafts raise the inline message…
-  assert.match(source, /if \(invalid\) next\.set\(errorKey, copy\.invalidScore\);/);
+  assert.match(source, /if \(invalid\) next\.set\(errorKey, gradeEntry\.invalidScore\);/);
+  assert.match(
+    readSource('src/i18n/messages-teaching-pages.ts'),
+    /invalidScore: 'Score must be a number between 0 and 10\.'/,
+    'the validator message lives in the catalogue',
+  );
   // …and the previous value stays in state (early return before setGrades).
   assert.match(source, /if \(invalid\) \{\s*\/\/ Keep the last valid value in state/);
 });

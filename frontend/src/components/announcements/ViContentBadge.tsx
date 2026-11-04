@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { announcementWorkspaceEn } from '@/i18n/messages-announcements';
 
 /**
  * Honest-locale marker: announcements are authored in Vietnamese only, so on
@@ -17,7 +18,7 @@ export function ViContentBadge({
   return (
     <span
       lang="vi"
-      title="Bài viết bằng tiếng Việt / Article in Vietnamese"
+      title={announcementWorkspaceEn.badge.title}
       className={cn(
         'inline-flex shrink-0 items-center rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400',
         className,

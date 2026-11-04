@@ -1621,7 +1621,9 @@ class AdminUserMutationPersistenceTest {
 
         CountDownLatch gatePassed = new CountDownLatch(1);
         CountDownLatch releaseInsert = new CountDownLatch(1);
+        CountDownLatch promoterAtLock = new CountDownLatch(1);
         String workerName = "race-lecturer-create";
+        String promoterName = "race-role-promote";
         Mockito.doAnswer(invocation -> {
             String sql = invocation.getArgument(0, String.class);
             if (Thread.currentThread().getName().equals(workerName)
@@ -1633,6 +1635,18 @@ class AdminUserMutationPersistenceTest {
             }
             return invocation.callRealMethod();
         }).when(namedJdbc).update(Mockito.anyString(), Mockito.any(SqlParameterSource.class));
+        Mockito.doAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (Thread.currentThread().getName().equals(promoterName)
+                    && sql.contains("FOR UPDATE")) {
+                // The promotion reached the User row lock while the
+                // protected check still holds it; it can only proceed by
+                // queueing on the row.
+                promoterAtLock.countDown();
+            }
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForList(Mockito.anyString(),
+                Mockito.any(SqlParameterSource.class), Mockito.any(Class.class));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -1653,6 +1667,7 @@ class AdminUserMutationPersistenceTest {
                     .as("the lecturer create must reach the insert barrier").isTrue();
 
             Future<Throwable> promoter = pool.submit(() -> {
+                Thread.currentThread().setName(promoterName);
                 try {
                     userMutations.update("race-target", Map.of("role", "ADMIN"), true, null);
                     return null;
@@ -1663,9 +1678,12 @@ class AdminUserMutationPersistenceTest {
             // The promotion must wait on the same user row lock the protected
             // check holds: if it can finish while the creator is paused between
             // its role check and its lecturer write, the check ran against
-            // roles the promotion was already replacing. Give it a generous
-            // window — an unlocked implementation finishes well under this.
-            Thread.sleep(1_000);
+            // roles the promotion was already replacing. The barrier proves
+            // the promotion is parked inside the lock statement, not merely
+            // slow to be scheduled.
+            assertThat(awaitLatchOrDone(promoterAtLock, promoter))
+                    .as("the role promotion must reach the user row lock held by the protected check")
+                    .isTrue();
             assertThat(promoter.isDone())
                     .as("the role promotion must block until the protected check commits")
                     .isFalse();
@@ -1682,6 +1700,25 @@ class AdminUserMutationPersistenceTest {
             pool.shutdownNow();
             assertThat(pool.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    /**
+     * Waits for a worker to reach a barrier, but fails fast when the worker
+     * finishes first — a worker that never reaches the barrier must not stall
+     * the test for the whole budget.
+     */
+    private static boolean awaitLatchOrDone(CountDownLatch latch, Future<?> worker)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (latch.await(25, TimeUnit.MILLISECONDS)) {
+                return true;
+            }
+            if (worker.isDone()) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private List<String> roleNames(String userId) {

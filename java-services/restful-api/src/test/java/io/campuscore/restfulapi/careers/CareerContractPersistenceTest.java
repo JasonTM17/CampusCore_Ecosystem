@@ -3,16 +3,20 @@ package io.campuscore.restfulapi.careers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -267,6 +271,47 @@ class CareerContractPersistenceTest {
     }
 
     @Test
+    void onlyOpportunityCreatorCanSubmitDraftForReview() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Owner draft");
+
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/submit-review")
+                        .with(reviewerInAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SELF_PUBLISH_FORBIDDEN"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?", String.class, opp))
+                .isEqualTo("DRAFT");
+
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/submit-review")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_REVIEW"));
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/publish")
+                        .with(reviewerInAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp) + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+    }
+
+    @Test
+    void createOpportunityRejectsTextLongerThanItsColumns() throws Exception {
+        String longTitle = "T".repeat(301);
+        mvc.perform(post("/api/v1/careers/staff/opportunities").with(recruiterAlpha)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"org-alpha\",\"title\":\"" + longTitle + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        String maxTitle = "T".repeat(300);
+        mvc.perform(post("/api/v1/careers/staff/opportunities").with(recruiterAlpha)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"org-alpha\",\"title\":\"" + maxTitle + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void organizationIsolationIsTotal() throws Exception {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Alpha Only");
         submitAndPublish(opp);
@@ -348,6 +393,61 @@ class CareerContractPersistenceTest {
                 .andExpect(jsonPath("$.organizationId").value("org-alpha"));
         mvc.perform(get("/api/v1/careers/staff/opportunities").with(candidate2))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void grantsListShowsOnlyTheCallersOwnRows() throws Exception {
+        // The grant list is a self-view, not a staff directory: other-org
+        // recruiters, same-org peers and other reviewers are not enumerated.
+        mvc.perform(get("/api/v1/careers/staff/grants").with(recruiterAlpha))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-ra"))
+                .andExpect(jsonPath("$[0].userId").value("recruiter-alpha"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(recruiterBeta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-rb"))
+                .andExpect(jsonPath("$[0].userId").value("recruiter-beta"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(reviewer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-rev"))
+                .andExpect(jsonPath("$[0].userId").value("reviewer-1"));
+
+        // A dual-grant caller (org recruiter + platform reviewer) keeps all
+        // of its own rows.
+        MvcResult dual = mvc.perform(get("/api/v1/careers/staff/grants").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andReturn();
+        JsonNode dualRows = objectMapper.readTree(dual.getResponse().getContentAsString());
+        List<String> dualIds = new ArrayList<>();
+        dualRows.forEach(row -> dualIds.add(row.get("id").asText()));
+        assertThat(dualIds).containsExactlyInAnyOrder("g-ra2", "g-ra3");
+        dualRows.forEach(row ->
+                assertThat(row.get("userId").asText()).isEqualTo("reviewer-alpha"));
+
+        // Paged totals count only the caller's visible rows.
+        mvc.perform(get("/api/v1/careers/staff/grants")
+                        .param("page", "0").param("limit", "1").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/api/v1/careers/staff/grants")
+                        .param("page", "1").param("limit", "1").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // The membership gate is unchanged: no careers grant, including the
+        // ADMIN role alone, remains a 403.
+        mvc.perform(get("/api/v1/careers/staff/grants").with(candidate1))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CAREERS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(adminJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CAREERS_STAFF_REQUIRED"));
     }
 
     @Test
@@ -575,6 +675,169 @@ class CareerContractPersistenceTest {
     }
 
     @Test
+    void overlongModerationReasonIsRejectedWithoutStateChange() throws Exception {
+        String reason = "r".repeat(501);
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Reason Bound");
+        submitAndPublish(opp);
+
+        // Pause and close share orgStatusChange; the stored reason column is
+        // bounded, so an over-long reason is a 400, never a storage 409.
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/pause")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/close")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?",
+                String.class, opp)).isEqualTo("PUBLISHED");
+
+        // The reviewer reject lane shares the bound.
+        String opp2 = createDraft(recruiterAlpha, "org-alpha", "Reviewer Bound");
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp2 + "/submit-review")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp2) + "}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp2 + "/reject")
+                        .with(reviewer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp2)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?",
+                String.class, opp2)).isEqualTo("IN_REVIEW");
+
+        // The application reject lane too — nothing written, version intact.
+        String applicationId = apply(opp, "car-reason-1");
+        mvc.perform(post("/api/v1/careers/staff/applications/" + applicationId + "/reject")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Application\" WHERE \"id\" = ?",
+                String.class, applicationId)).isEqualTo("SUBMITTED");
+        assertThat(versionOf("Application", applicationId)).isEqualTo(1);
+
+        // The column-width reason itself still lands and stays visible.
+        mvc.perform(post("/api/v1/careers/staff/applications/" + applicationId + "/reject")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + "r".repeat(500) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.moderationReason").value("r".repeat(500)));
+    }
+
+    @Test
+    void browseSearchTreatsLikeWildcardsLiterally() throws Exception {
+        String pct = createDraft(recruiterAlpha, "org-alpha", "100% Remote Role");
+        submitAndPublish(pct);
+        String und = createDraft(recruiterAlpha, "org-alpha", "Under_Score Role");
+        submitAndPublish(und);
+        submitAndPublish(createDraft(recruiterAlpha, "org-alpha", "Plain Role"));
+
+        // % and _ are literal characters in the stored titles, never wildcards.
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "%").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(pct));
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "_").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(und));
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "role").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+        mvc.perform(get("/api/v1/careers/opportunities")
+                        .param("query", "role").param("page", "0").param("limit", "2")
+                        .with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void jsonAttachmentsRequireSupportedTypesAndMatchingSignatures() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Attachment policy");
+        submitAndPublish(opp);
+        String applicationId = apply(opp, "car-attachment-policy");
+        String html = java.util.Base64.getEncoder().encodeToString("<html>".getBytes());
+        String notPdf = java.util.Base64.getEncoder().encodeToString("not a PDF".getBytes());
+
+        var unsupported = mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-attachment-policy-html")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.html\",\"contentType\":\"text/html\","
+                                + "\"dataBase64\":\"" + html + "\"}"))
+                .andReturn();
+
+        var mismatched = mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-attachment-policy-signature")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"resume.pdf\",\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + notPdf + "\"}"))
+                .andReturn();
+
+        assertThat(List.of(unsupported.getResponse().getStatus(), mismatched.getResponse().getStatus()))
+                .containsExactly(415, 400);
+        assertThat(objectMapper.readTree(unsupported.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_TYPE_UNSUPPORTED");
+        assertThat(objectMapper.readTree(mismatched.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("ATTACHMENT_CONTENT_MISMATCH");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM careers.\"Attachment\" WHERE \"applicationId\" = ?",
+                Integer.class, applicationId)).isZero();
+    }
+
+    @Test
+    void attachmentMetadataIsBoundedAndCanonical() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Metadata Job");
+        submitAndPublish(opp);
+        String applicationId = apply(opp, "car-meta-1");
+        String cv = java.util.Base64.getEncoder().encodeToString("%PDF-1.7\nmeta-cv".getBytes());
+
+        // The JSON lane applies the same display-name rule as the multipart
+        // lane: a long or path-like name is reduced, never a width failure.
+        mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-meta-name")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"" + "n".repeat(301) + "\","
+                                + "\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + cv + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
+
+        // A declared type that is not a media type is rejected at the boundary.
+        mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-meta-type")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"ok.txt\",\"contentType\":\"not-a-media-type\","
+                                + "\"dataBase64\":\"" + cv + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_INVALID"));
+
+        // A value already stored malformed can never break a later download.
+        jdbc.update("INSERT INTO careers.\"Attachment\""
+                        + " (\"id\", \"applicationId\", \"fileName\", \"contentType\", \"checksum\","
+                        + " \"data\", \"uploadedBy\")"
+                        + " VALUES ('legacy-att', ?, 'legacy.bin', 'garbage', 'aa', ?, 'candidate-1')",
+                applicationId, (Object) "data".getBytes());
+        mvc.perform(get("/api/v1/careers/applications/" + applicationId
+                        + "/attachments/legacy-att/download").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        MediaType.APPLICATION_OCTET_STREAM_VALUE));
+    }
+
+    @Test
     void applicationProgressionIsStrictlyForward() throws Exception {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Stepper");
         submitAndPublish(opp);
@@ -609,13 +872,14 @@ class CareerContractPersistenceTest {
         String opp = createDraft(recruiterAlpha, "org-alpha", "Attachment Job");
         submitAndPublish(opp);
         String applicationId = apply(opp, "car-att-1");
-        String cv = java.util.Base64.getEncoder().encodeToString("fake-cv".getBytes());
-        String sha = sha256("fake-cv".getBytes());
+        byte[] pdf = "%PDF-1.7\nfake-cv".getBytes();
+        String cv = java.util.Base64.getEncoder().encodeToString(pdf);
+        String sha = sha256(pdf);
 
         // Idempotency-Key is required on the attachment lane.
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
@@ -624,7 +888,7 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"deadbeef\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("FILE_CHECKSUM_MISMATCH"));
@@ -633,7 +897,7 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"" + sha + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments.length()").value(1))
@@ -644,18 +908,18 @@ class CareerContractPersistenceTest {
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + cv + "\",\"checksum\":\"" + sha + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments.length()").value(1));
 
         // Same key + different bytes conflicts — the hash binds content, so a
         // divergent retry can never silently replay a stale success.
-        String other = java.util.Base64.getEncoder().encodeToString("revised-cv".getBytes());
+        String other = java.util.Base64.getEncoder().encodeToString("%PDF-1.7\nrevised-cv".getBytes());
         mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
                         .with(candidate1).header("Idempotency-Key", "car-att-up2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"text/plain\","
+                        .content("{\"fileName\":\"cv.txt\",\"contentType\":\"application/pdf\","
                                 + "\"dataBase64\":\"" + other + "\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));

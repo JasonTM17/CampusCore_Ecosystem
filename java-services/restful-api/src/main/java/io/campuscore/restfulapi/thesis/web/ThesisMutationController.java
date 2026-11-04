@@ -1,6 +1,8 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
+import io.campuscore.restfulapi.thesis.service.ThesisArchiveSearch;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisReportService;
 import io.campuscore.restfulapi.thesis.service.ThesisSupervisorService;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,11 +43,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -166,13 +173,24 @@ public class ThesisMutationController {
         return mutations.extendReportDeadline(id, request == null ? null : request.reportDeadline(), actor);
     }
 
-    /** Brief R9: publish graded results to the students of the round. */
-    @Operation(summary = "Công bố điểm và kết quả bảo vệ khóa luận", description = "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức")
+    /** Publishes the resolved results to the students of the round. */
+    @Operation(summary = "Công bố kết quả khóa luận", description = "Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận")
     @PostMapping("/rounds/{id}/publish-results")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','SUPER_ADMIN')")
     public RoundResponse publishResults(@Parameter(description = "Mã UUID của đợt", required = true) @PathVariable UUID id,
             @AuthenticationPrincipal Jwt actor) {
         return mutations.publishResults(id, actor);
+    }
+
+    @Operation(summary = "Gửi lại thông báo kết quả khóa luận",
+            description = "Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm")
+    @PostMapping("/rounds/{id}/publish-results/notifications/retry")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void retryPublishedResultsNotifications(
+            @Parameter(description = "Mã UUID của đợt", required = true) @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt actor) {
+        mutations.retryPublishedResultsNotifications(id, actor);
     }
 
     @PostMapping("/topics")
@@ -298,7 +316,7 @@ public class ThesisMutationController {
     @PreAuthorize("hasRole('STUDENT')")
     public ReportResponse submitReportFile(
             @PathVariable UUID id,
-            @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "file", required = false) MultipartFile file,
             @RequestPart(value = "title", required = false) String title,
             @RequestPart(value = "note", required = false) String note,
             @AuthenticationPrincipal Jwt actor) {
@@ -382,6 +400,11 @@ public class ThesisMutationController {
     }
 
     @GetMapping("/topics/{id}/report")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Topic report",
+                    content = @Content(schema = @Schema(implementation = ReportResponse.class))),
+            @ApiResponse(responseCode = "204", description = "No report is available for this topic.")
+    })
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
     public org.springframework.http.ResponseEntity<ReportResponse> getReportByTopic(@PathVariable UUID id, @AuthenticationPrincipal Jwt actor) {
         ReportResponse response = reports.getByTopic(id, actor);
@@ -391,20 +414,58 @@ public class ThesisMutationController {
         return org.springframework.http.ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Báo cáo của đợt",
+            description = "Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. "
+                    + "Thêm page/limit để phân trang kèm X-Total-Count.")
+    @ApiResponse(responseCode = "200", description = "Báo cáo đã được phân quyền", headers = {
+            @Header(name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                    schema = @Schema(type = "integer"))})
     @GetMapping("/rounds/{id}/reports")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
-    public List<ReportResponse> listReportsByRound(
+    public org.springframework.http.ResponseEntity<List<ReportResponse>> listReportsByRound(
             @PathVariable UUID id,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy tối đa 100 dòng đầu")
+            @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
-        return reports.listByRound(id, actor);
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(reports.listByRound(id, actor, window));
     }
 
+    @Operation(summary = "Kho báo cáo của đợt",
+            description = "Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm "
+                    + "X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web")
+    @ApiResponse(responseCode = "200", description = "Kho báo cáo", headers = {
+            @Header(name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                    schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_TOTAL_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_TOTAL_DOC, schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_FILE_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_FILE_DOC, schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_URL_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_URL_DOC, schema = @Schema(type = "integer"))})
     @GetMapping("/rounds/{id}/repository")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
-    public List<RepositoryReportResponse> listRepository(
+    public org.springframework.http.ResponseEntity<List<RepositoryReportResponse>> listRepository(
             @PathVariable UUID id,
+            @Parameter(description = ThesisArchiveSearch.SEARCH_DOC) @RequestParam(required = false) String search,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
+            jakarta.servlet.http.HttpServletRequest request,
             @AuthenticationPrincipal Jwt actor) {
-        return reports.listRepository(id, actor);
+        String term = ThesisArchiveSearch.singleValued(search, request.getParameterValues("search"));
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        ThesisReportService.RepositoryArchivePage pageResult = reports.listRepository(id, actor, window, term);
+        if (window == null) {
+            return org.springframework.http.ResponseEntity.ok(pageResult.items());
+        }
+        ThesisReportService.RepositoryArchiveSummary summary = pageResult.summary();
+        return org.springframework.http.ResponseEntity.ok()
+                .header(ListPaging.TOTAL_COUNT_HEADER, String.valueOf(pageResult.total()))
+                .header(ThesisArchiveSearch.ARCHIVE_TOTAL_HEADER, String.valueOf(summary.archiveTotal()))
+                .header(ThesisArchiveSearch.ARCHIVE_FILE_HEADER, String.valueOf(summary.fileCount()))
+                .header(ThesisArchiveSearch.ARCHIVE_URL_HEADER, String.valueOf(summary.urlCount()))
+                .body(pageResult.items());
     }
 
     @PostMapping("/groups/{id}/approve")

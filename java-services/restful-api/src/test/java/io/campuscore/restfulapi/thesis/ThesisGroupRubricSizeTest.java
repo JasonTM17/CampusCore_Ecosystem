@@ -321,7 +321,7 @@ class ThesisGroupRubricSizeTest {
 
     private List<String> auditActions(UUID groupId) {
         return jdbc.queryForList("SELECT \"action\" FROM campuscore_audit.\"AdminAudit\" "
-                        + "WHERE \"entityId\" = ? ORDER BY \"createdAt\", \"id\"", String.class, groupId.toString());
+                        + "WHERE \"entityId\" = ? ORDER BY \"createdAt\", _ROWID_", String.class, groupId.toString());
     }
 
     private Snapshot snapshot(UUID groupId) {

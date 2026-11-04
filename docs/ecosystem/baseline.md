@@ -1,5 +1,10 @@
 # Ecosystem baseline — CampusUTE C2
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Baseline là bản ghi kế hoạch/lịch sử; host go-live và artefact production nêu trong bảng là
+> mục tiêu tương lai, không phải trạng thái hiện tại. Local quick start:
+> [README.md](../../README.md#quick-start-local).
+
 Ngày ghi: 2026-10-21 · Pha: P01 step 1 · Active plan: `plans/261021-2123-campusute-ecosystem/plan.md`
 
 ## 1. Target identity (pinned)
@@ -91,8 +96,12 @@ EXISTING = đã xác minh tồn tại trong repo tại baseline. PROPOSED = chư
 | P11 | — (không EXISTING khai báo) | package `library/` (Java), `frontend/src/app/library/`, `mobile/src/screens/library/`, `frontend/e2e/ecosystem-library.spec.ts`, `LibraryInventoryPostgresIT.java` |
 | P12 | — (không EXISTING khai báo) | package `careers/` (Java), `frontend/src/app/careers/`, `mobile/src/screens/careers/`, `frontend/e2e/ecosystem-careers.spec.ts`, `CareerOrganizationIsolationTest.java` |
 | P13 | `mobile/app.json`, `mobile/README.md`; `eas.json` từ P07 được hoàn thiện | `frontend/public/.well-known/apple-app-site-association`, `frontend/public/.well-known/assetlinks.json`, `mobile/tests/domain-contracts.test.mjs`, `docs/ecosystem/device-runbook.md`, `docs/ecosystem/device-evidence-template.md` |
-| P14 | `.github/workflows/ci.yml`, `.github/workflows/publish-ghcr.yml`, `render.yaml`, `ops/backup/backup-postgres.sh`, `ops/backup/restore-postgres.sh`, `ops/backup/verify-backup.sh`, `docs/deployment.md`, `README.md` | `docs/ecosystem/release-runbook.md`, `docs/ecosystem/demo-acceptance.md`, `scripts/probe-ecosystem-hosts.mjs` |
+| P14 | `.github/workflows/ci.yml`, `ops/backup/backup-postgres.sh`, `ops/backup/restore-postgres.sh`, `ops/backup/verify-backup.sh`, `README.md` | `docs/ecosystem/release-runbook.md`, `docs/ecosystem/demo-acceptance.md`, `scripts/probe-ecosystem-hosts.mjs` |
 | P15 | — (không EXISTING khai báo) | `docs/ecosystem/pilot-entry-checklist.md`, `docs/ecosystem/data-inventory.md`, `docs/ecosystem/privacy-notice.md`, `docs/ecosystem/rights-request-runbook.md`, `docs/ecosystem/breach-runbook.md`, `docs/ecosystem/vendor-register.md` |
+
+Ghi chú (2026-11): các artefact production của P14 (cấu hình deploy, workflow publish image,
+runbook triển khai) đã được gỡ khỏi workspace này. Dòng P14 giữ giá trị lịch sử của kế hoạch,
+không phải danh sách file hiện hành.
 
 ## 7. Ranh giới ghi tại baseline
 

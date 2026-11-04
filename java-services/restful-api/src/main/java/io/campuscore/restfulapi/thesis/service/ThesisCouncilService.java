@@ -8,12 +8,18 @@ import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.web.DomainException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -47,6 +53,7 @@ public class ThesisCouncilService {
     private final NamedParameterJdbcTemplate jdbc;
     private final AdminAuditRecorder audit;
     private final ThesisNotificationService notifier;
+    private final Clock clock;
 
     /**
      * Creates the service over the shared named-parameter JDBC template.
@@ -56,15 +63,21 @@ public class ThesisCouncilService {
      *              caller's transaction so the grade and its trace commit together
      */
     public ThesisCouncilService(NamedParameterJdbcTemplate jdbc, AdminAuditRecorder audit) {
-        this(jdbc, audit, null);
+        this(jdbc, audit, null, Clock.systemUTC());
+    }
+
+    public ThesisCouncilService(NamedParameterJdbcTemplate jdbc, AdminAuditRecorder audit,
+            ThesisNotificationService notifier) {
+        this(jdbc, audit, notifier, Clock.systemUTC());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public ThesisCouncilService(NamedParameterJdbcTemplate jdbc, AdminAuditRecorder audit,
-            ThesisNotificationService notifier) {
+            ThesisNotificationService notifier, @Qualifier("attendanceClock") Clock clock) {
         this.jdbc = jdbc;
         this.audit = audit;
         this.notifier = notifier;
+        this.clock = clock;
     }
 
     // ---------- councils ----------
@@ -262,7 +275,8 @@ public class ThesisCouncilService {
                     "A council needs three to five members including one chair and one secretary before it can grade topics");
         }
         Map<String, Object> topic = one(
-                "SELECT id, round_id, status, final_score FROM thesis.thesis_topic WHERE id = :topicId",
+                "SELECT id, round_id, status, final_score, result_status "
+                        + "FROM thesis.thesis_topic WHERE id = :topicId",
                 params().addValue("topicId", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found");
         ThesisDeanScope.requireTopicAccess(jdbc, actor, topicId);
         if (!"PUBLISHED".equals(topic.get("status")) && !"APPROVED".equals(topic.get("status"))) {
@@ -272,9 +286,7 @@ public class ThesisCouncilService {
         if (!councilRound(councilId).equals(topic.get("round_id"))) {
             throw conflict("TOPIC_ROUND_MISMATCH", "Topic belongs to another registration round");
         }
-        if (topic.get("final_score") != null) {
-            throw conflict("SCORE_ALREADY_FINALIZED", "A finalized topic cannot be reassigned to another council");
-        }
+        requireUnresolvedResult(topic, "A resolved topic cannot be reassigned to another council");
         Integer taken = count(
                 "SELECT COUNT(*) FROM thesis.thesis_council_topic WHERE topic_id = :topicId",
                 params().addValue("topicId", topicId));
@@ -330,14 +342,13 @@ public class ThesisCouncilService {
      * Lists every council of one registration round with its members and assigned topics.
      *
      * @param roundId round whose councils are listed, oldest first
-     * @return the councils of the round, each fully hydrated through {@link #getCouncil(UUID)}
+     * @return the councils of the round, each fully hydrated with its members and assigned topics
      */
     @Transactional(readOnly = true)
     public List<CouncilResponse> listByRound(UUID roundId) {
-        List<UUID> ids = jdbc.queryForList(
-                "SELECT id FROM thesis.thesis_council WHERE round_id = :roundId ORDER BY created_at, id",
-                params().addValue("roundId", roundId), UUID.class);
-        return ids.stream().map(this::getCouncil).toList();
+        return loadRoundCouncils(roundId).stream()
+                .map(LoadedCouncil::response)
+                .toList();
     }
 
     /**
@@ -353,27 +364,35 @@ public class ThesisCouncilService {
      */
     @Transactional(readOnly = true)
     public List<CouncilResponse> listByRoundForActor(UUID roundId, Jwt actor) {
-        List<CouncilResponse> councils = listByRound(roundId);
+        List<LoadedCouncil> councils = loadRoundCouncils(roundId);
         if (ThesisDeanScope.isGlobalAdmin(actor)) {
-            return councils;
+            return councils.stream().map(LoadedCouncil::response).toList();
         }
         if (ThesisDeanScope.isFacultyHead(actor)) {
             // Deans stay inside their faculty: councils they created or
             // councils already grading one of their topics. Anything else is a
             // foreign roster — the unconditional governance bypass used to
-            // hand every dean the whole round's councils.
+            // hand every dean the whole round's councils. The faculty scope is
+            // resolved once and matched against the already-loaded topics.
+            String facultyId = ThesisDeanScope.facultyId(jdbc, actor);
+            if (facultyId == null) {
+                return List.of();
+            }
+            String subject = subject(actor);
             return councils.stream()
-                    .filter(council -> deanCanSeeCouncil(council.id(), actor))
+                    .filter(council -> deanCanSeeCouncil(council, subject, facultyId))
+                    .map(LoadedCouncil::response)
                     .toList();
         }
         if (!isCouncilGovernanceStaff(actor)) {
             String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
             return councils.stream()
+                    .map(LoadedCouncil::response)
                     .filter(council -> council.members().stream()
                             .anyMatch(member -> member.lecturerId().equals(lecturerId)))
                     .toList();
         }
-        return councils;
+        return councils.stream().map(LoadedCouncil::response).toList();
     }
 
     /**
@@ -461,14 +480,76 @@ public class ThesisCouncilService {
         }
     }
 
-    /** Non-throwing twin of {@link #requireCouncilGovernanceAccess} for list filtering. */
-    private boolean deanCanSeeCouncil(UUID councilId, Jwt actor) {
-        try {
-            requireCouncilGovernanceAccess(councilId, actor);
+    /** In-memory twin of {@link #requireCouncilGovernanceAccess} for list filtering. */
+    private boolean deanCanSeeCouncil(LoadedCouncil council, String subject, String facultyId) {
+        if (subject.equals(council.createdBy())) {
             return true;
-        } catch (DomainException exception) {
-            return false;
         }
+        return council.topicFacultyIds().contains(facultyId);
+    }
+
+    /**
+     * Hydrates a whole round in three statements: headers, members and topics
+     * plus their department faculties. {@link #getCouncil(UUID)} remains the
+     * single-council read and returns the same shape and ordering.
+     */
+    private List<LoadedCouncil> loadRoundCouncils(UUID roundId) {
+        List<Map<String, Object>> headers = jdbc.queryForList(
+                "SELECT id AS \"id\", round_id AS \"roundId\", name AS \"name\", status AS \"status\", "
+                        + "created_by AS \"createdBy\" FROM thesis.thesis_council "
+                        + "WHERE round_id = :roundId ORDER BY created_at, id",
+                params().addValue("roundId", roundId));
+        if (headers.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = headers.stream().map(header -> (UUID) header.get("id")).toList();
+
+        Map<UUID, List<CouncilMember>> members = new HashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT council_id AS \"councilId\", lecturer_id AS \"lecturerId\", "
+                        + "member_role AS \"memberRole\" FROM thesis.thesis_council_member "
+                        + "WHERE council_id IN (:ids) ORDER BY council_id, "
+                        + "CASE member_role WHEN 'CHAIR' THEN 0 WHEN 'SECRETARY' THEN 1 ELSE 2 END, "
+                        + "created_at, lecturer_id",
+                params().addValue("ids", ids))) {
+            members.computeIfAbsent((UUID) row.get("councilId"), key -> new ArrayList<>())
+                    .add(new CouncilMember((String) row.get("lecturerId"), (String) row.get("memberRole")));
+        }
+
+        Map<UUID, List<UUID>> topicIds = new HashMap<>();
+        Map<UUID, Set<String>> topicFacultyIds = new HashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT ct.council_id AS \"councilId\", ct.topic_id AS \"topicId\", "
+                        + "d.\"facultyId\" AS \"facultyId\" FROM thesis.thesis_council_topic ct "
+                        + "JOIN thesis.thesis_topic t ON t.id = ct.topic_id "
+                        + "LEFT JOIN academic.\"Department\" d ON d.\"id\" = t.department_id "
+                        + "WHERE ct.council_id IN (:ids) ORDER BY ct.council_id, ct.created_at, ct.topic_id",
+                params().addValue("ids", ids))) {
+            UUID councilId = (UUID) row.get("councilId");
+            topicIds.computeIfAbsent(councilId, key -> new ArrayList<>())
+                    .add((UUID) row.get("topicId"));
+            Object facultyId = row.get("facultyId");
+            if (facultyId != null) {
+                topicFacultyIds.computeIfAbsent(councilId, key -> new HashSet<>())
+                        .add(String.valueOf(facultyId));
+            }
+        }
+
+        List<LoadedCouncil> loaded = new ArrayList<>(headers.size());
+        for (Map<String, Object> header : headers) {
+            UUID councilId = (UUID) header.get("id");
+            loaded.add(new LoadedCouncil(
+                    new CouncilResponse(
+                            councilId,
+                            (UUID) header.get("roundId"),
+                            (String) header.get("name"),
+                            (String) header.get("status"),
+                            members.getOrDefault(councilId, List.of()),
+                            topicIds.getOrDefault(councilId, List.of())),
+                    (String) header.get("createdBy"),
+                    topicFacultyIds.getOrDefault(councilId, Set.of())));
+        }
+        return loaded;
     }
 
     /**
@@ -544,6 +625,8 @@ public class ThesisCouncilService {
         if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
+        // The numeric(4,2) column rounds on write; store, echo and audit one value.
+        score = score.setScale(2, RoundingMode.HALF_UP);
         // The frozen scoring model is one row per grader: every council member
         // grades exactly the DEFENSE component, so the finalize average gives
         // each member equal weight (no multi-component vote inflation).
@@ -553,11 +636,9 @@ public class ThesisCouncilService {
             throw invalid("component must be " + SCORE_COMPONENT);
         }
         Map<String, Object> topicRow = one(
-                "SELECT id, final_score FROM thesis.thesis_topic WHERE id = :topicId FOR UPDATE",
+                "SELECT id, final_score, result_status FROM thesis.thesis_topic WHERE id = :topicId FOR UPDATE",
                 params().addValue("topicId", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found");
-        if (topicRow.get("final_score") != null) {
-            throw conflict("SCORE_ALREADY_FINALIZED", "The topic score has been finalized by the chair");
-        }
+        requireUnresolvedResult(topicRow, "The topic result has already been finalized");
         requireApprovedGroupForTopic(topicId);
         // K16: the row is overwritten DELETE-then-INSERT, so the outgoing value
         // only exists here — capture it for the audit trail before the delete.
@@ -629,7 +710,8 @@ public class ThesisCouncilService {
         requireText(lecturerId, "lecturerId");
         lockMutableTopicRound(topicId);
         Map<String, Object> topic = one(
-                "SELECT t.id, t.status, t.final_score, t.gvpb_lecturer_id, r.gvpb_deadline, r.status AS round_status "
+                "SELECT t.id, t.status, t.final_score, t.result_status, t.gvpb_lecturer_id, "
+                        + "r.gvpb_deadline, r.status AS round_status "
                         + "FROM thesis.thesis_topic t "
                         + "JOIN thesis.thesis_registration_round r ON r.id = t.round_id "
                         + "WHERE t.id = :topicId FOR UPDATE OF t",
@@ -643,9 +725,7 @@ public class ThesisCouncilService {
                 && !TopicStatus.APPROVED.name().equals(topic.get("status"))) {
             throw conflict("TOPIC_NOT_PUBLISHED", "Only published topics can be assigned a counter-reviewer");
         }
-        if (topic.get("final_score") != null) {
-            throw conflict("SCORE_ALREADY_FINALIZED", "A finalized topic cannot change its counter-reviewer");
-        }
+        requireUnresolvedResult(topic, "A resolved topic cannot change its counter-reviewer");
         if (topic.get("gvpb_deadline") == null) {
             throw invalid("This round's thesis type has no counter-review phase");
         }
@@ -727,7 +807,8 @@ public class ThesisCouncilService {
         }
         lockMutableTopicRound(topicId);
         Map<String, Object> topic = one(
-                "SELECT t.id, t.round_id, t.status, t.final_score, t.gvpb_lecturer_id, r.gvpb_deadline, r.status AS round_status "
+                "SELECT t.id, t.round_id, t.status, t.final_score, t.result_status, t.gvpb_lecturer_id, "
+                        + "r.gvpb_deadline, r.status AS round_status "
                         + "FROM thesis.thesis_topic t "
                         + "JOIN thesis.thesis_registration_round r ON r.id = t.round_id "
                         + "WHERE t.id = :topicId FOR UPDATE OF t",
@@ -744,21 +825,21 @@ public class ThesisCouncilService {
                 && !TopicStatus.APPROVED.name().equals(topic.get("status"))) {
             throw conflict("TOPIC_NOT_PUBLISHED", "Only published topics can receive a counter-review score");
         }
-        if (topic.get("final_score") != null) {
-            throw conflict("SCORE_ALREADY_FINALIZED", "The topic score has been finalized by the chair");
-        }
+        requireUnresolvedResult(topic, "The topic result has already been finalized");
         requireNotSupervisor(topicId, lecturerId);
         Instant deadline = instantOf(topic.get("gvpb_deadline"));
         // Match requireReportWritable's exclusive boundary: the deadline is
         // the first instant the window is closed, so == freezes like a passed
         // deadline does everywhere else in the workflow.
-        if (deadline != null && !Instant.now().isBefore(deadline)) {
+        if (deadline != null && !clock.instant().isBefore(deadline)) {
             throw conflict("GVPB_DEADLINE_PASSED",
                     "The counter-review deadline for this round has passed");
         }
         if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
+        // The numeric(4,2) column rounds on write; store, echo and audit one value.
+        score = score.setScale(2, RoundingMode.HALF_UP);
         // A counter-review grades a submitted report — meaningless until an
         // approved group exists to produce one.
         requireApprovedGroupForTopic(topicId);
@@ -880,8 +961,10 @@ public class ThesisCouncilService {
             throw conflict("TOPIC_NOT_ASSIGNED", "This council has not been assigned the topic");
         }
         // Lock topic row to prevent concurrent score submission during finalization
-        one("SELECT id FROM thesis.thesis_topic WHERE id = :topicId FOR UPDATE",
+        Map<String, Object> topic = one(
+                "SELECT id, final_score, result_status FROM thesis.thesis_topic WHERE id = :topicId FOR UPDATE",
                 params().addValue("topicId", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        requireUnresolvedResult(topic, "The topic result has already been finalized");
         requireApprovedGroupForTopic(topicId);
         int expectedScores = eligibleGraderCount(councilId, topicId);
         if (expectedScores < MIN_COUNCIL_SIZE) {
@@ -913,15 +996,12 @@ public class ThesisCouncilService {
         boolean requiresGvpb = (roundType != null && roundType.requiresGvpbDeadline() && gvpbDeadline != null)
                 || (gvpbLecturerId != null);
         if (requiresGvpb) {
-            List<BigDecimal> gvpbScores = jdbc.queryForList(
-                    "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = :topicId AND component = :component",
-                    params().addValue("topicId", topicId).addValue("component", GVPB_COMPONENT),
-                    BigDecimal.class);
-            if (gvpbScores.isEmpty() || gvpbScores.get(0) == null) {
+            var evidence = ThesisGvpbEvidenceValidator.findCanonicalScore(jdbc, topicId, gvpbLecturerId);
+            if (evidence.isEmpty()) {
                 throw conflict("REVIEW_SCORE_REQUIRED",
                         "A counter-review (GVPB) score is required before the defense score can be finalized");
             }
-            if (gvpbScores.get(0).compareTo(BigDecimal.valueOf(5.0)) < 0) {
+            if (evidence.get().score().compareTo(BigDecimal.valueOf(5.0)) < 0) {
                 throw conflict("REVIEW_SCORE_BELOW_THRESHOLD",
                         "Topic counter-review score must be at least 5.0 to qualify for defense");
             }
@@ -949,7 +1029,7 @@ public class ThesisCouncilService {
         int changed = jdbc.update(
                 "UPDATE thesis.thesis_topic SET final_score = :final, final_score_finalized_by = :chair, "
                         + "final_score_finalized_at = CURRENT_TIMESTAMP, result_status = 'GRADED', updated_at = CURRENT_TIMESTAMP, version = version + 1 "
-                        + "WHERE id = :topicId AND final_score IS NULL",
+                        + "WHERE id = :topicId AND final_score IS NULL AND result_status IS NULL",
                 params().addValue("final", average).addValue("chair", subject(actor)).addValue("topicId", topicId));
         if (changed != 1) {
             throw conflict("SCORE_ALREADY_FINALIZED", "The topic score has already been finalized");
@@ -977,7 +1057,7 @@ public class ThesisCouncilService {
                 }
             });
         }
-        return new TopicResult(topicId, average, subject(actor), Instant.now(), "GRADED");
+        return new TopicResult(topicId, average, subject(actor), clock.instant(), "GRADED");
     }
 
     // ---------- student results ----------
@@ -1003,13 +1083,17 @@ public class ThesisCouncilService {
             throw conflict("RESULTS_NOT_PUBLISHED", "Results for this round have not been published yet");
         }
         return jdbc.query(
-                "SELECT t.id AS topic_id, t.title, t.final_score, t.final_score_finalized_at, g.id AS group_id, g.leader_student_id, c.name AS council_name "
+                "SELECT t.id AS topic_id, t.title, t.final_score, t.final_score_finalized_at, "
+                        + "t.result_status, t.result_reason, t.result_resolved_at, "
+                        + "g.id AS group_id, g.leader_student_id, c.name AS council_name "
                         + "FROM thesis.thesis_group_member m "
                         + "JOIN thesis.thesis_group g ON g.id = m.group_id "
                         + "JOIN thesis.thesis_topic t ON t.id = g.topic_id "
                         + "LEFT JOIN thesis.thesis_council_topic ct ON ct.topic_id = t.id "
                         + "LEFT JOIN thesis.thesis_council c ON c.id = ct.council_id "
-                        + "WHERE m.student_id = :studentId AND g.round_id = :roundId AND g.approval_status = 'APPROVED'",
+                        + "WHERE m.student_id = :studentId AND m.active_participation = TRUE "
+                        + "AND g.round_id = :roundId AND g.status <> 'CANCELLED' "
+                        + "AND g.approval_status = 'APPROVED'",
                 params().addValue("studentId", studentId).addValue("roundId", roundId),
                 (rs, ignored) -> {
                     UUID topicId = UUID.fromString(rs.getString("topic_id"));
@@ -1017,6 +1101,9 @@ public class ThesisCouncilService {
                             UUID.fromString(rs.getString("group_id")),
                             rs.getString("title"),
                             rs.getBigDecimal("final_score"),
+                            rs.getString("result_status"),
+                            rs.getString("result_reason"),
+                            instantOf(rs.getObject("result_resolved_at")),
                             rs.getString("council_name"),
                             rs.getString("leader_student_id"),
                             evaluationComments(topicId));
@@ -1268,6 +1355,16 @@ public class ThesisCouncilService {
         }
     }
 
+    private void requireUnresolvedResult(Map<String, Object> topic, String message) {
+        String resultStatus = (String) topic.get("result_status");
+        if ("NOT_QUALIFIED".equals(resultStatus)) {
+            throw conflict("RESULT_ALREADY_RESOLVED", message);
+        }
+        if (topic.get("final_score") != null || resultStatus != null) {
+            throw conflict("SCORE_ALREADY_FINALIZED", message);
+        }
+    }
+
     private static String subject(Jwt actor) {
         return actor == null || actor.getSubject() == null ? "" : actor.getSubject();
     }
@@ -1330,9 +1427,15 @@ public class ThesisCouncilService {
             UUID groupId,
             String topicTitle,
             BigDecimal finalScore,
+            String resultStatus,
+            String resultReason,
+            Instant resultResolvedAt,
             String councilName,
             String leaderStudentId,
             List<ScoreComment> comments) { }
 
     public record ScoreComment(String component, String comment) { }
+
+    private record LoadedCouncil(
+            CouncilResponse response, String createdBy, Set<String> topicFacultyIds) { }
 }

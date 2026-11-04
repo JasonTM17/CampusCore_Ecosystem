@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle, RotateCcw } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { getAssistantWindowMessages } from '@/components/assistant/assistant-messages';
 import { useAssistantStream } from '@/components/assistant/useAssistantStream';
 import { AssistantMessages } from '@/components/assistant/AssistantMessages';
 import { AssistantComposer } from '@/components/assistant/AssistantComposer';
@@ -19,7 +21,7 @@ import { AssistantMascot } from '@/components/assistant/AssistantMascot';
 export default function AssistantSpecializedPage() {
   const { locale, messages, href } = useI18n();
   const router = useRouter();
-  const vi = locale === 'vi';
+  const windowCopy = getAssistantWindowMessages(locale);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledRef = useRef(false);
@@ -107,7 +109,7 @@ export default function AssistantSpecializedPage() {
   // Same gate as the floating panel: a 401 locks asks behind sign-in again.
   const authRequired = state.error === 'unauthorized';
   const goSignIn = () =>
-    router.push(`${href('/login')}?reason=session-expired`);
+    router.push(sessionExpiredLoginHref(href));
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4">
@@ -185,7 +187,7 @@ export default function AssistantSpecializedPage() {
 
           {state.error ? (
             <div
-              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground"
               role="alert"
             >
               <p>{errorLabel}</p>
@@ -200,10 +202,10 @@ export default function AssistantSpecializedPage() {
               ) : lastPrompt ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-md px-0 text-destructive hover:underline"
+                  className="mt-2 rounded-md px-0 text-status-danger-foreground hover:underline"
                   onClick={(event) => void sendMessage(event, lastPrompt, { retry: true })}
                 >
-                  {vi ? 'Gửi lại câu hỏi' : 'Retry the question'}
+                  {windowCopy.specialized.retry}
                 </button>
               ) : null}
             </div>

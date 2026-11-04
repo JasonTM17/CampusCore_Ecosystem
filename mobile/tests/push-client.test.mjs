@@ -93,6 +93,27 @@ test('registration and explicit unregistration use the existing installation id'
   assert.equal(apiCalls[1].installationId, INSTALLATION_ID);
 });
 
+test('a rotated-token rebind response is a successful registration', async () => {
+  const { platform } = makePlatform();
+  const { api, calls } = makeApi({
+    registerPushDevice: async (installationId, body) => {
+      calls.push({ kind: 'register', installationId, body });
+      return {
+        installationId,
+        provider: body.provider,
+        platform: body.platform,
+        status: 'ACTIVE',
+        updatedAt: '2026-11-03T00:00:00Z',
+      };
+    },
+  });
+  const client = createPushNotificationClient(platform, api);
+  assert.deepEqual(
+    await client.register(true),
+    { status: 'registered', installationId: INSTALLATION_ID },
+  );
+});
+
 test('notification route is fetched from the inbox and exact allowlist matching fails closed', async () => {
   const calls = [];
   const fetchNotification = async (id) => {

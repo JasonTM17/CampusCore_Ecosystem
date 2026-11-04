@@ -23,17 +23,20 @@ import {
 } from '@/lib/announcement-limits';
 import { buildDocumentFilename } from '@/lib/editor-document';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { toast } from 'sonner';
+import { editorSurfacesEn, editorSurfacesVi } from '@/i18n/messages-editor';
 
 // Loading shell rendered while the editor chunk resolves. Locale is picked from
 // <html lang> because the dynamic wrapper has no access to the component props.
 function EditorLoading({ isVi }: { isVi: boolean }) {
+  const copy = isVi ? editorSurfacesVi.tinyMce : editorSurfacesEn.tinyMce;
   return (
     <div className="flex h-96 w-full items-center justify-center rounded-lg border border-border/70 bg-card/60">
       <div className="flex flex-col items-center gap-2 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span className="text-sm font-medium">
-          {isVi ? 'Đang khởi tạo trình soạn thảo TinyMCE...' : 'Initializing the TinyMCE editor...'}
+          {copy.initializing}
         </span>
       </div>
     </div>
@@ -90,20 +93,19 @@ function useEditorModule(): [EditorModuleState, () => void] {
 }
 
 function EditorLoadError({ isVi, onRetry }: { isVi: boolean; onRetry: () => void }) {
+  const copy = isVi ? editorSurfacesVi.tinyMce : editorSurfacesEn.tinyMce;
   return (
     <div
       role="alert"
       className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center"
     >
-      <TriangleAlert className="h-8 w-8 text-destructive" aria-hidden="true" />
+      <TriangleAlert className="h-8 w-8 text-status-danger-foreground" aria-hidden="true" />
       <p className="max-w-md text-sm font-medium text-foreground">
-        {isVi
-          ? 'Không tải được trình soạn thảo trực quan (mạng chặn hoặc quá tải tệp TinyMCE). Bạn có thể chuyển sang chế độ soạn thảo Markdown ở thanh công cụ phía trên.'
-          : 'The visual editor could not be loaded (blocked network or failed TinyMCE download). You can switch to the Markdown editor mode using the toolbar above.'}
+        {copy.loadError}
       </p>
       <Button type="button" variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
         <RefreshCw className="h-3.5 w-3.5" />
-        {isVi ? 'Thử tải lại' : 'Retry'}
+        {copy.retry}
       </Button>
     </div>
   );
@@ -290,11 +292,8 @@ export interface TinyMceEditorProps {
 
 const TINYMCE_TEMPLATES = [
   {
-    titleVi: 'Thông báo học vụ chính thức',
-    titleEn: 'Official Academic Notice',
-    descriptionVi: 'Mẫu thông báo ban hành từ phòng đào tạo có tiêu đề, bảng thời gian và lưu ý',
-    descriptionEn: 'Official notice from academic affairs with timeline and notes',
-    content: `
+    id: 'officialNotice',
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
           <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM</h4>
@@ -337,13 +336,53 @@ const TINYMCE_TEMPLATES = [
         </div>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+          <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+          <h2 style="margin: 8px 0 0 0; color: #0f172a; font-size: 20px; font-weight: 700;">OFFICIAL ACADEMIC NOTICE</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">No.: {{số văn bản}} | {{Học kỳ - Năm học}}</p>
+        </div>
+
+        <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+          <strong style="color: #1d4ed8; font-size: 14px;">Attention:</strong> All faculty members and full-time students of all cohorts.
+        </div>
+
+        <h3 style="color: #0369a1; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">1. Detailed plan</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; text-align: left;">
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Item</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Start Time</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">End Time</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{Hạng mục kế hoạch 1}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày bắt đầu}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày kết thúc}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{đối tượng áp dụng}}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{Hạng mục kế hoạch 2}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày bắt đầu}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày kết thúc}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{đối tượng áp dụng}}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+          <strong style="color: #a16207;">Important note:</strong> Students must check the prerequisite requirements carefully before submitting their registration. For any questions, contact the Office of Academic Affairs A1-101.
+        </div>
+      </div>
+    `,
   },
   {
-    titleVi: 'Đề cương đề tài khóa luận / NCKH',
-    titleEn: 'Thesis / Research Proposal Outline',
-    descriptionVi: 'Mẫu đề xuất đề tài tốt nghiệp có mục tiêu, phương pháp và danh mục công việc',
-    descriptionEn: 'Academic proposal outline with objectives, methodology, and work plan',
-    content: `
+    id: 'thesisProposal',
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <h2 style="color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">ĐỀ CƯƠNG ĐỀ TÀI KHÓA LUẬN TỐT NGHIỆP</h2>
 
@@ -393,13 +432,60 @@ const TINYMCE_TEMPLATES = [
         </table>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <h2 style="color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">GRADUATION THESIS / RESEARCH PROPOSAL OUTLINE</h2>
+
+        <p><strong>1. Thesis title (Vietnamese):</strong> {{tên đề tài tiếng Việt}}</p>
+        <p><strong>2. Thesis title (English):</strong> {{tên đề tài tiếng Anh}}</p>
+        <p><strong>3. Supervisor:</strong> {{học hàm/học vị, họ tên GVHD}}</p>
+        <p><strong>4. Student team:</strong></p>
+        <ul>
+          <li>{{họ tên trưởng nhóm}} (Team leader - Student ID: {{MSSV}})</li>
+          <li>{{họ tên thành viên}} (Student ID: {{MSSV}})</li>
+        </ul>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">I. Rationale for the topic</h3>
+        <p>Present the practical context, the limitations of existing systems, and the reasons for choosing this research topic.</p>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">II. Research objectives</h3>
+        <ol>
+          <li>{{Mục tiêu tổng quát: sản phẩm/kết quả chính của đề tài}}</li>
+          <li>{{Mục tiêu cụ thể 1 đo lường được}}</li>
+          <li>{{Mục tiêu cụ thể 2 đo lường được}}</li>
+        </ol>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">III. Implementation plan (Gantt)</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr style="background-color: #f1f5f9;">
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Phase</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Work items</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Timeline</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Expected outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">1</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Survey and architecture design</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Week 1 - Week 3</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">SRS & Architecture Spec report</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">2</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Core Engine & Web Portal development</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Week 4 - Week 10</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">System running in the Staging environment</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `,
   },
   {
-    titleVi: 'Quyết định của Hiệu trưởng',
-    titleEn: 'Official Rector Decision',
-    descriptionVi: 'Mẫu quyết định công văn chuẩn hành chính đại học có quốc hiệu, căn cứ và nơi nhận',
-    descriptionEn: 'Official administrative rector decision format with distribution and seal',
-    content: `
+    id: 'rectorDecision',
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <div style="text-align: center; border-bottom: 2px solid #0d509d; padding-bottom: 12px; margin-bottom: 20px;">
           <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM</h4>
@@ -428,13 +514,39 @@ const TINYMCE_TEMPLATES = [
         </div>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <div style="text-align: center; border-bottom: 2px solid #0d509d; padding-bottom: 12px; margin-bottom: 20px;">
+          <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+          <h2 style="margin: 8px 0 0 0; color: #0d509d; font-size: 20px; font-weight: 700;">DECISION ON PROMULGATING ACADEMIC AFFAIRS & TRAINING REGULATIONS</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">Pursuant to the Law on Higher Education and the Development Plan of HCMC University of Technology and Engineering</p>
+        </div>
+
+        <p><strong>THE RECTOR OF HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING DECIDES:</strong></p>
+
+        <p><strong>Article 1.</strong> Promulgate with this Decision the Regulations on credit-based training and the rules for assessing student conduct scores.</p>
+        <p><strong>Article 2.</strong> This Decision takes effect from the date of signing and applies to all full-time student cohorts.</p>
+        <p><strong>Article 3.</strong> The Head of the Office of Academic Affairs, the Dean of the Faculty of Information Technology and related units are responsible for implementing this Decision.</p>
+
+        <div style="margin-top: 30px; display: flex; justify-content: space-between;">
+          <div style="font-size: 12px; color: #64748b;">
+            <strong>Recipients:</strong><br/>
+            - As in Article 3;<br/>
+            - Board of Rectors (for reporting);<br/>
+            - Filed: Secretariat, Office of Academic Affairs.
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: 700; text-transform: uppercase;">RECTOR</p>
+            <div style="height: 50px;"></div>
+            <p style="margin: 0; font-weight: 700; color: #0d509d;">{{Học hàm, Học vị, Họ tên}}</p>
+          </div>
+        </div>
+      </div>
+    `,
   },
   {
-    titleVi: 'Thông báo quy chế thi & phúc khảo',
-    titleEn: 'Exam Regulations & Appeal Notice',
-    descriptionVi: 'Quy định phòng thi, phân ca thi và thủ tục nộp đơn phúc khảo trực tuyến',
-    descriptionEn: 'Exam hall regulations, schedule sessions, and online score appeal procedure',
-    content: `
+    id: 'examAppeal',
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <h2 style="color: #0d509d; border-bottom: 2px solid #0d509d; padding-bottom: 8px;">KẾ HOẠCH TỔ CHỨC THI KẾT THÚC HỌC PHẦN & PHÚC KHẢO ĐIỂM</h2>
 
@@ -453,8 +565,52 @@ const TINYMCE_TEMPLATES = [
         <p>Sinh viên có quyền gửi yêu cầu phúc khảo trực tuyến trên cổng học vụ trong vòng <strong>07 ngày làm việc</strong> kể từ ngày giảng viên công bố điểm chính thức.</p>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <h2 style="color: #0d509d; border-bottom: 2px solid #0d509d; padding-bottom: 8px;">END-OF-COURSE EXAMINATION & SCORE APPEAL PLAN</h2>
+
+        <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
+          <strong style="color: #1d4ed8;">Office of Testing & Quality Assurance</strong> announces the examination schedule and the regulations for students taking the term examinations.
+        </div>
+
+        <h3 style="color: #0369a1;">1. Exam room regulations</h3>
+        <ul>
+          <li>Students must present a valid photo student ID card or citizen ID card.</li>
+          <li>Reference materials, mobile phones and transmitting or receiving devices are strictly prohibited in the exam room.</li>
+          <li>Be present in the exam room at least 15 minutes before the start time.</li>
+        </ul>
+
+        <h3 style="color: #0369a1;">2. Score appeal procedure</h3>
+        <p>Students may submit an online appeal request on the academic portal within <strong>07 working days</strong> from the date the instructor publishes the official score.</p>
+      </div>
+    `,
   },
-];
+] as const;
+
+/**
+ * WAI-ARIA menu keyboard contract: opening lands on the first item (or the
+ * last when opened with ArrowUp), arrow keys wrap, and Home/End jump to the
+ * ends. Returns null when the key is not a menu-navigation key.
+ */
+export function nextTemplateMenuItemIndex(
+  currentIndex: number,
+  itemCount: number,
+  key: string,
+): number | null {
+  if (itemCount <= 0) return null;
+  switch (key) {
+    case 'ArrowDown':
+      return currentIndex < 0 ? 0 : (currentIndex + 1) % itemCount;
+    case 'ArrowUp':
+      return currentIndex < 0 ? itemCount - 1 : (currentIndex + itemCount - 1) % itemCount;
+    case 'Home':
+      return 0;
+    case 'End':
+      return itemCount - 1;
+    default:
+      return null;
+  }
+}
 
 export function TinyMceEditor({
   value,
@@ -484,6 +640,8 @@ export function TinyMceEditor({
   // so tell the author BEFORE they try to publish instead of surfacing a quota
   // error after they have finished writing.
   const contentLengthState = assessAnnouncementContentLength(value);
+  const formatCharacterCount = (count: number) =>
+    count.toLocaleString(isVi ? 'vi-VN' : 'en-US');
 
   // Detect dark mode in document element
   useEffect(() => {
@@ -503,19 +661,17 @@ export function TinyMceEditor({
   }, []);
 
   const isVi = locale === 'vi';
+  const copy = isVi ? editorSurfacesVi.tinyMce : editorSurfacesEn.tinyMce;
+  const templateCopy = isVi ? editorSurfacesVi.templates.tinyMce : editorSurfacesEn.templates.tinyMce;
 
   // RT-P3-d: the reader sanitizer accepts only base64 png/jpeg/gif/webp/bmp
   // image sources, so an inlined SVG looks fine in the author's preview and
   // comes back with its `src` deleted for every reader — an unexplained broken
   // image. Refuse it at both insert points, before the payload is embedded,
   // and say why in the author's language.
-  const svgRejected = isVi
-    ? 'Không chèn được ảnh SVG: bộ lọc nội dung sẽ loại bỏ nguồn ảnh khi phát hành và người đọc chỉ thấy khung ảnh vỡ. Hãy xuất ra PNG, JPEG, GIF, WEBP hoặc BMP rồi chèn lại.'
-    : 'SVG images cannot be inserted: the content filter drops their source when the notice is published, so readers would see a broken image. Export the graphic as PNG, JPEG, GIF, WEBP or BMP and insert it again.';
+  const svgRejected = copy.svgRejected;
 
-  const unsupportedImageFormat = isVi
-    ? 'Chỉ chèn được ảnh PNG, JPEG, GIF, WEBP hoặc BMP: định dạng khác (AVIF, HEIC, TIFF…) bị bộ lọc nội dung loại bỏ nguồn ảnh khi phát hành nên người đọc chỉ thấy khung ảnh vỡ.'
-    : 'Only PNG, JPEG, GIF, WEBP or BMP images can be inserted: other formats (AVIF, HEIC, TIFF…) lose their source when the notice is published, so readers would see a broken image.';
+  const unsupportedImageFormat = copy.unsupportedImageFormat;
 
   // Apply academic template. Insert at the cursor instead of replacing the
   // document: the label says "chèn" and a misclick must not wipe the content
@@ -536,12 +692,34 @@ export function TinyMceEditor({
 
   // Close the templates popover with Escape and return focus to its trigger.
   const templatesTriggerRef = useRef<HTMLButtonElement>(null);
+  const templatesMenuRef = useRef<HTMLDivElement>(null);
+
+  // Opening the menu moves focus to its first item; the arrow keys walk the
+  // items and Escape returns focus to the trigger (WAI-ARIA menu contract).
+  useEffect(() => {
+    if (!templatesOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      templatesMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [templatesOpen]);
+
   const handleTemplatesKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape' && templatesOpen) {
+    if (!templatesOpen) return;
+    if (event.key === 'Escape') {
       event.stopPropagation();
       setTemplatesOpen(false);
       templatesTriggerRef.current?.focus();
+      return;
     }
+    const items = Array.from(
+      templatesMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = nextTemplateMenuItemIndex(currentIndex, items.length, event.key);
+    if (nextIndex === null) return;
+    event.preventDefault();
+    items[nextIndex]?.focus();
   };
 
   // Copy HTML to clipboard — a rejected write must surface, not leave the
@@ -553,7 +731,7 @@ export function TinyMceEditor({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error(
-        isVi ? 'Không thể sao chép — hãy dùng nút tải xuống.' : 'Copy failed — use the download button instead.',
+        copy.copyFailed,
       );
     }
   };
@@ -587,10 +765,10 @@ export function TinyMceEditor({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 font-semibold text-xs text-primary uppercase tracking-wider">
             <Sparkles className="h-4 w-4" />
-            <span>{isVi ? 'Trình soạn thảo văn bản hành chính' : 'Official Document Editor'}</span>
+            <span>{copy.editorTitle}</span>
           </div>
           <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-            {isVi ? 'Lưu trữ nội bộ an toàn' : 'Secure Internal Storage'}
+            {copy.secureStorage}
           </span>
         </div>
 
@@ -608,7 +786,7 @@ export function TinyMceEditor({
                 className="h-8 gap-1.5 text-xs font-medium"
               >
                 <BookOpen className="h-3.5 w-3.5 text-primary" />
-                <span>{isVi ? 'Mẫu học vụ' : 'Templates'}</span>
+                <span>{copy.templatesButton}</span>
               </Button>
 
               {templatesOpen ? (
@@ -619,12 +797,13 @@ export function TinyMceEditor({
                     aria-hidden="true"
                   />
                   <div
+                    ref={templatesMenuRef}
                     role="menu"
-                    aria-label={isVi ? 'Mẫu văn bản học vụ' : 'Academic templates'}
+                    aria-label={copy.templatesAriaLabel}
                     className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-popover p-2 shadow-xl animate-in fade-in zoom-in-95"
                   >
                   <div className="border-b border-border pb-2 px-2 text-xs font-semibold text-foreground">
-                    {isVi ? 'Chọn mẫu văn bản học vụ sẵn có' : 'Select Academic Template'}
+                    {copy.chooseTemplate}
                   </div>
                   <div className="mt-1 space-y-1">
                     {TINYMCE_TEMPLATES.map((tmpl, idx) => (
@@ -632,14 +811,15 @@ export function TinyMceEditor({
                         key={idx}
                         type="button"
                         role="menuitem"
-                        onClick={() => handleInsertTemplate(tmpl.content)}
+                        tabIndex={-1}
+                        onClick={() => handleInsertTemplate(isVi ? tmpl.contentVi : tmpl.contentEn)}
                         className="w-full text-left rounded p-2 text-xs transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                       >
                         <div className="font-semibold text-foreground">
-                          {isVi ? tmpl.titleVi : tmpl.titleEn}
+                          {templateCopy[tmpl.id].title}
                         </div>
                         <div className="mt-0.5 text-muted-foreground text-[11px] leading-tight line-clamp-2">
-                          {isVi ? tmpl.descriptionVi : tmpl.descriptionEn}
+                          {templateCopy[tmpl.id].description}
                         </div>
                       </button>
                     ))}
@@ -656,10 +836,10 @@ export function TinyMceEditor({
             size="sm"
             onClick={handleCopyHtml}
             className="h-8 gap-1 text-xs"
-            title={isVi ? 'Sao chép mã HTML' : 'Copy HTML code'}
+            title={copy.copyHtmlTitle}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{copied ? (isVi ? 'Đã sao chép' : 'Copied') : 'HTML'}</span>
+            <span className="hidden sm:inline">{copied ? copy.copied : 'HTML'}</span>
           </Button>
 
           <Button
@@ -668,10 +848,10 @@ export function TinyMceEditor({
             size="sm"
             onClick={handleExportHtml}
             className="h-8 gap-1 text-xs"
-            title={isVi ? 'Tải tệp HTML về máy' : 'Download HTML file'}
+            title={copy.downloadHtmlTitle}
           >
             <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{isVi ? 'Tải HTML' : 'Export'}</span>
+            <span className="hidden sm:inline">{copy.exportHtml}</span>
           </Button>
         </div>
       </div>
@@ -685,19 +865,19 @@ export function TinyMceEditor({
           className={cn(
             'flex items-center gap-2 border-b px-3 py-2 text-xs font-medium',
             contentLengthState === 'exceeded'
-              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+              ? 'border-destructive/40 bg-destructive/10 text-status-danger-foreground'
               : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
           )}
         >
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {contentLengthState === 'exceeded'
-              ? isVi
-                ? `Nội dung ${value.length.toLocaleString('vi-VN')} ký tự, vượt hạn mức ${MAX_ANNOUNCEMENT_CONTENT_CHARS.toLocaleString('vi-VN')} của máy chủ — hãy rút gọn hoặc xoá bớt ảnh nhúng trước khi phát hành.`
-                : `Content is ${value.length.toLocaleString('en-US')} characters, over the server limit of ${MAX_ANNOUNCEMENT_CONTENT_CHARS.toLocaleString('en-US')} — shorten it or remove embedded images before publishing.`
-              : isVi
-                ? `Nội dung đã dùng ${value.length.toLocaleString('vi-VN')}/${MAX_ANNOUNCEMENT_CONTENT_CHARS.toLocaleString('vi-VN')} ký tự — gần đạt hạn mức của máy chủ.`
-                : `Content uses ${value.length.toLocaleString('en-US')}/${MAX_ANNOUNCEMENT_CONTENT_CHARS.toLocaleString('en-US')} characters — approaching the server limit.`}
+              ? copy.contentExceeded
+                .replace('{length}', formatCharacterCount(value.length))
+                .replace('{limit}', formatCharacterCount(MAX_ANNOUNCEMENT_CONTENT_CHARS))
+              : copy.contentNearLimit
+                .replace('{length}', formatCharacterCount(value.length))
+                .replace('{limit}', formatCharacterCount(MAX_ANNOUNCEMENT_CONTENT_CHARS))}
           </span>
         </div>
       ) : null}
@@ -810,33 +990,33 @@ export function TinyMceEditor({
             line_height_formats: '1 1.15 1.3 1.5 1.65 1.8 2 2.5',
             style_formats: [
               {
-                title: 'Tiêu đề (Headings)',
+                title: copy.toolbar.headings.title,
                 items: [
-                  { title: 'Tiêu đề chính 1 (H1)', format: 'h1' },
-                  { title: 'Tiêu đề mục 2 (H2)', format: 'h2' },
-                  { title: 'Tiêu đề nhỏ 3 (H3)', format: 'h3' },
-                  { title: 'Tiêu đề chi tiết 4 (H4)', format: 'h4' },
+                  { title: copy.toolbar.headings.h1, format: 'h1' },
+                  { title: copy.toolbar.headings.h2, format: 'h2' },
+                  { title: copy.toolbar.headings.h3, format: 'h3' },
+                  { title: copy.toolbar.headings.h4, format: 'h4' },
                 ],
               },
               {
-                title: 'Khối hộp học vụ (Academic Callouts)',
+                title: copy.toolbar.callouts.title,
                 items: [
-                  { title: 'Đoạn văn (Paragraph)', format: 'p' },
-                  { title: 'Trích dẫn quy định (Blockquote)', format: 'blockquote' },
+                  { title: copy.toolbar.callouts.paragraph, format: 'p' },
+                  { title: copy.toolbar.callouts.blockquote, format: 'blockquote' },
                   {
-                    title: 'Hộp Lưu ý học vụ (Notice Callout)',
+                    title: copy.toolbar.callouts.notice,
                     block: 'div',
                     classes: 'academic-callout academic-callout-info',
                     wrapper: true,
                   },
                   {
-                    title: 'Hộp Cảnh báo quan trọng (Warning Callout)',
+                    title: copy.toolbar.callouts.warning,
                     block: 'div',
                     classes: 'academic-callout academic-callout-warning',
                     wrapper: true,
                   },
                   {
-                    title: 'Hộp Thành công / Đạt chuẩn (Success Callout)',
+                    title: copy.toolbar.callouts.success,
                     block: 'div',
                     classes: 'academic-callout academic-callout-success',
                     wrapper: true,
@@ -844,15 +1024,15 @@ export function TinyMceEditor({
                 ],
               },
               {
-                title: 'Định dạng ký tự (Inline)',
+                title: copy.toolbar.inline.title,
                 items: [
-                  { title: 'Đậm (Bold)', format: 'bold' },
-                  { title: 'Nghiêng (Italic)', format: 'italic' },
-                  { title: 'Gạch chân (Underline)', format: 'underline' },
-                  { title: 'Gạch ngang (Strikethrough)', format: 'strikethrough' },
-                  { title: 'Chỉ số trên (Superscript)', format: 'superscript' },
-                  { title: 'Chỉ số dưới (Subscript)', format: 'subscript' },
-                  { title: 'Mã nguồn dòng (Inline Code)', format: 'code' },
+                  { title: copy.toolbar.inline.bold, format: 'bold' },
+                  { title: copy.toolbar.inline.italic, format: 'italic' },
+                  { title: copy.toolbar.inline.underline, format: 'underline' },
+                  { title: copy.toolbar.inline.strikethrough, format: 'strikethrough' },
+                  { title: copy.toolbar.inline.superscript, format: 'superscript' },
+                  { title: copy.toolbar.inline.subscript, format: 'subscript' },
+                  { title: copy.toolbar.inline.code, format: 'code' },
                 ],
               },
             ],
@@ -895,11 +1075,7 @@ export function TinyMceEditor({
                   return;
                 }
                 if (blob.size > MAX_INLINE_IMAGE_BYTES) {
-                  reject(
-                    isVi
-                      ? `Ảnh quá lớn (tối đa ${Math.floor(MAX_INLINE_IMAGE_BYTES / 1024)} KB để vừa hạn mức ký tự của máy chủ). Hãy nén ảnh trước khi chèn.`
-                      : `Image too large (max ${Math.floor(MAX_INLINE_IMAGE_BYTES / 1024)} KB to fit the server character budget). Compress it before inserting.`,
-                  );
+                  reject(copy.imageTooLarge.replace('{size}', String(Math.floor(MAX_INLINE_IMAGE_BYTES / 1024))));
                   return;
                 }
                 // The per-image cap does not bound the whole document: several images
@@ -909,11 +1085,7 @@ export function TinyMceEditor({
                 const currentContent = editorRef.current?.getContent({ format: 'raw' }) ?? '';
                 const imagesAlreadyInlined = (currentContent.match(/data:image\//g) ?? []).length;
                 if (imagesAlreadyInlined >= MAX_INLINE_IMAGES) {
-                  reject(
-                    isVi
-                      ? `Chỉ chèn được tối đa ${MAX_INLINE_IMAGES} ảnh trực tiếp trong một thông báo cho vừa hạn mức ký tự của máy chủ. Hãy bỏ bớt ảnh hoặc dùng liên kết.`
-                      : `At most ${MAX_INLINE_IMAGES} inline images per announcement fit the server character budget. Remove one or link to it instead.`,
-                  );
+                  reject(countLabel(MAX_INLINE_IMAGES, copy.tooManyInlineImagesOne, copy.tooManyInlineImages).replace('{count}', String(MAX_INLINE_IMAGES)));
                   return;
                 }
                 resolve(`data:${blob.type};base64,${blobInfo.base64()}`);
@@ -943,11 +1115,7 @@ export function TinyMceEditor({
                       // message as the paste path instead of a silent drop.
                       // Non-blocking toast (app standard) instead of native alert,
                       // which freezes the editor window.
-                      toast.error(
-                        isVi
-                          ? `Ảnh quá lớn (tối đa ${Math.floor(MAX_INLINE_IMAGE_BYTES / 1024)} KB để vừa hạn mức ký tự của máy chủ). Hãy nén ảnh trước khi chèn.`
-                          : `Image too large (max ${Math.floor(MAX_INLINE_IMAGE_BYTES / 1024)} KB to fit the server character budget). Compress it before inserting.`,
-                      );
+                      toast.error(copy.imageTooLarge.replace('{size}', String(Math.floor(MAX_INLINE_IMAGE_BYTES / 1024))));
                       return;
                     }
                     const reader = new FileReader();
@@ -1006,7 +1174,7 @@ export function TinyMceEditor({
             `,
             branding: false,
             promotion: false,
-            placeholder: placeholder || (isVi ? 'Bắt đầu soạn thảo nội dung với đầy đủ công cụ TinyMCE chuyên nghiệp...' : 'Start composing content with professional TinyMCE tools...'),
+            placeholder: placeholder || copy.placeholder,
             // RT-P3-1: self-hosted Vietnamese language pack (copied from
             // tinymce-i18n by scripts/copy-tinymce.mjs to /tinymce/langs/vi.js);
             // the English locale uses TinyMCE's built-in strings.

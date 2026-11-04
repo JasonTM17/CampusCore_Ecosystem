@@ -20,6 +20,21 @@ Apply these before enabling the corresponding Java version in `supabase` authori
 
 The `assistant` schema must be exposed to the Supabase Data API for the authority gateway. Keep service credentials on the server. RLS, service grants, and project settings require verification against the actual target project.
 
+## Migration authorities
+
+Flyway owns the schema of the Compose and application database. `supabase/migrations` is a separate remote path for the assistant authority. Never apply both families to one database, and never edit an applied Supabase migration except to keep the retired keepalive file as a documented no-op. No Supabase environment exists here, so no Supabase migration was applied (`NOT_RUN`). The demo-password alignment (`20260922123000`) only writes accounts when the session opts in with `SET campuscore.demo_seed = 'on'` and is a no-op when `campuscore_auth."User"` is absent. The keepalive ping (`20260920210000`) schedules nothing; the forward migration `20261103000000` unschedules any leftover `render_keepalive_warm_ping` job. Both remain demo and operations behaviour and must not be enabled on a production project.
+
+The two families diverge in ways that make a shared database unsafe:
+
+1. `assistant.knowledge_release`: Flyway `V16` requires a non-null `source` without a default, while the Supabase release migrations insert without it and the later RLS policies expect `source` and status `STAGED`.
+2. The allowlist in `20260926031709` rejects the earlier authoring policies and the `V110` catalog-sync policies, so replay aborts.
+3. The same migration revokes `service_role` privileges that `SupabaseKnowledgeAuthorityService` uses, so its RPC calls return not found.
+4. Its role-membership check rejects the incoming `postgres` membership that Flyway `V84` was relaxed to accept.
+5. `20260918153000` re-adds an `announcement_status_ck` with a seven-value list, regressing the four states of Flyway `V136`.
+6. Flyway `V11` gives `knowledge_document_audit.id` no default while the Supabase RPC omits it on insert.
+
+Revisit only with an approved redesign that supports a shared database. The boundary is also recorded in [flyway-lineage.md](flyway-lineage.md#12-supabase-migrations-boundary).
+
 ## Specialized corpus
 
 [`assistant-specialized-knowledge.json`](../../supabase/seed/assistant-specialized-knowledge.json) owns the Vietnamese and English software engineering corpus. The Java runtime and remote release projection use `domain = 'SPECIALIZED'`. Applied Flyway history is immutable; the initial generator refuses to overwrite V71. [The focus-correction generator](../../scripts/generate-specialized-focus-migration.mjs) checks the additive V115 migration against the canonical architecture and constructor-injection articles. Existing migration files are checked rather than rewritten.

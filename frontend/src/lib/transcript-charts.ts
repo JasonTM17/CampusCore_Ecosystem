@@ -1,4 +1,5 @@
 import type { StudentTranscriptSemester } from '@/types/api';
+import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 
 export interface GpaTrendPoint {
   label: string;
@@ -27,7 +28,7 @@ export function buildGpaTrendPoints(
   return [...semesters]
     .reverse()
     .map((semester, index) => ({
-      label: locale === 'vi' ? `HK${index + 1}` : `T${index + 1}`,
+      label: (locale === 'vi' ? studentPagesVi : studentPagesEn).transcript.chartTerm.replace('{index}', String(index + 1)),
       fullLabel:
         (locale === 'vi'
           ? semester.semesterNameVi ?? semester.semesterNameEn
@@ -61,7 +62,7 @@ export function buildCumulativeGpaTrendPoints(
     }
 
     return {
-      label: locale === 'vi' ? `HK${index + 1}` : `T${index + 1}`,
+      label: (locale === 'vi' ? studentPagesVi : studentPagesEn).transcript.chartTerm.replace('{index}', String(index + 1)),
       fullLabel:
         (locale === 'vi'
           ? semester.semesterNameVi ?? semester.semesterNameEn
@@ -101,7 +102,7 @@ export function buildTenScaleTrendPoints(
       const average = credits > 0 ? weighted / credits : 0;
 
       return {
-        label: locale === 'vi' ? `HK${index + 1}` : `T${index + 1}`,
+        label: (locale === 'vi' ? studentPagesVi : studentPagesEn).transcript.chartTerm.replace('{index}', String(index + 1)),
         fullLabel:
           (locale === 'vi'
             ? semester.semesterNameVi ?? semester.semesterNameEn

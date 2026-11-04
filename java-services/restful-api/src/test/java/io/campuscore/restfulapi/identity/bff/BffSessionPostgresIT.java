@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.identity.bff;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -9,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,22 +30,25 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import io.campuscore.restfulapi.identity.DeterministicTokenCipher;
+import io.campuscore.restfulapi.identity.BffLogoutMarker;
 import io.campuscore.restfulapi.identity.IdentityGrantRetentionJob;
 import io.campuscore.restfulapi.identity.IdentityProperties;
 import io.campuscore.restfulapi.identity.UnifiedSessionAuthority;
@@ -102,6 +107,7 @@ class BffSessionPostgresIT {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private PlatformTransactionManager transactionManager;
     @MockitoBean private BffTokenClient tokenClient;
+    @MockitoSpyBean private io.campuscore.restfulapi.auth.repository.AuthUserRepository users;
 
     BffSessionPostgresIT(@Autowired javax.sql.DataSource dataSource) {
         this.jdbc = new JdbcTemplate(dataSource);
@@ -148,23 +154,39 @@ class BffSessionPostgresIT {
         insertSession(opaque, userId, "portal", CLIENT, grant.getId());
 
         AtomicInteger refreshCalls = new AtomicInteger();
+        CountDownLatch releaseRefresh = new CountDownLatch(1);
         doAnswer(invocation -> {
             refreshCalls.incrementAndGet();
-            Thread.sleep(120); // widen the race window
+            if (!releaseRefresh.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("refresh release barrier timeout");
+            }
             return rotateGrant(grant.getId());
         }).when(tokenClient).refresh(any(), anyString());
 
         ExecutorService pool = Executors.newFixedThreadPool(4);
         CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch workersReady = new CountDownLatch(4);
+        List<Thread> workers = new CopyOnWriteArrayList<>();
         try {
             List<Future<BffSessionService.ResolvedSession>> futures = new java.util.ArrayList<>();
             for (int i = 0; i < 4; i++) {
                 futures.add(pool.submit(() -> {
+                    workers.add(Thread.currentThread());
+                    workersReady.countDown();
                     await(start);
                     return sessions.resolveForBusiness(surface("portal"), opaque);
                 }));
             }
+            assertThat(workersReady.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
             start.countDown();
+            // The exchange stays open until every sibling is parked on the
+            // single-flight monitor — a broken one would enter an exchange
+            // of its own instead, which the call counter exposes.
+            assertThat(awaitSingleFlightQuorum(workers, refreshCalls))
+                    .as("every resolver must reach the single-flight lock or the"
+                            + " token exchange before the first refresh completes")
+                    .isTrue();
+            releaseRefresh.countDown();
             int ok = 0;
             for (Future<BffSessionService.ResolvedSession> future : futures) {
                 if (future.get(WAIT_SECONDS, TimeUnit.SECONDS).ok()) {
@@ -176,6 +198,7 @@ class BffSessionPostgresIT {
             // token; the queued siblings saw the rotated fresh access token.
             assertThat(refreshCalls.get()).isEqualTo(1);
         } finally {
+            releaseRefresh.countDown();
             pool.shutdownNow();
         }
     }
@@ -188,8 +211,15 @@ class BffSessionPostgresIT {
         String opaque = BffSessionStore.randomId(24);
         insertSession(opaque, userId, "portal", CLIENT, grant.getId());
 
+        CountDownLatch refreshInFlight = new CountDownLatch(1);
+        CountDownLatch logoutCommitted = new CountDownLatch(1);
         doAnswer(invocation -> {
-            Thread.sleep(150); // give logout time to commit mid-refresh
+            // The logout must commit strictly inside the exchange window;
+            // a fixed delay could slip it past the rotation on a slow runner.
+            refreshInFlight.countDown();
+            if (!logoutCommitted.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("logout commit barrier timeout");
+            }
             return rotateGrant(grant.getId());
         }).when(tokenClient).refresh(any(), anyString());
 
@@ -207,8 +237,11 @@ class BffSessionPostgresIT {
             });
             Future<?> logger = pool.submit(() -> {
                 await(start);
-                Thread.sleep(40);
+                if (!refreshInFlight.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("refresh in-flight barrier timeout");
+                }
                 sessions.logout(surface("portal"), "http://portal.test", opaque);
+                logoutCommitted.countDown();
                 return null;
             });
             start.countDown();
@@ -220,6 +253,7 @@ class BffSessionPostgresIT {
             assertThat(countLiveSessions(userId)).isEqualTo(0);
             assertThat(countAuthz(userId)).isEqualTo(0);
         } finally {
+            logoutCommitted.countDown();
             pool.shutdownNow();
         }
     }
@@ -257,6 +291,214 @@ class BffSessionPostgresIT {
                 callbackRequest);
         assertThat(result.ok()).isFalse();
         assertThat(countBffSessions(userId)).isEqualTo(0);
+    }
+
+    @Test
+    void callbackWaitingAtUserLockCannotResurrectSessionAfterClientLogout() throws Exception {
+        String userId = insertUser(UUID.randomUUID().toString().substring(0, 8));
+        OAuth2Authorization portalGrant = saveGrant(userId, currentVersion(userId),
+                Instant.now().plusSeconds(900));
+        Instant issuedAt = Instant.now();
+        OidcIdToken hint = new OidcIdToken("logout-hint-" + UUID.randomUUID(), issuedAt,
+                issuedAt.plusSeconds(3600), java.util.Map.of(
+                        "iss", "http://127.0.0.1:4010", "sub", userId, "aud", CLIENT));
+        portalGrant = OAuth2Authorization.from(portalGrant).token(hint, metadata -> metadata.put(
+                OAuth2Authorization.Token.CLAIMS_METADATA_NAME, hint.getClaims())).build();
+        authorizationService.save(portalGrant);
+        portalGrant = authorizationService.findById(portalGrant.getId());
+        OAuth2Authorization learnGrant = saveGrantForClient(userId,
+                currentVersion(userId), CLIENT_LEARN, Instant.now().plusSeconds(900));
+        String opaque = BffSessionStore.randomId(24);
+        insertSession(opaque, userId, "portal", CLIENT, portalGrant.getId());
+        String learnOpaque = BffSessionStore.randomId(24);
+        insertSession(learnOpaque, userId, "learn", CLIENT_LEARN, learnGrant.getId());
+
+        String state = BffSessionStore.randomId(24);
+        String txId = "tx" + UUID.randomUUID().toString().substring(0, 8);
+        String nonce = "nonce-" + txId;
+        store.insertTransaction(state, txId, "portal", nonce,
+                cipher.encrypt("verifier", "bff_tx.verifier"), "/",
+                Instant.now().plusSeconds(300));
+        String idToken = mintIdToken(userId, nonce, CLIENT);
+        String accessToken = portalGrant.getAccessToken().getToken().getTokenValue();
+        org.mockito.Mockito.when(tokenClient.exchangeCode(any(), anyString(), anyString(), anyString()))
+                .thenReturn(new BffTokenClient.TokenResponse(accessToken, null,
+                        idToken, null, 3600));
+
+        CountDownLatch callbackReadGrant = new CountDownLatch(1);
+        CountDownLatch allowCallbackToLock = new CountDownLatch(1);
+        ThreadLocal<Boolean> callbackWorker = ThreadLocal.withInitial(() -> false);
+        doAnswer(invocation -> {
+            if (callbackWorker.get()) {
+                callbackReadGrant.countDown();
+                if (!allowCallbackToLock.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("callback lock barrier timed out");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(users).lockUserRow(userId);
+
+        org.springframework.mock.web.MockHttpServletRequest callbackRequest =
+                new org.springframework.mock.web.MockHttpServletRequest();
+        callbackRequest.setCookies(new jakarta.servlet.http.Cookie(
+                "cu_bff_tx_dev_" + txId, txId));
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<BffSessionService.CallbackResult> callback = pool.submit(() -> {
+                callbackWorker.set(true);
+                try {
+                    return sessions.finishLogin(surface("portal"), "http://portal.test",
+                            "code-race", state, callbackRequest);
+                } finally {
+                    callbackWorker.remove();
+                }
+            });
+            assertThat(callbackReadGrant.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+            BffSessionService.LogoutResult logout = sessions.logout(
+                    surface("portal"), "http://portal.test", opaque);
+            assertThat(logout.logoutUrl()).contains("id_token_hint=");
+            assertThat(store.isClientLogoutPending(userId, CLIENT)).isTrue();
+            assertThat(countLiveSessions(userId, CLIENT)).isEqualTo(0);
+            assertThat(countLiveSessions(userId, CLIENT_LEARN)).isEqualTo(1);
+            assertThat(countAuthz(userId)).isEqualTo(2);
+            assertThat(store.findSession(learnOpaque, "learn")).isNotNull();
+
+            authorizationService.remove(portalGrant);
+            assertThat(authorizationService.findById(portalGrant.getId())).isNull();
+            assertThat(store.isClientLogoutPending(userId, CLIENT))
+                    .as("ordinary grant removal cannot erase the logout fence")
+                    .isTrue();
+            jdbc.update("UPDATE campuscore_identity.bff_transaction SET expires_at = ?"
+                            + " WHERE tx_id = ? AND nonce = ?",
+                    java.sql.Timestamp.from(Instant.now().minusSeconds(60)),
+                    BffLogoutMarker.TX_ID, BffLogoutMarker.nonce(userId, CLIENT));
+            retentionJob.purgeExpired();
+            assertThat(store.isClientLogoutPending(userId, CLIENT))
+                    .as("retention cannot age out the logout fence")
+                    .isTrue();
+
+            OAuth2Authorization stale = portalGrant;
+            assertThatThrownBy(() -> authorizationService.save(stale))
+                    .as("a stale grant update cannot clear the pending marker")
+                    .isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> saveGrantForClient(userId, currentVersion(userId),
+                    CLIENT, Instant.now().plusSeconds(900)))
+                    .as("a new same-client grant cannot bypass the pending marker")
+                    .isInstanceOf(RuntimeException.class);
+
+            allowCallbackToLock.countDown();
+            BffSessionService.CallbackResult result = callback.get(WAIT_SECONDS, TimeUnit.SECONDS);
+            assertThat(result.ok()).isFalse();
+            assertThat(result.failure()).isEqualTo("GRANT_GONE");
+            assertThat(countBffSessions(userId)).isEqualTo(1);
+            assertThat(countLiveSessions(userId, CLIENT)).isEqualTo(0);
+            assertThat(countLiveSessions(userId, CLIENT_LEARN)).isEqualTo(1);
+            assertThat(store.findSession(learnOpaque, "learn")).isNotNull();
+
+            authority.revokeClientGrants(userId, CLIENT, "OIDC_LOGOUT", "it-bff-pending");
+            assertThat(authorizationService.findById(portalGrant.getId())).isNull();
+            assertThat(store.isClientLogoutPending(userId, CLIENT)).isFalse();
+            assertThat(authorizationService.findById(learnGrant.getId())).isNotNull();
+            assertThat(store.findSession(learnOpaque, "learn")).isNotNull();
+            OAuth2Authorization afterEndSession = saveGrantForClient(userId,
+                    currentVersion(userId), CLIENT, Instant.now().plusSeconds(900));
+            assertThat(afterEndSession).isNotNull();
+            assertThat(store.isClientLogoutPending(userId, CLIENT)).isFalse();
+        } finally {
+            allowCallbackToLock.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void codeStageSaveStartedBeforeLogoutStaysStaleAfterFenceClears() throws Exception {
+        String userId = insertUser(UUID.randomUUID().toString().substring(0, 8));
+        OAuth2Authorization grant = saveGrant(userId, currentVersion(userId),
+                Instant.now().plusSeconds(900));
+        Instant issuedAt = Instant.now();
+        OidcIdToken hint = new OidcIdToken("logout-hint-" + UUID.randomUUID(), issuedAt,
+                issuedAt.plusSeconds(3600), java.util.Map.of(
+                        "iss", "http://127.0.0.1:4010", "sub", userId, "aud", CLIENT));
+        grant = OAuth2Authorization.from(grant).token(hint, metadata -> metadata.put(
+                OAuth2Authorization.Token.CLAIMS_METADATA_NAME, hint.getClaims())).build();
+        authorizationService.save(grant);
+        grant = authorizationService.findById(grant.getId());
+        String opaque = BffSessionStore.randomId(24);
+        insertSession(opaque, userId, "portal", CLIENT, grant.getId());
+
+        Instant now = Instant.now();
+        OAuth2Authorization codeStage = OAuth2Authorization.withRegisteredClient(
+                        registeredClients.findByClientId(CLIENT))
+                .id(UUID.randomUUID().toString())
+                .principalName(userId)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizedScopes(Set.of("openid"))
+                .attribute(java.security.Principal.class.getName(),
+                        new UsernamePasswordAuthenticationToken(userId, "n/a",
+                                List.of(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .attribute("io.campuscore.identity.presentedCredentialVersion",
+                        String.valueOf(currentVersion(userId)))
+                .token(new OAuth2AuthorizationCode("code-" + UUID.randomUUID(),
+                        now, now.plusSeconds(120)))
+                .build();
+
+        CountDownLatch saveAtUserLock = new CountDownLatch(1);
+        CountDownLatch allowSaveToLock = new CountDownLatch(1);
+        ThreadLocal<Boolean> saveWorker = ThreadLocal.withInitial(() -> false);
+        doAnswer(invocation -> {
+            if (saveWorker.get()) {
+                saveAtUserLock.countDown();
+                if (!allowSaveToLock.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("authorization save lock barrier timed out");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(users).lockUserRow(userId);
+
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<RuntimeException> staleSave = pool.submit(() -> {
+                saveWorker.set(true);
+                try {
+                    authorizationService.save(codeStage);
+                    return null;
+                } catch (RuntimeException exception) {
+                    return exception;
+                } finally {
+                    saveWorker.remove();
+                }
+            });
+            assertThat(saveAtUserLock.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+            BffSessionService.LogoutResult logout = sessions.logout(
+                    surface("portal"), "http://portal.test", opaque);
+            assertThat(logout.logoutUrl()).contains("id_token_hint=");
+            assertThat(store.isClientLogoutPending(userId, CLIENT)).isTrue();
+            assertThat(store.clientLogoutEpoch(userId, CLIENT)).isEqualTo(1);
+            assertThat(countLiveSessions(userId, CLIENT)).isZero();
+
+            authority.revokeClientGrants(userId, CLIENT, "OIDC_LOGOUT", null);
+            assertThat(store.isClientLogoutPending(userId, CLIENT)).isFalse();
+            assertThat(store.clientLogoutEpoch(userId, CLIENT)).isEqualTo(1);
+            assertThat(authorizationService.findById(grant.getId())).isNull();
+            assertThat(countLiveSessions(userId, CLIENT)).isZero();
+
+            allowSaveToLock.countDown();
+            RuntimeException rejection = staleSave.get(WAIT_SECONDS, TimeUnit.SECONDS);
+            assertThat(rejection)
+                    .isInstanceOf(org.springframework.security.oauth2.core.OAuth2AuthenticationException.class);
+            assertThat(authorizationService.findById(codeStage.getId())).isNull();
+
+            OAuth2Authorization freshGrant = saveGrantForClient(userId,
+                    currentVersion(userId), CLIENT, Instant.now().plusSeconds(900));
+            assertThat(authorizationService.findById(freshGrant.getId())).isNotNull();
+            assertThat(store.clientLogoutEpoch(userId, CLIENT)).isEqualTo(1);
+            assertThat(store.clientLogoutEpoch(userId, CLIENT_LEARN)).isZero();
+        } finally {
+            allowSaveToLock.countDown();
+            pool.shutdownNow();
+        }
     }
 
     @Test
@@ -483,12 +725,41 @@ class BffSessionPostgresIT {
         return count == null ? 0 : count;
     }
 
+    private int countLiveSessions(String userId, String clientId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.bff_session"
+                        + " WHERE user_id = ? AND client_id = ? AND revoked_at IS NULL",
+                Integer.class, userId, clientId);
+        return count == null ? 0 : count;
+    }
+
     private int countAuthz(String userId) {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization"
                         + " WHERE principal_name = ?",
                 Integer.class, userId);
         return count == null ? 0 : count;
+    }
+
+    /**
+     * Resolves once every worker either waits on the striped single-flight
+     * monitor ({@link Thread.State#BLOCKED}) or has entered a token exchange
+     * of its own — the latter only happens when the serialization under test
+     * is missing.
+     */
+    private static boolean awaitSingleFlightQuorum(List<Thread> workers, AtomicInteger exchanges)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            long parked = workers.stream()
+                    .filter(worker -> worker.getState() == Thread.State.BLOCKED)
+                    .count();
+            if (parked >= workers.size() - 1 || exchanges.get() >= workers.size()) {
+                return true;
+            }
+            Thread.sleep(10);
+        }
+        return false;
     }
 
     private static void await(CountDownLatch latch) {

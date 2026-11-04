@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.academic;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
+import io.campuscore.restfulapi.academic.repository.AcademicSectionReadRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,9 @@ class AcademicSectionReadPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AcademicSectionReadRepository repository;
 
     @BeforeEach
     void prepareReadOnlyFixture() {
@@ -239,6 +244,37 @@ class AcademicSectionReadPersistenceTest {
     }
 
     @Test
+    void gradeSheetExposesPersistedEnrollmentVersionAndTracksChanges() throws Exception {
+        assertThat(enrollmentVersion("enrollment-1")).isZero();
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].id").value("enrollment-1"))
+                .andExpect(jsonPath("$.enrollments[0].version").value(0));
+
+        // The write path owns the increment; the read must expose whatever the
+        // locked row now carries so a stale editor can be detected.
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"version\" = \"version\" + 1"
+                + " WHERE \"id\" = 'enrollment-1'");
+        assertThat(enrollmentVersion("enrollment-1")).isEqualTo(1);
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].version").value(1));
+
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"version\" = \"version\" + 1"
+                + " WHERE \"id\" = 'enrollment-1'");
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].version").value(2));
+    }
+
+    private Integer enrollmentVersion(String enrollmentId) {
+        return jdbc.queryForObject(
+                "SELECT \"version\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                Integer.class,
+                enrollmentId);
+    }
+
+    @Test
     void sectionReadBoundaryFailsClosedForAnonymousRolesMissingClaimsAndBadQueries() throws Exception {
         mvc.perform(get("/api/v1/sections/my/schedule"))
                 .andExpect(status().isUnauthorized())
@@ -267,6 +303,94 @@ class AcademicSectionReadPersistenceTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void sectionActiveCountsMatchLegacyQueryForAllStatusesAndSemesterScopes() {
+        insertEnrollmentWithSemester(
+                "count-enrolled", "student-3", "section-1", "semester-1", "ENROLLED", "DRAFT", null, null);
+        insertEnrollmentWithSemester(
+                "count-cancelled", "student-2", "section-1", "semester-1", "CANCELLED", "DRAFT", null, null);
+        insertEnrollmentWithSemester(
+                "count-wrong-semester", "student-3", "section-1", "semester-2", "ENROLLED", "DRAFT", null, null);
+        insertEnrollmentWithSemester(
+                "count-spring", "student-3", "section-spring", "semester-2", "ENROLLED", "DRAFT", null, null);
+        insertSection("section-empty", "E", "course-2", "semester-1", "lecturer-1", "room-2", 25, 0);
+
+        List<LegacySectionCount> legacyCounts = jdbc.query(
+                "SELECT section.\"id\", (SELECT COUNT(*) FROM \"academic\".\"Enrollment\" active_enrollment"
+                        + " WHERE active_enrollment.\"sectionId\" = section.\"id\""
+                        + " AND active_enrollment.\"semesterId\" = section.\"semesterId\""
+                        + " AND active_enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED', 'COMPLETED'))"
+                        + " AS active_enrollment_count FROM \"academic\".\"Section\" section"
+                        + " JOIN \"academic\".\"Course\" course ON course.\"id\" = section.\"courseId\""
+                        + " JOIN \"academic\".\"Department\" department ON department.\"id\" = course.\"departmentId\""
+                        + " JOIN \"academic\".\"Semester\" semester ON semester.\"id\" = section.\"semesterId\""
+                        + " LEFT JOIN \"academic\".\"Lecturer\" lecturer ON lecturer.\"id\" = section.\"lecturerId\""
+                        + " LEFT JOIN \"campuscore_auth\".\"User\" lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\""
+                        + " LEFT JOIN \"academic\".\"Classroom\" classroom ON classroom.\"id\" = section.\"classroomId\""
+                        + " WHERE section.\"semesterId\" = ?"
+                        + " ORDER BY section.\"sectionNumber\" ASC, section.\"id\" ASC LIMIT 100 OFFSET 0",
+                (rs, ignored) -> new LegacySectionCount(rs.getString("id"), rs.getLong("active_enrollment_count")),
+                "semester-1");
+        List<LegacySectionCount> currentCounts = repository.findSections(0, 100, "semester-1", null, null)
+                .stream()
+                .map(section -> new LegacySectionCount(section.id(), section.activeEnrollmentCount()))
+                .toList();
+
+        assertThat(currentCounts).containsExactlyElementsOf(legacyCounts);
+        assertThat(currentCounts).contains(
+                new LegacySectionCount("section-1", 3),
+                new LegacySectionCount("section-2", 1),
+                new LegacySectionCount("section-other", 1),
+                new LegacySectionCount("section-empty", 0));
+    }
+
+    @Test
+    void sectionGradeAggregatesMatchLegacyScalarsWithEmptyAndMultipleGradeItems() {
+        insertEnrollmentWithSemester(
+                "enrollment-history", "student-3", "section-1", "semester-2", "COMPLETED", "PUBLISHED", "99.00", "A+");
+        insertGradeItem("process-one", "section-1", "Process 1", "PROCESS");
+        insertGradeItem("process-two", "section-1", "Process 2", "PROCESS");
+        insertGradeItem("final-one", "section-1", "Final 1", "FINAL");
+        insertGradeItem("final-two", "section-1", "Final 2", "FINAL");
+        insertGradeItem("cross-section-process", "section-spring", "Other section process", "PROCESS");
+        insertStudentGrade("grade-process-one", "enrollment-1", "process-one", "70.00");
+        insertStudentGrade("grade-process-two", "enrollment-1", "process-two", "95.00");
+        insertStudentGrade("grade-final-one", "enrollment-1", "final-one", "85.00");
+        insertStudentGrade("grade-final-two", "enrollment-1", "final-two", "90.00");
+        insertStudentGrade("grade-cross-section", "enrollment-1", "cross-section-process", "99.00");
+
+        List<LegacyGradeScores> legacyGrades = jdbc.query(
+                "SELECT enrollment.\"id\","
+                        + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg"
+                        + " JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\""
+                        + " WHERE sg.\"enrollmentId\" = enrollment.\"id\" AND gi.\"type\" = 'PROCESS') AS process_score,"
+                        + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg"
+                        + " JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\""
+                        + " WHERE sg.\"enrollmentId\" = enrollment.\"id\" AND gi.\"type\" = 'FINAL') AS final_exam_score"
+                        + " FROM \"academic\".\"Enrollment\" enrollment"
+                        + " JOIN \"academic\".\"Student\" student ON student.\"id\" = enrollment.\"studentId\""
+                        + " JOIN \"campuscore_auth\".\"User\" student_user ON student_user.\"id\" = student.\"userId\""
+                        + " WHERE enrollment.\"sectionId\" = ?"
+                        + " AND enrollment.\"semesterId\" = (SELECT section_scope.\"semesterId\""
+                        + " FROM \"academic\".\"Section\" section_scope WHERE section_scope.\"id\" = ?)"
+                        + " AND enrollment.\"status\" IN ('ENROLLED', 'CONFIRMED', 'COMPLETED')"
+                        + " ORDER BY student_user.\"firstName\" ASC, student_user.\"lastName\" ASC, enrollment.\"id\" ASC",
+                (rs, ignored) -> new LegacyGradeScores(
+                        rs.getString("id"), rs.getBigDecimal("process_score"), rs.getBigDecimal("final_exam_score")),
+                "section-1",
+                "section-1");
+        List<LegacyGradeScores> currentGrades = repository.findSectionGradeEnrollments("section-1")
+                .stream()
+                .map(row -> new LegacyGradeScores(row.id(), row.processScore(), row.finalExamScore()))
+                .toList();
+
+        assertThat(currentGrades).containsExactlyElementsOf(legacyGrades);
+        assertThat(currentGrades).contains(
+                new LegacyGradeScores("enrollment-1", new BigDecimal("99.00"), new BigDecimal("90.00")),
+                new LegacyGradeScores("enrollment-2", null, null));
+        assertThat(currentGrades).noneMatch(row -> row.id().equals("enrollment-history"));
     }
 
     private RequestPostProcessor studentJwt(String subject, String studentId) {
@@ -425,6 +549,8 @@ class AcademicSectionReadPersistenceTest {
                     "gradeStatus" VARCHAR(40) NOT NULL,
                     "finalGrade" DECIMAL(5, 2),
                     "letterGrade" VARCHAR(10),
+                    "creditsSnapshot" INTEGER NOT NULL DEFAULT 0,
+                    "version" INTEGER NOT NULL DEFAULT 0,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
                 )
@@ -574,6 +700,19 @@ class AcademicSectionReadPersistenceTest {
                 id, building, roomNumber);
     }
 
+    private void insertGradeItem(String id, String sectionId, String name, String type) {
+        jdbc.update("INSERT INTO \"academic\".\"GradeItem\""
+                        + " (\"id\", \"sectionId\", \"name\", \"type\", \"maxScore\", \"weight\")"
+                        + " VALUES (?, ?, ?, ?, 100.00, 25.00)",
+                id, sectionId, name, type);
+    }
+
+    private void insertStudentGrade(String id, String enrollmentId, String gradeItemId, String score) {
+        jdbc.update("INSERT INTO \"academic\".\"StudentGrade\""
+                        + " (\"id\", \"enrollmentId\", \"gradeItemId\", \"score\") VALUES (?, ?, ?, ?)",
+                id, enrollmentId, gradeItemId, new BigDecimal(score));
+    }
+
     private void insertSection(
             String id,
             String sectionNumber,
@@ -643,5 +782,11 @@ class AcademicSectionReadPersistenceTest {
                 letterGrade,
                 BASE_TIME,
                 BASE_TIME);
+    }
+
+    private record LegacySectionCount(String id, long count) {
+    }
+
+    private record LegacyGradeScores(String id, BigDecimal processScore, BigDecimal finalExamScore) {
     }
 }

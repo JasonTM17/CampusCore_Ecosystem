@@ -78,7 +78,8 @@ class AdminAuditRecorderTest {
         // delete would still leave an audit row claiming it happened — a record that
         // is wrong is worse than one that is absent, because it is believed.
         for (var method : AdminAuditRecorder.class.getDeclaredMethods()) {
-            if (!method.getName().equals("record") && !method.getName().equals("recordDeletion")) {
+            if (!method.getName().equals("record") && !method.getName().equals("recordDeletion")
+                    && !method.getName().equals("recordAll")) {
                 continue;
             }
             Transactional annotation = method.getAnnotation(Transactional.class);

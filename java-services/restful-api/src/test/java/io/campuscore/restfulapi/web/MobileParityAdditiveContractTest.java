@@ -414,11 +414,17 @@ class MobileParityAdditiveContractTest {
                 .andExpect(status().isNotFound());
         assertThat(attachmentRows("admissions.\"Attachment\"", id)).isEqualTo(1);
 
-        // The base64 JSON lane is untouched.
-        mvc.perform(post(url).with(student1).header("Idempotency-Key", "adm-json-1")
+        // The base64 JSON lane applies the same type allowlist and signature rule.
+        mvc.perform(post(url).with(student1).header("Idempotency-Key", "adm-json-0")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"note.txt\",\"contentType\":\"text/plain\",\"dataBase64\":\""
                                 + b64("hello".getBytes(StandardCharsets.UTF_8)) + "\"}"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_UNSUPPORTED"));
+        mvc.perform(post(url).with(student1).header("Idempotency-Key", "adm-json-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"note.pdf\",\"contentType\":\"application/pdf\",\"dataBase64\":\""
+                                + b64(PDF) + "\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.attachments.length()").value(2));
     }
@@ -469,10 +475,16 @@ class MobileParityAdditiveContractTest {
                 .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"));
         assertThat(attachmentRows("careers.\"Attachment\"", id)).isEqualTo(1);
 
-        mvc.perform(post(url).with(student1).header("Idempotency-Key", "car-json-1")
+        mvc.perform(post(url).with(student1).header("Idempotency-Key", "car-json-0")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fileName\":\"note.txt\",\"contentType\":\"text/plain\",\"dataBase64\":\""
                                 + b64("hello".getBytes(StandardCharsets.UTF_8)) + "\"}"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_UNSUPPORTED"));
+        mvc.perform(post(url).with(student1).header("Idempotency-Key", "car-json-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"note.pdf\",\"contentType\":\"application/pdf\",\"dataBase64\":\""
+                                + b64(PDF) + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attachments.length()").value(2));
     }

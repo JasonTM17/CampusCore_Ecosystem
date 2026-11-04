@@ -11,6 +11,8 @@ export const COURSEWORK_MIME_TYPES: readonly string[] = [
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/zip', 'text/plain',
 ];
+/** Generated exports shared as text files, not coursework uploads. */
+export const SHARE_TEXT_MIME_TYPES: readonly string[] = ['text/csv', 'text/calendar'];
 // The existing thesis file boundary uses the same adapter with its own server contract.
 const REPORT_MAX_BYTES = 20 * 1024 * 1024;
 const REPORT_MIME_TYPES: readonly string[] = [DOCUMENT_MIME_TYPES[0], DOCUMENT_MIME_TYPES[3], DOCUMENT_MIME_TYPES[4]];
@@ -20,8 +22,26 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg',
   'application/msword': 'doc', [DOCUMENT_MIME_TYPES[4]]: 'docx',
   [COURSEWORK_MIME_TYPES[5]]: 'xlsx', [COURSEWORK_MIME_TYPES[6]]: 'pptx',
-  'application/zip': 'zip', 'text/plain': 'txt',
+  'application/zip': 'zip', 'text/plain': 'txt', 'text/csv': 'csv', 'text/calendar': 'ics',
 };
+const DATA_URI = /^data:([^;,]+)((?:;[^,]*)?),([\s\S]*)$/;
+const BASE64_BODY = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/** UTF-8 byte length without TextEncoder, which Hermes does not guarantee. */
+function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length
+      && text.charCodeAt(index + 1) >= 0xdc00 && text.charCodeAt(index + 1) <= 0xdfff) {
+      bytes += 4;
+      index += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
 
 /** A display name only. It is never used as a disk destination. */
 export function sanitizeFileName(name: string): string {
@@ -41,7 +61,7 @@ interface DiskFile {
   create(): void;
   delete(): void;
   copy(destination: DiskFile): void;
-  write(content: string, options: { encoding: 'base64' }): void;
+  write(content: string, options: { encoding: 'base64' | 'utf8' }): void;
   open(): { writeBytes(bytes: Uint8Array): void; close(): void };
   bytes(): Promise<Uint8Array>;
 }
@@ -105,14 +125,31 @@ export function createNativeFileRuntime(modules: NativeFileModules) {
     try {
       if (!await modules.sharing.isAvailableAsync()) return unavailable();
       if (target.uri.startsWith('data:')) {
-        const match = /^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/.exec(target.uri);
+        const match = DATA_URI.exec(target.uri);
         if (!match) throw new NativeFileError('ATTACHMENT_DATA_INVALID');
         const mime = match[1].toLowerCase();
-        const size = match[2].length * 3 / 4 - (match[2].endsWith('==') ? 2 : match[2].endsWith('=') ? 1 : 0);
-        validate(size, mime, REPORT_MIME_TYPES.includes(mime) ? REPORT_MAX_BYTES : ATTACHMENT_MAX_BYTES, COURSEWORK_MIME_TYPES);
-        temporary = fresh(mime);
-        temporary.create();
-        temporary.write(match[2], { encoding: 'base64' });
+        const payload = match[3];
+        if (match[2].split(';').includes('base64')) {
+          if (!BASE64_BODY.test(payload)) throw new NativeFileError('ATTACHMENT_DATA_INVALID');
+          const size = payload.length * 3 / 4 - (payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0);
+          validate(size, mime, REPORT_MIME_TYPES.includes(mime) ? REPORT_MAX_BYTES : ATTACHMENT_MAX_BYTES, COURSEWORK_MIME_TYPES);
+          temporary = fresh(mime);
+          temporary.create();
+          temporary.write(payload, { encoding: 'base64' });
+        } else if (SHARE_TEXT_MIME_TYPES.includes(mime)) {
+          let content: string;
+          try {
+            content = decodeURIComponent(payload);
+          } catch {
+            throw new NativeFileError('ATTACHMENT_DATA_INVALID');
+          }
+          validate(utf8ByteLength(content), mime, ATTACHMENT_MAX_BYTES, SHARE_TEXT_MIME_TYPES);
+          temporary = fresh(mime);
+          temporary.create();
+          temporary.write(content, { encoding: 'utf8' });
+        } else {
+          throw new NativeFileError('ATTACHMENT_DATA_INVALID');
+        }
       } else {
         // Only this runtime's generated files can be exported. Never arbitrary file:// or remote URLs.
         if (!owned.has(target.uri)) throw new NativeFileError('ATTACHMENT_DATA_INVALID');
@@ -153,7 +190,8 @@ export function createNativeFileRuntime(modules: NativeFileModules) {
         copy = fresh(mime);
         source.copy(copy);
         validate(copy.size, mime, options.maxBytes ?? ATTACHMENT_MAX_BYTES, types);
-        return { status: 'picked', file: { uri: copy.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: copy.size } };
+        const picked = copy;
+        return { status: 'picked', file: { uri: picked.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: picked.size, release: () => remove(picked) } };
       } catch (error) {
         if (copy) {
           try { remove(copy); } catch { return { status: 'failed', reason: 'ERROR' }; }

@@ -6,10 +6,13 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type CurriculumCourse } from './academic-api';
 import { localizedName } from './academic-model';
+import { previewCurriculum } from './academic-preview';
 import { AcademicShell, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from './academic-ui';
 
 type StatusFilter = 'ALL' | CurriculumCourse['status'];
@@ -31,8 +34,9 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
   const { formatNumber } = useLocale();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.curriculum', () => academicApi.curriculum(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [filter, setFilter] = useState<StatusFilter>('ALL');
-  const data = preview ? null : query.data ?? null;
+  const data = preview ? previewCurriculum : query.data ?? null;
 
   const groups = useMemo(
     () => groupByTerm((data?.courses ?? []).filter((course) => filter === 'ALL' || course.status === filter)),
@@ -47,8 +51,10 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
       title={copy.curriculumTitle}
       loading={!preview && query.isLoading}
       error={preview ? null : query.error}
-      warning={preview ? null : query.warning}
+      warning={preview ? copy.previewNotice : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(groups, (group) => group.key, (group) => group.courses, (item) => item.courseId), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;
@@ -69,7 +75,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                     <View style={academicStyles.rowCopy}>
                       <StatusPill label={course.code} tone="primary" />
                       <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
-                      <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: course.credits })}</UiText>
+                      <UiText variant="meta" tone="muted">{fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: course.credits })}</UiText>
                       {course.prerequisites && course.prerequisites.length > 0 ? (
                         <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
                       ) : null}

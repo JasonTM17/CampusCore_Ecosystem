@@ -52,8 +52,12 @@ public class ThesisGroupReadController {
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
         ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(groups.list(roundId, roles(actor), actor.getClaimAsString("studentId"),
-                actor.getClaimAsString("lecturerId"), actor.getSubject()), window);
+        if (window == null) {
+            return ListPaging.respond(groups.list(roundId, roles(actor), actor.getClaimAsString("studentId"),
+                    actor.getClaimAsString("lecturerId"), actor.getSubject()), null);
+        }
+        return ListPaging.respond(groups.listPage(roundId, roles(actor), actor.getClaimAsString("studentId"),
+                actor.getClaimAsString("lecturerId"), actor.getSubject(), window));
     }
 
     @Operation(summary = "Lấy các nhóm của người gọi trên mọi đợt", description = "Sinh viên thấy nhóm mình là thành viên/nhóm trưởng, giảng viên thấy nhóm thuộc đề tài mình hướng dẫn — dùng để tự chọn đợt chứa nhóm thay vì đợt mới nhất")

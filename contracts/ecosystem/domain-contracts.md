@@ -54,14 +54,16 @@ Mọi lỗi trả về `ErrorResponse` qua `GlobalExceptionHandler`/`ApiExceptio
 
 | HTTP | `code` (quy ước) | Khi nào |
 | --- | --- | --- |
-| 400 | `VALIDATION_FAILED`, `BAD_REQUEST` | Field error có `fields{}`; body lỗi cú pháp |
-| 401 | `UNAUTHENTICATED` | Thiếu/hết phiên; không kèm thông tin tài khoản |
+| 400 | `VALIDATION_ERROR`, `INVALID_REQUEST`, `FILE_REQUIRED`, `BAD_REQUEST` | Field error có `fields{}`; chuỗi vượt giới hạn cột; thiếu tệp đính kèm bắt buộc; body lỗi cú pháp |
+| 401 | `UNAUTHENTICATED` | Thiếu/hết phiên hoặc thiếu refresh token; không kèm thông tin tài khoản |
 | 403 | `FORBIDDEN`, `ACCOUNT_DISABLED` | Đăng nhập rồi nhưng thiếu object scope/role |
 | 404 | `NOT_FOUND` | Tài nguyên không tồn tại hoặc không thuộc scope caller |
 | 409 | `CONFLICT`, `STALE_VERSION`, `DUPLICATE_ACTIVE` | Optimistic version/idempotency/state conflict |
 | 410 | `GONE` | Tài nguyên đã chuyển trạng thái terminal hủy |
+| 413 | `REQUEST_BODY_TOO_LARGE`, `FILE_TOO_LARGE` | Body vượt trần (BFF proxy JSON 1 MB, multipart theo `spring.servlet.multipart.max-request-size`; upload báo cáo > 20 MB) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Upload sai content-type |
 | 429 | `RATE_LIMITED` | Lockout/throttle (identity, registration, apply) |
+| 502 | `UPSTREAM_RESPONSE_TOO_LARGE` | Upstream response qua BFF proxy vượt trần cấu hình |
 | 5xx | `INTERNAL`, `UPSTREAM_UNAVAILABLE` | Không lộ stack/credential trong `message` |
 
 Quy tắc: `message` hiển thị được cho người dùng, không chứa internal id,
@@ -221,6 +223,11 @@ Submission: `DRAFT → SUBMITTED → RETURNED → RESUBMITTED → REVIEWED`.
   chỉ cho `ENROLLED|CONFIRMED`. DROPPED/CANCELLED mất cả read lẫn write.
 - **Feedback notice:** return/review tạo notification trong cùng transaction
   (§11); official grade authority không bị chạm.
+- **Idempotency key kế thừa:** key dạng `resubmit:<assignmentId>` được claim
+  trước khi có content binding vẫn replay như đã lưu (không thể khôi phục ý
+  định ban đầu). Body mới bị bỏ qua và trả lại kết quả thành công cũ; key mới
+  luôn bị ràng buộc theo nội dung. Xem lại khi metrics xác nhận không còn client
+  gửi key kế thừa: khi đó từ chối bằng 409.
 
 ## 7. Admissions mô phỏng (P10, schema `admissions`)
 
@@ -254,6 +261,8 @@ Request: `REQUESTED → APPROVED → ISSUED → RETURNED | CANCELLED`.
 | LIB-X01 | Reservation expiry theo **server clock** | `SYS` | expiry rule cấu hình | Client giữ chỗ vô hạn |
 | LIB-X02 | Race một copy → đúng một issue | `SYS` | lock + unique active | Double-issue |
 
+Ghi sách (`title`, `author` tối đa 300; `isbn` 40; `category` 120; `publisher` 200; `barcode` 80) và lý do hủy yêu cầu mượn (tối đa 300) bị giới hạn theo độ dài cột; chuỗi vượt giới hạn trả về 400 `VALIDATION_ERROR` với tên trường. Dấu vân tay chống trùng lặp của lý do hủy dài hơn 128 ký tự được băm SHA-256 để vừa cột `requestHash`.
+
 ## 9. Careers (P12, schema `careers`)
 
 Opportunity: `DRAFT → IN_REVIEW → PUBLISHED → PAUSED → CLOSED`; `IN_REVIEW → REJECTED`; `PUBLISHED → CLOSED`; `PAUSED → PUBLISHED` (resume — org staff, không qua reviewer).
@@ -282,11 +291,17 @@ Application: `SUBMITTED → REVIEWING → INTERVIEW → OFFER → (REJECTED | WI
 | Enrollment | enrollment authority ghi; domain khác read-through | academic |
 | Assistant conversation/turn | `assistant` schema + RLS; scope-bound | assistant services |
 
+Nộp tệp báo cáo tốt nghiệp qua `POST /api/v1/thesis/groups/{id}/report/file` yêu cầu phần tệp đính kèm (`file`); nếu thiếu tệp, hệ thống trả về 400 `FILE_REQUIRED`.
+
 ## 11. Notifications (EXISTING)
 
 Tạo trong **cùng transaction** với transition gốc (event cancel, loan issue,
 feedback, decision). `notification.delivery` retry không nhân đôi
 (unique trên `(aggregate, event)`). Cross-account read → deny.
+Giới hạn trường authoring: `title` tối đa 240 ký tự, `message` tối đa 2000 ký tự,
+`link` tối đa 500 ký tự, `userId` tối đa 120 ký tự; vi phạm trả về 400 `VALIDATION_ERROR`
+với cấu trúc `fields{}`. Hộp thư hiển thị phân trang cửa sổ đầu (mặc định 20 dòng),
+tab chưa đọc lọc phía server (`isRead=false`) kết hợp đếm tổng chưa đọc từ server aggregate.
 
 ## 12. Invariants toàn cục (kiểm ở gate từng phase)
 
@@ -321,10 +336,10 @@ Lệch hợp đồng phát hiện, chưa sửa trong M02 (ghi nhận để sửa
 
 ## 14. Push delivery (v2, M02 -> M03 lane B)
 
-Trạng thái: PROPOSED (chưa có mã). Inbox `notifications.notification` vẫn là nguồn sự thật; push chỉ là tín hiệu mở app.
+Trạng thái: ACTIVE (đã triển khai mã và migration V143). Inbox `notifications.notification` vẫn là nguồn sự thật; push chỉ là tín hiệu mở app.
 
 - API (owner lấy từ JWT, không nhận `userId`): `PUT /api/v1/notifications/my/devices/{installationId}` body `{provider, platform, token}`, response không echo token, lặp lại idempotent; `DELETE` cùng path, 204, lặp an toàn. Lỗi: 400 `INVALID_REQUEST`/`DEVICE_TOKEN_INVALID`, 401, 403, 404 (thiết bị không thuộc caller), 429. Không dùng `Idempotency-Key` vì thao tác lặp an toàn.
-- Migration: `V143__notification_push_delivery.sql` (Postgres) + mirror H2 cùng tên; Flyway cao nhất hiện tại V142. Bảng `notifications.device_registration` (`id, user_id FK campuscore_auth."User", installation_id, provider, platform, token_ciphertext, token_fingerprint, credential_version, status ACTIVE|REVOKED, created_at, updated_at, revoked_at`; UNIQUE `(provider, token_fingerprint)`, UNIQUE `(user_id, installation_id)`) và `notifications.delivery_outbox` (`id, notification_id, device_id, recipient_user_id, status, attempt_count, next_attempt_at, last_error_code, lease_owner, lease_generation, lease_until, created_at, updated_at, sent_at`; UNIQUE `(notification_id, device_id)`). Token ciphertext + fingerprint cần khóa do security owner duyệt; chưa có khóa = giữ push BLOCKED_CAPABILITY.
+- Migration: `V143__notification_push_delivery.sql` (Postgres) + mirror H2 cùng tên; Flyway cao nhất hiện tại V152. Bảng `notifications.device_registration` (`id, user_id FK campuscore_auth."User", installation_id, provider, platform, token_ciphertext, token_fingerprint, credential_version, status ACTIVE|REVOKED, created_at, updated_at, revoked_at`; UNIQUE `(provider, token_fingerprint)`, UNIQUE `(user_id, installation_id)`) và `notifications.delivery_outbox` (`id, notification_id, device_id, recipient_user_id, status, attempt_count, next_attempt_at, last_error_code, lease_owner, lease_generation, lease_until, created_at, updated_at, sent_at`; UNIQUE `(notification_id, device_id)`). Token ciphertext + fingerprint cần khóa do security owner duyệt; chưa có khóa = giữ push BLOCKED_CAPABILITY.
 - Rebind (R23): đăng ký token đã thuộc tài khoản khác = chuyển quyền sở hữu cho tài khoản vừa xác thực, vô hiệu hàng cũ; outbox cũ vẫn mang `recipient_user_id` snapshot.
 - Dispatch (R23): ngay trước khi gửi phải khớp `notification.user_id == outbox.recipient_user_id == device.user_id`, registration ACTIVE, `User.status='ACTIVE'`, `User.credentialVersion == device.credential_version`; không dựa vào `AccountStateFilter`.
 - Claim: Postgres `FOR UPDATE SKIP LOCKED` + `lease_generation` (ack chỉ khi owner+generation+lease khớp); H2 chỉ kiểm chuyển trạng thái tuần tự, không là oracle đồng thời; test song song bắt buộc trên Postgres disposable.

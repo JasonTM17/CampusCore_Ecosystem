@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { lecturerSurfacesEn, lecturerSurfacesVi } from '@/i18n/messages-lecturer';
 import { useI18n } from '@/i18n';
 import { LoadingState } from '@/components/ui/state-block';
 
@@ -19,9 +20,7 @@ export default function LecturerProfileRedirectPage() {
     <div className="flex min-h-[50vh] items-center justify-center p-6">
       <LoadingState
         label={
-          locale === 'vi'
-            ? 'Đang chuyển tiếp đến Hồ sơ cá nhân & Cài đặt...'
-            : 'Redirecting to Profile Settings...'
+(locale === 'vi' ? lecturerSurfacesVi : lecturerSurfacesEn).profile.redirecting
         }
       />
     </div>

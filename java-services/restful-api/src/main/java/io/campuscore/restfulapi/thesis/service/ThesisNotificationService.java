@@ -3,13 +3,16 @@ package io.campuscore.restfulapi.thesis.service;
 import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
+import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,35 +30,43 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code GradePublishNotifier}: every fan-out runs {@code REQUIRES_NEW} so a
  * notification failure cannot roll back the workflow mutation, and callers
  * swallow the failure after logging. Results inbox/email dispatch is deferred
- * until the publishing transaction commits and requires published round state.
+ * until the publishing transaction commits and requires published round state;
+ * email then runs on the bounded mail queue, never on the request thread.
  */
 @Service
 @Profile("persistence")
 public class ThesisNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ThesisNotificationService.class);
+    /** Notices written by the original fan-out land within seconds of the publication instant. */
+    private static final long LEGACY_FANOUT_WINDOW_SECONDS = 600;
 
     static final String STUDENT_LINK = "/dashboard/thesis";
     static final String LECTURER_LINK = "/dashboard/lecturer/thesis";
     /** notifications.message is VARCHAR(2000); keep the body compact. */
     static final int MESSAGE_CODE_POINTS = 240;
     static final int TITLE_CODE_POINTS = 240;
+    /** Recipients per queued batch; bounds what a large cohort keeps in flight. */
+    static final int RESULTS_MAIL_BATCH_SIZE = 50;
 
     private final NotificationWriteRepository notifications;
     private final NamedParameterJdbcTemplate jdbc;
     private final EmailService email;
     private final MailConfig mailConfig;
+    private final MailDispatchQueue mailDispatch;
     private final Clock clock = Clock.systemUTC();
 
     public ThesisNotificationService(
             NotificationWriteRepository notifications,
             NamedParameterJdbcTemplate jdbc,
             EmailService email,
-            MailConfig mailConfig) {
+            MailConfig mailConfig,
+            MailDispatchQueue mailDispatch) {
         this.notifications = notifications;
         this.jdbc = jdbc;
         this.email = email;
         this.mailConfig = mailConfig;
+        this.mailDispatch = mailDispatch;
     }
 
     /** Notifies every group member after approve/reject. */
@@ -109,8 +120,8 @@ public class ThesisNotificationService {
     /** Notifies every student in an approved group when the round publishes results. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int notifyResultsPublished(UUID roundId) {
-        String roundName = publishedRoundName(roundId);
-        if (roundName == null) {
+        PublishedRound publishedRound = publishedRoundForNotification(roundId);
+        if (publishedRound == null) {
             return 0;
         }
         List<String> userIds = jdbc.queryForList(
@@ -123,16 +134,40 @@ public class ThesisNotificationService {
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
-        return fanOut(userIds, "Kết quả khóa luận đã công bố",
-                "Kết quả đợt " + roundName.trim()
-                        + " đã công bố. Mở trang khóa luận để xem điểm của bạn.",
-                "SUCCESS", STUDENT_LINK);
+        Instant now = Instant.now(clock);
+        String roundName = publishedRound.name();
+        String title = "Kết quả khóa luận đã công bố";
+        String message = "Kết quả đợt " + roundName.trim()
+                + " đã công bố. Mở trang khóa luận để xem kết quả của bạn.";
+        List<CreateNotificationCommand> commands = userIds.stream()
+                .map(userId -> new CreateNotificationCommand(
+                        resultsNotificationId(roundId, userId), userId,
+                        title, message, "SUCCESS", STUDENT_LINK, now))
+                .toList();
+        Set<String> existing = notifications.findExistingIds(
+                commands.stream().map(CreateNotificationCommand::id).toList());
+        Set<String> existingUsers = new java.util.HashSet<>(notifications.findMatchingUsers(
+                userIds, title, message, "SUCCESS", STUDENT_LINK,
+                publishedRound.updatedAt().minusSeconds(30),
+                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS)));
+        String legacyScoreMessage = "Kết quả đợt " + roundName.trim()
+                + " đã công bố. Mở trang khóa luận để xem điểm của bạn.";
+        existingUsers.addAll(notifications.findMatchingUsers(
+                userIds, title, legacyScoreMessage, "SUCCESS", STUDENT_LINK,
+                publishedRound.updatedAt().minusSeconds(30),
+                publishedRound.updatedAt().plusSeconds(LEGACY_FANOUT_WINDOW_SECONDS)));
+        return notifications.createBatch(commands.stream()
+                .filter(command -> !existing.contains(command.id()) && !existingUsers.contains(command.userId()))
+                .toList());
     }
 
     /**
-     * Sends a separate notice to each member after publication commits. This
-     * is best-effort SMTP submission, without durable retry or a delivery claim
-     * when mail is disabled. Numerical grades stay behind authenticated lookup.
+     * Queues a separate notice to each eligible member after the publication
+     * commits. The request thread only resolves the committed audience and
+     * hands bounded batches to the mail queue, so SMTP latency never holds the
+     * request or a database transaction. Delivery stays best-effort: there is
+     * no durable retry or delivery claim, and failures are reported as counts.
+     * Numerical grades stay behind authenticated lookup.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public int emailResultsPublished(UUID roundId) {
@@ -141,7 +176,7 @@ public class ThesisNotificationService {
             return 0;
         }
         if (!mailConfig.isEnabled()) {
-            log.warn("Thesis results published for round {} but SMTP is disabled; no email submitted", roundId);
+            log.warn("Thesis results published for round {} but SMTP is disabled; no email queued", roundId);
             return 0;
         }
         List<Map<String, Object>> recipients = jdbc.queryForList(
@@ -153,7 +188,7 @@ public class ThesisNotificationService {
                         + " WHERE g.round_id = :roundId AND g.approval_status = 'APPROVED'"
                         + " AND g.status <> 'CANCELLED' AND u.\"status\" = 'ACTIVE'",
                 new MapSqlParameterSource("roundId", roundId));
-        int submitted = 0;
+        List<ResultsRecipient> prepared = new ArrayList<>(recipients.size());
         for (Map<String, Object> recipient : recipients) {
             String address = valueOrEmpty(recipient.get("email")).trim();
             if (address.isBlank()) {
@@ -161,27 +196,55 @@ public class ThesisNotificationService {
             }
             String recipientName = (valueOrEmpty(recipient.get("lastName")) + " "
                     + valueOrEmpty(recipient.get("firstName"))).trim();
+            prepared.add(new ResultsRecipient(address, recipientName.isBlank() ? "Sinh viên" : recipientName));
+        }
+        int queued = 0;
+        for (int start = 0; start < prepared.size(); start += RESULTS_MAIL_BATCH_SIZE) {
+            List<ResultsRecipient> batch = List.copyOf(
+                    prepared.subList(start, Math.min(prepared.size(), start + RESULTS_MAIL_BATCH_SIZE)));
+            if (mailDispatch.submit(() -> deliverResultsPublished(roundId, roundName, batch))) {
+                queued += batch.size();
+            } else {
+                log.warn("Thesis results email round {}: {} recipient(s) not queued because the mail queue is full",
+                        roundId, batch.size());
+            }
+        }
+        log.info("Thesis results email round {}: {} of {} eligible accounts queued",
+                roundId, queued, prepared.size());
+        return queued;
+    }
+
+    /** Runs on a mail worker; one recipient failure never stops the batch. */
+    private void deliverResultsPublished(UUID roundId, String roundName, List<ResultsRecipient> recipients) {
+        int submitted = 0;
+        for (ResultsRecipient recipient : recipients) {
             Map<String, Object> variables = Map.of(
                     "category", "KẾT QUẢ KHÓA LUẬN",
                     "title", "Kết quả khóa luận đã công bố",
                     "author", "Bộ môn phụ trách khóa luận",
-                    "recipientName", recipientName.isBlank() ? "Sinh viên" : recipientName,
+                    "recipientName", recipient.name(),
                     "content", "Kết quả đợt " + roundName.trim()
                             + " đã được công bố. Đăng nhập cổng CampusUTE để tra cứu kết quả của bạn.",
                     "actionUrl", "https://www.campusute.io.vn/dashboard/thesis?roundId=" + roundId,
                     "actionText", "Tra cứu kết quả của tôi");
             try {
-                email.sendHtmlEmail(address, "[CampusUTE] Kết quả khóa luận đã công bố",
+                email.sendHtmlEmail(recipient.address(), "[CampusUTE] Kết quả khóa luận đã công bố",
                         "academic-announcement", variables);
                 submitted++;
             } catch (RuntimeException exception) {
-                // No recipient, provider error or secret is added to this log.
-                log.warn("Thesis results email submission failed for a member of round {}", roundId);
+                // Counted below; no address, name or body is written to the log.
             }
         }
-        log.info("Thesis results email round {}: {} submitted of {} eligible accounts",
-                roundId, submitted, recipients.size());
-        return submitted;
+        if (submitted < recipients.size()) {
+            log.warn("Thesis results email round {}: {} of {} deliveries failed in this batch",
+                    roundId, recipients.size() - submitted, recipients.size());
+        } else {
+            log.info("Thesis results email round {}: {} deliveries submitted in this batch",
+                    roundId, submitted);
+        }
+    }
+
+    private record ResultsRecipient(String address, String name) {
     }
 
     private String publishedRoundName(UUID roundId) {
@@ -190,6 +253,24 @@ public class ThesisNotificationService {
                         + " WHERE id = :id AND status = 'RESULTS_PUBLISHED'",
                 new MapSqlParameterSource("id", roundId), String.class);
         return names.isEmpty() ? null : names.getFirst();
+    }
+
+    private PublishedRound publishedRoundForNotification(UUID roundId) {
+        return jdbc.query(
+                "SELECT name, updated_at FROM thesis.thesis_registration_round"
+                        + " WHERE id = :id AND status = 'RESULTS_PUBLISHED' FOR UPDATE",
+                new MapSqlParameterSource("id", roundId), resultSet -> resultSet.next()
+                        ? new PublishedRound(
+                                resultSet.getString("name"), resultSet.getTimestamp("updated_at").toInstant())
+                        : null);
+    }
+
+    private static String resultsNotificationId(UUID roundId, String userId) {
+        return UUID.nameUUIDFromBytes(("campuscore:thesis:results:" + roundId + ":" + userId)
+                .getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private record PublishedRound(String name, Instant updatedAt) {
     }
 
     private static String valueOrEmpty(Object value) {

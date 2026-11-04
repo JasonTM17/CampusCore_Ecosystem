@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -76,7 +77,7 @@ public class EventStaffController {
     @PreAuthorize("isAuthenticated()")
     public EventResponse create(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateEventRequest request) {
+            @Valid @RequestBody CreateEventRequest request) {
         return events.create(subject(jwt), request);
     }
 
@@ -95,7 +96,7 @@ public class EventStaffController {
     public EventResponse update(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String eventId,
-            @RequestBody UpdateEventRequest request) {
+            @Valid @RequestBody UpdateEventRequest request) {
         return events.update(subject(jwt), eventId, request);
     }
 
@@ -172,8 +173,8 @@ public class EventStaffController {
         return events.markAttendance(subject(jwt), eventId, request);
     }
 
-    @Operation(summary = "Danh sách staff grants")
-    @ApiResponse(responseCode = "200", description = "Danh sách staff grants", headers = @Header(
+    @Operation(summary = "Staff grants của tôi")
+    @ApiResponse(responseCode = "200", description = "Staff grants của tôi", headers = @Header(
             name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
             schema = @Schema(type = "integer")))
     @GetMapping("grants")

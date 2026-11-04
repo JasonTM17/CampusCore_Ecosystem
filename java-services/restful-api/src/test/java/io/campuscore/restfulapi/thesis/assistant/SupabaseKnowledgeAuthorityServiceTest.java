@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -22,8 +23,20 @@ import java.util.UUID;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class SupabaseKnowledgeAuthorityServiceTest {
+    private static final String ASSERTION_SECRET = "supabase-test-owner-assertion-secret";
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void createForwardsActorThroughServerSideRpcWithoutExposingKeyToPayload() throws Exception {
         HttpClient http = mock(HttpClient.class);
@@ -46,6 +59,41 @@ class SupabaseKnowledgeAuthorityServiceTest {
         assertEquals("admin-a", body.path("p_actor").asText());
         assertEquals("REGISTRATION", body.path("p_payload").path("domain").asText());
         assertEquals(-1, body.toString().indexOf("service-key"));
+    }
+
+    @Test
+    void updateForwardsExpectedVersionToKnowledgeAdminRpc() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        HttpRequest[] sent = new HttpRequest[1];
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            sent[0] = invocation.getArgument(0);
+            return response(200, "{\"documentId\":\"11111111-1111-4111-8111-111111111111\",\"revisionId\":\"22222222-2222-4222-8222-222222222222\",\"version\":2,\"state\":\"DRAFT\"}");
+        });
+        ObjectMapper mapper = new ObjectMapper();
+        SupabaseKnowledgeAuthorityService service = new SupabaseKnowledgeAuthorityService(properties(), mapper, http);
+
+        service.update(UUID.randomUUID(), new KnowledgeRequest(
+                "registration", "en", "Registration", "Public guidance", "registrar", 10, "REGISTRATION", 1), "admin-a");
+
+        JsonNode body = mapper.readTree(readBody(sent[0]));
+        assertEquals("UPDATE", body.path("p_action").asText());
+        assertEquals(1, body.path("p_payload").path("expectedVersion").asInt());
+    }
+
+    @Test
+    void staleVersionFailureUsesTheSharedConflictCode() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        HttpResponse<String> rejected = response(400, "{\"message\":\"stale_version\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(rejected);
+        SupabaseKnowledgeAuthorityService service = new SupabaseKnowledgeAuthorityService(properties(), new ObjectMapper(), http);
+
+        DomainException failure = assertThrows(DomainException.class,
+                () -> service.update(UUID.randomUUID(), new KnowledgeRequest(
+                        "registration", "en", "Registration", "Public guidance", "registrar", 10, "REGISTRATION", 1), "admin-a"));
+
+        assertEquals(409, failure.status().value());
+        assertEquals("STALE_VERSION", failure.code());
     }
 
     @Test
@@ -82,12 +130,12 @@ class SupabaseKnowledgeAuthorityServiceTest {
     void internalControllerRejectsInvalidRagTokenWith403() {
         SupabaseKnowledgeAuthorityService authority = mock(SupabaseKnowledgeAuthorityService.class);
         SupabaseKnowledgeSyncService sync = mock(SupabaseKnowledgeSyncService.class);
-        AssistantRagProperties rag = new AssistantRagProperties("http://rag", "expected-token", true, 500, 1_000);
+        AssistantRagProperties rag = ragProperties();
         SupabaseKnowledgeInternalController controller = new SupabaseKnowledgeInternalController(authority, sync, rag,
                 false);
 
         DomainException failure = assertThrows(DomainException.class,
-                () -> controller.list("wrong-token", "admin-a", null, null));
+                () -> controller.list("wrong-token", null, "admin-a", null, null));
 
         assertEquals(403, failure.status().value());
         assertEquals("RAG_SERVICE_UNAUTHORIZED", failure.code());
@@ -97,22 +145,56 @@ class SupabaseKnowledgeAuthorityServiceTest {
     void internalArchiveReturnsTheActualProjectionState() {
         SupabaseKnowledgeAuthorityService authority = mock(SupabaseKnowledgeAuthorityService.class);
         SupabaseKnowledgeSyncService sync = mock(SupabaseKnowledgeSyncService.class);
-        AssistantRagProperties rag = new AssistantRagProperties("http://rag", "expected-token", true, 500, 1_000);
+        AssistantRagProperties rag = ragProperties();
         SupabaseKnowledgeInternalController controller = new SupabaseKnowledgeInternalController(authority, sync, rag,
                 false);
         UUID document = UUID.randomUUID();
         when(sync.syncNow()).thenReturn(SupabaseKnowledgeSyncService.SyncResult.failed("Sync unavailable"));
 
-        var result = controller.archive(document, "expected-token", "admin-b");
+        authenticate("admin-b", "ROLE_ADMIN");
+        String assertion = new AssistantOwnerAssertion(rag).issueKnowledgeAdmin("admin-b");
+        var result = controller.archive(document, "expected-token", assertion, "admin-b");
 
         verify(authority).archive(document, "admin-b");
         assertEquals("FAILED", result.status());
         assertEquals(true, result.degraded());
     }
 
+    @Test
+    void internalKnowledgeControllerRejectsTokenAloneAndAssistantCapability() {
+        SupabaseKnowledgeAuthorityService authority = mock(SupabaseKnowledgeAuthorityService.class);
+        SupabaseKnowledgeSyncService sync = mock(SupabaseKnowledgeSyncService.class);
+        AssistantRagProperties rag = ragProperties();
+        SupabaseKnowledgeInternalController controller = new SupabaseKnowledgeInternalController(authority, sync, rag,
+                false);
+        authenticate("owner-a");
+        String assistantAssertion = new AssistantOwnerAssertion(rag).issueAssistant("owner-a");
+
+        DomainException tokenOnly = assertThrows(DomainException.class,
+                () -> controller.list("expected-token", null, "owner-a", null, null));
+        DomainException wrongCapability = assertThrows(DomainException.class,
+                () -> controller.list("expected-token", assistantAssertion, "owner-a", null, null));
+
+        assertEquals("RAG_OWNER_ASSERTION_INVALID", tokenOnly.code());
+        assertEquals("RAG_OWNER_ASSERTION_INVALID", wrongCapability.code());
+        assertEquals(403, wrongCapability.status().value());
+        verifyNoInteractions(authority, sync);
+    }
+
     private static SupabaseKnowledgeProperties properties() {
         return new SupabaseKnowledgeProperties(true, "https://project.supabase.co", "service-key",
                 "assistant", "knowledge_release", "knowledge_release_document", 500, 1_000);
+    }
+
+    private static AssistantRagProperties ragProperties() {
+        return new AssistantRagProperties("http://rag", "expected-token", ASSERTION_SECRET,
+                true, 500, 1_000);
+    }
+
+    private static void authenticate(String subject, String... authorities) {
+        Jwt jwt = Jwt.withTokenValue("fixture").header("alg", "none").subject(subject).build();
+        var granted = java.util.Arrays.stream(authorities).map(SimpleGrantedAuthority::new).toList();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, granted));
     }
 
     private static String readBody(HttpRequest request) {

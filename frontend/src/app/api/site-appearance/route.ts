@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_SITE_APPEARANCE } from '@/lib/site-appearance';
-import { CSRF_COOKIE_NAME, hasCsrfSessionHint } from '@/lib/session-hint';
+import { hasCsrfSessionHint } from '@/lib/session-hint';
+import { resolveJavaApiOrigin } from '@/lib/proxy-url';
 import {
   readSavedSiteAppearance,
   writeSiteAppearance,
@@ -11,14 +12,8 @@ export const dynamic = 'force-dynamic';
 
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
-function cookieValue(cookieSource: string, name: string): string {
-  const escapedName = name.replace(/([.*+?^${}()|[\]\\])/g, '\\$1');
-  const match = cookieSource.match(new RegExp(`(?:^|; )${escapedName}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : '';
-}
-
 function javaOrigin(): string {
-  return (process.env.JAVA_API_ORIGIN || 'http://127.0.0.1:4010').replace(/\/$/, '');
+  return resolveJavaApiOrigin();
 }
 
 async function requireAdmin(request: NextRequest): Promise<boolean> {
@@ -27,8 +22,12 @@ async function requireAdmin(request: NextRequest): Promise<boolean> {
     return false;
   }
 
-  const csrf =
-    request.headers.get(CSRF_HEADER_NAME) || cookieValue(cookie, CSRF_COOKIE_NAME);
+  // Double-submit tokens are only accepted from the request header: a cookie
+  // alone is not proof that the caller could read the CSRF session hint.
+  const csrf = request.headers.get(CSRF_HEADER_NAME)?.trim();
+  if (!csrf) {
+    return false;
+  }
   const response = await fetch(`${javaOrigin()}/api/v1/auth/me`, {
     method: 'GET',
     headers: {

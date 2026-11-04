@@ -30,7 +30,29 @@ import { useI18n } from '@/i18n';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import { TinyMceEditor, clearTinyMceAutosaveDrafts } from '@/components/ui/tinymce-editor';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
+import { campusCodeMessage } from '@/lib/campus-error';
 import { cn } from '@/lib/utils';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
+
+type CoverId = keyof typeof announcementWorkspaceEn.covers;
+
+/**
+ * `EDIT_BANNER_PRESETS` is also consumed by the site-editor banner tray
+ * (`app/dashboard/editor/page.tsx`, another package). These locale projections
+ * keep that call site compiling while the copy itself lives only in the
+ * announcement workspace catalogue.
+ */
+function coverCopy(id: CoverId) {
+  return {
+    titleVi: announcementWorkspaceVi.covers[id].title,
+    titleEn: announcementWorkspaceEn.covers[id].title,
+    tagVi: announcementWorkspaceVi.covers[id].tag,
+    tagEn: announcementWorkspaceEn.covers[id].tag,
+  };
+}
 
 export const EDIT_BANNER_PRESETS = [
   {
@@ -38,82 +60,58 @@ export const EDIT_BANNER_PRESETS = [
     url: '/images/banners/campus_academic_banner.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Khuôn viên học thuật HCMUTE',
-    titleEn: 'HCMUTE Campus Academic',
-    tagVi: 'Khuôn viên',
-    tagEn: 'Campus',
+    ...coverCopy('campus'),
   },
   {
     id: 'notice',
     url: '/images/banners/academic_notice_banner.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Bản tin thông báo học vụ',
-    titleEn: 'Academic Notice Bulletin',
-    tagVi: 'Học vụ',
-    tagEn: 'Notice',
+    ...coverCopy('notice'),
   },
   {
     id: 'thesis',
     url: '/images/banners/thesis_defense_hall.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Hội đồng bảo vệ khóa luận',
-    titleEn: 'Thesis Defense Committee',
-    tagVi: 'Khóa luận',
-    tagEn: 'Thesis',
+    ...coverCopy('thesis'),
   },
   {
     id: 'council',
     url: '/images/banners/thesis_evaluation_council.jpg',
     width: 2172,
     height: 724,
-    titleVi: 'Hội đồng đánh giá đề tài',
-    titleEn: 'Thesis Evaluation Council',
-    tagVi: 'Hội đồng',
-    tagEn: 'Council',
+    ...coverCopy('council'),
   },
   {
     id: 'faculty',
     url: '/images/banners/faculty_engineering_hall.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Tòa nhà Khoa Kỹ thuật HCMUTE',
-    titleEn: 'Faculty of Engineering Hall',
-    tagVi: 'Khoa Viện',
-    tagEn: 'Faculty',
+    ...coverCopy('faculty'),
   },
   {
     id: 'library',
     url: '/images/banners/smart_campus_library.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Thư viện số & Không gian học tập',
-    titleEn: 'Smart Digital Library & Commons',
-    tagVi: 'Thư viện',
-    tagEn: 'Library',
+    ...coverCopy('library'),
   },
   {
     id: 'convocation',
     url: '/images/banners/academic_convocation_ceremony.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Lễ tốt nghiệp & Vinh danh học thuật',
-    titleEn: 'Grand Convocation Ceremony',
-    tagVi: 'Tốt nghiệp',
-    tagEn: 'Graduation',
+    ...coverCopy('convocation'),
   },
   {
     id: 'lab',
     url: '/images/banners/department_research_lab.jpg',
     width: 1376,
     height: 768,
-    titleVi: 'Phòng Lab nghiên cứu Khoa CNTT',
-    titleEn: 'IT Smart Systems Lab',
-    tagVi: 'Nghiên cứu',
-    tagEn: 'Research',
+    ...coverCopy('lab'),
   },
-];
+] as const;
 
 interface AnnouncementEditModalProps {
   announcement: AnnouncementRecord | null;
@@ -130,8 +128,9 @@ export function AnnouncementEditModal({
   onSave,
   onOpenStudio,
 }: AnnouncementEditModalProps) {
-  const { locale } = useI18n();
-  const isVi = locale === 'vi';
+  const { locale, messages } = useI18n();
+  const workspaceCopy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale];
+  const copy = workspaceCopy.composer;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -211,18 +210,18 @@ export function AnnouncementEditModal({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setValidationError(isVi ? 'Vui lòng nhập tiêu đề thông báo / công văn' : 'Please enter a title');
+      setValidationError(copy.validationTitle);
       return;
     }
     if (!content.trim()) {
-      setValidationError(isVi ? 'Vui lòng nhập nội dung văn bản' : 'Please enter document content');
+      setValidationError(copy.validationContent);
       return;
     }
 
     const overflow = findAnnouncementLengthViolation(content);
     if (overflow) {
       setValidationError(
-        announcementLengthViolationMessage(overflow, isVi ? 'vi' : 'en'),
+        announcementLengthViolationMessage(overflow, locale),
       );
       return;
     }
@@ -248,23 +247,21 @@ export function AnnouncementEditModal({
         // lecturer, cleared the year filter and wiped the publish/expiry
         // window. Carry each untouched field through unchanged.
         semesterId: announcement.semesterId,
-        sectionId: announcement.sectionId,
-        lecturerId: announcement.lecturerId,
+        // A campus-wide notice cannot keep a section or lecturer scope; the server refuses the pair.
+        sectionId: isGlobal ? null : announcement.sectionId,
+        lecturerId: isGlobal ? null : announcement.lecturerId,
         targetYears: announcement.targetYears,
         publishAt: announcement.publishAt,
         expiresAt: announcement.expiresAt,
         expectedVersion: announcement.version ?? 0,
-        reason: isVi
-          ? 'Chỉnh sửa nhanh qua giao diện quản trị Bảng tin'
-          : 'Quick edit via Admin Announcements',
+        reason: copy.quickEditReason,
       };
 
       await onSave(announcement.id, payload);
       handleClose();
     } catch (err: any) {
       setValidationError(
-        err?.response?.data?.message ||
-          (isVi ? 'Không thể lưu thay đổi. Vui lòng kiểm tra lại.' : 'Failed to save changes. Please retry.')
+        campusCodeMessage(err, messages.common.campusErrors, copy.saveFailed),
       );
     } finally {
       setIsSaving(false);
@@ -278,12 +275,12 @@ export function AnnouncementEditModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={isVi ? 'Chỉnh sửa thông báo / công văn' : 'Edit Announcement'}
+      title={copy.title}
       className="max-w-3xl"
     >
       <form onSubmit={handleFormSubmit} className="space-y-4">
         {validationError ? (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-xs font-medium text-destructive">
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-xs font-medium text-status-danger-foreground">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{validationError}</span>
           </div>
@@ -293,16 +290,16 @@ export function AnnouncementEditModal({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/40 px-3.5 py-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">
-              {isVi ? 'Mã văn bản:' : 'Notice ID:'}
+              {copy.noticeId}
             </span>
             <code className="font-mono text-[11px] text-muted-foreground">
               {announcement.id.slice(0, 12)}...
             </code>
           </div>
           <div className="min-w-0 text-right text-[11px] text-muted-foreground">
-            {isVi ? 'Ban hành bởi:' : 'Published by:'}{' '}
+            {copy.publishedBy}{' '}
             <span className="font-medium text-foreground">
-              {publishedBy || (isVi ? 'Phòng Đào tạo' : 'Office of Academic Affairs')}
+              {publishedBy || copy.defaultPublisher}
             </span>
           </div>
         </div>
@@ -310,13 +307,13 @@ export function AnnouncementEditModal({
         {/* Title Input */}
         <div>
           <label htmlFor="announcement-edit-title" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {isVi ? 'Tiêu đề thông báo / công văn' : 'Document Title'} <span className="text-destructive">*</span>
+            {copy.titleLabel} <span className="text-destructive">*</span>
           </label>
           <Input
             id="announcement-edit-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={isVi ? 'Nhập tiêu đề công văn chính thức...' : 'Enter official document title...'}
+            placeholder={copy.titlePlaceholder}
             className="font-medium h-9 text-sm"
             required
           />
@@ -329,7 +326,7 @@ export function AnnouncementEditModal({
               htmlFor="announcement-edit-priority"
               className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
-              {isVi ? 'Mức độ ưu tiên' : 'Priority'}
+              {copy.priorityLabel}
             </label>
             <select
               id="announcement-edit-priority"
@@ -337,10 +334,10 @@ export function AnnouncementEditModal({
               onChange={(e) => setPriority(e.target.value as any)}
               className="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="URGENT">{isVi ? 'Khẩn cấp (Urgent)' : 'Urgent'}</option>
-              <option value="HIGH">{isVi ? 'Ưu tiên cao (High)' : 'High'}</option>
-              <option value="NORMAL">{isVi ? 'Bình thường (Normal)' : 'Normal'}</option>
-              <option value="LOW">{isVi ? 'Thông tin chung (Low)' : 'Low'}</option>
+              <option value="URGENT">{copy.priority.URGENT}</option>
+              <option value="HIGH">{copy.priority.HIGH}</option>
+              <option value="NORMAL">{copy.priority.NORMAL}</option>
+              <option value="LOW">{copy.priority.LOW}</option>
             </select>
           </div>
 
@@ -349,7 +346,7 @@ export function AnnouncementEditModal({
               htmlFor="announcement-edit-target-role"
               className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
-              {isVi ? 'Đối tượng tiếp nhận' : 'Target Audience'}
+              {copy.audienceLabel}
             </label>
             <select
               id="announcement-edit-target-role"
@@ -357,10 +354,10 @@ export function AnnouncementEditModal({
               onChange={(e) => setTargetRole(e.target.value as any)}
               className="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="ALL">{isVi ? 'Toàn trường (Sinh viên & Giảng viên)' : 'All Campus'}</option>
-              <option value="BOTH">{isVi ? 'Sinh viên & Giảng viên (không toàn trường)' : 'Students & Lecturers (targeted)'}</option>
-              <option value="STUDENT">{isVi ? 'Chỉ Sinh viên' : 'Students only'}</option>
-              <option value="LECTURER">{isVi ? 'Chỉ Giảng viên' : 'Lecturers only'}</option>
+              <option value="ALL">{copy.audience.ALL}</option>
+              <option value="BOTH">{copy.audience.BOTH}</option>
+              <option value="STUDENT">{copy.audience.STUDENT}</option>
+              <option value="LECTURER">{copy.audience.LECTURER}</option>
             </select>
           </div>
         </div>
@@ -370,7 +367,7 @@ export function AnnouncementEditModal({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <ImageIcon className="h-3.5 w-3.5 text-primary" />
-              {isVi ? 'Ảnh bìa học thuật (Bộ sưu tập HCMUTE):' : 'Editorial Cover Image (HCMUTE Collection):'}
+              {copy.coverLabel}
             </label>
             {activeCoverUrl ? (
               <button
@@ -379,15 +376,16 @@ export function AnnouncementEditModal({
                 className="shrink-0 text-[11px] font-medium text-destructive hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <X className="h-3 w-3" />
-                {isVi ? 'Gỡ ảnh bìa' : 'Remove Cover'}
+                {copy.removeCover}
               </button>
             ) : null}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {EDIT_BANNER_PRESETS.map((banner) => {
               const isSelected = activeCoverUrl === banner.url;
-              const bannerTitle = isVi ? banner.titleVi : banner.titleEn;
-              const bannerTag = isVi ? banner.tagVi : banner.tagEn;
+              const cover = workspaceCopy.covers[banner.id];
+              const bannerTitle = cover.title;
+              const bannerTag = cover.tag;
               return (
                 <button
                   key={banner.id}
@@ -435,7 +433,7 @@ export function AnnouncementEditModal({
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {isVi ? 'Nội dung công văn / văn bản' : 'Document Content'} <span className="text-destructive">*</span>
+              {copy.contentLabel} <span className="text-destructive">*</span>
             </label>
             <div className="flex items-center gap-1 rounded-md border border-border/80 bg-background p-0.5 text-xs [&_button]:whitespace-nowrap">
               <button
@@ -449,7 +447,7 @@ export function AnnouncementEditModal({
                 )}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {isVi ? 'Trực quan (TinyMCE)' : 'Visual'}
+                {copy.modes.visual}
               </button>
               <button
                 type="button"
@@ -462,7 +460,7 @@ export function AnnouncementEditModal({
                 )}
               >
                 <FileEdit className="h-3.5 w-3.5" />
-                {isVi ? 'Mã nguồn' : 'Code'}
+                {copy.modes.code}
               </button>
               <button
                 type="button"
@@ -475,7 +473,7 @@ export function AnnouncementEditModal({
                 )}
               >
                 <Eye className="h-3.5 w-3.5" />
-                {isVi ? 'Xem trước' : 'Preview'}
+                {copy.modes.preview}
               </button>
             </div>
           </div>
@@ -492,7 +490,7 @@ export function AnnouncementEditModal({
                 onInit={(_event, editor) => { modalEditorRef.current = editor; }}
                 locale={locale}
                 height={280}
-                placeholder={isVi ? 'Soạn thảo nội dung văn bản chuẩn học thuật...' : 'Compose document content...'}
+                placeholder={copy.visualPlaceholder}
               />
             </div>
           ) : (
@@ -500,7 +498,7 @@ export function AnnouncementEditModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={10}
-              placeholder={isVi ? 'Nhập nội dung văn bản...' : 'Enter document content...'}
+              placeholder={copy.bodyPlaceholder}
               className="font-mono text-xs leading-relaxed"
               required
             />
@@ -508,10 +506,10 @@ export function AnnouncementEditModal({
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <span>
-              {wordCount} {isVi ? 'từ' : 'words'} • {charCount} {isVi ? 'ký tự' : 'characters'}
+              {wordCount} {copy.words} • {charCount} {copy.characters}
             </span>
             <span className="italic">
-              {isVi ? 'Hỗ trợ định dạng văn bản chuẩn e-Office' : 'Supports e-Office standard markup'}
+              {copy.markupHint}
             </span>
           </div>
         </div>
@@ -537,10 +535,10 @@ export function AnnouncementEditModal({
                 });
               }}
               className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              title={isVi ? 'Chuyển sang Studio kéo thả khối đầy đủ' : 'Open in Advanced Studio'}
+              title={copy.studioTooltip}
             >
               <Wand2 className="h-3.5 w-3.5 text-primary" />
-              <span>{isVi ? 'Mở trong Studio Soạn thảo' : 'Open in Studio'}</span>
+              <span>{copy.studioAction}</span>
             </Button>
           ) : <div />}
 
@@ -553,7 +551,7 @@ export function AnnouncementEditModal({
               disabled={isSaving}
               className="text-xs"
             >
-              {isVi ? 'Hủy' : 'Cancel'}
+              {copy.cancel}
             </Button>
             <Button
               type="submit"
@@ -564,12 +562,12 @@ export function AnnouncementEditModal({
               {isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>{isVi ? 'Đang lưu...' : 'Saving...'}</span>
+                  <span>{copy.saving}</span>
                 </>
               ) : (
                 <>
                   <Save className="h-3.5 w-3.5" />
-                  <span>{isVi ? 'Lưu thay đổi' : 'Save Changes'}</span>
+                  <span>{copy.save}</span>
                 </>
               )}
             </Button>

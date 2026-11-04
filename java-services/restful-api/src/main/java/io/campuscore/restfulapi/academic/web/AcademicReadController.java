@@ -97,17 +97,20 @@ public class AcademicReadController {
             @Parameter(description = "Số lượng bản ghi mỗi trang") @RequestParam(defaultValue = "20") int limit,
             @Parameter(description = "Từ khóa tìm kiếm theo mã hoặc tên Bộ môn")
             @RequestParam(required = false) String search,
-            @RequestParam MultiValueMap<String, String> queryParameters) {
+            @RequestParam MultiValueMap<String, String> queryParameters,
+            @AuthenticationPrincipal Jwt jwt) {
         requireAllowedQuery(queryParameters, Set.of("page", "limit", "search"));
-        return academic.findDepartments(page, limit, search);
+        return academic.findDepartments(page, limit, search, jwt.getClaimAsStringList("roles"));
     }
 
     @GetMapping("departments/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Chi tiết Bộ môn chuyên ngành", description = "Lấy thông tin chi tiết của Bộ môn kèm danh sách giảng viên trực thuộc.")
     @ApiResponse(responseCode = "200", description = "Thông tin chi tiết Bộ môn")
-    public DepartmentResponse getDepartment(@Parameter(description = "Mã Bộ môn (Department ID)") @PathVariable String id) {
-        return academic.findDepartment(id);
+    public DepartmentResponse getDepartment(
+            @Parameter(description = "Mã Bộ môn (Department ID)") @PathVariable String id,
+            @AuthenticationPrincipal Jwt jwt) {
+        return academic.findDepartment(id, jwt.getClaimAsStringList("roles"));
     }
 
     @GetMapping("academic-years")

@@ -57,8 +57,8 @@ export function escapeCsvField(value: unknown): string {
   if (value === null || value === undefined) return '""';
   const str = String(value);
   // Quoting alone does not stop spreadsheet formula evaluation: a leading
-  // = + - @ or tab still runs as a formula, so neutralize it with a quote.
-  const safe = /^[=+\-@\t]/.test(str) ? `'${str}` : str;
+  // = + - @ or tab, including after line breaks, must be neutralized.
+  const safe = /^[\r\n]*[=+\-@\t]/.test(str) ? `'${str}` : str;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
@@ -409,7 +409,7 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
       escapeCsvField(isVi ? 'Mã sinh viên' : 'Student ID'),
       escapeCsvField(isVi ? 'Họ và tên' : 'Full Name'),
       escapeCsvField(isVi ? 'Email' : 'Email'),
-      escapeCsvField(isVi ? 'Điểm quá trình (50%)' : 'Process Score (50%)'),
+      escapeCsvField(isVi ? 'Điểm quá trình (50%)' : 'Coursework (50%)'),
       escapeCsvField(isVi ? 'Điểm thi kết thúc (50%)' : 'Final Exam Score (50%)'),
       escapeCsvField(isVi ? 'Tổng kết (Hệ 10)' : 'Total (Scale 10)'),
       escapeCsvField(isVi ? 'Điểm chữ' : 'Letter Grade'),
