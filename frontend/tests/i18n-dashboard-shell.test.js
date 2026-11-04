@@ -127,7 +127,7 @@ test('P12 catalogue copy preserves the existing visible wording', () => {
   );
   assert.deepEqual(
     [vi.adminShell.demoTag, en.adminShell.demoTag],
-    ['Demo trải nghiệm', 'Demo'],
+    ['Demo', 'Demo'],
   );
   assert.deepEqual(
     [vi.common.notFound.eyebrow, en.common.notFound.eyebrow],

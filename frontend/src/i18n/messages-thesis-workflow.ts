@@ -591,7 +591,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
         actions: [
           'Duyệt nhóm cần 3–5 sinh viên và đúng 1 nhóm trưởng; nhóm nháp 1–2 sinh viên được bổ sung trước khi duyệt.',
           'Mỗi sinh viên chỉ được tham gia duy nhất 1 nhóm trong toàn bộ đợt đăng ký.',
-          'Mỗi nhóm chỉ đăng ký đúng 1 đề tài; Giảng viên hướng dẫn sẽ xét duyệt (Approve) hoặc từ chối (Reject kèm lý do).',
+          'Mỗi nhóm chỉ đăng ký đúng 1 đề tài; Giảng viên hướng dẫn sẽ xét duyệt hoặc từ chối kèm lý do.',
         ],
         deadlineNote: 'Chỉ được phép tạo nhóm và đăng ký trong khung giờ quy định của Giai đoạn 2.',
       },
