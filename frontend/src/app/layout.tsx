@@ -12,7 +12,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SiteAppearanceProvider } from "@/components/providers/SiteAppearanceProvider";
-import { Toaster } from "sonner";
+import { ResponsiveToaster } from "@/components/ui/ResponsiveToaster";
 import { I18nProvider } from "@/i18n";
 import { isLocale } from "@/i18n/config";
 import {
@@ -96,7 +96,7 @@ export default async function RootLayout({
               <QueryProvider>
                 <SiteAppearanceProvider>
                   {children}
-                  <Toaster position="top-right" />
+                  <ResponsiveToaster />
                 </SiteAppearanceProvider>
               </QueryProvider>
             </AuthProvider>
