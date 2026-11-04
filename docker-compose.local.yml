@@ -1,11 +1,13 @@
 services:
   restful-api:
     environment:
-      DEMO_ACCOUNTS_ENABLED: "true"
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
 
   rag-service:
     environment:
-      DEMO_ACCOUNTS_ENABLED: "true"
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
 
   web:
     build:

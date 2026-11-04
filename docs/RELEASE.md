@@ -52,7 +52,7 @@ Flyway/health checks above:
 
 ```powershell
 $env:CAMPUSCORE_IMAGE_TAG = "<full-commit-sha>"
-docker compose -f docker-compose.yml -f docker-compose.rag.override.yml up -d --no-build postgres mailpit rag-service restful-api web
+docker compose -f docker-compose.yml -f docker-compose.rag.override.yml -f docker-compose.local.yml up -d --no-build postgres mailpit rag-service restful-api web
 ```
 
 The overlay is optional; the default local path builds every image from source.
