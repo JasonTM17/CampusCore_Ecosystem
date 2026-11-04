@@ -112,7 +112,7 @@ test('converted student-portal sources read the fragment instead of inline local
 test('moved literals live in the fragment, not in the page modules', () => {
   const catalogue = read('src/i18n/messages-student-portal.ts');
   const pages = {
-    'src/app/dashboard/page.tsx': ['Tổng quan thông tin học vụ và tiến độ học kỳ hiện tại.', 'Ca Sáng', 'Chưa có buổi học nào được xếp lịch.'],
+    'src/app/dashboard/page.tsx': ['Lịch học hôm nay & sắp tới', 'Ca Sáng', 'Chưa có buổi học nào được xếp lịch.'],
     'src/app/dashboard/grades/page.tsx': ['Hiện chưa thể tải dữ liệu điểm số.', 'Điểm HP (10)', 'Chưa có điểm được công bố'],
     'src/app/dashboard/enrollments/page.tsx': ['Theo dõi chương trình đào tạo và các lớp đã đăng ký.', 'Xuất phiếu đăng ký (PDF)', 'Đang tải chương trình đào tạo'],
     'src/app/dashboard/profile/page.tsx': ['Tài khoản demo để trải nghiệm', 'Demo experience account'],

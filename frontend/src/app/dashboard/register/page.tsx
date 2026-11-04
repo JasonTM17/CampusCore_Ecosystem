@@ -845,12 +845,7 @@ export default function RegisterPage() {
       >
         <span className="flex min-w-0 items-center gap-2">
           <ShieldCheck className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <span className="min-w-0">
-            <span className="block text-base font-semibold text-foreground">{copy.limitPolicyTitle}</span>
-            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground sm:text-sm">
-              {copy.limitPolicyDescription}
-            </span>
-          </span>
+          <span className="text-base font-semibold text-foreground">{copy.limitPolicyTitle}</span>
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${policyOpen ? 'rotate-180' : ''}`}
@@ -859,6 +854,9 @@ export default function RegisterPage() {
       </button>
       {policyOpen ? (
         <CardContent className="space-y-4 p-4">
+          <p className="text-xs leading-5 text-muted-foreground sm:text-sm">
+            {copy.limitPolicyDescription}
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-border/70 bg-card/80 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">

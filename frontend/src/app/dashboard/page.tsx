@@ -350,7 +350,6 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={<SectionEyebrow>{messages.studentDashboard.eyebrow}</SectionEyebrow>}
         title={messages.studentDashboard.title.replace('{name}', user?.firstName ?? 'student')}
-        description={copy.description}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-md border border-border/70 bg-card px-3 py-2 text-xs font-medium text-muted-foreground">

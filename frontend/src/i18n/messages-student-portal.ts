@@ -21,7 +21,6 @@
 
 export interface StudentPortalCopy {
   home: {
-    description: string;
     stats: {
       courses: string;
       active: string;
@@ -67,8 +66,6 @@ export interface StudentPortalCopy {
   grades: {
     eyebrow: string;
     title: string;
-    /** `{semester}` is the selected semester name (or the all-semesters label). */
-    description: string;
     selectSemester: string;
     allSemesters: string;
     /** Lower-case form used as the localized-name fallback. */
@@ -197,7 +194,6 @@ export interface StudentPortalCopy {
 
 export const studentPortalEn: StudentPortalCopy = {
   home: {
-    description: 'A quick snapshot of your active term.',
     stats: {
       courses: 'Courses this term',
       active: 'Active',
@@ -237,8 +233,6 @@ export const studentPortalEn: StudentPortalCopy = {
   grades: {
     eyebrow: 'Student area',
     title: 'Grades',
-    description:
-      'Review published grading outcomes for {semester}, then open your transcript when you need the full record.',
     selectSemester: 'Select semester for grades',
     allSemesters: 'All semesters',
     allSemestersFallback: 'all semesters',
@@ -370,7 +364,6 @@ export const studentPortalEn: StudentPortalCopy = {
 
 export const studentPortalVi: StudentPortalCopy = {
   home: {
-    description: 'Tổng quan thông tin học vụ và tiến độ học kỳ hiện tại.',
     stats: {
       courses: 'Môn học kỳ này',
       active: 'Đang học',
@@ -410,8 +403,6 @@ export const studentPortalVi: StudentPortalCopy = {
   grades: {
     eyebrow: 'Cổng Sinh viên',
     title: 'Điểm số',
-    description:
-      'Xem kết quả đã công bố cho {semester}, rồi chuyển sang bảng điểm khi cần.',
     selectSemester: 'Chọn học kỳ cho điểm số',
     allSemesters: 'Tất cả học kỳ',
     allSemestersFallback: 'tất cả học kỳ',
@@ -527,7 +518,7 @@ export const studentPortalVi: StudentPortalCopy = {
   },
   profile: {
     demoAccount: 'Tài khoản demo để trải nghiệm',
-    demoAccountShort: 'Tài khoản demo để trải nghiệm',
+    demoAccountShort: 'Tài khoản demo',
   },
   notifications: {
     openRelated: 'Mở tính năng liên quan',

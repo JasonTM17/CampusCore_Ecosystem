@@ -722,8 +722,7 @@ export const en = {
         tab: 'Student',
         eyebrow: 'Student portal',
         title: 'Sign in to the student portal.',
-        description:
-          'Register for sections, read your timetable, and follow grades from the student desk.',
+        description: 'Course registration, timetable, and grades.',
         heading: 'Student sign-in',
         subheading: 'Use your student campus account to open registration and class records.',
         officeSupport: 'Campus academic office',
@@ -735,8 +734,7 @@ export const en = {
         tab: 'Lecturer',
         eyebrow: 'Faculty portal',
         title: 'Sign in to the faculty portal.',
-        description:
-          'Open the gradebook, teaching timetable, and section notices from the faculty desk.',
+        description: 'Gradebook, teaching timetable, and section notices.',
         heading: 'Faculty sign-in',
         subheading: 'Use your lecturer campus account to continue teaching work.',
         officeSupport: 'Faculty office',
@@ -748,8 +746,7 @@ export const en = {
         tab: 'Dean',
         eyebrow: 'Dean portal',
         title: 'Sign in to the dean portal.',
-        description:
-          'Observe thesis groups, student members, and supervising lecturers across the faculty.',
+        description: 'Thesis group tracking and supervisor allocation.',
         heading: 'Dean sign-in',
         subheading: 'Use your dean campus account to open faculty oversight.',
         officeSupport: 'Faculty office',
@@ -761,8 +758,7 @@ export const en = {
         tab: 'Admin',
         eyebrow: 'Operations portal',
         title: 'Sign in to campus operations.',
-        description:
-          'Manage people, the catalog, notices, and the public campus look from one operations desk.',
+        description: 'User management, academic catalog, and system settings.',
         heading: 'Operations sign-in',
         subheading: 'Use an administrator account to manage campus records.',
         officeSupport: 'Campus operations',
@@ -1559,8 +1555,7 @@ export const en = {
     notifications: {
       title: 'Notifications',
       loading: 'Loading recent alerts…',
-      empty:
-        'No unread alerts right now. Announcements remain the main broadcast channel for shared updates.',
+      empty: 'No unread notifications.',
       fallbackTitle: 'New update',
       fallbackContent: 'A new notification has arrived for your account.',
       openAnnouncements: 'Open announcements',
@@ -1804,7 +1799,7 @@ export const en = {
   },
   studentDashboard: {
     eyebrow: 'Student area',
-    title: 'Welcome back, {name}',
+    title: '{name}',
     description:
       '{semester} is active. Your key study tools are ready from this dashboard.',
     currentTermFallback: 'No active term',
@@ -2101,7 +2096,6 @@ export const en = {
     profileDescription:
       'Keep the account record aligned with the information your campus teams rely on.',
     photoLabel: 'Profile photo',
-    photoHint: 'Preview the photo here, then save the profile to keep it on your account.',
     photoUnsaved: 'Photo not saved yet — click "Save changes" to keep it.',
     uploadPhoto: 'Upload photo',
     removePhoto: 'Remove photo',
@@ -3784,8 +3778,7 @@ export const vi: I18nMessages = {
         tab: 'Sinh viên',
         eyebrow: 'Cổng Sinh viên',
         title: 'Đăng nhập Cổng Sinh viên.',
-        description:
-          'Đăng ký học phần, xem thời khóa biểu và theo dõi điểm từ Cổng thông tin sinh viên.',
+        description: 'Đăng ký học phần, lịch học và điểm số.',
         heading: 'Đăng nhập sinh viên',
         subheading: 'Dùng tài khoản sinh viên để mở đăng ký và hồ sơ lớp học.',
         officeSupport: 'Phòng Đào tạo',
@@ -3797,8 +3790,7 @@ export const vi: I18nMessages = {
         tab: 'Giảng viên',
         eyebrow: 'Cổng Giảng viên',
         title: 'Đăng nhập Cổng Giảng viên.',
-        description:
-          'Mở sổ điểm, lịch giảng và thông báo lớp từ bàn làm việc giảng viên.',
+        description: 'Sổ điểm, lịch giảng và thông báo lớp.',
         heading: 'Đăng nhập giảng viên',
         subheading: 'Dùng tài khoản giảng viên để tiếp tục công việc giảng dạy.',
         officeSupport: 'Văn phòng Khoa',
@@ -3810,8 +3802,7 @@ export const vi: I18nMessages = {
         tab: 'Trưởng khoa',
         eyebrow: 'Cổng Trưởng khoa',
         title: 'Đăng nhập Cổng Trưởng khoa.',
-        description:
-          'Quan sát các nhóm khóa luận, thành viên sinh viên và giảng viên hướng dẫn trong toàn khoa.',
+        description: 'Theo dõi nhóm khóa luận và phân công hướng dẫn.',
         heading: 'Đăng nhập trưởng khoa',
         subheading: 'Dùng tài khoản trưởng khoa để mở bảng quan sát của khoa.',
         officeSupport: 'Văn phòng Khoa',
@@ -3823,8 +3814,7 @@ export const vi: I18nMessages = {
         tab: 'Quản trị',
         eyebrow: 'Cổng Quản trị',
         title: 'Đăng nhập Cổng Quản trị Nhà trường.',
-        description:
-          'Quản lý người dùng, danh mục đào tạo, thông báo và cấu hình hệ thống từ bàn quản trị.',
+        description: 'Quản lý người dùng, chương trình đào tạo và hệ thống.',
         heading: 'Đăng nhập quản trị',
         subheading: 'Dùng tài khoản quản trị để tiếp tục quản lý hồ sơ nhà trường.',
         officeSupport: 'Phòng Đào tạo & Quản trị Hệ thống',
@@ -3877,7 +3867,7 @@ export const vi: I18nMessages = {
     applicationDescription:
       'Nêu rõ lý do cần vượt hạn mức chuẩn. Phòng Đào tạo sẽ xem xét trước khi 2 tín chỉ bổ sung được mở cho bạn.',
     applicationReasonLabel: 'Lý do xin vượt hạn mức',
-    applicationReasonPlaceholder: 'Ví dụ: Em cần đăng ký thêm 2 tín chỉ để kịp kế hoạch hoàn thành chương trình trong học kỳ cuối.',
+    applicationReasonPlaceholder: 'Ví dụ: Cần đăng ký thêm 2 tín chỉ để kịp kế hoạch hoàn thành chương trình trong học kỳ cuối.',
     applicationReasonHint: 'Vui lòng nhập ít nhất 20 ký tự.',
     applicationOfficeOnly: 'Sinh viên chỉ được nộp đơn, không thể tự phê duyệt hạn mức của mình.',
     applicationSubmit: 'Gửi đơn chờ duyệt',
@@ -4190,7 +4180,7 @@ export const vi: I18nMessages = {
     noEmail: 'Chưa có email',
     systemBadge: 'Hệ thống Quản trị Đại học',
     toggleProfile: 'Mở thông tin Phòng Đào tạo',
-    demoTag: 'Demo trải nghiệm',
+    demoTag: 'Demo',
     demoAccount: 'Tài khoản demo để trải nghiệm',
     deanOverview: 'Quan sát khóa luận khoa',
   },
@@ -4617,8 +4607,7 @@ export const vi: I18nMessages = {
     notifications: {
       title: 'Thông báo',
       loading: 'Đang tải các cảnh báo gần đây…',
-      empty:
-        'Hiện chưa có cảnh báo chưa đọc. Thông báo vẫn là kênh chính cho các cập nhật dùng chung.',
+      empty: 'Không có thông báo mới.',
       fallbackTitle: 'Cập nhật mới',
       fallbackContent: 'Tài khoản của bạn vừa nhận một thông báo mới.',
       openAnnouncements: 'Mở trang thông báo',
@@ -4862,7 +4851,7 @@ export const vi: I18nMessages = {
   },
   studentDashboard: {
     eyebrow: 'Cổng Sinh viên',
-    title: 'Chào mừng quay lại, {name}',
+    title: '{name}',
     description:
       '{semester} đang hoạt động. Các công cụ học tập chính nằm ngay trên bảng điều khiển này.',
     currentTermFallback: 'Chưa có học kỳ hoạt động',
@@ -5130,12 +5119,12 @@ export const vi: I18nMessages = {
     heroCardTitle: 'Cấu Hình Banner & Tên Trường Trên Trang Chủ',
     heroEyebrowLabel: 'Tên trường / Nhãn Eyebrow (Hiển thị đầu trang chủ)',
     heroEyebrowDefault: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
-    heroTitleLabel: 'Tiêu đề chính (Hero Title)',
+    heroTitleLabel: 'Tiêu đề chính',
     heroTitleDefault: 'Cổng Thông Tin Đào Tạo & Học Vụ Trực Tuyến',
-    heroDescriptionLabel: 'Đoạn giới thiệu (Hero Description)',
+    heroDescriptionLabel: 'Đoạn giới thiệu',
     heroDescriptionDefault:
       'Hệ thống quản lý học vụ số tập trung dành cho Sinh viên, Giảng viên và Cán bộ Quản trị.',
-    heroAccentLabel: 'Màu sắc điểm nhấn (Accent Theme)',
+    heroAccentLabel: 'Màu sắc điểm nhấn',
     heroLivePreview: 'Xem trước giao diện Banner Trang chủ:',
     heroPublishing: 'Đang xuất bản...',
     heroPublish: 'Xuất bản lên Trang chủ',
@@ -5159,7 +5148,6 @@ export const vi: I18nMessages = {
     profileDescription:
       'Giữ hồ sơ tài khoản khớp với thông tin mà nhà trường đang sử dụng.',
     photoLabel: 'Ảnh hồ sơ',
-    photoHint: 'Xem trước ảnh tại đây, sau đó lưu hồ sơ để cập nhật vào tài khoản.',
     photoUnsaved: 'Ảnh chưa được lưu — hãy bấm "Lưu thay đổi" để giữ lại.',
     uploadPhoto: 'Tải ảnh lên',
     removePhoto: 'Gỡ ảnh',
@@ -5454,7 +5442,7 @@ export const vi: I18nMessages = {
     groupTooSmall:
       'Nhóm khóa luận cần từ 3 đến 5 thành viên, với đúng một nhóm trưởng, trước khi được xét duyệt. Nhóm nháp có 1 hoặc 2 thành viên có thể tiếp tục bổ sung trước khi duyệt.',
     groupStateConflict:
-      'Chỉ nhóm đang chờ xét duyệt (PENDING) và đã đăng ký đề tài mới có thể được duyệt.',
+      'Chỉ nhóm đang chờ xét duyệt và đã đăng ký đề tài mới có thể được duyệt.',
     topicStateConflict:
       'Đề tài đã được công bố hoặc không thể thay đổi từ trạng thái hiện tại.',
     proposeRoundOpenNotice:
