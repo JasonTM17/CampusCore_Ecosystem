@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { stripNotificationTagPrefix } from '../../src/screens/student/notification-title';
 
 describe('stripNotificationTagPrefix', () => {
