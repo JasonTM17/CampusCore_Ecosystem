@@ -11,8 +11,9 @@ const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
 const academic = path.join(mobileRoot, 'src', 'screens', 'academic');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-academic-'));
 
-async function load(file, name) {
-  const source = fs.readFileSync(file, 'utf8');
+async function load(file, name, rewrites = {}) {
+  let source = fs.readFileSync(file, 'utf8');
+  for (const [from, to] of Object.entries(rewrites)) source = source.split(`'${from}'`).join(`'${to}'`);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: `${name}.ts`,
@@ -23,12 +24,19 @@ async function load(file, name) {
 }
 
 const gpa = await load(path.join(academic, 'gpa.ts'), 'gpa');
-const model = await load(path.join(academic, 'academic-model.ts'), 'academic-model');
+const localeUrl = pathToFileURL(path.join(tmp, 'locale.mjs')).href;
+await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
+const model = await load(path.join(academic, 'academic-model.ts'), 'academic-model', { '../../i18n/locale': localeUrl });
 const browse = await load(path.join(academic, 'registration-browse.ts'), 'registration-browse');
 const basket = await load(path.join(academic, 'registration-basket.ts'), 'registration-basket');
 const attempts = await load(path.join(academic, 'idempotency-attempts.ts'), 'idempotency-attempts');
 const webScale = await load(path.join(webLib, 'grade-scale.ts'), 'web-grade-scale');
-const webCharts = await load(path.join(webLib, 'transcript-charts.ts'), 'web-transcript-charts');
+const webStudentPages = path.resolve(webLib, '..', 'i18n', 'messages-student-pages.ts');
+const webStudentPagesOut = path.join(tmp, 'web-messages-student-pages.mjs');
+await load(webStudentPages, 'web-messages-student-pages');
+const webCharts = await load(path.join(webLib, 'transcript-charts.ts'), 'web-transcript-charts', {
+  '@/i18n/messages-student-pages': pathToFileURL(webStudentPagesOut).href,
+});
 const webBrowse = await load(path.join(webLib, 'registration-browse.ts'), 'web-registration-browse');
 
 const record = (courseCode, credits, letterGrade, finalGrade, extra = {}) => ({
@@ -90,9 +98,35 @@ test('best-attempt summary counts a retaken course once and matches the web summ
   assert.equal(mine.completedCredits, 9);
 });
 
-test('published filter keeps only published grades', () => {
-  const rows = [record('A', 3, 'A', 9), record('B', 3, 'B', 7, { gradeStatus: 'DRAFT' }), record('C', 3, null, null, { gradeStatus: 'NOT_GRADED' })];
-  assert.deepEqual(gpa.publishedOnly(rows).map((row) => row.courseCode), ['A']);
+test('a retaken course reaches the grades cards once for GPA and the 10-point average', () => {
+  const records = [record('CS101', 3, 'F', 3), record('CS101', 3, 'A', 9)];
+  const summary = gpa.summarizeBestAttempts(records);
+  const web = webScale.summarizeGrades(records.map((entry) => ({ ...entry, semesterId: 's', semester: 's', sectionCode: 'x', lecturerName: null, processScore: null, finalExamScore: null })));
+  assert.equal(summary.gpa.toFixed(2), web.gpa);
+  assert.equal(summary.gpa.toFixed(2), '4.00');
+  assert.equal(summary.average10.toFixed(2), '9.00');
+  assert.equal(summary.countedCourses, 1);
+});
+
+test('the grades summary keeps the best attempt for both GPA and the 10-point average', () => {
+  const records = [record('CS101', 3, 'F', 3), record('CS101', 3, 'A', 9)];
+  const counted = gpa.bestAttempts(records);
+  assert.equal(counted.length, 1);
+  assert.equal(counted[0].letterGrade, 'A');
+  assert.equal(gpa.computeGpa4(counted), 4);
+  assert.equal(gpa.computeAverage10(counted), 9);
+  assert.equal(gpa.summarizeBestAttempts(records).gpa, 4);
+});
+
+test('published filter keeps only published and appealed grades', () => {
+  const rows = [
+    record('A', 3, 'A', 9),
+    record('B', 3, 'B', 7, { gradeStatus: 'DRAFT' }),
+    record('C', 3, null, null, { gradeStatus: 'NOT_GRADED' }),
+    record('D', 3, 'B', 8, { gradeStatus: 'APPEALED' }),
+  ];
+  assert.deepEqual(gpa.publishedOnly(rows).map((row) => row.courseCode), ['A', 'D']);
+  assert.equal(gpa.isPublishedGrade(rows[3]), true);
 });
 
 const transcriptPayload = {
@@ -150,7 +184,8 @@ test('enrollment history is split into active, past and withdrawn - not only ENR
   assert.deepEqual(model.filterEnrollments(rows, 'withdrawn', 's2').map((row) => row.id), ['5']);
   assert.deepEqual(model.tabCounts(rows, null), { active: 3, past: 1, withdrawn: 2 });
   assert.equal(model.isDroppableEnrollment('PENDING'), true);
-  assert.equal(model.isDroppableEnrollment('CONFIRMED'), false);
+  assert.equal(model.isDroppableEnrollment('CONFIRMED'), true);
+  assert.equal(model.isDroppableEnrollment('DROPPED'), false);
 });
 
 test('terms merge the semester list with terms seen only on enrollments, newest first', () => {
@@ -189,6 +224,49 @@ test('week dates are Monday first and respect the term window', () => {
   assert.equal(model.agendaForDate(agenda, wednesday, { startDate: '2026-09-07', endDate: '2026-12-20' }).length, 0);
   assert.equal(model.agendaForDate(agenda, wednesday, { startDate: '2026-08-01', endDate: '2026-12-20' }).length, 1);
   assert.equal(model.agendaForDate(agenda, new Date(2026, 8, 3), null).length, 0);
+});
+
+test('campus day math follows the fixed UTC+07 zone on a device set to UTC', () => {
+  const local = {
+    getFullYear: Date.prototype.getFullYear,
+    getMonth: Date.prototype.getMonth,
+    getDate: Date.prototype.getDate,
+    getDay: Date.prototype.getDay,
+    getHours: Date.prototype.getHours,
+    getMinutes: Date.prototype.getMinutes,
+  };
+  Object.assign(Date.prototype, {
+    getFullYear: Date.prototype.getUTCFullYear,
+    getMonth: Date.prototype.getUTCMonth,
+    getDate: Date.prototype.getUTCDate,
+    getDay: Date.prototype.getUTCDay,
+    getHours: Date.prototype.getUTCHours,
+    getMinutes: Date.prototype.getUTCMinutes,
+  });
+  try {
+    const mondayEveningUtc = new Date('2026-11-02T23:00:00Z');
+    assert.equal(model.civilKey(mondayEveningUtc), '2026-11-03');
+    assert.equal(model.dayOfWeekOf(mondayEveningUtc), 3);
+    const start = model.weekStartOf(mondayEveningUtc);
+    assert.equal(model.civilKey(start), '2026-11-02');
+    assert.deepEqual(
+      model.weekDates(start).map(model.civilKey),
+      ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'],
+    );
+    assert.equal(model.civilDayOf(start), 2);
+    assert.equal(model.civilDayOf(mondayEveningUtc), 3);
+    const agenda = [
+      { id: 'tuesday-later', dayOfWeek: 3, startTime: '07:00', endTime: '08:00' },
+      { id: 'wednesday', dayOfWeek: 4, startTime: '08:00', endTime: '09:00' },
+      { id: 'tuesday-passed', dayOfWeek: 3, startTime: '05:00', endTime: '06:00' },
+    ];
+    assert.deepEqual(
+      model.nextMeetings(agenda, mondayEveningUtc, 3).map((item) => item.id),
+      ['tuesday-later', 'wednesday', 'tuesday-passed'],
+    );
+  } finally {
+    Object.assign(Date.prototype, local);
+  }
 });
 
 /* ---------- registration browse ---------- */

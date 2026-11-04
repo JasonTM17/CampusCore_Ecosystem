@@ -5,10 +5,18 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import java.util.List;
+import java.util.Set;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +29,27 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+    private static final String ERROR_SCHEMA = "#/components/schemas/ErrorResponse";
+    private static final Set<String> IDEMPOTENCY_KEY_REQUIRED_OPERATIONS = Set.of(
+            "POST /api/v1/admissions/applications",
+            "POST /api/v1/admissions/applications/{applicationId}/attachments",
+            "DELETE /api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}",
+            "POST /api/v1/admissions/applications/{applicationId}/submit",
+            "POST /api/v1/admissions/applications/{applicationId}/withdraw",
+            "POST /api/v1/careers/applications",
+            "POST /api/v1/careers/applications/{applicationId}/attachments",
+            "POST /api/v1/careers/applications/{applicationId}/withdraw",
+            "POST /api/v1/enrollments/enroll",
+            "POST /api/v1/enrollments/{id}/drop",
+            "POST /api/v1/events/registrations/{registrationId}/cancel",
+            "POST /api/v1/events/{eventId}/register",
+            "POST /api/v1/learning/assignments/{assignmentId}/draft",
+            "POST /api/v1/learning/assignments/{assignmentId}/resubmit",
+            "POST /api/v1/learning/assignments/{assignmentId}/submit",
+            "POST /api/v1/library/requests",
+            "POST /api/v1/library/requests/{requestId}/cancel",
+            "POST /api/v1/me/enrollments",
+            "POST /api/v1/me/enrollments/{id}/drop");
 
     @Bean
     public OpenAPI campusCoreOpenAPI(
@@ -65,10 +94,7 @@ public class OpenApiConfig {
                 .servers(List.of(
                         new Server()
                                 .url("http://127.0.0.1:" + serverPort)
-                                .description("Máy chủ phát triển nội bộ (Localhost Dev Server)"),
-                        new Server()
-                                .url("https://campusute.io.vn")
-                                .description("Máy chủ Production Trực tuyến")))
+                                .description("Máy chủ phát triển nội bộ (Localhost Dev Server)")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(SECURITY_SCHEME_NAME,
@@ -78,5 +104,74 @@ public class OpenApiConfig {
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
                                         .description("Nhập JSON Web Token (JWT) được cấp khi đăng nhập")));
+    }
+
+    @Bean
+    public OpenApiCustomizer documentRuntimeContractDetails() {
+        return openApi -> {
+            if (openApi.getPaths() == null) {
+                return;
+            }
+
+            openApi.getPaths().forEach((path, pathItem) -> pathItem.readOperationsMap().forEach((method, operation) -> {
+                String operationKey = method.name() + " " + path;
+                if (IDEMPOTENCY_KEY_REQUIRED_OPERATIONS.contains(operationKey) && operation.getParameters() != null) {
+                    operation.getParameters().stream()
+                            .filter(parameter -> "header".equals(parameter.getIn())
+                                    && "Idempotency-Key".equals(parameter.getName()))
+                            .forEach(parameter -> parameter.setRequired(true));
+                }
+
+                if (operation.getParameters() != null) {
+                    operation.getParameters().stream()
+                            .filter(parameter -> "query".equals(parameter.getIn())
+                                    && "queryParameters".equals(parameter.getName()))
+                            .forEach(this::documentQueryParameterMap);
+                }
+
+                if (operation.getResponses() != null) {
+                    operation.getResponses().forEach((status, response) -> {
+                        if (isErrorStatus(status)) {
+                            response.setContent(new Content().addMediaType(
+                                    "application/json",
+                                    new MediaType().schema(new Schema<>().$ref(ERROR_SCHEMA))));
+                        }
+                    });
+                }
+
+                if ("GET".equals(method.name())
+                        && ("/session/login".equals(path) || "/session/callback".equals(path))
+                        && operation.getResponses() != null) {
+                    operation.getResponses().remove("200");
+                    io.swagger.v3.oas.models.responses.ApiResponse redirect =
+                            operation.getResponses().get("302");
+                    if (redirect != null) {
+                        redirect.setContent(null);
+                    }
+                }
+
+                if ("GET".equals(method.name())
+                        && "/api/v1/thesis/topics/{id}/report".equals(path)
+                        && operation.getResponses() != null) {
+                    io.swagger.v3.oas.models.responses.ApiResponse noContent =
+                            operation.getResponses().get("204");
+                    if (noContent != null) {
+                        noContent.setContent(null);
+                    }
+                }
+            }));
+        };
+    }
+
+    private void documentQueryParameterMap(Parameter parameter) {
+        parameter.setRequired(false);
+        parameter.setDescription("Optional free-form map of query parameter names to string values.");
+        parameter.setSchema(new ObjectSchema().additionalProperties(new StringSchema()));
+        parameter.setStyle(Parameter.StyleEnum.FORM);
+        parameter.setExplode(true);
+    }
+
+    private static boolean isErrorStatus(String status) {
+        return status != null && (status.startsWith("4") || status.startsWith("5"));
     }
 }

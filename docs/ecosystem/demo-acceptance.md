@@ -1,5 +1,9 @@
 # Demo acceptance matrix — D0–D10
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Các leg deploy/DNS/device hiển thị BLOCKED/NOT_RUN đúng như trạng thái; local quick start:
+> [README.md](../../README.md#quick-start-local).
+
 Bảng nghiệm thu demo C2: mỗi requirement map tới gate + evidence directory.
 Gate `demo` tổng hợp — nó **không tự cấp PASS** cho các leg capability-gated
 (deploy/DNS/device); một verdict PASS nghĩa là các leg executable đã chạy và

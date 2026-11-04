@@ -121,9 +121,22 @@ async function writeLegacyAppearance(appearance: SiteAppearance): Promise<SiteAp
  * the API row is still empty its branding is preferred over the defaults so a
  * live site does not visually reset before its first API write.
  */
-let activeAppearanceFetch: Promise<SiteAppearance> | null = null;
+export type SiteAppearanceSnapshot = {
+  appearance: SiteAppearance;
+  /**
+   * Version the API last stored, or null while no row exists. A conditional
+   * write against a missing row would answer STALE_VERSION on the first save.
+   */
+  expectedVersion: number | null;
+};
+
+let activeAppearanceFetch: Promise<SiteAppearanceSnapshot> | null = null;
 
 export async function fetchSiteAppearance(): Promise<SiteAppearance> {
+  return (await fetchSiteAppearanceSnapshot()).appearance;
+}
+
+export async function fetchSiteAppearanceSnapshot(): Promise<SiteAppearanceSnapshot> {
   if (activeAppearanceFetch) {
     return activeAppearanceFetch;
   }
@@ -139,14 +152,15 @@ export async function fetchSiteAppearance(): Promise<SiteAppearance> {
       if (!legacy) {
         throw new Error('appearance-unavailable');
       }
-      return legacy.appearance;
+      return { appearance: legacy.appearance, expectedVersion: null };
     }
 
     if (hasWriteStamp(payload)) {
-      return sanitizeSiteAppearance(payload);
+      const appearance = sanitizeSiteAppearance(payload);
+      return { appearance, expectedVersion: appearance.version };
     }
     const migrated = await legacySeedPayload();
-    return sanitizeSiteAppearance(migrated ?? payload);
+    return { appearance: sanitizeSiteAppearance(migrated ?? payload), expectedVersion: null };
   })().finally(() => {
     activeAppearanceFetch = null;
   });
@@ -156,11 +170,12 @@ export async function fetchSiteAppearance(): Promise<SiteAppearance> {
 
 export async function saveSiteAppearance(
   appearance: SiteAppearance,
+  expectedVersion: number | null = null,
 ): Promise<SiteAppearanceSaveResult> {
   legacySeed = null;
   activeAppearanceFetch = null;
   try {
-    const saved = (await siteAppearanceApi.put(appearance)) as SiteAppearance;
+    const saved = (await siteAppearanceApi.put(appearance, expectedVersion)) as SiteAppearance;
     return { ...saved, persisted: true };
   } catch (error) {
     if (!isAbsentApiEndpoint(error)) {

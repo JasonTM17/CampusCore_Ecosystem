@@ -7,15 +7,31 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 
 async function loadLoginPortalModule() {
-  const source = fs.readFileSync(path.join(root, 'src/lib/login-portal.ts'), 'utf8');
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-    fileName: 'login-portal.ts',
-  });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+  const load = (relativePath) => {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+      fileName: relativePath,
+    });
+    const moduleRecord = { exports: {} };
+    Function('module', 'exports', 'require', outputText)(
+      moduleRecord,
+      moduleRecord.exports,
+      (specifier) =>
+        specifier === '@/lib/safe-url'
+          ? load('src/lib/safe-url.ts')
+          : specifier === '@/i18n/paths'
+            ? load('src/i18n/paths.ts')
+            : specifier === '@/i18n/config'
+              ? load('src/i18n/config.ts')
+              : require(specifier),
+    );
+    return moduleRecord.exports;
+  };
+  return load('src/lib/login-portal.ts');
 }
 
 test('the visible tab strip offers student, lecturer, and dean — never admin', async () => {
@@ -64,4 +80,19 @@ test('portal parsing rejects look-alike strings and keeps dean deep links', asyn
   // refused outright instead of returning to their page).
   assert.equal(portalFromPathname('/vi/dashboard/thesis'), 'lecturer');
   assert.equal(portalFromPathname('/dashboard/thesis'), 'lecturer');
+});
+
+test('a BFF login surface offers the SSO action without the credential form', () => {
+  const source = fs.readFileSync(path.join(root, 'src/app/login/page.tsx'), 'utf8');
+  const bffBranch = source.indexOf('{bffSurface && !challenge ? (');
+  const ssoLabel = source.indexOf('{loginCopy.sso}', bffBranch);
+  const formBranch = source.indexOf('{challenge ? (', bffBranch);
+  const credentialGate = source.indexOf(') : bffSurface ? null : (', formBranch);
+
+  assert.ok(bffBranch >= 0, 'BFF surfaces need their own SSO block');
+  assert.ok(ssoLabel > bffBranch && ssoLabel < formBranch, 'the SSO action precedes the forms');
+  assert.ok(
+    credentialGate > formBranch,
+    'the BFF proxy has no credential login route, so BFF hosts skip the password form',
+  );
 });

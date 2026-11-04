@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   CheckCircle2,
   ChevronDown,
@@ -40,6 +40,7 @@ import { StatusPill } from '@/components/ui/status-pill';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
@@ -68,7 +69,37 @@ interface UserRecord {
 
 const defaultRole: ManagedRole = 'STUDENT';
 
+const roleFilterValues = [
+  'STUDENT',
+  'LECTURER',
+  'ADMIN',
+  'TRUONG_KHOA',
+  'TRUONG_BO_MON',
+  'SUPER_ADMIN',
+] as const;
+
+function isRoleFilterValue(value: string): value is ManagedRole {
+  return (roleFilterValues as readonly string[]).includes(value);
+}
+
 const ACCOUNT_STATUSES = ['ACTIVE', 'PENDING', 'SUSPENDED', 'LOCKED', 'DISABLED'] as const;
+
+function hasUserStatusChanged(loadedStatus: string | undefined, formStatus: string): boolean {
+  const normalize = (status: string | undefined) => status?.trim().toUpperCase() || 'ACTIVE';
+  return normalize(loadedStatus) !== normalize(formStatus);
+}
+
+function buildUserProfileUpdatePayload(
+  baseline: Pick<UserRecord, 'firstName' | 'lastName'>,
+  formData: { firstName: string; lastName: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const firstName = formData.firstName.trim();
+  const lastName = formData.lastName.trim();
+  if (firstName !== baseline.firstName) payload.firstName = firstName;
+  if (lastName !== baseline.lastName) payload.lastName = lastName;
+  return payload;
+}
 
 function usesLecturerProfileRole(role: string): boolean {
   const normalized = role.trim().toUpperCase();
@@ -156,8 +187,11 @@ function RoleTabButton({
 
 export default function AdminUsersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
-  const { href, locale, formatDate, messages } = useI18n();
+  const { href, formatDate, messages } = useI18n();
+  const { users: copy } = messages.adminPages;
+  const creditUnit = messages.studentPages.schedule.creditsAbbreviation;
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -179,6 +213,8 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const deleteInFlightRef = useRef<string | null>(null);
   const [formError, setFormError] = useState('');
   // One-time office-issued credential shown exactly once after create/reset.
   const [issuedCredential, setIssuedCredential] = useState<{ email: string; secret: string } | null>(null);
@@ -206,18 +242,23 @@ export default function AdminUsersPage() {
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
-  // Sync role filter from URL query param if present
+  // The query parameter is the source of truth for the active role tab, so a
+  // tab change must write it and a URL without role must clear the filter.
   useEffect(() => {
-    const roleParam = searchParams.get('role');
-    if (
-      roleParam &&
-      ['STUDENT', 'LECTURER', 'ADMIN', 'TRUONG_KHOA', 'TRUONG_BO_MON', 'SUPER_ADMIN'].includes(
-        roleParam.toUpperCase(),
-      )
-    ) {
-      setRoleFilter(roleParam.toUpperCase() as ManagedRole);
-    }
+    const roleParam = searchParams.get('role')?.toUpperCase() ?? '';
+    setRoleFilter(isRoleFilterValue(roleParam) ? roleParam : 'ALL');
   }, [searchParams]);
+
+  const syncRoleFilterUrl = (nextRole: 'ALL' | ManagedRole) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextRole === 'ALL') {
+      params.delete('role');
+    } else {
+      params.set('role', nextRole);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  };
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -225,7 +266,7 @@ export default function AdminUsersPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -267,17 +308,13 @@ export default function AdminUsersPage() {
       const status = (loadError as { response?: { status?: number } }).response?.status;
       setError(
         status === 403
-          ? locale === 'vi'
-            ? 'Bạn không có quyền xem danh sách người dùng.'
-            : 'You do not have permission to view user records.'
-          : locale === 'vi'
-            ? 'Hiện chưa thể tải hồ sơ người dùng.'
-            : 'User records could not be loaded.',
+          ? copy.forbidden
+          : copy.loadFailed,
       );
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  }, [locale, page, search, roleFilter]);
+  }, [copy, page, search, roleFilter]);
 
   // Department + curriculum options power every create/edit form; when their
   // fetch fails there is no fallback list, so the failure must be visible and
@@ -292,13 +329,9 @@ export default function AdminUsersPage() {
       setDepartments(departmentsRes);
       setCurricula(curriculaRes);
     } catch {
-      setReferenceError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu khoa và chương trình đào tạo cho biểu mẫu.'
-          : 'Department and curriculum options could not be loaded.',
-      );
+      setReferenceError(copy.referenceDataFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -329,354 +362,13 @@ export default function AdminUsersPage() {
 
   const pageSummary = useMemo(() => {
     if (totalItems === 0) {
-      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
+      return copy.noRecords;
     }
 
-    return locale === 'vi'
-      ? `Trang ${page} / ${totalPages}`
-      : `Page ${page} of ${totalPages}`;
-  }, [locale, page, totalPages, totalItems]);
-
-  const copy =
-    locale === 'vi'
-      ? {
-          loading: 'Đang tải quản lý người dùng',
-          title: 'Quản lý người dùng',
-          description:
-            'Rà soát tài khoản campus, tạo bản ghi mới và giữ các hành động nhạy cảm sau bước xác nhận rõ ràng.',
-          issuancePolicy: 'Chính sách cấp tài khoản học vụ tập trung',
-          issuancePolicyDescription:
-            'Chỉ Phòng Đào tạo cấp tài khoản cho Sinh viên và Giảng viên, gắn liền với mã số và họ tên chính thức. Sinh viên và Giảng viên không tự đăng ký hoặc tự ý đổi tên.',
-          createUser: 'Tạo người dùng',
-          createStudent: 'Thêm sinh viên',
-          createLecturer: 'Thêm giảng viên',
-          searchUsers: 'Tìm người dùng',
-          searchPlaceholder: 'Tìm theo họ tên, email, MSSV hoặc mã giảng viên',
-          unavailableTitle: 'Hồ sơ người dùng chưa sẵn sàng',
-          emptyTitle: 'Không có người dùng phù hợp',
-          emptyDescription:
-            'Hãy thử từ khóa khác hoặc tạo tài khoản campus mới.',
-          tableTitle: 'Tài khoản campus',
-          headers: {
-            name: 'Họ và tên',
-            email: 'Email trường cấp',
-            status: 'Trạng thái',
-            role: 'Vai trò',
-            created: 'Ngày tạo',
-            actions: 'Tác vụ',
-          },
-          deleteTitle: 'Xóa người dùng',
-          deleteMessage: (firstName: string, lastName: string) =>
-            `Xóa ${lastName} ${firstName}? Hành động này sẽ gỡ bản ghi tài khoản khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa người dùng',
-          deleted: 'Đã xóa người dùng',
-          deleteFailed: 'Hiện chưa thể xóa người dùng này.',
-          updated: 'Đã cập nhật người dùng',
-          createdStudent: 'Đã tạo tài khoản sinh viên thành công',
-          createdLecturer: 'Đã tạo tài khoản giảng viên thành công',
-          createdUser: 'Đã tạo người dùng thành công',
-          saveFailed: 'Hiện chưa thể lưu hồ sơ người dùng.',
-          editTitle: 'Chỉnh sửa tài khoản người dùng',
-          createStudentTitle: 'Thêm mới tài khoản sinh viên',
-          createLecturerTitle: 'Thêm mới tài khoản giảng viên',
-          createAdminTitle: 'Thêm mới tài khoản quản trị viên',
-          createDeanTitle: 'Thêm mới tài khoản trưởng khoa',
-          emailLabel: 'Địa chỉ email trường cấp',
-          issuedSecretTitle: 'Hệ thống tự cấp mật khẩu tạm thời',
-          issuedSecretNote:
-            'Bạn không cần nhập mật khẩu khởi tạo. Sau khi tạo, hệ thống sinh một mật khẩu tạm thời dùng một lần và người dùng phải đổi ngay khi đăng nhập đầu tiên.',
-          resetAction: 'Cấp lại mật khẩu tạm thời',
-          resetTitle: 'Cấp lại mật khẩu tạm thời',
-          resetMessage: (firstName: string, lastName: string) =>
-            `Cấp lại mật khẩu tạm thời cho ${lastName} ${firstName}? Mật khẩu hiện tại sẽ vô hiệu và mọi phiên đăng nhập của người dùng bị đăng xuất.`,
-          resetConfirm: 'Cấp lại mật khẩu',
-          resetSuccess: 'Đã cấp lại mật khẩu tạm thời và đăng xuất mọi phiên của người dùng.',
-          resetFailed: 'Hiện chưa thể cấp lại mật khẩu cho người dùng này.',
-          resetInactiveWarning: (status: string) =>
-            `Tài khoản đang ở trạng thái ${status} — phải kích hoạt lại tài khoản thì mật khẩu tạm thời mới đăng nhập được.`,
-          credentialTitle: 'Mật khẩu tạm thời dùng một lần',
-          credentialDescription:
-            'Hãy chuyển mật khẩu tạm thời dưới đây cho người dùng qua kênh bảo mật. Hệ thống sẽ không hiển thị lại.',
-          credentialShownOnce:
-            'Mật khẩu chỉ hiển thị một lần duy nhất. Sau khi đóng, bạn không thể xem lại — người dùng sẽ phải đổi ngay khi đăng nhập.',
-          copyAction: 'Sao chép',
-          copied: 'Đã sao chép mật khẩu tạm thời.',
-          errors: {
-            studentIdRequired: 'Vui lòng nhập mã số sinh viên chính thức.',
-            curriculumRequired: 'Vui lòng chọn khung chương trình đào tạo.',
-            employeeIdRequired: 'Vui lòng nhập mã số giảng viên chính thức.',
-            departmentRequired: 'Vui lòng chọn khoa / bộ môn công tác.',
-            emailExists: 'Email này đã có trong hệ thống.',
-            studentIdExists: 'Mã số sinh viên đã tồn tại.',
-            employeeIdExists: 'Mã số giảng viên đã tồn tại.',
-            adminReserved: 'Chỉ siêu quản trị viên mới được tạo tài khoản quản trị viên.',
-          },
-          firstName: 'Tên',
-          lastName: 'Họ và tên đệm',
-          roleLabel: 'Vai trò hệ thống',
-          statusFieldLabel: 'Trạng thái tài khoản',
-          roles: {
-            STUDENT: 'Sinh viên',
-            LECTURER: 'Giảng viên',
-            ADMIN: 'Quản trị viên',
-            TRUONG_KHOA: 'Trưởng khoa',
-            TRUONG_BO_MON: 'Trưởng bộ môn',
-            SUPER_ADMIN: 'Siêu quản trị viên',
-          },
-          saving: 'Đang lưu dữ liệu...',
-          editAction: messages.common.actions.saveChanges,
-          closeDialog: 'Đóng biểu mẫu người dùng',
-          editUserLabel: (firstName: string, lastName: string) =>
-            `Chỉnh sửa người dùng ${lastName} ${firstName}`,
-          deleteUserLabel: (firstName: string, lastName: string) =>
-            `Xóa người dùng ${lastName} ${firstName}`,
-          filterByRole: 'Lọc theo phân loại:',
-          filterAll: (count: number) => `Tất cả (${count})`,
-          filterAllNoCount: 'Tất cả',
-          editRecord: 'Sửa',
-          createAudienceLabel: 'Phân loại đối tượng tạo mới:',
-          createAudienceHint:
-            'Chọn loại tài khoản để hệ thống tải hồ sơ học vụ chuyên biệt tương ứng',
-          rolesShort: {
-            ADMIN: 'Quản trị',
-            TRUONG_KHOA: 'Trưởng khoa',
-            TRUONG_BO_MON: 'Trưởng BM',
-            SUPER_ADMIN: 'Siêu QTV',
-          },
-          accountSectionTitle: '1. Thông tin tài khoản & đăng nhập',
-          accountSectionHint: 'Định danh đăng nhập và bảo mật tài khoản',
-          lastNamePlaceholder: 'Nguyễn Văn',
-          firstNamePlaceholder: 'An',
-          initialStatusLabel: 'Trạng thái tài khoản ban đầu:',
-          initialStatusActive: 'Đang hoạt động (ACTIVE)',
-          unsupportedRoleHint:
-            'Tài khoản này mang vai trò tùy chỉnh — vai trò được giữ nguyên và không chỉnh sửa trong biểu mẫu này.',
-          selfStatusHint: 'Không thể tự thay đổi trạng thái tài khoản của chính mình.',
-          copyFailed: 'Không thể sao chép — hãy ghi lại mật khẩu thủ công.',
-          assignmentSectionTitle: '2. Hồ sơ phân công học vụ',
-          assignmentHints: {
-            STUDENT: 'Thông tin hồ sơ đào tạo sinh viên chính quy',
-            LECTURER: 'Thông tin học hàm và bộ môn giảng dạy',
-            TRUONG_KHOA: 'Hồ sơ giảng viên chính thức gắn với vai trò trưởng khoa',
-            TRUONG_BO_MON: 'Hồ sơ giảng viên chính thức gắn với vai trò trưởng bộ môn',
-            ADMIN: 'Phân quyền quản trị hệ thống',
-            SUPER_ADMIN: 'Phân quyền siêu quản trị toàn hệ thống',
-          },
-          studentIdLabel: 'Mã số sinh viên (MSSV) *',
-          studentIdDescription: 'Mã định danh sinh viên dùng tra cứu điểm, ĐRL và ĐKHP',
-          studentIdPlaceholder: 'ví dụ: 24110054',
-          cohortLabel: 'Năm học *',
-          yearOptions: {
-            '1': 'Năm 1',
-            '2': 'Năm 2',
-            '3': 'Năm 3',
-            '4': 'Năm 4',
-          },
-          curriculumLabel: 'Khung chương trình *',
-          facultyLabel: 'Khoa / Viện đào tạo',
-          facultyManagedHint:
-            'Khoa / Viện đào tạo của sinh viên do Phòng Đào tạo gán cùng chương trình đào tạo sau khi tài khoản được tạo.',
-          selectFacultyPlaceholder: '-- Chọn Khoa / Viện đào tạo --',
-          employeeIdLabel: 'Mã số giảng viên (MSGV) *',
-          employeeIdDescription: 'Mã định danh cán bộ giảng dạy và chấm thi luận văn',
-          employeeIdPlaceholder: 'ví dụ: GV2026001 hoặc GV2026002',
-          academicTitleLabel: 'Học hàm / Học vị',
-          academicTitleManagedHint:
-            'Tài khoản tạo nhanh chỉ lưu bộ môn công tác; học hàm / học vị do Phòng Đào tạo cập nhật trong danh bạ Giảng viên.',
-          academicTitleOptions: {
-            'PGS.TS.': 'PGS.TS. (Phó Giáo sư - Tiến sĩ)',
-            'GS.TS.': 'GS.TS. (Giáo sư - Tiến sĩ)',
-            'TS.': 'TS. (Tiến sĩ)',
-            'ThS.': 'ThS. (Thạc sĩ)',
-            'KS.': 'KS. / Kỹ sư chính',
-          },
-          departmentLabel: 'Khoa / Bộ môn công tác *',
-          selectDepartmentPlaceholder: '-- Chọn Khoa / Bộ môn --',
-          specializationLabel: 'Lĩnh vực chuyên môn / Hướng nghiên cứu',
-          specializationManagedHint:
-            'Lĩnh vực chuyên môn do Phòng Đào tạo cập nhật trong danh bạ Giảng viên sau khi tạo tài khoản.',
-          specializationDescription:
-            'Ví dụ: Trí tuệ nhân tạo, Hệ thống nhúng, Kỹ thuật phần mềm',
-          specializationPlaceholder: 'ví dụ: Kỹ thuật phần mềm & AI',
-          adminPermissionsTitle: 'Phân quyền quản trị hệ thống',
-          adminPermissionsDescription:
-            'Tài khoản có toàn quyền truy cập phân hệ Quản trị viện, quản lý danh mục người dùng, giảng viên, môn học, lớp học phần, bảng tin thông báo và cấu hình trường học.',
-          createStudentAction: '+ Tạo tài khoản sinh viên',
-          createLecturerAction: '+ Tạo tài khoản giảng viên',
-          createDeanAction: '+ Tạo tài khoản trưởng khoa',
-          createdDean: 'Đã tạo tài khoản trưởng khoa thành công',
-          createDean: 'Thêm trưởng khoa',
-        }
-      : {
-          loading: 'Loading user management',
-          title: 'User management',
-          description:
-            'Review campus accounts, create new records, and keep sensitive actions behind explicit confirmation.',
-          issuancePolicy: 'Centralized academic account issuance',
-          issuancePolicyDescription:
-            'The Academic Office exclusively issues student and lecturer accounts with official IDs and verified names. Students and lecturers cannot self-register or rename themselves.',
-          createUser: 'Create user',
-          createStudent: 'Add Student',
-          createLecturer: 'Add Lecturer',
-          searchUsers: 'Search users',
-          searchPlaceholder: 'Search by full name, email, student ID, or employee ID',
-          unavailableTitle: 'User records unavailable',
-          emptyTitle: 'No matching users',
-          emptyDescription:
-            'Try another search term or create a new campus account.',
-          tableTitle: 'Campus accounts',
-          headers: {
-            name: 'Full Name',
-            email: 'Campus Email',
-            status: 'Status',
-            role: 'Role',
-            created: 'Created Date',
-            actions: 'Actions',
-          },
-          deleteTitle: 'Delete user',
-          deleteMessage: (firstName: string, lastName: string) =>
-            `Delete ${lastName} ${firstName}? This action removes the account record from the current admin view.`,
-          deleteConfirm: 'Delete user',
-          deleted: 'User deleted',
-          deleteFailed: 'We could not delete that user.',
-          updated: 'User updated',
-          createdStudent: 'Student account created successfully',
-          createdLecturer: 'Lecturer account created successfully',
-          createdUser: 'User created successfully',
-          saveFailed: 'The user record could not be saved.',
-          editTitle: 'Edit user account',
-          createStudentTitle: 'Add New Student Account',
-          createLecturerTitle: 'Add New Lecturer Account',
-          createAdminTitle: 'Add New Administrator Account',
-          createDeanTitle: 'Add New Dean Account',
-          emailLabel: 'Campus Email Address',
-          issuedSecretTitle: 'The system issues the temporary credential',
-          issuedSecretNote:
-            'You do not choose the start credential. After creation the system generates a one-time temporary password that the user must rotate at first sign-in.',
-          resetAction: 'Re-issue temporary credential',
-          resetTitle: 'Re-issue temporary credential',
-          resetMessage: (firstName: string, lastName: string) =>
-            `Re-issue a temporary credential for ${lastName} ${firstName}? The current password is invalidated and every session signs out.`,
-          resetConfirm: 'Re-issue credential',
-          resetSuccess: 'Issued a new temporary credential and signed the user out everywhere.',
-          resetFailed: 'Could not re-issue a credential for this user.',
-          resetInactiveWarning: (status: string) =>
-            `This account is currently ${status} — re-activate it before the temporary credential can sign in.`,
-          credentialTitle: 'One-time temporary credential',
-          credentialDescription:
-            'Hand the temporary credential below to the user over a secure channel. The system will not show it again.',
-          credentialShownOnce:
-            'This secret is shown exactly once. After closing this dialog you cannot retrieve it — the user must rotate at first sign-in.',
-          copyAction: 'Copy',
-          copied: 'Temporary credential copied.',
-          errors: {
-            studentIdRequired: 'Enter the official student ID.',
-            curriculumRequired: 'Select the curriculum.',
-            employeeIdRequired: 'Enter the official employee ID.',
-            departmentRequired: 'Select the department.',
-            emailExists: 'This email is already registered.',
-            studentIdExists: 'This student ID already exists.',
-            employeeIdExists: 'This employee ID already exists.',
-            adminReserved: 'Only a super administrator can create administrator accounts.',
-          },
-          firstName: 'First name',
-          lastName: 'Last name',
-          roleLabel: 'System role',
-          statusFieldLabel: 'Account status',
-          roles: {
-            STUDENT: 'Student',
-            LECTURER: 'Lecturer',
-            ADMIN: 'Administrator',
-            TRUONG_KHOA: 'Dean',
-            TRUONG_BO_MON: 'Department head',
-            SUPER_ADMIN: 'Super administrator',
-          },
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          closeDialog: 'Close user form',
-          editUserLabel: (firstName: string, lastName: string) =>
-            `Edit user ${lastName} ${firstName}`,
-          deleteUserLabel: (firstName: string, lastName: string) =>
-            `Delete user ${lastName} ${firstName}`,
-          filterByRole: 'Filter by role:',
-          filterAll: (count: number) => `All (${count})`,
-          filterAllNoCount: 'All',
-          editRecord: 'Edit',
-          createAudienceLabel: 'Account type to create:',
-          createAudienceHint:
-            'Choose the account type so the system loads the matching academic profile',
-          rolesShort: {
-            ADMIN: 'Admin',
-            TRUONG_KHOA: 'Dean',
-            TRUONG_BO_MON: 'Dept head',
-            SUPER_ADMIN: 'Super admin',
-          },
-          accountSectionTitle: '1. Account & Sign-in Details',
-          accountSectionHint: 'Sign-in identity and account security',
-          lastNamePlaceholder: 'e.g. Nguyen Van',
-          firstNamePlaceholder: 'e.g. An',
-          initialStatusLabel: 'Initial account status:',
-          initialStatusActive: 'Active (ACTIVE)',
-          unsupportedRoleHint:
-            'This account holds custom roles — they are kept unchanged and cannot be edited from this form.',
-          selfStatusHint: 'You cannot change your own account status.',
-          copyFailed: 'Copy failed — write the credential down manually.',
-          assignmentSectionTitle: '2. Academic Assignment Profile',
-          assignmentHints: {
-            STUDENT: 'Academic profile details for the enrolled student',
-            LECTURER: 'Academic title and teaching department details',
-            TRUONG_KHOA: 'Official lecturer profile attached to the dean role',
-            TRUONG_BO_MON: 'Official lecturer profile attached to the department-head role',
-            ADMIN: 'System administration permissions',
-            SUPER_ADMIN: 'Full super-administration permissions',
-          },
-          studentIdLabel: 'Student ID (MSSV) *',
-          studentIdDescription:
-            'The identifier used to look up grades, conduct, and course registration',
-          studentIdPlaceholder: 'e.g. 24110054',
-          cohortLabel: 'Study year *',
-          yearOptions: {
-            '1': 'Year 1',
-            '2': 'Year 2',
-            '3': 'Year 3',
-            '4': 'Year 4',
-          },
-          curriculumLabel: 'Curriculum *',
-          facultyLabel: 'Faculty / Training Institute',
-          facultyManagedHint:
-            'The student’s training faculty is assigned by the Academic Office together with the curriculum after the account is created.',
-          selectFacultyPlaceholder: '-- Select Faculty / Institute --',
-          employeeIdLabel: 'Employee ID (MSGV) *',
-          employeeIdDescription:
-            'The identifier for teaching staff and thesis examiners',
-          employeeIdPlaceholder: 'e.g. GV2026001 or GV2026002',
-          academicTitleLabel: 'Academic title / Degree',
-          academicTitleManagedHint:
-            'Quick account creation only stores the teaching department; academic titles are set by the Academic Office in the lecturer directory.',
-          academicTitleOptions: {
-            'PGS.TS.': 'PGS.TS. (Associate Professor - PhD)',
-            'GS.TS.': 'GS.TS. (Professor - PhD)',
-            'TS.': 'TS. (PhD)',
-            'ThS.': 'ThS. (Master)',
-            'KS.': 'KS. / Senior Engineer',
-          },
-          departmentLabel: 'Faculty / Department *',
-          selectDepartmentPlaceholder: '-- Select Faculty / Department --',
-          specializationLabel: 'Specialization / Research area',
-          specializationManagedHint:
-            'The specialization is set by the Academic Office in the lecturer directory after the account is created.',
-          specializationDescription:
-            'e.g. Artificial Intelligence, Embedded Systems, Software Engineering',
-          specializationPlaceholder: 'e.g. Software Engineering & AI',
-          adminPermissionsTitle: 'System administration permissions',
-          adminPermissionsDescription:
-            'This account has full access to the administration modules, managing users, lecturers, courses, sections, notices, and school configuration.',
-          createStudentAction: '+ Create student account',
-          createLecturerAction: '+ Create lecturer account',
-          createDeanAction: '+ Create dean account',
-          createdDean: 'Dean account created successfully',
-          createDean: 'Add Dean',
-        };
+    return copy.pageSummary
+      .replace('{page}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
+  }, [copy, page, totalPages, totalItems]);
 
   const statusLabel = (status: string | null | undefined) =>
     messages.common.statuses[
@@ -750,11 +442,7 @@ export default function AdminUsersPage() {
 
   const openEdit = (userRecord: UserRecord) => {
     if (!isSuperAdmin && isRecordSuperAdmin(userRecord)) {
-      toast.error(
-        locale === 'vi'
-          ? 'Chỉ siêu quản trị viên mới có thể chỉnh sửa tài khoản siêu quản trị viên.'
-          : 'Only super administrators can edit super administrator accounts.',
-      );
+      toast.error(copy.cannotEditSuperAdmin);
       return;
     }
     setEditingUser(userRecord);
@@ -798,7 +486,9 @@ export default function AdminUsersPage() {
 
     const shouldReset = await confirm({
       title: copy.resetTitle,
-      message: copy.resetMessage(userRecord.firstName, userRecord.lastName),
+      message: copy.resetMessage
+        .replace('{lastName}', () => userRecord.lastName)
+        .replace('{firstName}', () => userRecord.firstName),
       confirmText: copy.resetConfirm,
       variant: 'destructive',
     });
@@ -818,7 +508,12 @@ export default function AdminUsersPage() {
       // while the one-time credential is on screen so the office does not
       // hand out a password that fails at first use.
       if ((userRecord.status ?? '').toUpperCase() !== 'ACTIVE') {
-        toast.warning(copy.resetInactiveWarning(statusLabel(userRecord.status)));
+        toast.warning(
+          copy.resetInactiveWarning.replace(
+            '{status}',
+            () => statusLabel(userRecord.status),
+          ),
+        );
       }
       await fetchUsers();
     } catch {
@@ -835,36 +530,34 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (userRecord: UserRecord) => {
+    if (deleteInFlightRef.current !== null) return;
+
     if (user && (user.id === userRecord.id || user.email === userRecord.email)) {
-      toast.error(
-        locale === 'vi'
-          ? 'Không thể xóa tài khoản của chính mình.'
-          : 'You cannot delete your own account.',
-      );
+      toast.error(copy.cannotDeleteSelf);
       return;
     }
 
     if (!isSuperAdmin && isRecordSuperAdmin(userRecord)) {
-      toast.error(
-        locale === 'vi'
-          ? 'Chỉ siêu quản trị viên mới có thể xóa tài khoản siêu quản trị viên.'
-          : 'Only super administrators can delete super administrator accounts.',
-      );
+      toast.error(copy.cannotDeleteSuperAdmin);
       return;
     }
 
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(userRecord.firstName, userRecord.lastName),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
-
+    deleteInFlightRef.current = userRecord.id;
+    setDeletingUserId(userRecord.id);
     try {
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage
+          .replace('{lastName}', () => userRecord.lastName)
+          .replace('{firstName}', () => userRecord.firstName),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
       await usersApi.delete(userRecord.id);
       toast.success(copy.deleted);
       if (users.length === 1 && page > 1) {
@@ -874,6 +567,9 @@ export default function AdminUsersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deleteInFlightRef.current = null;
+      setDeletingUserId(null);
     }
   };
 
@@ -886,10 +582,7 @@ export default function AdminUsersPage() {
       if (editingUser) {
         const isSelf = Boolean(user && (user.id === editingUser.id || user.email === editingUser.email));
         if (isSelf && !roleUnsupported && formData.role !== editingPrimaryRole) {
-          const selfRoleMsg =
-            locale === 'vi'
-              ? 'Không thể tự thay đổi vai trò của chính mình.'
-              : 'You cannot change your own system role.';
+          const selfRoleMsg = copy.cannotChangeOwnRole;
           setFormError(selfRoleMsg);
           toast.error(selfRoleMsg);
           setIsSaving(false);
@@ -913,10 +606,11 @@ export default function AdminUsersPage() {
         setFieldErrors({});
 
         const payload: Record<string, any> = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          status: formData.status,
+          ...buildUserProfileUpdatePayload(editingUser, formData),
         };
+        if (hasUserStatusChanged(editingUser.status, formData.status)) {
+          payload.status = formData.status;
+        }
         // Sending the displayed primary role replaces the complete system-role
         // set. Preserve companion roles (such as TRUONG_BO_MON + LECTURER)
         // on ordinary edits; only an explicit selector change is a conversion.
@@ -1103,9 +797,12 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('ALL');
                   setPage(1);
+                  syncRoleFilterUrl('ALL');
                 }}
               >
-                {roleFilter === 'ALL' ? copy.filterAll(totalItems) : copy.filterAllNoCount}
+                {roleFilter === 'ALL'
+                  ? copy.filterAll.replace('{count}', () => String(totalItems))
+                  : copy.filterAllNoCount}
               </RoleTabButton>
               <RoleTabButton
                 active={roleFilter === 'STUDENT'}
@@ -1113,6 +810,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('STUDENT');
                   setPage(1);
+                  syncRoleFilterUrl('STUDENT');
                 }}
               >
                 <GraduationCap className="h-3.5 w-3.5" />
@@ -1124,6 +822,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('LECTURER');
                   setPage(1);
+                  syncRoleFilterUrl('LECTURER');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -1135,6 +834,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('ADMIN');
                   setPage(1);
+                  syncRoleFilterUrl('ADMIN');
                 }}
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -1146,6 +846,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('TRUONG_KHOA');
                   setPage(1);
+                  syncRoleFilterUrl('TRUONG_KHOA');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -1157,6 +858,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('TRUONG_BO_MON');
                   setPage(1);
+                  syncRoleFilterUrl('TRUONG_BO_MON');
                 }}
               >
                 <School className="h-3.5 w-3.5" />
@@ -1168,6 +870,7 @@ export default function AdminUsersPage() {
                 onClick={() => {
                   setRoleFilter('SUPER_ADMIN');
                   setPage(1);
+                  syncRoleFilterUrl('SUPER_ADMIN');
                 }}
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -1245,8 +948,8 @@ export default function AdminUsersPage() {
                 totalPages={totalPages}
                 onPrevious={() => setPage((current) => current - 1)}
                 onNext={() => setPage((current) => current + 1)}
-                previousLabel={locale === 'vi' ? 'Trang trước' : 'Previous'}
-                nextLabel={locale === 'vi' ? 'Trang sau' : 'Next'}
+                previousLabel={copy.previousPage}
+                nextLabel={copy.nextPage}
               />
             }
           >
@@ -1272,7 +975,8 @@ export default function AdminUsersPage() {
                     {(() => {
                       const isSelf = Boolean(user && (user.id === record.id || user.email === record.email));
                       const isPrivilegedTarget = isRecordPrivileged(record);
-                      const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
+                      const canEditTarget = isSuperAdmin || !isPrivilegedTarget;
+                      const canManageTarget = canEditTarget && deletingUserId === null;
                       return (
                         <>
                           <Button size="sm" variant="outline" onClick={() => openEdit(record)} disabled={!canManageTarget}>
@@ -1295,7 +999,9 @@ export default function AdminUsersPage() {
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:cursor-not-allowed"
                             onClick={() => void handleDelete(record)}
                             disabled={isSelf || !canManageTarget}
-                            title={copy.deleteUserLabel(record.firstName, record.lastName)}
+                            title={copy.deleteUserLabel
+                              .replace('{lastName}', () => record.lastName)
+                              .replace('{firstName}', () => record.firstName)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -1362,7 +1068,8 @@ export default function AdminUsersPage() {
                               // can neither edit, reset, nor delete an account
                               // holding an ADMIN, SUPER_ADMIN, or TRUONG_KHOA role.
                               const isPrivilegedTarget = isRecordPrivileged(record);
-                              const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
+                              const canEditTarget = isSuperAdmin || !isPrivilegedTarget;
+                              const canManageTarget = canEditTarget && deletingUserId === null;
                               return (
                                 <>
                                   <Button
@@ -1370,8 +1077,12 @@ export default function AdminUsersPage() {
                                     variant="ghost"
                                     onClick={() => openEdit(record)}
                                     disabled={!canManageTarget}
-                                    title={copy.editUserLabel(record.firstName, record.lastName)}
-                                    aria-label={copy.editUserLabel(record.firstName, record.lastName)}
+                                    title={copy.editUserLabel
+                                      .replace('{lastName}', () => record.lastName)
+                                      .replace('{firstName}', () => record.firstName)}
+                                    aria-label={copy.editUserLabel
+                                      .replace('{lastName}', () => record.lastName)
+                                      .replace('{firstName}', () => record.firstName)}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -1391,8 +1102,12 @@ export default function AdminUsersPage() {
                                     className="text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:cursor-not-allowed"
                                     onClick={() => void handleDelete(record)}
                                     disabled={isSelf || !canManageTarget}
-                                    title={copy.deleteUserLabel(record.firstName, record.lastName)}
-                                    aria-label={copy.deleteUserLabel(record.firstName, record.lastName)}
+                                    title={copy.deleteUserLabel
+                                      .replace('{lastName}', () => record.lastName)
+                                      .replace('{firstName}', () => record.firstName)}
+                                    aria-label={copy.deleteUserLabel
+                                      .replace('{lastName}', () => record.lastName)
+                                      .replace('{firstName}', () => record.firstName)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -1421,7 +1136,7 @@ export default function AdminUsersPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {formError ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
               {formError}
             </div>
           ) : null}
@@ -1586,9 +1301,7 @@ export default function AdminUsersPage() {
                     label={copy.roleLabel}
                     description={
                       isSelfEditing
-                        ? (locale === 'vi'
-                            ? 'Không thể tự thay đổi vai trò tài khoản của chính mình.'
-                            : 'You cannot change your own system role.')
+                        ? copy.selfRoleHint
                         : roleUnsupported
                           ? copy.unsupportedRoleHint
                           : undefined
@@ -1734,9 +1447,9 @@ export default function AdminUsersPage() {
                           curricula.length > 0
                             ? curricula.map((curriculum) => ({
                                 value: curriculum.id,
-                                label: `${curriculum.nameVi || curriculum.name}${curriculum.totalCredits ? ` (${curriculum.totalCredits} TC)` : ''}`,
+                                label: `${curriculum.nameVi || curriculum.name}${curriculum.totalCredits ? ` (${curriculum.totalCredits} ${creditUnit})` : ''}`,
                               }))
-                            : [{ value: '', label: locale === 'vi' ? '-- Đang tải CTĐT --' : '-- Loading Curricula --' }]
+                            : [{ value: '', label: copy.loadingCurricula }]
                         }
                       />
                     </AdminFormField>
@@ -1852,7 +1565,7 @@ export default function AdminUsersPage() {
               {isSaving
                 ? copy.saving
                 : editingUser
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : formData.role === 'STUDENT'
                     ? copy.createStudentAction
                     : formData.role === 'LECTURER'

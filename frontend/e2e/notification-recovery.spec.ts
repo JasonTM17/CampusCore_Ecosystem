@@ -12,7 +12,8 @@ test('failed mark-read restores the preview row and unread badge without duplica
   const submit = page.locator('form').getByRole('button', { name: /đăng nhập|sign in/i });
   const loggedIn = await submitLiveLogin(page, submit);
   expect(loggedIn.status()).toBe(200);
-  await expect(page).not.toHaveURL(/\/login/);
+  // The dev server compiles the dashboard on first use, which can outlast the default expect timeout.
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
   let writes = 0;
   let releaseWrite!: () => void;
   const writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });

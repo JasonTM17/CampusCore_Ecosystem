@@ -15,6 +15,8 @@ import {
   UiText,
 } from '../../components/Ui';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { lecturerApi } from './lecturer-api';
@@ -30,6 +32,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const preview = isOpsPreview();
   const schedule = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const grading = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
+  const pull = usePullToRefresh(() => Promise.all([schedule.reload(), grading.reload()]));
 
   const sections = useMemo(() => (preview ? previewSchedule : schedule.data ?? []), [preview, schedule.data]);
   const gradingSections = useMemo(() => (preview ? previewGrading : grading.data ?? []), [preview, grading.data]);
@@ -45,13 +48,12 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const loading = !preview && (schedule.isLoading || grading.isLoading);
   const error = preview ? null : schedule.error ?? grading.error;
   const warning = preview ? null : schedule.warning ?? grading.warning;
+  const reload = () => { void schedule.reload(); void grading.reload(); };
 
   const heroTitle = todayClasses.length > 0
-    ? fillCopy(copy.todayClassesCount, { n: todayClasses.length })
+    ? fillCopy(countForm(todayClasses.length, copy.todayClassesCountOne, copy.todayClassesCount), { n: todayClasses.length })
     : copy.noClassToday;
-  const heroDetail = todayClasses.length > 0
-    ? fillCopy(copy.todayClassesDetail, { count: todayClasses.length, students })
-    : fillCopy(copy.studentsCount, { n: students });
+  const heroDetail = fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: students });
 
   return (
     <OpsShell
@@ -59,7 +61,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       loading={loading}
       error={error}
       warning={warning}
-      onRetry={() => { void schedule.reload(); void grading.reload(); }}
+      onRetry={reload}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
     >
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyDashboard} />
@@ -92,10 +96,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
           <ScreenSpacer />
           <SectionCard
             icon="calendar-clock-outline"
-            title={copy.todayTitle}
-            count={todayClasses.length > 0 ? String(todayClasses.length) : undefined}
-            actionLabel={copy.scheduleTitle}
-            onAction={() => navigation.navigate('lecturer.schedule')}
+            title={copy.scheduleTitle}
           >
             {todayClasses.length === 0 ? (
               <UiText variant="bodySmall" tone="muted" style={{ paddingVertical: 12 }}>
@@ -124,7 +125,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="calendar-month-outline"
           title={copy.scheduleTitle}
-          subtitle={fillCopy(copy.studentsCount, { n: students })}
+          subtitle={fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: students })}
           onPress={() => navigation.navigate('lecturer.schedule')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -132,7 +133,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="file-document-edit-outline"
           title={copy.gradingTitle}
-          subtitle={pending > 0 ? fillCopy(copy.scoresPending, { n: pending }) : copy.allCaughtUp}
+          subtitle={pending > 0 ? fillCopy(countForm(pending, copy.scoresPendingOne, copy.scoresPending), { n: pending }) : copy.allCaughtUp}
           onPress={() => navigation.navigate('lecturer.grading')}
           trailing={pending > 0 ? <StatusPill label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
         />

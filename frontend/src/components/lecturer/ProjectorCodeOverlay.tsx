@@ -14,6 +14,23 @@ type CodeResponse = components['schemas']['AttendanceCodeResponse'];
 
 const CODE_RETRY_MS = 5_000;
 
+/**
+ * WAI-ARIA dialog Tab contract: from outside the dialog (index -1, including
+ * the dialog element itself) Tab enters at the first control and Shift+Tab at
+ * the last; Tab/Shift+Tab at the ends wraps. Middle controls keep native order.
+ */
+export function projectorTabTarget(
+  activeIndex: number,
+  focusableCount: number,
+  shiftKey: boolean,
+): number | null {
+  if (focusableCount <= 0) return null;
+  if (activeIndex < 0) return shiftKey ? focusableCount - 1 : 0;
+  if (shiftKey && activeIndex === 0) return focusableCount - 1;
+  if (!shiftKey && activeIndex === focusableCount - 1) return 0;
+  return null;
+}
+
 export interface ProjectorCodeOverlayProps {
   sessionId: string;
   /** Session status at mount time; the overlay hides its code when closed. */
@@ -41,6 +58,7 @@ export function ProjectorCodeOverlay({
   const { formatDateTime, messages } = useI18n();
   const copy = messages.attendanceGeofence.lecturer;
   const rootRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const [code, setCode] = useState<CodeResponse | null>(null);
   const [codeFailed, setCodeFailed] = useState(false);
@@ -69,6 +87,9 @@ export function ProjectorCodeOverlay({
         timer = setTimeout(load, nextCodeRefreshMs(next, Date.now()));
       } catch {
         if (cancelled) return;
+        // An expired code must not stay on the projector: clear it so the
+        // failure/retry state replaces the dead countdown.
+        setCode(null);
         setCodeFailed(true);
         timer = setTimeout(load, CODE_RETRY_MS);
       }
@@ -105,6 +126,46 @@ export function ProjectorCodeOverlay({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  // Modal contract: focus enters the overlay, Tab cannot leave it, the page
+  // behind stays scroll-locked, and closing returns focus to the trigger.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    root.focus();
+
+    const handleTab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        root.focus();
+        return;
+      }
+
+      const activeIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = projectorTabTarget(activeIndex, focusable.length, event.shiftKey);
+      if (nextIndex === null) return;
+      event.preventDefault();
+      focusable[nextIndex]?.focus();
+    };
+
+    document.addEventListener('keydown', handleTab);
+    return () => {
+      document.removeEventListener('keydown', handleTab);
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
       void document.exitFullscreen?.();
@@ -128,6 +189,7 @@ export function ProjectorCodeOverlay({
       role="dialog"
       aria-modal="true"
       aria-label={copy.projectorHeading}
+      tabIndex={-1}
       data-testid="checkin-projector"
       className="fixed inset-0 z-[70] flex flex-col bg-background text-foreground"
     >
@@ -172,7 +234,7 @@ export function ProjectorCodeOverlay({
           <p className="text-2xl font-semibold text-muted-foreground sm:text-3xl">
             {copy.projectorNoCode}
           </p>
-        ) : codeFailed && !code ? (
+        ) : codeFailed ? (
           <div className="flex flex-col items-center gap-4">
             <p className="text-xl font-semibold text-muted-foreground sm:text-2xl" role="alert">
               {copy.projectorWaiting}

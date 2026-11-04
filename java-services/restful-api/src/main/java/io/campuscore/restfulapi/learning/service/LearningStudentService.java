@@ -117,12 +117,26 @@ public class LearningStudentService {
                 "SELECT e.\"sectionId\" AS section_id, sec.\"sectionNumber\" AS section_number,"
                         + " c.\"code\" AS course_code, c.\"name\" AS course_name,"
                         + " e.\"status\" AS enrollment_status,"
-                        + " (SELECT COUNT(*) FROM " + MATERIAL + " m WHERE m.\"sectionId\" = e.\"sectionId\") AS material_count,"
-                        + " (SELECT COUNT(*) FROM " + ASSIGNMENT + " a WHERE a.\"sectionId\" = e.\"sectionId\""
-                        + "   AND a.\"status\" <> 'DRAFT') AS assignment_count"
+                        + " COALESCE(material_counts.material_count, 0) AS material_count,"
+                        + " COALESCE(assignment_counts.assignment_count, 0) AS assignment_count"
                         + " FROM " + ENROLLMENT + " e"
                         + " JOIN " + LearningService.SECTION + " sec ON sec.\"id\" = e.\"sectionId\""
                         + " JOIN academic.\"Course\" c ON c.\"id\" = sec.\"courseId\""
+                        + " LEFT JOIN (SELECT m.\"sectionId\" AS section_id, COUNT(*) AS material_count"
+                        + "   FROM " + MATERIAL + " m"
+                        + "   WHERE m.\"sectionId\" IN (SELECT enrolled.\"sectionId\" FROM " + ENROLLMENT + " enrolled"
+                        + "     WHERE enrolled.\"studentId\" = :studentId"
+                        + "     AND enrolled.\"status\" NOT IN ('DROPPED','CANCELLED'))"
+                        + "   GROUP BY m.\"sectionId\") material_counts"
+                        + "   ON material_counts.section_id = e.\"sectionId\""
+                        + " LEFT JOIN (SELECT a.\"sectionId\" AS section_id, COUNT(*) AS assignment_count"
+                        + "   FROM " + ASSIGNMENT + " a"
+                        + "   WHERE a.\"status\" <> 'DRAFT'"
+                        + "     AND a.\"sectionId\" IN (SELECT enrolled.\"sectionId\" FROM " + ENROLLMENT + " enrolled"
+                        + "       WHERE enrolled.\"studentId\" = :studentId"
+                        + "       AND enrolled.\"status\" NOT IN ('DROPPED','CANCELLED'))"
+                        + "   GROUP BY a.\"sectionId\") assignment_counts"
+                        + "   ON assignment_counts.section_id = e.\"sectionId\""
                         + " WHERE e.\"studentId\" = :studentId"
                         + " AND e.\"status\" NOT IN ('DROPPED','CANCELLED')"
                         + " AND e.\"id\" = (SELECT e2.\"id\" FROM " + ENROLLMENT + " e2"
@@ -146,7 +160,9 @@ public class LearningStudentService {
     @Transactional(readOnly = true)
     public List<MaterialResponse> listMaterials(String studentId, String sectionId) {
         requireActiveEnrollment(studentId, sectionId);
-        return jdbc.query("SELECT * FROM " + MATERIAL + " WHERE \"sectionId\" = :sectionId"
+        return jdbc.query("SELECT \"id\", \"sectionId\", \"title\", \"description\", \"fileName\","
+                        + " \"contentType\", \"sizeBytes\", \"checksum\", \"version\", \"createdAt\", \"updatedAt\""
+                        + " FROM " + MATERIAL + " WHERE \"sectionId\" = :sectionId"
                         + " ORDER BY \"createdAt\" DESC, \"id\"",
                 new MapSqlParameterSource("sectionId", sectionId), LearningService::mapMaterial);
     }
@@ -229,7 +245,7 @@ public class LearningStudentService {
             staff.audit(assignmentId, (String) submission.get("id"), studentId,
                     "DRAFT_OPENED", null);
         }
-        SubmissionResponse response = staff.mapSubmission(submission);
+        SubmissionResponse response = LearningService.mapStudentSubmission(submission);
         completeIdempotency(studentId, idempotencyKey, (String) submission.get("id"), response);
         return response;
     }
@@ -254,6 +270,7 @@ public class LearningStudentService {
                 ? staff.storeFile(studentId, submissionId, request.fileName(),
                         request.contentType(), request.contentBase64(), request.checksum())
                 : null;
+        String replacedDraftFileKey = stored == null ? null : (String) submission.get("draftFileKey");
         jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"draftText\" = COALESCE(:text, \"draftText\"),"
                         + " \"draftFileKey\" = COALESCE(:fileKey, \"draftFileKey\"),"
@@ -270,7 +287,8 @@ public class LearningStudentService {
                         .addValue("contentType", stored == null ? null : stored.get("contentType"))
                         .addValue("sizeBytes", stored == null ? null : stored.get("sizeBytes"))
                         .addValue("checksum", stored == null ? null : stored.get("checksum")));
-        return staff.mapSubmission(staff.getSubmission(submissionId));
+        staff.deleteFileIfUnreferenced(replacedDraftFileKey);
+        return LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
     }
 
     /** LMS-T03 + LMS-X01: DRAFT → SUBMITTED under the assignment row lock with
@@ -311,7 +329,7 @@ public class LearningStudentService {
                     "Submission is no longer a draft");
         }
         staff.audit(assignmentId, submissionId, studentId, "SUBMITTED", "revision=" + nextNo);
-        SubmissionResponse response = staff.mapSubmission(staff.getSubmission(submissionId));
+        SubmissionResponse response = LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
         completeIdempotency(studentId, idempotencyKey, submissionId, response);
         return response;
     }
@@ -366,7 +384,7 @@ public class LearningStudentService {
                     "Submission is no longer in returned state");
         }
         staff.audit(assignmentId, submissionId, studentId, "RESUBMITTED", "revision=" + nextNo);
-        SubmissionResponse response = staff.mapSubmission(staff.getSubmission(submissionId));
+        SubmissionResponse response = LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
         completeIdempotency(studentId, idempotencyKey, submissionId, response);
         return response;
     }
@@ -377,7 +395,7 @@ public class LearningStudentService {
 
     @Transactional(readOnly = true)
     public SubmissionResponse mySubmission(String studentId, String submissionId) {
-        return staff.mapSubmission(ownedSubmission(studentId, submissionId));
+        return LearningService.mapStudentSubmission(ownedSubmission(studentId, submissionId));
     }
 
     @Transactional(readOnly = true)
@@ -409,7 +427,7 @@ public class LearningStudentService {
                         + " WHERE s.\"studentId\" = :studentId AND a.\"sectionId\" = :sectionId"
                         + " ORDER BY s.\"updatedAt\" DESC",
                 new MapSqlParameterSource("studentId", studentId).addValue("sectionId", sectionId),
-                (row, n) -> LearningService.mapSubmission(rowToMap(row)));
+                (row, n) -> LearningService.mapStudentSubmission(rowToMap(row)));
     }
 
     // ------------------------------------------------------------------
@@ -425,7 +443,11 @@ public class LearningStudentService {
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
         }
-        if (!"PUBLISHED".equals(String.valueOf(assignment.get("status")))) {
+        String status = String.valueOf(assignment.get("status"));
+        if ("DRAFT".equals(status)) {
+            throw problem(HttpStatus.NOT_FOUND, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
+        }
+        if (!"PUBLISHED".equals(status)) {
             throw problem(HttpStatus.CONFLICT, "ASSIGNMENT_NOT_OPEN",
                     "This assignment is not open for submissions");
         }

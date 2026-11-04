@@ -591,7 +591,7 @@ test('demo polish: grade rows open API-backed midterm and final breakdown', asyn
   await expect(dialog).toBeVisible();
   // GradeDetailModal canonical 50/50 copy: the known FINAL component type
   // renders through GRADE_ITEM_LABELS and the Grade Point cell uses toFixed(1).
-  await expect(dialog.getByText('Course Grade Components (50% In-Course + 50% Final)')).toBeVisible();
+  await expect(dialog.getByText('Course Grade Components (50% Coursework + 50% Final)')).toBeVisible();
   await expect(dialog.getByRole('row', {
     name: /Midterm Exam 40% 8\.4 \/ 10/,
   })).toBeVisible();

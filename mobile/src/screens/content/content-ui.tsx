@@ -105,8 +105,8 @@ export function StatusChip({ code, labels }: { code: string | null | undefined; 
 }
 
 export function MetaRow({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
   const { window } = useTheme();
+  if (!value) return null;
   const stacked = window.fontScale >= 1.3 || window.width < 360;
   return (
     <View accessible accessibilityLabel={`${label}: ${value}`} style={[styles.metaRow, stacked ? styles.metaRowStacked : undefined]}>
@@ -374,7 +374,7 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
         statusLabel={check.ok ? statusLabel : problemMessage(copy, check.problem)}
         actions={[
           ...extraActions,
-          { key: 'remove', label: copy.removeFile, onPress: () => onChange(null), disabled },
+          { key: 'remove', label: copy.removeFile, onPress: () => { file.release?.(); onChange(null); }, disabled },
         ]}
       />
     );
@@ -419,6 +419,7 @@ export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled =
     const outcome = await uploadPicked(file, { keys: contentApi.attempts, intent, upload });
     setBusy(false);
     if (outcome.status === 'done') {
+      file.release?.();
       setFile(null);
       onUploaded(outcome.result);
     } else {

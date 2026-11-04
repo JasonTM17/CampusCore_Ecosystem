@@ -114,7 +114,21 @@ class AnnouncementReadPersistenceTest {
                     "reviewedAt" TIMESTAMP WITH TIME ZONE,
                     "reviewNote" VARCHAR(500),
                     "publishedRevision" INTEGER,
-                    "displayOrder" INTEGER
+                    "displayOrder" INTEGER,
+                    "foldedTitle" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("title", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedContent" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("content", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSlug" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("slug", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedCourseCode" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("courseCode", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedCourseName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("courseName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSemesterName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("semesterName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedLecturerDisplayName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("lecturerDisplayName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd'))
                 )
                 """);
         fixtureJwt(jdbc, "student-user", "STUDENT");
@@ -465,6 +479,13 @@ class AnnouncementReadPersistenceTest {
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.meta.total").value(2));
 
+        // OIDC-shaped token: fixtureJwt mints from the same account data the
+        // customizer reads (sub, email, roles, permissions, credentialVersion,
+        // studentId, student.year) — /my must accept it now that email is minted.
+        mvc.perform(get("/api/v1/announcements/my")
+                        .with(fixtureJwt(jdbc, "student-user", "STUDENT")))
+                .andExpect(status().isOk());
+
         mvc.perform(get("/api/v1/announcements/my")
                         .with(fixtureJwt(jdbc, "missing-email", token -> token.subject("missing-email").claims(claims -> claims.remove("email")))))
                 .andExpect(status().isUnauthorized())
@@ -551,6 +572,59 @@ class AnnouncementReadPersistenceTest {
         mvc.perform(get("/api/v1/announcements/multi-other-year").with(lecturerStudent)).andExpect(status().isNotFound());
         var adminStudent = fixtureJwt(jdbc, "multi-role-user", "STUDENT", "ADMIN");
         mvc.perform(get("/api/v1/announcements/multi-global").with(adminStudent)).andExpect(status().isOk());
+    }
+
+    @Test
+    void unpublishedDetailFollowsTheAuthorAndReviewQueueScope() throws Exception {
+        insert(fixture("foreign-draft", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T09:00:00Z"));
+        insert(fixture("foreign-archived", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T10:00:00Z"));
+        insert(fixture("own-draft", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T11:00:00Z"));
+        insert(fixture("review-queue", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T12:00:00Z"));
+        setUnpublishedState("foreign-draft", "DRAFT", "lecturer-other", "lecturer-2");
+        setUnpublishedState("foreign-archived", "ARCHIVED", "lecturer-other", "lecturer-2");
+        setUnpublishedState("own-draft", "DRAFT", "lecturer-user", "lecturer-1");
+        setUnpublishedState("review-queue", "IN_REVIEW", "lecturer-other", "lecturer-2");
+
+        var lecturer = fixtureJwt(jdbc, "lecturer-user", token -> token
+                .subject("lecturer-user")
+                .claim("email", "lecturer@campuscore.edu")
+                .claim("roles", List.of("LECTURER"))
+                .claim("lecturerId", "lecturer-1"), "LECTURER")
+                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+
+        // Another author's unpublished rows are invisible; the review queue and
+        // the author's own draft stay readable (the same rows the staff list
+        // returns for this lecturer).
+        mvc.perform(get("/api/v1/announcements/foreign-draft").with(lecturer))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(get("/api/v1/announcements/foreign-archived").with(lecturer))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/announcements/own-draft").with(lecturer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("own-draft"));
+        mvc.perform(get("/api/v1/announcements/review-queue").with(lecturer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("review-queue"));
+
+        // Governance keeps full access, and students still get the same 404
+        // for any unpublished row.
+        mvc.perform(get("/api/v1/announcements/foreign-draft").with(fixtureJwt(jdbc, "admin-user", token -> token
+                .subject("admin-user")
+                .claim("email", "admin@campuscore.edu")
+                .claim("roles", List.of("ADMIN")), "ADMIN")))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/announcements/foreign-draft").with(fixtureJwt(jdbc, "student-user", "STUDENT")))
+                .andExpect(status().isNotFound());
+        // The review queue is staff-only; it must not widen student access.
+        mvc.perform(get("/api/v1/announcements/review-queue").with(fixtureJwt(jdbc, "student-user", "STUDENT")))
+                .andExpect(status().isNotFound());
+    }
+
+    private void setUnpublishedState(String id, String status, String authorId, String lecturerId) {
+        jdbc.update("UPDATE \"engagement\".\"Announcement\""
+                        + " SET \"status\" = ?, \"authorId\" = ?, \"lecturerId\" = ? WHERE \"id\" = ?",
+                status, authorId, lecturerId, id);
     }
 
     private AnnouncementFixture fixture(

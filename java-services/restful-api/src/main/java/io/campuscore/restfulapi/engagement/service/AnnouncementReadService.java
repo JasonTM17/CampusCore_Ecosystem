@@ -2,8 +2,11 @@ package io.campuscore.restfulapi.engagement.service;
 
 import io.campuscore.restfulapi.engagement.repository.AnnouncementReadRepository;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementReadRepository.AnnouncementFilter;
+import io.campuscore.restfulapi.engagement.repository.AnnouncementReadRepository.PinOptionFilter;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementReadRepository.UserVisibility;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementListResponse;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementPinOption;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementPinOptionListResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PageMeta;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PublicAnnouncementListResponse;
@@ -23,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class AnnouncementReadService {
 
     public static final int MAX_PAGE_SIZE = 200;
+    /** The pin picker's id resolution list shares the page-size ceiling. */
+    public static final int MAX_PIN_OPTION_IDS = 200;
+    private static final int MAX_ID_LENGTH = 120;
     private static final Set<String> PRIORITIES = Set.of("LOW", "NORMAL", "HIGH", "URGENT");
     private static final Set<String> STATUSES =
             Set.of("ACTIVE", "ARCHIVED", "ALL", "DRAFT", "IN_REVIEW", "PUBLISHED");
@@ -34,7 +40,7 @@ public class AnnouncementReadService {
         this.announcements = announcements;
     }
 
-    /** Staff may manage their own rows; other details must pass the feed audience policy. */
+    /** Unpublished rows follow the staff-list scope; published details pass the feed audience policy. */
     @Transactional(readOnly = true)
     public AnnouncementResponse get(String id, String actorId, List<String> roles,
             String studentId, Integer studentYear, String lecturerId) {
@@ -44,10 +50,13 @@ public class AnnouncementReadService {
         AnnouncementResponse row = announcements.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
         if (!"PUBLISHED".equals(row.status())) {
-            // Unpublished posts are staff-only: any writer-set member may open
-            // them (reviewers must read drafts; students/others get the same
-            // 404 an absent row produces).
-            if (roles.stream().anyMatch(WRITER_ROLES::contains)) {
+            // Authors and the review queue are readable; governance sees
+            // everything. Every other caller gets the absent-row 404 so the
+            // detail route cannot confirm that an unpublished id exists.
+            if (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")
+                    || actorId.equals(row.authorId())
+                    || (roles.stream().anyMatch(WRITER_ROLES::contains)
+                            && "IN_REVIEW".equals(row.status()))) {
                 return row;
             }
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found");
@@ -122,6 +131,44 @@ public class AnnouncementReadService {
         long total = announcements.countAll(filter);
         List<AnnouncementResponse> data = announcements.findAll(filter, offset(page, limit), limit);
         return response(data, total, page, limit);
+    }
+
+    /**
+     * Lightweight catalog for the appearance editor's pin picker. Same status
+     * vocabulary and display ordering as the admin list; {@code ids} resolves
+     * already-pinned rows by name so the editor never crawls the archive for
+     * them. Rows carry no body columns.
+     */
+    @Transactional(readOnly = true)
+    public AnnouncementPinOptionListResponse findPinOptions(
+            int page,
+            int limit,
+            String status,
+            String search,
+            List<String> ids) {
+        requirePage(page, limit);
+        if (status == null || !STATUSES.contains(status)) {
+            throw new IllegalArgumentException(
+                    "status must be ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, or PUBLISHED");
+        }
+        List<String> idFilter = ids == null ? List.of() : ids;
+        if (idFilter.size() > MAX_PIN_OPTION_IDS) {
+            throw new IllegalArgumentException(
+                    "ids must contain at most " + MAX_PIN_OPTION_IDS + " values");
+        }
+        for (String id : idFilter) {
+            if (id == null || id.isBlank() || id.length() > MAX_ID_LENGTH) {
+                throw new IllegalArgumentException(
+                        "ids entries must be non-blank and at most " + MAX_ID_LENGTH + " characters");
+            }
+        }
+        PinOptionFilter filter = new PinOptionFilter(status, search, idFilter);
+        long total = announcements.countPinOptions(filter);
+        List<AnnouncementPinOption> data = announcements.findPinOptions(filter, offset(page, limit), limit);
+        long totalPages = total == 0 ? 0 : ((total - 1) / limit) + 1;
+        return new AnnouncementPinOptionListResponse(
+                data,
+                new PageMeta(total, page, limit, (int) totalPages));
     }
 
     @Transactional(readOnly = true)

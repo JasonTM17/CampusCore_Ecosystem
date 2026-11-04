@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
 import {
@@ -17,9 +17,16 @@ import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { libraryMessages } from '@/i18n/library-messages';
 import { useI18n } from '@/i18n';
+import {
+  correctEmptyPage,
+  createSequenceGuard,
+  hasNextPage as hasNextPageFor,
+  pageCount,
+} from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof libraryMessages)['vi'];
+const PAGE_SIZE = 20;
 
 const LOAN_TONE: Record<string, StatusTone> = {
   REQUESTED: 'warning',
@@ -51,6 +58,8 @@ export function LibraryDeskPage() {
   const copy = libraryMessages[locale];
   const [loans, setLoans] = useState<LoanRequest[]>([]);
   const [filter, setFilter] = useState<LoanStatus | ''>('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -58,14 +67,50 @@ export function LibraryDeskPage() {
   // The circulation desk is staff-only; a denied queue read gets its own
   // state instead of a retryable error.
   const [denied, setDenied] = useState(false);
+  const requestSequence = useRef(createSequenceGuard());
+  const currentSelection = useRef<{ status: LoanStatus | ''; page: number }>({
+    status: '',
+    page: 0,
+  });
 
-  const load = useCallback(async (status?: LoanStatus | '') => {
+  const load = useCallback(async (
+    status: LoanStatus | '' = currentSelection.current.status,
+    requestedPage: number = currentSelection.current.page,
+  ) => {
+    const requestId = requestSequence.current.begin();
+    currentSelection.current = { status, page: requestedPage };
     setIsLoading(true);
     setError('');
     setDenied(false);
+    // The request token fences late responses; the requested page is checked
+    // too so a response for a page the reader already left can never land.
+    const selectionMatches = () =>
+      currentSelection.current.status === status
+      && currentSelection.current.page === requestedPage;
     try {
-      setLoans(await libraryApi.queue(status || undefined));
+      let result = await libraryApi.queuePage(status || undefined, requestedPage, PAGE_SIZE);
+      if (!requestSequence.current.isCurrent(requestId) || !selectionMatches()) return;
+
+      let resultPage = requestedPage;
+      const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+      if (correction) {
+        resultPage = correction.page;
+        if (correction.refetch) {
+          result = await libraryApi.queuePage(status || undefined, resultPage, PAGE_SIZE);
+          if (!requestSequence.current.isCurrent(requestId) || !selectionMatches()) return;
+        }
+      }
+      if (result.items.length === 0 && result.total !== undefined && result.total > 0) {
+        setError(copy.failed);
+        return;
+      }
+
+      setLoans(result.items);
+      setTotal(result.total ?? null);
+      setPage(resultPage);
+      currentSelection.current = { status, page: resultPage };
     } catch (cause) {
+      if (!requestSequence.current.isCurrent(requestId) || !selectionMatches()) return;
       const kind = campusErrorKind(cause);
       if (kind === 'forbidden' || kind === 'unauthorized') {
         setDenied(true);
@@ -73,26 +118,50 @@ export function LibraryDeskPage() {
         setError(friendlyError(copy, cause));
       }
     } finally {
-      setIsLoading(false);
+      if (requestSequence.current.isCurrent(requestId)) setIsLoading(false);
     }
   }, [copy]);
 
   useEffect(() => {
-    void load(filter);
-  }, [load, filter]);
+    void load('', 0);
+  }, [load]);
+
+  const reloadCurrent = useCallback(
+    () => load(currentSelection.current.status, currentSelection.current.page),
+    [load],
+  );
+
+  const changeFilter = (nextFilter: LoanStatus | '') => {
+    setFilter(nextFilter);
+    setPage(0);
+    void load(nextFilter, 0);
+  };
+
+  const goToPage = (nextPage: number) => {
+    void load(currentSelection.current.status, nextPage);
+  };
 
   const act = async (action: () => Promise<LoanRequest>, done: string) => {
     setIsBusy(true);
     try {
       await action();
       toast.success(done);
-      await load(filter);
+      await reloadCurrent();
     } catch (cause) {
       setError(friendlyError(copy, cause));
     } finally {
       setIsBusy(false);
     }
   };
+
+  const totalPages = pageCount(total ?? undefined, PAGE_SIZE);
+  const hasPreviousPage = page > 0;
+  const hasNextPage = hasNextPageFor(page, totalPages, loans.length, PAGE_SIZE);
+  const firstVisible = loans.length === 0 ? 0 : page * PAGE_SIZE + 1;
+  const lastVisible = page * PAGE_SIZE + loans.length;
+  const paginationSummary = total === null
+    ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+    : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
 
   if (authLoading) {
     return <LoadingState />;
@@ -104,7 +173,7 @@ export function LibraryDeskPage() {
         eyebrow={<SectionEyebrow>{copy.deskEyebrow}</SectionEyebrow>}
         title={copy.deskTitle}
         description={copy.deskDescription}
-        actions={<Button variant="outline" onClick={() => void load(filter)}>{copy.refresh}</Button>}
+        actions={<Button variant="outline" onClick={() => void reloadCurrent()}>{copy.refresh}</Button>}
       />
 
       <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
@@ -112,7 +181,7 @@ export function LibraryDeskPage() {
         {copy.simulatedBanner}
       </p>
 
-      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void load(filter)} /> : null}
+      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void reloadCurrent()} /> : null}
       {denied ? (
         <ForbiddenState
           title={copy.staffRequired}
@@ -132,7 +201,7 @@ export function LibraryDeskPage() {
             size="sm"
             variant={filter === value ? 'default' : 'outline'}
             data-testid={value ? `library-filter-${value}` : 'library-filter-all'}
-            onClick={() => setFilter(value)}>
+            onClick={() => changeFilter(value)}>
             {value === '' ? copy.filterAll : (copy.statusLabels[value] ?? value)}
           </Button>
         ))}
@@ -142,6 +211,7 @@ export function LibraryDeskPage() {
           value={cancelReason}
           onChange={(event) => setCancelReason(event.target.value)}
           placeholder={copy.cancelReasonPlaceholder}
+          aria-label={copy.cancelReasonPlaceholder}
         />
       </div>
 
@@ -207,6 +277,31 @@ export function LibraryDeskPage() {
             </article>
           ))}
         </section>
+      ) : null}
+
+      {!isLoading && !error && !denied ? (
+        <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p role="status" aria-live="polite" data-testid="library-desk-pagination-summary"
+            className="text-sm text-muted-foreground">
+            {paginationSummary}
+            <span className="ml-2">
+              {messages.common.states.page} {page + 1}
+              {totalPages === undefined ? '' : ` / ${totalPages}`}
+            </span>
+          </p>
+          {hasPreviousPage || hasNextPage ? (
+            <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={!hasPreviousPage}
+                onClick={() => goToPage(page - 1)}>
+                {messages.common.states.goToPreviousPage}
+              </Button>
+              <Button size="sm" variant="outline" disabled={!hasNextPage}
+                onClick={() => goToPage(page + 1)}>
+                {messages.common.states.goToNextPage}
+              </Button>
+            </nav>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

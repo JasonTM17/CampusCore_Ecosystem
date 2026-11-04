@@ -15,7 +15,9 @@ import {
   type ThesisTopic,
 } from '@/lib/thesis-api';
 import { fillCopy } from '@/features/thesis/components/thesis-helpers';
+import { countLabel } from '@/lib/plural';
 import { plainTextThesisDescription } from '@/lib/thesis-text';
+import { isHttpUrl } from '@/lib/safe-url';
 
 interface CouncilDefenseWorkspaceProps {
   messages: I18nMessages;
@@ -148,7 +150,7 @@ export default function CouncilDefenseWorkspace({
                   </p>
                 </div>
                 <span className="text-xs font-medium text-muted-foreground">
-                  {fillCopy(pageCopy.assignedTopicsCount, { count: topicIds.length })}
+                  {fillCopy(countLabel(topicIds.length, pageCopy.assignedTopicsCountOne, pageCopy.assignedTopicsCount), { count: topicIds.length })}
                 </span>
               </div>
 
@@ -167,6 +169,10 @@ export default function CouncilDefenseWorkspace({
                     const isSupervisor = sups.includes(myLecturerId);
 
                     const isFinalized = topic?.finalScore != null;
+                    // A resolved non-graded outcome locks the topic the same
+                    // way a finalized score does — no more grading or finalize.
+                    const isNotQualified = topic?.resultStatus === 'NOT_QUALIFIED';
+                    const isResolved = isFinalized || isNotQualified;
                     // Mirror the backend eligibility rule exactly
                     // (ThesisCouncilService.eligibleGraderCount +
                     // requireNotSupervisor): a member is ineligible only
@@ -197,7 +203,7 @@ export default function CouncilDefenseWorkspace({
                     const canFinalize =
                       isChair &&
                       !isSupervisor &&
-                      !isFinalized &&
+                      !isResolved &&
                       !scoresFailed &&
                       eligibleGraderCount >= MIN_ELIGIBLE_GRADERS &&
                       submittedCount >= eligibleGraderCount;
@@ -226,19 +232,25 @@ export default function CouncilDefenseWorkspace({
                               </div>
                             ) : topicReports[tid] ? (
                               <div className="pt-1.5 flex flex-wrap items-center gap-2">
-                                {/* A report is a link, an attached document,
-                                    or both (feedback item 7). */}
+                                {/* A report link is shown only for a safe URL, alongside any attached document (feedback item 7). */}
                                 {topicReports[tid]?.url ? (
-                                  <a
-                                    href={topicReports[tid]?.url || undefined}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline"
-                                  >
-                                    <FileText className="h-3.5 w-3.5" />
-                                    <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
+                                  isHttpUrl(topicReports[tid]?.url) ? (
+                                    <a
+                                      href={topicReports[tid]?.url ?? undefined}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline"
+                                    >
+                                      <FileText className="h-3.5 w-3.5" />
+                                      <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                      <FileText className="h-3.5 w-3.5" />
+                                      <span>{pageCopy.thesisDocumentLabel} {topicReports[tid]?.title || pageCopy.thesisReportFallback}</span>
+                                    </span>
+                                  )
                                 ) : null}
                                 {topicReports[tid]?.fileName ? (
                                   <button
@@ -271,6 +283,10 @@ export default function CouncilDefenseWorkspace({
                               {messages.thesis.grading.finalizedBadge}:{' '}
                               {topic.finalScore}
                             </div>
+                          ) : isNotQualified ? (
+                            <div className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground border border-border/60 shrink-0">
+                              {messages.thesis.results.notQualified}
+                            </div>
                           ) : null}
                         </div>
 
@@ -285,7 +301,7 @@ export default function CouncilDefenseWorkspace({
                               {messages.thesis.grading.supervisorCannotGrade}
                             </span>
                           </div>
-                        ) : !isFinalized && !roundTerminal && myMembership ? (
+                        ) : !isResolved && !roundTerminal && myMembership ? (
                           /* Grading Input for Eligible Council Member */
                           <div className="flex flex-wrap items-end gap-3 pt-1">
                             <label className="text-xs font-medium text-foreground flex items-center gap-2">
@@ -373,7 +389,7 @@ export default function CouncilDefenseWorkspace({
                         {/* Chair Finalize Action — suppressed while the score
                             list failed to load so a stale 0-of-N count cannot
                             invite a doomed finalize request. */}
-                        {isChair && !isFinalized && !scoresFailed && !roundTerminal && (
+                        {isChair && !isResolved && !scoresFailed && !roundTerminal && (
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-border/40 pt-3">
                             <p className="text-xs text-muted-foreground">
                               {canFinalize

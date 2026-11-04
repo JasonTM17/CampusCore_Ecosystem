@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,7 +29,10 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
 
@@ -66,10 +69,40 @@ function semesterStatusTone(status: string): StatusTone {
   }
 }
 
+function buildSemesterUpdatePayload(
+  baseline: Semester,
+  formData: {
+    nameEn: string;
+    nameVi: string;
+    type: string;
+    academicYearId: string;
+    startDate: string;
+    endDate: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const dateOnly = (value: string) => value.split('T')[0];
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (formData.type !== baseline.type) payload.type = formData.type;
+  if (formData.academicYearId !== baseline.academicYearId) {
+    payload.academicYearId = formData.academicYearId;
+  }
+  if (formData.startDate !== dateOnly(baseline.startDate)) payload.startDate = formData.startDate;
+  if (formData.endDate !== dateOnly(baseline.endDate)) payload.endDate = formData.endDate;
+  return payload;
+}
+
 export default function AdminSemestersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatDate, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.semesters, vi: adminAcademicsVi.semesters }[locale];
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +114,10 @@ export default function AdminSemestersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
+  const semestersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingSemesterId, setDeletingSemesterId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     nameEn: '',
     nameVi: '',
@@ -92,6 +128,10 @@ export default function AdminSemestersPage() {
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (name: string) =>
+    copy.editLabel.replace('{name}', () => name);
+  const deleteLabel = (name: string) =>
+    copy.deleteLabel.replace('{name}', () => name);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -99,7 +139,7 @@ export default function AdminSemestersPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -114,15 +154,12 @@ export default function AdminSemestersPage() {
       const response = await academicYearsApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT });
       setAcademicYears(response.data || []);
     } catch {
-      setReferenceError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu năm học cho biểu mẫu.'
-          : 'Academic-year options could not be loaded.',
-      );
+      setReferenceError(copy.referenceLoadFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   const fetchSemesters = useCallback(async () => {
+    const epoch = semestersEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -132,144 +169,39 @@ export default function AdminSemestersPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await adminSemestersApi.getAll(query);
 
+      if (!semestersEpoch.isCurrent(epoch)) return;
       setSemesters(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách học kỳ.'
-          : 'Semesters could not be loaded.',
-      );
+      if (!semestersEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!semestersEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search]);
+  }, [copy, page, search, semestersEpoch]);
+
+  useEffect(() => () => {
+    semestersEpoch.invalidate();
+  }, [semestersEpoch]);
 
   const semesterTypeOptions = useMemo(
     () => [
       // FIRST/SECOND match the seeded semester vocabulary; FALL/SPRING stay so
       // older records still resolve to a label instead of a raw enum.
-      { value: 'FIRST', label: locale === 'vi' ? 'Học kỳ 1' : 'Semester 1' },
-      { value: 'SECOND', label: locale === 'vi' ? 'Học kỳ 2' : 'Semester 2' },
-      { value: 'SUMMER', label: locale === 'vi' ? 'Học kỳ Hè' : 'Summer' },
-      { value: 'FALL', label: locale === 'vi' ? 'Học kỳ Thu' : 'Fall' },
-      { value: 'SPRING', label: locale === 'vi' ? 'Học kỳ Xuân' : 'Spring' },
+      { value: 'FIRST', label: copy.typeOptions.FIRST },
+      { value: 'SECOND', label: copy.typeOptions.SECOND },
+      { value: 'SUMMER', label: copy.typeOptions.SUMMER },
+      { value: 'FALL', label: copy.typeOptions.FALL },
+      { value: 'SPRING', label: copy.typeOptions.SPRING },
     ],
-    [locale],
+    [copy.typeOptions],
   );
 
   const getSemesterTypeLabel = useCallback(
     (type: string) =>
       semesterTypeOptions.find((option) => option.value === type)?.label ?? type,
     [semesterTypeOptions],
-  );
-
-  const copy = useMemo(
-    () =>
-      locale === 'vi'
-        ? {
-          loading: 'Đang tải học kỳ',
-          title: 'Học kỳ',
-          description:
-            'Giữ mốc thời gian học kỳ rõ ràng để đăng ký, lớp học phần và lịch học luôn đồng bộ.',
-          create: 'Tạo học kỳ',
-          searchLabel: 'Tìm học kỳ',
-          searchPlaceholder: 'Tìm theo học kỳ, loại hoặc năm',
-          pageSummaryEmpty: 'Không có bản ghi phù hợp',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          selectAcademicYear: 'Chọn năm học',
-          unavailableTitle: 'Học kỳ chưa sẵn sàng',
-          emptyTitle: 'Không có học kỳ phù hợp',
-          emptyDescription:
-            'Hãy tạo học kỳ để lớp học phần, đăng ký, lịch học và điểm dùng chung một mốc thời gian.',
-          tableTitle: 'Bản ghi học kỳ',
-          headers: {
-            name: 'Tên học kỳ',
-            type: 'Loại',
-            academicYear: 'Năm học',
-            startDate: 'Ngày bắt đầu',
-            endDate: 'Ngày kết thúc',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          unassigned: 'Chưa gán',
-          deleteTitle: 'Xóa học kỳ',
-          deleteMessage: (name: string) =>
-            `Xóa ${name}? Hành động này sẽ gỡ học kỳ khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa học kỳ',
-          deleted: 'Đã xóa học kỳ',
-          deleteFailed: 'Hiện chưa thể xóa học kỳ này.',
-          updated: 'Đã cập nhật học kỳ',
-          created: 'Đã tạo học kỳ',
-          saveFailed: 'Hiện chưa thể lưu học kỳ.',
-          editTitle: 'Chỉnh sửa học kỳ',
-          createTitle: 'Tạo học kỳ',
-          fields: {
-            name: 'Tên học kỳ',
-            namePlaceholder: 'Ví dụ: Thu 2026',
-            type: 'Loại',
-            academicYear: 'Năm học',
-            startDate: 'Ngày bắt đầu',
-            endDate: 'Ngày kết thúc',
-          },
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (name: string) => `Chỉnh sửa học kỳ ${name}`,
-          deleteLabel: (name: string) => `Xóa học kỳ ${name}`,
-        }
-        : {
-          loading: 'Loading semesters',
-          title: 'Semesters',
-          description:
-            'Keep registration windows and teaching periods anchored to a clear academic calendar.',
-          create: 'Create semester',
-          searchLabel: 'Search semesters',
-          searchPlaceholder: 'Search by semester, type, or year',
-          pageSummaryEmpty: 'No matching records',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          selectAcademicYear: 'Select academic year',
-          unavailableTitle: 'Semesters unavailable',
-          emptyTitle: 'No matching semesters',
-          emptyDescription:
-            'Create a semester to align classes, registration dates, schedules, and grades.',
-          tableTitle: 'Semester records',
-          headers: {
-            name: 'Name',
-            type: 'Type',
-            academicYear: 'Academic year',
-            startDate: 'Start date',
-            endDate: 'End date',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          unassigned: 'Unassigned',
-          deleteTitle: 'Delete semester',
-          deleteMessage: (name: string) =>
-            `Delete ${name}? This removes the semester from the current admin view.`,
-          deleteConfirm: 'Delete semester',
-          deleted: 'Semester deleted',
-          deleteFailed: 'We could not delete that semester.',
-          updated: 'Semester updated',
-          created: 'Semester created',
-          saveFailed: 'The semester could not be saved.',
-          editTitle: 'Edit semester',
-          createTitle: 'Create semester',
-          fields: {
-            name: 'Semester name',
-            namePlaceholder: 'e.g. Fall 2026',
-            type: 'Type',
-            academicYear: 'Academic year',
-            startDate: 'Start date',
-            endDate: 'End date',
-          },
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (name: string) => `Edit semester ${name}`,
-          deleteLabel: (name: string) => `Delete semester ${name}`,
-        },
-    [locale, messages.common.actions.saveChanges],
   );
 
   useEffect(() => {
@@ -301,7 +233,9 @@ export default function AdminSemestersPage() {
       return copy.pageSummaryEmpty;
     }
 
-    return copy.pageSummary(page, totalPages);
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
   }, [copy, page, semesters.length, totalPages]);
 
   const academicYearOptions = useMemo(
@@ -315,12 +249,10 @@ export default function AdminSemestersPage() {
     [academicYears, copy.selectAcademicYear],
   );
 
-  const semesterStatusLabel = (status: string) => {
-    const labels: Record<string, string> = locale === 'vi'
-      ? { ACTIVE: 'Đang diễn ra', IN_PROGRESS: 'Đang diễn ra', REGISTRATION_OPEN: 'Đang mở đăng ký', ADD_DROP_OPEN: 'Đang mở thêm hoặc hủy môn', DRAFT: 'Bản nháp' }
-      : { ACTIVE: 'Active', IN_PROGRESS: 'In progress', REGISTRATION_OPEN: 'Registration open', ADD_DROP_OPEN: 'Add or drop open', DRAFT: 'Draft' };
-    return labels[status] ?? messages.common.statuses[status as keyof typeof messages.common.statuses] ?? messages.common.statuses.UNKNOWN;
-  };
+  const semesterStatusLabel = (status: string) =>
+    copy.statusLabels[status as keyof typeof copy.statusLabels] ??
+    messages.common.statuses[status as keyof typeof messages.common.statuses] ??
+    messages.common.statuses.UNKNOWN;
 
   if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
@@ -371,20 +303,28 @@ export default function AdminSemestersPage() {
   };
 
   const handleDelete = async (semester: Semester) => {
-    const semesterLabel = getLocalizedName(locale, semester, semester.name);
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(semesterLabel),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingSemesterId(semester.id);
 
     try {
-      await adminSemestersApi.delete(semester.id);
+      const semesterLabel = getLocalizedName(locale, semester, semester.name);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{name}', () => semesterLabel),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await adminSemestersApi.delete(semester.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       if (semesters.length === 1 && page > 1) {
         setPage((prev) => prev - 1);
@@ -393,6 +333,9 @@ export default function AdminSemestersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingSemesterId(null);
     }
   };
 
@@ -401,14 +344,17 @@ export default function AdminSemestersPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-      };
       if (editingSemester) {
-        await adminSemestersApi.update(editingSemester.id, payload);
+        const payload = buildSemesterUpdatePayload(editingSemester, formData);
+        if (Object.keys(payload).length > 0) {
+          await adminSemestersApi.update(editingSemester.id, payload);
+        }
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+        };
         await adminSemestersApi.create(payload);
         toast.success(copy.created);
       }
@@ -545,8 +491,8 @@ export default function AdminSemestersPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openEdit(semester)}
-                          aria-label={copy.editLabel(semesterLabel)}
-                          title={copy.editLabel(semesterLabel)}
+                          aria-label={editLabel(semesterLabel)}
+                          title={editLabel(semesterLabel)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -555,8 +501,9 @@ export default function AdminSemestersPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(semester)}
-                          aria-label={copy.deleteLabel(semesterLabel)}
-                          title={copy.deleteLabel(semesterLabel)}
+                          disabled={deletingSemesterId !== null}
+                          aria-label={deleteLabel(semesterLabel)}
+                          title={deleteLabel(semesterLabel)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -621,8 +568,8 @@ export default function AdminSemestersPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(semester)}
-                              aria-label={copy.editLabel(semesterLabel)}
-                              title={copy.editLabel(semesterLabel)}
+                              aria-label={editLabel(semesterLabel)}
+                              title={editLabel(semesterLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -631,8 +578,9 @@ export default function AdminSemestersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(semester)}
-                              aria-label={copy.deleteLabel(semesterLabel)}
-                              title={copy.deleteLabel(semesterLabel)}
+                              disabled={deletingSemesterId !== null}
+                              aria-label={deleteLabel(semesterLabel)}
+                              title={deleteLabel(semesterLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -656,7 +604,7 @@ export default function AdminSemestersPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <AdminFormField
-              label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}
+              label={copy.fields.englishName}
             >
               <Input
                 type="text"
@@ -667,14 +615,12 @@ export default function AdminSemestersPage() {
                     nameEn: event.target.value,
                   }))
                 }
-                placeholder={
-                  locale === 'vi' ? 'Ví dụ: Fall 2026' : 'e.g. Fall 2026'
-                }
+                placeholder={copy.fields.englishNamePlaceholder}
                 required
               />
             </AdminFormField>
             <AdminFormField
-              label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}
+              label={copy.fields.vietnameseName}
             >
               <Input
                 type="text"
@@ -685,11 +631,7 @@ export default function AdminSemestersPage() {
                     nameVi: event.target.value,
                   }))
                 }
-                placeholder={
-                  locale === 'vi'
-                    ? 'Ví dụ: Học kỳ Thu 2026'
-                    : 'e.g. Học kỳ Thu 2026'
-                }
+                placeholder={copy.fields.namePlaceholder}
                 required
               />
             </AdminFormField>
@@ -758,7 +700,7 @@ export default function AdminSemestersPage() {
               {isSaving
                 ? copy.saving
                 : editingSemester
-                  ? copy.editAction
+                  ? messages.common.actions.saveChanges
                   : copy.create}
             </Button>
           </AdminDialogFooter>

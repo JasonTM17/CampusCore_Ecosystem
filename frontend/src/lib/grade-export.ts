@@ -1,3 +1,5 @@
+import { getMessages } from '@/i18n/messages';
+
 /**
  * Grade export utilities for course sections.
  * Generates RFC 4180 compliant CSV with UTF-8 BOM (\uFEFF)
@@ -92,7 +94,7 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
 
   let gradedCount = 0;
   let passedCount = 0;
-  let totalScoreSum = 0;
+  let totalScoreCents = 0;
 
   students.forEach((student) => {
     const total = student.totalScore !== undefined && student.totalScore !== null
@@ -101,7 +103,7 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
 
     if (total !== null && Number.isFinite(total)) {
       gradedCount += 1;
-      totalScoreSum += total;
+      totalScoreCents += Math.round(total * 100);
       const letter = student.letterGrade || calculateGrade(total);
       if (letter in counts) {
         counts[letter as keyof typeof counts] += 1;
@@ -116,7 +118,9 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
   const ungradedCount = totalStudents - gradedCount;
   const failedCount = gradedCount - passedCount;
   const passRate = gradedCount > 0 ? Math.round((passedCount / gradedCount) * 1000) / 10 : 0;
-  const averageScore = gradedCount > 0 ? Math.round((totalScoreSum / gradedCount) * 100) / 100 : null;
+  // Integer-cent sum: matches the backend's BigDecimal HALF_UP, where a
+  // float average can land just below an exact .005 tie.
+  const averageScore = gradedCount > 0 ? Math.round(totalScoreCents / gradedCount) / 100 : null;
 
   return {
     totalStudents,
@@ -137,8 +141,8 @@ export function escapeCsvField(value: unknown): string {
   if (value === null || value === undefined) return '""';
   const str = String(value);
   // Quoting alone does not stop spreadsheet formula evaluation: a leading
-  // = + - @ or tab still runs as a formula, so neutralize it with a quote.
-  const safe = /^[=+\-@\t]/.test(str) ? `'${str}` : str;
+  // = + - @ or tab, including after line breaks, must be neutralized.
+  const safe = /^[\r\n]*[=+\-@\t]/.test(str) ? `'${str}` : str;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
@@ -157,23 +161,19 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
     locale = 'vi',
   } = options;
 
-  const isVi = locale === 'vi';
+  const gradeCsvMessages = getMessages(locale).teachingPages.gradeCsv;
   const summary = computeGradeSummary(students);
   const rows: string[] = [];
 
   // 1. Institutional Header
   rows.push(
     escapeCsvField(
-      isVi
-        ? 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH — CAMPUSUTE'
-        : 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING — CAMPUSUTE',
+      gradeCsvMessages.institution,
     ),
   );
   rows.push(
     escapeCsvField(
-      isVi
-        ? 'BẢNG ĐIỂM TỔNG KẾT HỌC PHẦN'
-        : 'COURSE SECTION FINAL GRADE ROSTER',
+      gradeCsvMessages.reportTitle,
     ),
   );
   rows.push('');
@@ -182,19 +182,19 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
   const fullCourse = [courseCode, courseName].filter(Boolean).join(' - ');
   rows.push(
     [
-      escapeCsvField(isVi ? 'Lớp học phần:' : 'Section:'),
+      escapeCsvField(gradeCsvMessages.metadata.section),
       escapeCsvField(sectionNumber),
-      escapeCsvField(isVi ? 'Học phần:' : 'Course:'),
+      escapeCsvField(gradeCsvMessages.metadata.course),
       escapeCsvField(fullCourse),
     ].join(','),
   );
 
   rows.push(
     [
-      escapeCsvField(isVi ? 'Học kỳ:' : 'Semester:'),
-      escapeCsvField(semesterName || (isVi ? 'Học kỳ hiện tại' : 'Current term')),
-      escapeCsvField(isVi ? 'Giảng viên:' : 'Instructor:'),
-      escapeCsvField(lecturerName || (isVi ? 'Ban Giảng viên' : 'Faculty')),
+      escapeCsvField(gradeCsvMessages.metadata.semester),
+      escapeCsvField(semesterName || gradeCsvMessages.metadata.currentTerm),
+      escapeCsvField(gradeCsvMessages.metadata.instructor),
+      escapeCsvField(lecturerName || gradeCsvMessages.metadata.faculty),
     ].join(','),
   );
   rows.push('');
@@ -202,39 +202,39 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
   // 3. Grade Distribution Summary
   rows.push(
     escapeCsvField(
-      isVi ? '--- THỐNG KÊ KẾT QUẢ ĐÁNH GIÁ ---' : '--- GRADE DISTRIBUTION SUMMARY ---',
+      gradeCsvMessages.statistics.heading,
     ),
   );
   rows.push(
     [
-      escapeCsvField(isVi ? 'Sĩ số:' : 'Total:'),
+      escapeCsvField(gradeCsvMessages.statistics.total),
       escapeCsvField(summary.totalStudents),
-      escapeCsvField(isVi ? 'Đã chấm:' : 'Graded:'),
+      escapeCsvField(gradeCsvMessages.statistics.graded),
       escapeCsvField(summary.gradedCount),
-      escapeCsvField(isVi ? 'Chưa chấm:' : 'Ungraded:'),
+      escapeCsvField(gradeCsvMessages.statistics.ungraded),
       escapeCsvField(summary.ungradedCount),
-      escapeCsvField(isVi ? 'Đạt (>= 4.0):' : 'Passed:'),
+      escapeCsvField(gradeCsvMessages.statistics.passed),
       escapeCsvField(summary.passedCount),
-      escapeCsvField(isVi ? 'Không đạt (< 4.0):' : 'Failed:'),
+      escapeCsvField(gradeCsvMessages.statistics.failed),
       escapeCsvField(summary.failedCount),
-      escapeCsvField(isVi ? 'Tỷ lệ đạt:' : 'Pass Rate:'),
+      escapeCsvField(gradeCsvMessages.statistics.passRate),
       escapeCsvField(`${summary.passRate.toFixed(1)}%`),
-      escapeCsvField(isVi ? 'Điểm trung bình:' : 'Average:'),
-      escapeCsvField(summary.averageScore !== null ? summary.averageScore.toFixed(2) : 'N/A'),
+      escapeCsvField(gradeCsvMessages.statistics.average),
+      escapeCsvField(summary.averageScore !== null ? summary.averageScore.toFixed(2) : gradeCsvMessages.statistics.notAvailable),
     ].join(','),
   );
 
   rows.push(
     [
-      escapeCsvField('A+ / A:'),
+      escapeCsvField(gradeCsvMessages.distributionLabels[0]),
       escapeCsvField(summary.counts['A+'] + summary.counts.A),
-      escapeCsvField('B+ / B:'),
+      escapeCsvField(gradeCsvMessages.distributionLabels[1]),
       escapeCsvField(summary.counts['B+'] + summary.counts.B),
-      escapeCsvField('C+ / C:'),
+      escapeCsvField(gradeCsvMessages.distributionLabels[2]),
       escapeCsvField(summary.counts['C+'] + summary.counts.C),
-      escapeCsvField('D+ / D:'),
+      escapeCsvField(gradeCsvMessages.distributionLabels[3]),
       escapeCsvField(summary.counts['D+'] + summary.counts.D),
-      escapeCsvField('F:'),
+      escapeCsvField(gradeCsvMessages.distributionLabels[4]),
       escapeCsvField(summary.counts.F),
     ].join(','),
   );
@@ -243,15 +243,7 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
   // 4. Student Table Header
   rows.push(
     [
-      escapeCsvField(isVi ? 'STT' : 'No.'),
-      escapeCsvField(isVi ? 'Mã sinh viên' : 'Student ID'),
-      escapeCsvField(isVi ? 'Họ và tên' : 'Full Name'),
-      escapeCsvField(isVi ? 'Email' : 'Email'),
-      escapeCsvField(isVi ? 'Điểm quá trình (50%)' : 'Process Score (50%)'),
-      escapeCsvField(isVi ? 'Điểm thi kết thúc (50%)' : 'Final Exam Score (50%)'),
-      escapeCsvField(isVi ? 'Tổng kết (Hệ 10)' : 'Total (Scale 10)'),
-      escapeCsvField(isVi ? 'Điểm chữ' : 'Letter Grade'),
-      escapeCsvField(isVi ? 'Trạng thái' : 'Status'),
+      ...gradeCsvMessages.rosterHeaders.map(escapeCsvField),
     ].join(','),
   );
 
@@ -263,8 +255,8 @@ export function generateGradeCsv(options: GradeCsvOptions): string {
 
     const letter = student.letterGrade || (total !== null ? calculateGrade(total) : '');
     const statusText = student.gradeStatus === 'PUBLISHED'
-      ? (isVi ? 'Đã công bố' : 'Published')
-      : (isVi ? 'Bản nháp' : 'Draft');
+      ? gradeCsvMessages.statuses.published
+      : gradeCsvMessages.statuses.draft;
 
     rows.push(
       [

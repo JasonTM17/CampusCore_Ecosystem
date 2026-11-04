@@ -47,6 +47,12 @@ public class ThesisTopic {
     @Column(name = "result_status", length = 32)
     private String resultStatus;
 
+    @Column(name = "result_reason", length = 64)
+    private String resultReason;
+
+    @Column(name = "result_resolved_at")
+    private Instant resultResolvedAt;
+
     @Column(name = "gvpb_lecturer_id", length = 120)
     private String gvpbLecturerId;
 
@@ -162,6 +168,14 @@ public class ThesisTopic {
 
     public String getResultStatus() {
         return resultStatus;
+    }
+
+    public String getResultReason() {
+        return resultReason;
+    }
+
+    public Instant getResultResolvedAt() {
+        return resultResolvedAt;
     }
 
     public String getGvpbLecturerId() {

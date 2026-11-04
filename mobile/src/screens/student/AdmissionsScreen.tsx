@@ -25,6 +25,8 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
   const [cycle, setCycle] = useState('');
   const [cycleError, setCycleError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [formEpoch, setFormEpoch] = useState(0);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const live = apiClient.mode === 'live';
@@ -40,20 +42,26 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     if (busy || !live) return undefined;
     setBusy(true);
     clear();
+    setStale(false);
     try {
       const result = await action();
       success(ok);
-      void apps.reload();
+      // The application row keeps its pre-write version until the read lands;
+      // hold the lock across it so a second tap cannot repeat the write.
+      await apps.reload();
       return result;
     } catch (error) {
       const code = errorCode(error);
-      fail(
-        code === 'APPLICATION_CYCLE_ACTIVE' ? copy.cycleActive
-        : code === 'APPLICATION_INCOMPLETE' ? copy.incomplete
-        : code === 'STALE_VERSION' ? copy.stale
-        : contentErrorMessage(common, error, copy.failed),
-      );
-      if (code === 'STALE_VERSION') void apps.reload();
+      if (code === 'STALE_VERSION') {
+        // Keep the typed draft; the explicit reload re-seeds from the server.
+        setStale(true);
+      } else {
+        fail(
+          code === 'APPLICATION_CYCLE_ACTIVE' ? copy.cycleActive
+          : code === 'APPLICATION_INCOMPLETE' ? copy.incomplete
+          : contentErrorMessage(common, error, copy.failed),
+        );
+      }
       return undefined;
     } finally {
       setBusy(false);
@@ -113,7 +121,13 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           busy={busy}
           preview={!live}
           flash={flash}
-          onBack={() => { setView({ kind: 'list' }); clear(); }}
+          stale={stale}
+          formEpoch={formEpoch}
+          onReload={() => {
+            setStale(false);
+            void apps.reload().then(() => setFormEpoch((value) => value + 1));
+          }}
+          onBack={() => { setView({ kind: 'list' }); clear(); setStale(false); }}
           onSave={(form) => save(selected, form)}
           onSubmit={(form) => submit(selected, form)}
           onWithdraw={() => withdraw(selected)}
@@ -125,12 +139,13 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     );
   }
 
-  const banner = <DataNotice message={copy.simulatedBanner} />;
+  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
+  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
 
   if (view.kind === 'new') {
     return (
       <>
-        <DetailFrame title={copy.newApplication} onBack={() => { setView({ kind: 'list' }); clear(); }}>
+        <DetailFrame title={copy.newApplication} onBack={() => { setView({ kind: 'list' }); clear(); setStale(false); }}>
           <View style={styles.header}>
             {banner}
             <FlashNotice flash={flash} />
@@ -166,7 +181,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           <View style={styles.header}>
             {banner}
             <View style={styles.actions}>
-              <Button label={copy.newApplication} disabled={!live} onPress={() => { setView({ kind: 'new' }); clear(); }} />
+              <Button label={copy.newApplication} disabled={!live} onPress={() => { setView({ kind: 'new' }); clear(); setStale(false); }} />
             </View>
           </View>
         )}
@@ -175,7 +190,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={joinMeta([item.cycle, copy.statusLabels[item.status] ?? item.status, item.fullName])}
-              onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); }}
+              onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); setStale(false); }}
               style={styles.rowMain}
             >
               <ContentIconChip icon="file-document-edit-outline" />

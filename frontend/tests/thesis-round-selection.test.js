@@ -17,7 +17,7 @@ const js = ts.transpileModule(source, {
 }).outputText;
 const mod = { exports: {} };
 new Function('module', 'exports', 'require', js)(mod, mod.exports, require);
-const { pickPreferredThesisRound, sortThesisRoundsForOverview } = mod.exports;
+const { pickPreferredThesisRound, sortThesisRoundsForOverview, thesisRoundsForStudent, pickDefaultThesisRound } = mod.exports;
 
 const round = (id, status = 'REGISTRATION_CLOSED', start = '2026-09-01', thesisType = 'KLTN') => ({
   id,
@@ -82,4 +82,28 @@ test('sortThesisRoundsForOverview prioritizes active registration/execution KLTN
     'utf8',
   );
   assert.match(deanPage, /sortThesisRoundsForOverview/);
+});
+
+test('a draft round never becomes the student default or stays in the student round list', () => {
+  const rounds = [
+    round('draft-2027', 'DRAFT', '2027-01-05', 'KLTN'),
+    round('active-2026', 'PROPOSALS_PUBLISHED', '2026-09-01', 'TLCN'),
+  ];
+  assert.equal(pickDefaultThesisRound(rounds)?.id, 'active-2026');
+  assert.equal(pickDefaultThesisRound([round('draft-only', 'DRAFT', '2027-01-05', 'KLTN')]), undefined);
+  assert.deepEqual(thesisRoundsForStudent(rounds, true).map((r) => r.id), ['active-2026']);
+  assert.deepEqual(
+    thesisRoundsForStudent(rounds, false).map((r) => r.id),
+    ['draft-2027', 'active-2026'],
+  );
+
+  const page = fs.readFileSync(path.join(root, 'src/app/dashboard/thesis/page.tsx'), 'utf8');
+  const workspace = fs.readFileSync(
+    path.join(root, 'src/components/dashboard/thesis/useThesisWorkspace.ts'),
+    'utf8',
+  );
+  for (const [name, source] of [['thesis page', page], ['workspace hook', workspace]]) {
+    assert.match(source, /thesisRoundsForStudent\(/, `${name} filters draft rounds through the shared helper`);
+    assert.match(source, /pickDefaultThesisRound\(/, `${name} picks the default through the shared helper`);
+  }
 });

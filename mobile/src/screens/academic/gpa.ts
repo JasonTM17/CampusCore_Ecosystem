@@ -81,7 +81,7 @@ export function resolveGradePoint(record: GradeRecordLike): number | null {
 }
 
 export function isPublishedGrade(record: GradeRecordLike): boolean {
-  return record.gradeStatus === 'PUBLISHED';
+  return record.gradeStatus === 'PUBLISHED' || record.gradeStatus === 'APPEALED';
 }
 
 export function publishedOnly<T extends GradeRecordLike>(records: readonly T[]): T[] {
@@ -115,12 +115,14 @@ export function computeAverage10(records: readonly GradeRecordLike[]): number | 
 
 export interface BestAttemptSummary {
   gpa: number | null;
+  /** Credit-weighted 10-point average over the same best-attempt list. */
+  average10?: number | null;
   countedCourses: number;
   completedCredits: number;
 }
 
-/** Each course counts once through its best attempt (repeat-course policy). */
-export function summarizeBestAttempts(records: readonly GradeRecordLike[]): BestAttemptSummary {
+/** The best attempt per course (repeat-course policy), in first-seen order. */
+export function bestAttempts(records: readonly GradeRecordLike[]): GradeRecordLike[] {
   const best = new Map<string, GradeRecordLike>();
   for (const record of records) {
     const key = record.courseCode;
@@ -129,11 +131,16 @@ export function summarizeBestAttempts(records: readonly GradeRecordLike[]): Best
     const current = best.get(key);
     if (!current || point > (resolveGradePoint(current) ?? -1)) best.set(key, record);
   }
-  const counted = [...best.values()];
+  return [...best.values()];
+}
+
+/** Each course counts once through its best attempt (repeat-course policy). */
+export function summarizeBestAttempts(records: readonly GradeRecordLike[]): BestAttemptSummary {
+  const counted = bestAttempts(records);
   const completedCredits = counted
     .filter((record) => record.enrollmentStatus === 'COMPLETED' && (resolveGradePoint(record) ?? 0) > 0)
     .reduce((sum, record) => sum + (isNum(record.credits) ? record.credits : 0), 0);
-  return { gpa: computeGpa4(counted), countedCourses: counted.length, completedCredits };
+  return { gpa: computeGpa4(counted), average10: computeAverage10(counted), countedCourses: counted.length, completedCredits };
 }
 
 /* ---------- transcript payload ---------- */

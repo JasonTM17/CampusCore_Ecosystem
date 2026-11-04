@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from "no
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { preflightProjectVolumes } from "./ecosystem-verify-shared.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_HOST_PORT = 4100;
@@ -57,11 +58,16 @@ export function validateComposeOverlay(value, repo = REPO) {
 export function parseArgs(argv, repo = REPO) {
   const sub = argv[2];
   if (!["contract-probes", "pgit-real"].includes(sub)) {
-    throw new Error("usage: contract-verify.mjs <contract-probes|pgit-real> [--project p] [--evidence dir] [--its pattern] [--compose-overlay repo-relative.yml]");
+    throw new Error("usage: contract-verify.mjs <contract-probes|pgit-real> [--project p] [--evidence dir] [--its pattern] [--compose-overlay repo-relative.yml] [--regenerate]");
   }
-  const a = { evidence: path.join(repo, "artifacts/verification/contracts"), project: null, its: null, composeOverlay: null };
+  const a = { evidence: path.join(repo, "artifacts/verification/contracts"), project: null, its: null, composeOverlay: null, regenerate: false };
   for (let i = 3; i < argv.length; i++) {
     const option = argv[i];
+    if (option === "--regenerate") {
+      if (sub !== "contract-probes") throw new Error("--regenerate is only supported by contract-probes");
+      a.regenerate = true;
+      continue;
+    }
     if (!["--evidence", "--project", "--its", "--compose-overlay"].includes(option)) {
       throw new Error(`unknown option ${option}`);
     }
@@ -148,7 +154,7 @@ async function caseProbes(args, log) {
   let failed = false;
   let stackStarted = false;
   const teardown = () => {
-    run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
+    return run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
   };
 
   try {
@@ -165,6 +171,7 @@ async function caseProbes(args, log) {
     if (existing.status !== 0 || existing.stdout.trim() !== "") {
       throw new Error(`compose project ${project} is not empty or cannot be inspected — refusing to mutate or tear it down`);
     }
+    preflightProjectVolumes(project, (command, argv) => run(command, argv, { env, timeout: 60000 }));
 
     log(`up ${project} pg:${pgPort} api:${API_HOST_PORT}`);
     const up = run("docker", [...compose, "up", "-d", "--build"], { env, timeout: 900000 });
@@ -174,6 +181,15 @@ async function caseProbes(args, log) {
     const healthy = await waitHealth(`http://127.0.0.1:${API_HOST_PORT}/api/v1/health/liveness`, 240000);
     if (!healthy) throw new Error("api did not reach liveness within 240s");
     evidence.apiReady = true;
+
+    if (args.regenerate) {
+      const write = run("node", [
+        "scripts/generate-api-contract.mjs", "--base-url", `http://127.0.0.1:${API_HOST_PORT}`,
+      ], { timeout: 300000 });
+      results.regenerate = { status: write.status };
+      log(`generator write exit=${write.status}\n${write.stdout.slice(-1500)}`);
+      if (write.status !== 0) throw new Error("contract regeneration failed");
+    }
 
     // 1. Byte-equal contract regeneration + invariants (exact acceptance cmd).
     const gen = run("node", [
@@ -259,7 +275,14 @@ async function caseProbes(args, log) {
     evidence.verdict = "FAIL";
     log(`ERROR ${evidence.error}`);
   } finally {
-    if (stackStarted) teardown();
+    if (stackStarted) {
+      const result = teardown();
+      evidence.teardown = result.status === 0 ? "complete" : "degraded";
+      if (result.status !== 0) {
+        failed = true;
+        evidence.verdict = "FAIL";
+      }
+    }
   }
   return { evidence, failed };
 }

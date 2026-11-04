@@ -1,4 +1,9 @@
 import api from '@/lib/api';
+import {
+  fetchAllArrayListPages,
+  fetchArrayListPage,
+  type ArrayListPage,
+} from '@/lib/array-list-page';
 
 /**
  * Simulated library circulation client (contract §8, phase-11). Copies move
@@ -94,10 +99,13 @@ export const libraryApi = {
     const response = await api.get<LibraryTitle>(`/library/catalogue/${titleId}`);
     return response.data;
   },
-  myLoans: async (): Promise<LoanRequest[]> => {
-    const response = await api.get<LoanRequest[]>('/library/requests/my');
-    return response.data;
-  },
+  myLoans: async (): Promise<LoanRequest[]> =>
+    fetchAllArrayListPages(async (requestPage, requestLimit) => {
+      const response = await api.get<LoanRequest[]>('/library/requests/my', {
+        params: { page: requestPage, limit: requestLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   request: async (copyId: string, idempotencyKey: string): Promise<LoanRequest> => {
     const response = await api.post<LoanRequest>(
       '/library/requests', { copyId }, idempotencyHeaders(idempotencyKey));
@@ -118,6 +126,14 @@ export const libraryApi = {
     });
     return response.data;
   },
+  queuePage: async (status: LoanStatus | '' | undefined, page: number,
+      limit: number): Promise<ArrayListPage<LoanRequest>> =>
+    fetchArrayListPage(page, limit, async (requestPage, requestLimit) => {
+      const response = await api.get<LoanRequest[]>('/library/staff/requests', {
+        params: { ...(status ? { status } : {}), page: requestPage, limit: requestLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   staffRequest: async (requestId: string): Promise<LoanRequest> => {
     const response = await api.get<LoanRequest>(`/library/staff/requests/${requestId}`);
     return response.data;

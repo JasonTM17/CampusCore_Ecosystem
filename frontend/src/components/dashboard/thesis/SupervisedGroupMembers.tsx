@@ -162,7 +162,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                    className="min-h-[44px] min-w-[44px] p-2 text-destructive hover:bg-destructive/10"
                     onClick={() => void remove(member.studentId)}
                     disabled={isPending || !canRemoveMember}
                     aria-label={`${messages.thesis.removeMember}: ${member.displayName || member.studentId}`}
@@ -228,7 +228,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-7"
+                        className="min-h-[44px] px-3"
                         onClick={() => addInternal(student.studentId)}
                         disabled={isPending}
                       >
@@ -266,7 +266,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
                   variant="outline"
                   onClick={addExternal}
                   disabled={isPending || !externalName.trim()}
-                  className={cn(!externalName.trim() && 'opacity-50')}
+                  className={cn('min-h-[44px] px-3', !externalName.trim() && 'opacity-50')}
                 >
                   {messages.thesis.memberAddAction}
                 </Button>

@@ -6,6 +6,7 @@ import {
   type MobileCareerOpportunity,
   type MobileEvent,
   type MobileEventRegistration,
+  type MobileLibraryLoan,
   type MobileLibraryTitle,
   type MobileThesisGroup,
   type MobileThesisRound,
@@ -30,6 +31,8 @@ export interface ListOptions extends PageParams {
 export interface ThesisTopicListOptions extends ListOptions {
   /** Defaults to PUBLISHED, the only status the student lane may browse. */
   status?: string;
+  /** Server-side catalogue search; blank and `all` mean no filter. */
+  search?: string;
 }
 
 /** A file part: a Blob on web/tests, or the `{ uri, name, type }` descriptor React Native uploads. */
@@ -114,6 +117,8 @@ export function createParityApi(client: ApiClient) {
       readPage<MobileEventRegistration>('/events/my/registrations', {}, options),
     libraryCatalogue: (options: ListOptions & { query?: string } = {}) =>
       readPage<MobileLibraryTitle>('/library/catalogue', { query: options.query }, options),
+    libraryLoans: (options: ListOptions = {}) =>
+      readPage<MobileLibraryLoan>('/library/requests/my', {}, options),
     careersOpportunities: (options: ListOptions & { query?: string } = {}) =>
       readPage<MobileCareerOpportunity>('/careers/opportunities', { query: options.query }, options),
     thesisRounds: (options: ListOptions & { status?: string } = {}) =>
@@ -121,7 +126,7 @@ export function createParityApi(client: ApiClient) {
     thesisTopics: (roundId: string, options: ThesisTopicListOptions = {}) =>
       readPage<MobileThesisTopic>(
         '/thesis/topics',
-        { roundId, status: options.status ?? 'PUBLISHED' },
+        { roundId, status: options.status ?? 'PUBLISHED', search: options.search },
         options,
       ),
     thesisGroups: (roundId: string, options: ListOptions = {}) =>

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic.registration;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -14,6 +15,7 @@ public final class CreditLimitApplicationDtos {
             @NotBlank @Size(min = 20, max = 1000) String reason) {
     }
 
+    @Schema(name = "ReviewRequest")
     public record ReviewRequest(
             @NotBlank String decision,
             @Size(max = 1000) String note) {

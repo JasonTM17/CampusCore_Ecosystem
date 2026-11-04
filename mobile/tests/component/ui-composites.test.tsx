@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { Button, ListRow } from '../../src/components/Ui';
 import {
   ChartSummary,
   ChoiceField,
@@ -30,6 +31,29 @@ const rows = [
   { id: 'b', title: 'Lớp B' },
 ];
 const renderRow = (row: { id: string; title: string }) => <Text>{row.title}</Text>;
+
+describe('ListRow accessibility', () => {
+  test('keeps a trailing action reachable when the row is not pressable', async () => {
+    const onRemove = jest.fn();
+    await render(wrap(<ListRow title="Thesis topic" trailing={<Button label="Delete" onPress={onRemove} variant="text" />} />));
+    const remove = screen.getByRole('button', { name: 'Delete' });
+    await fireEvent.press(remove);
+    expect(onRemove).toHaveBeenCalledTimes(1);
+
+    let parent = remove.parent;
+    while (parent) {
+      expect(parent.props.accessible).not.toBe(true);
+      parent = parent.parent;
+    }
+  });
+
+  test('plain rows keep the combined accessibility label', async () => {
+    await render(wrap(<ListRow title="Thesis topic" subtitle="Registration" meta="Pending" />));
+    const row = screen.getByLabelText('Thesis topic. Registration. Pending');
+    expect(row.props.accessible).toBe(true);
+    expect(row.props.accessibilityLabel).toBe('Thesis topic. Registration. Pending');
+  });
+});
 
 describe('DataList', () => {
   test('renders rows by stable key and loads more on demand', async () => {
@@ -146,6 +170,16 @@ describe('DateField', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Áp dụng' }));
     expect(screen.getByText('Vui lòng nhập ngày')).toBeOnTheScreen();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('an English prefill applies unchanged', async () => {
+    const onChange = jest.fn();
+    await render(wrap(<DateField label="Date" value="2026-11-03" onChange={onChange} />, 'en'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Date: Nov 3, 2026' }));
+    expect(screen.getByLabelText('Select date').props.value).toBe('Nov 3, 2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Apply' }));
+    expect(screen.queryByText('Invalid date')).toBeNull();
+    expect(onChange).toHaveBeenCalledWith('2026-11-03');
   });
 });
 

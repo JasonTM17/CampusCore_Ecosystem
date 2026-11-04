@@ -40,6 +40,7 @@ for (const locale of ['en', 'vi']) {
     const copy = loadTimelineModule('src/i18n/messages-thesis-workflow.ts');
     const Timeline = loadTimelineModule('src/features/thesis/components/SubmissionStatusTimeline.tsx', {
       '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+      '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
       '@/features/thesis/components/thesis-helpers': helpers,
     }).default;
     const submittedAt = '2026-10-01T02:00:00Z';
@@ -67,6 +68,7 @@ function renderTimeline(locale, props) {
   const copy = (locale === 'vi' ? dictionaries.thesisWorkflowVi : dictionaries.thesisWorkflowEn).page.submissionStatus;
   const Timeline = loadTimelineModule('src/features/thesis/components/SubmissionStatusTimeline.tsx', {
     '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
     '@/features/thesis/components/thesis-helpers': helpers,
   }).default;
   return {
@@ -251,4 +253,111 @@ test('the report window renders four honest states', () => {
     2,
     'closedFinalTitle must be localized in en + vi',
   );
+});
+
+// ---------------------------------------------------------------------------
+// W13 audit SEC-01/SEC-02/A11Y-03/STATE-03 — report link and prefetch safety
+// ---------------------------------------------------------------------------
+
+function loadSafeUrl() {
+  const ts = require('typescript');
+  const output = ts.transpileModule(read('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
+test('the report URL guard accepts only absolute http(s) URLs', () => {
+  const { isHttpUrl } = loadSafeUrl();
+  for (const safe of [
+    'https://files.example.edu/report.pdf',
+    'http://localhost:8080/report.pdf',
+    'HTTPS://EXAMPLE.EDU/report.pdf',
+  ]) {
+    assert.equal(isHttpUrl(safe), true, safe);
+  }
+  for (const unsafe of [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'java\tscript:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'mailto:lecturer@example.edu',
+    'tel:+84900000000',
+    '/dashboard/thesis',
+    '//evil.example/report.pdf',
+    '',
+    '   ',
+    null,
+    undefined,
+    'not a url',
+  ]) {
+    assert.equal(isHttpUrl(unsafe), false, String(unsafe));
+  }
+});
+
+test('the student report card renders the stored URL only through the http(s) guard', () => {
+  assert.match(page, /import \{ isHttpUrl \} from '@\/lib\/safe-url'/, 'the page imports the guard');
+  assert.match(page, /groupReport\.url && isHttpUrl\(groupReport\.url\)/, 'href is gated on http(s)');
+  assert.match(page, /rel="noopener noreferrer"/, 'noopener also closes the window.opener path');
+});
+
+test('supervised report prefetch cannot apply after unmount', () => {
+  const effectStart = page.indexOf(
+    'if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;',
+  );
+  assert.ok(effectStart > -1, 'the supervised report effect exists');
+  const effectEnd = page.indexOf('\n  ]);', effectStart);
+  assert.ok(effectEnd > effectStart, 'the effect dependency list is intact');
+  const effect = page.slice(effectStart, effectEnd);
+  assert.match(effect, /let active = true/, 'the effect owns a cancellation flag');
+  assert.match(effect, /return \(\) => \{\s*active = false;\s*\};/, 'teardown clears the flag');
+  assert.ok(
+    (effect.match(/if \(!active\) return;/g) || []).length >= 2,
+    'the resolve and reject paths check the flag before setState',
+  );
+  assert.match(effect, /supervisedReportGroupIds/, 'the effect is keyed on the stable id list');
+  assert.doesNotMatch(effect, /\bsupervisedReports\b/,
+    'the effect must not depend on the map it writes');
+});
+
+test('the below-average badge keeps AA contrast in the light theme', () => {
+  assert.match(page, /BELOW_AVERAGE: '[^']*text-yellow-800/);
+  assert.doesNotMatch(page, /BELOW_AVERAGE: '[^']*text-yellow-700/);
+});
+
+test('thesis report URLs render as safe links or readable plain-text labels', () => {
+  const cases = [
+    {
+      file: 'src/features/thesis/components/SupervisedGroupList.tsx',
+      url: /isHttpUrl\(reportsByGroup\[group\.id\]\?\.url\)/,
+      label: 'pageCopy\.thesisReportLabel',
+      name: 'SupervisedGroupList',
+    },
+    {
+      file: 'src/features/thesis/components/ThesisRepositoryWorkspace.tsx',
+      url: /isHttpUrl\(report\.url\)/,
+      label: 'pageCopy\.openExternalLink',
+      name: 'ThesisRepositoryWorkspace',
+    },
+    {
+      file: 'src/features/thesis/components/CouncilDefenseWorkspace.tsx',
+      url: /isHttpUrl\(topicReports\[tid\]\?\.url\)/,
+      label: 'pageCopy\.thesisDocumentLabel',
+      name: 'CouncilDefenseWorkspace',
+    },
+  ];
+
+  for (const item of cases) {
+    const source = read(item.file);
+    assert.ok(item.url.test(source), `${item.name} checks the URL protocol before rendering a link`);
+    assert.match(source, /rel="noopener noreferrer"/, `${item.name} protects new tabs`);
+    const guardedLink = source.slice(source.search(item.url), source.search(item.url) + 1800);
+    assert.match(
+      guardedLink,
+      new RegExp(`</a>\\s*\\)\\s*:\\s*\\(\\s*<span[\\s\\S]{0,500}${item.label}`),
+      `${item.name} keeps an unsafe report label as plain text`,
+    );
+  }
 });

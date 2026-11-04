@@ -180,7 +180,7 @@ public class CareerService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !roles.contains("ADMIN")) {
+        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
             throw problem(HttpStatus.FORBIDDEN, "CAREERS_ADMIN_REQUIRED",
                     "Grant administration requires the ADMIN role");
         }
@@ -200,15 +200,20 @@ public class CareerService {
             throw problem(HttpStatus.FORBIDDEN, "CAREERS_STAFF_REQUIRED",
                     "A careers grant is required to list grants");
         }
-        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE)
+                .addValue("actor", actorId);
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT
+                            + " WHERE \"scope\" = :scope AND \"userId\" = :actor",
                     params, Long.class);
         }
+        // Self-view over the grant table: a staffer sees only its own rows
+        // (org recruiter and/or platform reviewer), never a staff directory.
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT
+                + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());
@@ -454,6 +459,10 @@ public class CareerService {
             Integer expectedVersion) {
         Map<String, Object> opportunity = lockOpportunity(opportunityId);
         requireOrgGrant(actorId, String.valueOf(opportunity.get("organizationId")));
+        if (!actorId.equals(String.valueOf(opportunity.get("submittedBy")))) {
+            throw problem(HttpStatus.FORBIDDEN, "SELF_PUBLISH_FORBIDDEN",
+                    "Only the opportunity creator can submit it for review");
+        }
         requireOpportunityTerminalGuard(opportunity);
         requireVersion(opportunity, expectedVersion);
         if (!"DRAFT".equals(String.valueOf(opportunity.get("status")))) {
@@ -517,6 +526,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A visible reason is required for " + toStatus.toLowerCase());
         }
+        requireReasonBound(reason);
         String sql = "UPDATE " + OPPORTUNITY + " SET \"status\" = :to,"
                 + " \"moderationReason\" = :reason,"
                 + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP";
@@ -628,6 +638,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A visible moderation reason is required");
         }
+        requireReasonBound(reason);
         int updated = jdbc.update(
                 "UPDATE " + OPPORTUNITY + " SET \"status\" = 'REJECTED',"
                         + " \"reviewedBy\" = :actor, \"reviewedAt\" = CURRENT_TIMESTAMP,"
@@ -774,6 +785,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A moderation reason is required and is shown to the candidate");
         }
+        requireReasonBound(reason);
         int updated = jdbc.update(
                 "UPDATE " + APPLICATION + " SET \"status\" = 'REJECTED',"
                         + " \"statusChangedBy\" = :actor, \"statusChangedAt\" = CURRENT_TIMESTAMP,"
@@ -1050,6 +1062,14 @@ public class CareerService {
             map.put(meta.getColumnLabel(i), row.getObject(i));
         }
         return map;
+    }
+
+    /** moderationReason columns are bounded; an over-long reason is a 400, never a stored truncation. */
+    private static void requireReasonBound(String reason) {
+        if (reason != null && reason.length() > 500) {
+            throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_TOO_LONG",
+                    "The moderation reason must be 500 characters or fewer");
+        }
     }
 
     static Instant toInstant(Object value) {

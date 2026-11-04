@@ -93,12 +93,21 @@ public final class AnnouncementHtmlSanitizer {
         // The second parse has independent output settings; retain the compact
         // persisted/editor contract across parser version upgrades.
         cleaned.outputSettings().prettyPrint(false);
+        forceSafeBlankTargetRelations(cleaned);
         // An <img> whose src failed the scheme check survives cleaning as a
         // bare tag — a broken frame for every reader and 0 counted removals.
         // Drop it (counted) so the stored body carries no dead markup.
         removed += dropSrclessImages(cleaned);
         String clean = cleaned.body() == null ? "" : cleaned.body().html();
         return new SanitizationResult(clean, removed);
+    }
+
+    private static void forceSafeBlankTargetRelations(Document document) {
+        for (Element anchor : document.select("a[target]")) {
+            if ("_blank".equalsIgnoreCase(anchor.attr("target"))) {
+                anchor.attr("rel", "noopener noreferrer");
+            }
+        }
     }
 
     private static int dropSrclessImages(Document document) {

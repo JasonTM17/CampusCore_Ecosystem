@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 
+import { resolveJavaApiOrigin } from '@/lib/proxy-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
@@ -16,9 +17,7 @@ type RouteContext = {
 const ALLOWED_SEGMENTS = new Set(['login', 'callback', 'state', 'logout']);
 
 function upstreamOrigin(): string {
-  return (process.env.JAVA_API_ORIGIN ||
-    process.env.BACKEND_INTERNAL_ORIGIN ||
-    (process.env.NODE_ENV === 'production' ? 'https://campuscore-backend-p4em.onrender.com' : 'http://127.0.0.1:4010')).replace(/\/$/, '');
+  return resolveJavaApiOrigin();
 }
 
 async function handle(request: NextRequest, context: RouteContext) {

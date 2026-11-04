@@ -12,6 +12,8 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Savepoint;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +26,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
@@ -59,6 +64,8 @@ public class RegistrationService {
     private static final String AUTH_USER = "campuscore_auth.\"User\"";
     private static final String CURRICULUM_COURSE = "academic.\"CurriculumCourse\"";
     private static final int STANDARD_CREDIT_LIMIT = CreditLimitApplicationService.STANDARD_LIMIT;
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
     private final NamedParameterJdbcTemplate jdbc;
     private final AcademicEnrollmentReadService reads;
@@ -428,19 +435,43 @@ public class RegistrationService {
                                 new MapSqlParameterSource()
                                         .addValue("studentId", studentId)
                                         .addValue("semesterId", targetSemesterId));
-                        jdbc.update(
-                                "INSERT INTO " + SLIP
-                                        + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
-                                        + " VALUES (:id, :studentId, :semesterId, :roundId, :sha, :size, :payload)",
-                                new MapSqlParameterSource()
-                                        .addValue("id", UUID.randomUUID().toString())
-                                        .addValue("studentId", studentId)
-                                        .addValue("semesterId", targetSemesterId)
-                                        .addValue("roundId", roundId)
-                                        .addValue("sha", rendered.sha256())
-                                        .addValue("size", rendered.payload().length)
-                                        .addValue("payload", rendered.payload()));
-                    } catch (Exception ignored) {
+                        MapSqlParameterSource insertParameters = new MapSqlParameterSource()
+                                .addValue("id", UUID.randomUUID().toString())
+                                .addValue("studentId", studentId)
+                                .addValue("semesterId", targetSemesterId)
+                                .addValue("roundId", roundId)
+                                .addValue("sha", rendered.sha256())
+                                .addValue("size", rendered.payload().length)
+                                .addValue("payload", rendered.payload());
+                        // PostgreSQL aborts the whole transaction on a failed
+                        // statement; the best-effort INSERT runs behind a
+                        // savepoint on the request connection so a failure
+                        // rolls back only itself — the stale-row DELETE above
+                        // still commits. PROPAGATION_NESTED is unavailable on
+                        // the JPA manager and a second transaction would
+                        // deadlock on the held Student row lock.
+                        jdbc.getJdbcOperations().execute((ConnectionCallback<Void>) connection -> {
+                            Savepoint savepoint = connection.setSavepoint();
+                            try {
+                                jdbc.update(
+                                        "INSERT INTO " + SLIP
+                                                + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
+                                                + " VALUES (:id, :studentId, :semesterId, :roundId, :sha, :size, :payload)",
+                                        insertParameters);
+                                connection.releaseSavepoint(savepoint);
+                            } catch (DataAccessException | SQLException failure) {
+                                try {
+                                    connection.rollback(savepoint);
+                                } catch (SQLException rollbackFailure) {
+                                    failure.addSuppressed(rollbackFailure);
+                                }
+                                throw failure;
+                            }
+                            return null;
+                        });
+                    } catch (DataAccessException failure) {
+                        log.warn("registration slip cache persistence skipped; exceptionType={}",
+                                failure.getClass().getSimpleName());
                     }
                 }
                 return new SlipPayload(rendered.sha256(), rendered.payload());
@@ -457,31 +488,31 @@ public class RegistrationService {
         Map<String, Object> first = active.get(0);
         String studentCode = studentId;
         String studentName = null;
-        try {
-            Map<String, Object> studentInfo = jdbc.queryForMap(
-                    "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name, u.\"lastName\" AS last_name"
-                            + " FROM " + STUDENT + " s"
-                            + " LEFT JOIN \"campuscore_auth\".\"User\" u ON u.\"id\" = s.\"userId\""
-                            + " WHERE s.\"id\" = :studentId",
-                    new MapSqlParameterSource("studentId", studentId));
-            if (studentInfo.get("student_code") != null) {
-                studentCode = String.valueOf(studentInfo.get("student_code"));
+        String semesterName = semesterId;
+        // Cosmetic fields come from ONE non-throwing lookup — LEFT JOINs keep
+        // missing name/semester data from raising (Student.id is the PK, so at
+        // most one row), and a real statement failure propagates instead of
+        // poisoning the request transaction behind a swallowed exception.
+        List<Map<String, Object>> infos = jdbc.queryForList(
+                "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name,"
+                        + " u.\"lastName\" AS last_name, semester.\"name\" AS semester_name"
+                        + " FROM " + STUDENT + " s"
+                        + " LEFT JOIN " + AUTH_USER + " u ON u.\"id\" = s.\"userId\""
+                        + " LEFT JOIN " + SEMESTER + " semester ON semester.\"id\" = :semesterId"
+                        + " WHERE s.\"id\" = :studentId",
+                new MapSqlParameterSource("studentId", studentId)
+                        .addValue("semesterId", semesterId));
+        if (!infos.isEmpty()) {
+            Map<String, Object> info = infos.get(0);
+            if (info.get("student_code") != null) {
+                studentCode = String.valueOf(info.get("student_code"));
             }
             studentName = displayName(
-                    (String) studentInfo.get("first_name"),
-                    (String) studentInfo.get("last_name"));
-        } catch (Exception ignored) {
-        }
-
-        String semesterName = semesterId;
-        try {
-            Map<String, Object> semesterInfo = jdbc.queryForMap(
-                    "SELECT \"name\" FROM " + SEMESTER + " WHERE \"id\" = :semesterId",
-                    new MapSqlParameterSource("semesterId", semesterId));
-            if (semesterInfo.get("name") != null) {
-                semesterName = String.valueOf(semesterInfo.get("name"));
+                    (String) info.get("first_name"),
+                    (String) info.get("last_name"));
+            if (info.get("semester_name") != null) {
+                semesterName = String.valueOf(info.get("semester_name"));
             }
-        } catch (Exception ignored) {
         }
 
         List<RegistrationPdfRenderer.CourseItem> courseItems = active.stream()
@@ -507,7 +538,14 @@ public class RegistrationService {
 
     private String resolveSlipRoundId(Map<String, Object> first, String semesterId) {
         String roundId = first.get("round_id") == null ? null : String.valueOf(first.get("round_id"));
-        if (roundId != null && !roundId.isBlank()) {
+        // Enrollment.roundId carries no FK — a dangling value must not reach
+        // the slip cache INSERT (it would fail the RegistrationSlip.roundId FK
+        // on every request). Only trust it when the round still exists;
+        // otherwise fall through to the live-round lookups below.
+        if (roundId != null && !roundId.isBlank()
+                && !jdbc.queryForList(
+                        "SELECT \"id\" FROM " + ROUND + " WHERE \"id\" = :roundId",
+                        new MapSqlParameterSource("roundId", roundId), String.class).isEmpty()) {
             return roundId;
         }
         List<String> roundIds = jdbc.queryForList(
@@ -702,7 +740,7 @@ public class RegistrationService {
         if (!admin && !java.util.Objects.equals(studentId, String.valueOf(enrollment.get("student_id")))) {
             throw problem(HttpStatus.FORBIDDEN, "ENROLLMENT_FORBIDDEN", "Enrollment does not belong to the current student");
         }
-        if (!List.of("ENROLLED", "PENDING").contains(String.valueOf(enrollment.get("status")))) {
+        if (!List.of("ENROLLED", "PENDING", "CONFIRMED").contains(String.valueOf(enrollment.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment is no longer active");
         }
         String droppedCourseId = String.valueOf(section.get("course_id"));
@@ -836,6 +874,10 @@ public class RegistrationService {
     private void requireKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+        }
+        if (idempotencyKey.length() > 200) {
+            throw problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID",
+                    "Idempotency-Key must not exceed 200 characters");
         }
     }
 
@@ -1048,15 +1090,49 @@ public class RegistrationService {
                 "SELECT \"requiredCourseId\" AS required_course_id, \"kind\", \"minLetterGrade\" AS min_letter_grade"
                         + " FROM " + REQUIREMENT + " WHERE \"courseId\" = :courseId",
                 new MapSqlParameterSource("courseId", courseId));
+        if (requirements.isEmpty()) {
+            return;
+        }
+        List<String> prerequisiteCourseIds = requirements.stream()
+                .filter(requirement -> "PREREQ".equals(String.valueOf(requirement.get("kind"))))
+                .map(requirement -> String.valueOf(requirement.get("required_course_id")))
+                .distinct()
+                .toList();
+        List<String> corequisiteCourseIds = requirements.stream()
+                .filter(requirement -> "COREQ".equals(String.valueOf(requirement.get("kind"))))
+                .map(requirement -> String.valueOf(requirement.get("required_course_id")))
+                .distinct()
+                .toList();
+        // Corequisites are also satisfied by a prior-term completion, not only
+        // by a concurrent enrollment or the current request cart.
+        List<String> completedCourseIds = new ArrayList<>(prerequisiteCourseIds);
+        for (String course : corequisiteCourseIds) {
+            if (!completedCourseIds.contains(course)) {
+                completedCourseIds.add(course);
+            }
+        }
+        Map<String, List<String>> completedLetters = completedCourseIds.isEmpty()
+                ? Map.of()
+                : completedLetters(studentId, completedCourseIds);
+        Set<String> activeCorequisites = corequisiteCourseIds.isEmpty()
+                ? Set.of()
+                : activeCourseIds(studentId, semesterId, corequisiteCourseIds);
+        Set<String> requestedCourses = corequisiteCourseIds.isEmpty()
+                ? Set.of()
+                : courseIdsOfSections(requestSectionIds);
         for (Map<String, Object> requirement : requirements) {
             String required = String.valueOf(requirement.get("required_course_id"));
             String kind = String.valueOf(requirement.get("kind"));
             String minLetter = requirement.get("min_letter_grade") == null
                     ? null : String.valueOf(requirement.get("min_letter_grade"));
-            if ("PREREQ".equals(kind) && !hasCompleted(studentId, required, minLetter)) {
+            if ("PREREQ".equals(kind)
+                    && !satisfiesLetterFloor(completedLetters.getOrDefault(required, List.of()), minLetter)) {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "PREREQUISITE_UNMET", "A required prerequisite is missing");
             }
-            if ("COREQ".equals(kind) && !hasActiveCourse(studentId, semesterId, required) && !requestHasCourse(requestSectionIds, required)) {
+            if ("COREQ".equals(kind)
+                    && !completedLetters.containsKey(required)
+                    && !activeCorequisites.contains(required)
+                    && !requestedCourses.contains(required)) {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "COREQUISITE_UNMET", "A required corequisite is missing");
             }
         }
@@ -1089,57 +1165,108 @@ public class RegistrationService {
     }
 
     /** Letter ordering used for prerequisite minimum-grade enforcement. */
-    private static final java.util.Map<String, Integer> LETTER_RANK = java.util.Map.of(
-            "F", 0, "D", 1, "D+", 2, "C", 3, "C+", 4, "B", 5, "B+", 6, "A", 7, "A+", 8);
+    private static final java.util.Map<String, Integer> LETTER_RANK = java.util.Map.ofEntries(
+            java.util.Map.entry("F", 0),
+            java.util.Map.entry("D-", 1),
+            java.util.Map.entry("D", 2),
+            java.util.Map.entry("D+", 3),
+            java.util.Map.entry("C-", 4),
+            java.util.Map.entry("C", 5),
+            java.util.Map.entry("C+", 6),
+            java.util.Map.entry("B-", 7),
+            java.util.Map.entry("B", 8),
+            java.util.Map.entry("B+", 9),
+            java.util.Map.entry("A-", 10),
+            java.util.Map.entry("A", 11),
+            java.util.Map.entry("A+", 12));
+
+    /** A malformed floor should not be able to widen a requirement repeatedly. */
+    private static final Set<String> WARNED_UNKNOWN_FLOORS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private boolean hasCompleted(String studentId, String courseId, String minLetter) {
-        List<String> letters = jdbc.queryForList(
-                "SELECT \"letterGrade\" FROM " + ENROLLMENT
-                        + " WHERE \"studentId\" = :studentId AND \"courseId\" = :courseId"
-                        + " AND \"gradeStatus\" IN ('COMPLETED', 'PUBLISHED')"
+        return satisfiesLetterFloor(
+                completedLetters(studentId, List.of(courseId)).getOrDefault(courseId, List.of()), minLetter);
+    }
+
+    /** Passing letters of one course set, grouped in one statement. */
+    private Map<String, List<String>> completedLetters(String studentId, List<String> courseIds) {
+        Map<String, List<String>> letters = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade FROM " + ENROLLMENT
+                        + " WHERE \"studentId\" = :studentId AND \"courseId\" IN (:courseIds)"
+                        + " AND (\"gradeStatus\" IN ('PUBLISHED', 'APPEALED') OR \"status\" = 'COMPLETED')"
                         // A passing letter is required: a graded row without a
                         // letter (a producer bug) must never silently unlock a
                         // prerequisite, matching the knowledge-base copy.
                         + " AND \"letterGrade\" IS NOT NULL"
                         + " AND \"letterGrade\" NOT IN ('F', 'W')",
-                new MapSqlParameterSource().addValue("studentId", studentId).addValue("courseId", courseId),
-                String.class);
-        if (letters.isEmpty()) {
-            return false;
+                new MapSqlParameterSource()
+                        .addValue("studentId", studentId)
+                        .addValue("courseIds", courseIds))) {
+            letters.computeIfAbsent(String.valueOf(row.get("course_id")), key -> new ArrayList<>())
+                    .add(String.valueOf(row.get("letter_grade")));
         }
-        // minLetterGrade was a dead column: the gate accepted any non-F/W pass.
-        // When the requirement declares a floor (e.g. 'B'), the student's best
-        // achieved letter must rank at or above it; an unknown floor value is
-        // ignored rather than silently tightening or loosening the rule.
-        int minRank = minLetter == null ? Integer.MIN_VALUE
-                : LETTER_RANK.getOrDefault(minLetter.trim().toUpperCase(java.util.Locale.ROOT), Integer.MIN_VALUE);
-        return letters.stream()
-                .map(letter -> LETTER_RANK.getOrDefault(letter, Integer.MIN_VALUE))
-                .anyMatch(rank -> rank >= minRank);
+        return letters;
     }
 
-    private boolean hasActiveCourse(String studentId, String semesterId, String courseId) {
-        Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + ENROLLMENT
-                        + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId AND \"courseId\" = :courseId"
+    /**
+     * DSJ-06: a declared floor is enforced against the best passing attempt.
+     * The rank table carries the legacy minus bands (the 10-point bands never
+     * emit them, but transcripts and imported records do). A non-null floor
+     * that is not a known letter is a malformed requirement, so it fails
+     * closed instead of degrading into "no floor".
+     */
+    static boolean satisfiesLetterFloor(List<String> letters, String minLetter) {
+        Integer minimum = null;
+        if (minLetter != null) {
+            String normalizedFloor = minLetter.trim().toUpperCase(Locale.ROOT);
+            minimum = LETTER_RANK.get(normalizedFloor);
+            if (minimum == null) {
+                if (WARNED_UNKNOWN_FLOORS.add(normalizedFloor)) {
+                    log.warn("Unknown prerequisite minLetterGrade '{}'; failing the prerequisite closed",
+                            normalizedFloor);
+                }
+                return false;
+            }
+        }
+        for (String letter : letters) {
+            if (letter == null) {
+                continue;
+            }
+            String normalized = letter.trim().toUpperCase(Locale.ROOT);
+            // F and W are never passing grades, even when no floor is declared.
+            if ("F".equals(normalized) || "W".equals(normalized)) {
+                continue;
+            }
+            Integer rank = LETTER_RANK.get(normalized);
+            if (rank != null && (minimum == null || rank >= minimum)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Set<String> activeCourseIds(String studentId, String semesterId, List<String> courseIds) {
+        return new LinkedHashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT \"courseId\" FROM " + ENROLLMENT
+                        + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId"
+                        + " AND \"courseId\" IN (:courseIds)"
                         + " AND \"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED')",
                 new MapSqlParameterSource()
                         .addValue("studentId", studentId)
                         .addValue("semesterId", semesterId)
-                        .addValue("courseId", courseId),
-                Long.class);
-        return count != null && count > 0;
+                        .addValue("courseIds", courseIds),
+                String.class));
     }
 
-    private boolean requestHasCourse(List<String> sectionIds, String courseId) {
+    private Set<String> courseIdsOfSections(List<String> sectionIds) {
         if (sectionIds.isEmpty()) {
-            return false;
+            return Set.of();
         }
-        Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + SECTION + " WHERE \"id\" IN (:ids) AND \"courseId\" = :courseId",
-                new MapSqlParameterSource().addValue("ids", sectionIds).addValue("courseId", courseId),
-                Long.class);
-        return count != null && count > 0;
+        return new LinkedHashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT \"courseId\" FROM " + SECTION + " WHERE \"id\" IN (:ids)",
+                new MapSqlParameterSource("ids", sectionIds),
+                String.class));
     }
 
     private List<TimeRange> schedulesForSection(String sectionId) {

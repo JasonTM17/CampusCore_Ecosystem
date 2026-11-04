@@ -1,9 +1,29 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import ts from 'typescript';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadTs } from './helpers/load-ts.mjs';
 
+const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const contentErrorsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-content-errors-'));
+function emit(rel, name, rewrite = (text) => text) {
+  const { outputText } = ts.transpileModule(fs.readFileSync(path.join(mobileRoot, rel), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    fileName: rel,
+  });
+  fs.writeFileSync(path.join(contentErrorsDir, name), rewrite(outputText));
+}
+emit('src/screens/student/shared/resource-error.ts', 'resource-error.mjs');
+emit('src/screens/content/content-errors.ts', 'content-errors.mjs', (text) => text.replace(
+  /from '\.\.\/student\/shared\/resource-error'/g,
+  "from './resource-error.mjs'",
+));
+
 const paging = await loadTs('src/screens/content/content-paging.ts');
-const errors = await loadTs('src/screens/content/content-errors.ts');
+const errors = await import(pathToFileURL(path.join(contentErrorsDir, 'content-errors.mjs')).href);
 const rules = await loadTs('src/screens/content/content-rules.ts');
 const richText = await loadTs('src/screens/content/rich-text.ts');
 const records = await loadTs('src/screens/content/records-model.ts');
@@ -51,10 +71,50 @@ test('patchItems edits and removes rows and keeps the total honest', () => {
   assert.equal(removed.total, 1);
 });
 
+test('a removal steps the page cursor back so a shifted row is not skipped', () => {
+  const first = paging.startView({ items: [{ id: 'a' }, { id: 'b' }], total: 21, hasMore: true }, keyOf);
+  assert.equal(first.nextPage, 1);
+  const removed = paging.patchItems(first, (item) => (item.id === 'a' ? null : item));
+  assert.equal(removed.nextPage, 0, 'the next read repeats the first window after a removal');
+  const recovered = paging.appendPage(removed, { items: [{ id: 'b' }, { id: 'c' }], hasMore: false }, 0, keyOf);
+  assert.deepEqual(recovered.items.map(keyOf), ['b', 'c'], 'the row shifted into the window is still fetched');
+
+  const second = paging.appendPage(first, { items: [{ id: 'c' }], hasMore: true }, 1, keyOf);
+  assert.equal(second.nextPage, 2);
+  const shrunk = paging.patchItems(second, (item) => (item.id === 'b' ? null : item));
+  assert.equal(shrunk.nextPage, 1, 'the last loaded window is read again');
+  const edited = paging.patchItems(second, (item) => ({ ...item, read: true }));
+  assert.equal(edited.nextPage, 2, 'an edit that keeps every row leaves the cursor alone');
+});
+
+test('a page read behind the cursor after a removal lands on the loaded base and keeps advancing', () => {
+  const pageOf = (ids, hasMore) => ({ items: ids.map((id) => ({ id })), hasMore });
+  const base = paging.startView(pageOf(['a', 'b'], true), keyOf);
+  const edited = paging.patchItems(base, (item) => (item.id === 'a' ? null : item));
+  assert.equal(edited.nextPage, 0, 'the edited view asks for the window behind the loaded one');
+
+  const landed = paging.appendPage(base, pageOf(['b', 'c'], true), base.nextPage, keyOf);
+  assert.deepEqual(landed.items.map((item) => item.id), ['a', 'b', 'c']);
+  assert.equal(landed.nextPage, base.nextPage + 1);
+
+  const reedited = paging.patchItems(landed, (item) => (item.id === 'a' ? null : item));
+  assert.deepEqual(reedited.items.map((item) => item.id), ['b', 'c']);
+  assert.ok(reedited.nextPage >= base.nextPage, 'the cursor does not stay behind the page that just landed');
+});
+
+test('the paged list lands each page on the loaded base cursor, not the edited one', () => {
+  const source = fs.readFileSync(path.join(mobileRoot, 'src/screens/content/use-paged-list.ts'), 'utf8');
+  assert.match(source, /appendPage\(base, page, base\.nextPage, optionsRef\.current\.keyOf\)/);
+});
 test('error mapping never leaks server text and picks copy by status', () => {
   const copy = { offline: 'off', signIn: 'in', denied: 'no', notFound: '404', rateLimited: 'slow', server: 'srv', generic: 'gen' };
   const withStatus = (status) => Object.assign(new Error('secret'), { status });
-  assert.equal(errors.contentErrorMessage(copy, withStatus(401)), 'in');
+  // A resource 401 is retryable: the refresh lane owns the only sign-in route.
+  assert.equal(errors.contentErrorKind(withStatus(401)), 'generic');
+  assert.equal(errors.contentErrorMessage(copy, withStatus(401), 'retry'), 'retry');
+  assert.equal(errors.contentErrorMessage(copy, withStatus(401)), 'gen');
+  assert.equal(errors.contentErrorMessage(copy, Object.assign(new Error('secret'), { code: 'HTTP_401' }), 'retry'), 'retry');
+  assert.equal(errors.contentErrorMessage(copy, Object.assign(new Error('secret'), { code: 'UNAUTHENTICATED' }), 'retry'), 'retry');
   assert.equal(errors.contentErrorMessage(copy, withStatus(403)), 'no');
   assert.equal(errors.contentErrorMessage(copy, withStatus(404)), '404');
   assert.equal(errors.contentErrorMessage(copy, withStatus(429)), 'slow');

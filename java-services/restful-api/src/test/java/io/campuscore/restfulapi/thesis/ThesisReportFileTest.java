@@ -142,6 +142,20 @@ class ThesisReportFileTest {
     }
 
     @Test
+    void missingFilePartIsAValidationFailureNotAServerError() throws Exception {
+        UUID groupId = seedApprovedGroup();
+        mvc.perform(multipart("/api/v1/thesis/groups/{id}/report/file", groupId)
+                        .param("title", "Final report")
+                        .with(studentJwt("rf-leader")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("FILE_REQUIRED"));
+
+        Integer rows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_group_report WHERE group_id = ?", Integer.class, groupId);
+        org.junit.jupiter.api.Assertions.assertEquals(0, rows);
+    }
+
+    @Test
     void oversizeDocumentIsRejected() throws Exception {
         UUID groupId = seedApprovedGroup();
         byte[] blob = new byte[20 * 1024 * 1024 + 1];

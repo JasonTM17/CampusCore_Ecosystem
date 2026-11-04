@@ -3,9 +3,12 @@ package io.campuscore.restfulapi.academic.service;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -38,6 +41,7 @@ public class AdminCatalogMutationService {
     private static final Set<String> SEMESTER_STATUSES =
             Set.of("DRAFT", "OPEN", "REGISTRATION_OPEN", "ADD_DROP_OPEN", "ACTIVE", "IN_PROGRESS", "CLOSED");
     private static final Set<String> SECTION_STATUSES = Set.of("OPEN", "CLOSED", "CANCELLED");
+    private static final int MAX_SECTION_ID_LENGTH = 109;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final AdminAuditRecorder audit;
@@ -190,6 +194,10 @@ public class AdminCatalogMutationService {
     @Transactional
     public Map<String, Object> createSection(Map<String, Object> input) {
         String id = id(input);
+        if (id.length() > MAX_SECTION_ID_LENGTH) {
+            throw problem(HttpStatus.BAD_REQUEST, "INVALID_SECTION_ID",
+                    "Section id must not exceed " + MAX_SECTION_ID_LENGTH + " characters");
+        }
         int capacity = number(input, "capacity", 30);
         requireSectionCapacity(capacity);
         String status = text(input, "status", "OPEN");
@@ -205,6 +213,16 @@ public class AdminCatalogMutationService {
         String classroomId = text(input, "classroomId", null);
         if (classroomId != null) {
             requireCatalogReference(CLASSROOM, "classroomId", classroomId);
+        }
+        // The INSERT takes FOR KEY SHARE on the referenced Lecturer/Classroom
+        // rows, so their serialization locks must already be held: a FOR
+        // UPDATE upgrade under a peer's KEY SHARE deadlocks.
+        List<String> bookedRoomIds = new ArrayList<>(scheduleClassroomIds(input.get("schedules")));
+        if (input.get("classroomId") != null) {
+            bookedRoomIds.add(input.get("classroomId").toString());
+        }
+        lockScheduleResources(bookedRoomIds, input.get("lecturerId"));
+        if (classroomId != null) {
             requireRoomFitsCapacity(classroomId, capacity);
         }
         jdbc.update(
@@ -227,6 +245,9 @@ public class AdminCatalogMutationService {
 
     @Transactional
     public Map<String, Object> update(String table, String id, Map<String, Object> input) {
+        if (CLASSROOM.equals(table) && input.containsKey("capacity")) {
+            lockScheduleResources(List.of(id), null);
+        }
         Map<String, Object> before = rowOrNull(table, id);
         Map<String, String> columns = allowedColumns(table);
         // Update runs the same invariants as create: without them a course
@@ -256,6 +277,16 @@ public class AdminCatalogMutationService {
             if (capacity < 1) {
                 throw problem(HttpStatus.BAD_REQUEST, "INVALID_CAPACITY", "Classroom capacity must be at least 1");
             }
+            Integer largestSectionCapacity = jdbc.queryForObject(
+                    "SELECT MAX(section.\"capacity\") FROM " + SECTION + " section"
+                            + " WHERE section.\"classroomId\" = :id"
+                            + " OR EXISTS (SELECT 1 FROM " + SECTION_SCHEDULE + " schedule"
+                            + " WHERE schedule.\"sectionId\" = section.\"id\" AND schedule.\"classroomId\" = :id)",
+                    new MapSqlParameterSource("id", id), Integer.class);
+            if (largestSectionCapacity != null && capacity < largestSectionCapacity) {
+                throw problem(HttpStatus.CONFLICT, "ROOM_BELOW_SECTION_CAPACITY",
+                        "Classroom capacity cannot be below the capacity of a section scheduled in the room");
+            }
         }
         MapSqlParameterSource parameters = new MapSqlParameterSource("id", id);
         StringBuilder sql = new StringBuilder("UPDATE ").append(table).append(" SET ");
@@ -284,8 +315,18 @@ public class AdminCatalogMutationService {
             requireExists(table, id);
         } else {
             sql.append(", \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id");
+            if (SECTION.equals(table) && input.containsKey("capacity")) {
+                sql.append(" AND \"enrolledCount\" <= :capacity");
+            }
             int updated = jdbc.update(sql.toString(), parameters);
             if (updated == 0) {
+                if (SECTION.equals(table) && input.containsKey("capacity")) {
+                    Map<String, Object> current = requireRow(SECTION, id);
+                    Object enrolledCount = current.get("enrolledCount");
+                    int enrolled = enrolledCount instanceof Number seats ? seats.intValue() : 0;
+                    throw problem(HttpStatus.CONFLICT, "CAPACITY_BELOW_ENROLLED",
+                            "Capacity cannot go below the number of enrolled students (" + enrolled + ")");
+                }
                 throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
             }
         }
@@ -310,7 +351,17 @@ public class AdminCatalogMutationService {
 
     @Transactional
     public void delete(String table, String id) {
-        Map<String, Object> before = rowOrNull(table, id);
+        String sectionLockSql = sectionDeleteLockSql(table);
+        Map<String, Object> before;
+        if (sectionLockSql == null) {
+            before = rowOrNull(table, id);
+        } else {
+            // Lock referencing sections before the parent so this path follows
+            // the Section -> Classroom/Lecturer order used by section edits.
+            jdbc.query(sectionLockSql, new MapSqlParameterSource("id", id),
+                    (rs, row) -> rs.getString("id"));
+            before = requireRowForUpdate(table, id);
+        }
         try {
             int deleted = jdbc.update("DELETE FROM " + table + " WHERE \"id\" = :id", new MapSqlParameterSource("id", id));
             if (deleted == 0) {
@@ -320,6 +371,23 @@ public class AdminCatalogMutationService {
             throw problem(HttpStatus.CONFLICT, "RESOURCE_IN_USE", "Resource is still referenced by another record");
         }
         audit.recordDeletion(actor(), null, entityType(table), id, before);
+    }
+
+    private static String sectionDeleteLockSql(String table) {
+        if (CLASSROOM.equals(table)) {
+            return "SELECT section.\"id\" FROM " + SECTION + " section"
+                    + " WHERE section.\"classroomId\"=:id OR EXISTS (SELECT 1 FROM " + SECTION_SCHEDULE
+                    + " schedule WHERE schedule.\"sectionId\"=section.\"id\" AND schedule.\"classroomId\"=:id)"
+                    + " ORDER BY section.\"id\" FOR UPDATE OF section";
+        }
+        String column = switch (table) {
+            case COURSE -> "\"courseId\"";
+            case SEMESTER -> "\"semesterId\"";
+            case LECTURER -> "\"lecturerId\"";
+            default -> null;
+        };
+        if (column == null) return null;
+        return "SELECT \"id\" FROM " + SECTION + " WHERE " + column + "=:id ORDER BY \"id\" FOR UPDATE";
     }
 
     /** Returns the persisted row and records the create on the shared audit trail. */
@@ -465,11 +533,66 @@ public class AdminCatalogMutationService {
         int capacity = jdbc.queryForObject(
                 "SELECT \"capacity\" FROM " + SECTION + " WHERE \"id\" = :sectionId",
                 parameters, Integer.class);
-        List<String> classroomIds = jdbc.queryForList(
-                "SELECT DISTINCT \"classroomId\" FROM " + SECTION_SCHEDULE + " WHERE \"sectionId\" = :sectionId",
-                parameters, String.class);
-        for (String classroomId : classroomIds) {
+        for (String classroomId : scheduledClassroomIds(sectionId)) {
             requireRoomFitsCapacity(classroomId, capacity);
+        }
+    }
+
+    private List<String> scheduledClassroomIds(String sectionId) {
+        return jdbc.queryForList(
+                "SELECT DISTINCT \"classroomId\" FROM " + SECTION_SCHEDULE + " WHERE \"sectionId\" = :sectionId",
+                new MapSqlParameterSource("sectionId", sectionId), String.class);
+    }
+
+    private String sectionLecturerId(String sectionId) {
+        return jdbc.queryForObject(
+                "SELECT \"lecturerId\" FROM " + SECTION + " WHERE \"id\" = :sectionId",
+                new MapSqlParameterSource("sectionId", sectionId), String.class);
+    }
+
+    private static List<String> scheduleClassroomIds(Object value) {
+        if (!(value instanceof List<?> schedules)) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>();
+        for (Object item : schedules) {
+            if (item instanceof Map<?, ?> schedule) {
+                String classroomId = optionalScheduleText(schedule, "classroomId", null);
+                if (classroomId != null) {
+                    ids.add(classroomId);
+                }
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Schedule writers serialize on the catalog rows they contend for: the
+     * conflict count is a check-then-act read with no backing constraint, so
+     * without a shared lock two writers each validate against the other's
+     * uncommitted rows and double-book a room or lecturer. Classroom rows
+     * lock in sorted id order like every other multi-row lock; the assigned
+     * lecturer locks after them. Callers must take these locks before any
+     * INSERT or UPDATE whose foreign-key checks take FOR KEY SHARE on the
+     * same rows (Section.lecturerId/classroomId, SectionSchedule.classroomId)
+     * — a FOR UPDATE upgrade under a peer's KEY SHARE deadlocks.
+     */
+    private void lockScheduleResources(Collection<String> classroomIds, Object lecturerId) {
+        List<String> rooms = classroomIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+        if (!rooms.isEmpty()) {
+            jdbc.queryForList(
+                    "SELECT \"id\" FROM " + CLASSROOM + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
+                    new MapSqlParameterSource("ids", rooms), String.class);
+        }
+        if (lecturerId != null && !lecturerId.toString().isBlank()) {
+            jdbc.queryForList(
+                    "SELECT \"id\" FROM " + LECTURER + " WHERE \"id\" = :id FOR UPDATE",
+                    new MapSqlParameterSource("id", lecturerId.toString()), String.class);
         }
     }
 
@@ -479,6 +602,9 @@ public class AdminCatalogMutationService {
      * collisions the registrar then had to resolve by hand.
      */
     private void assertNoSectionConflicts(String sectionId) {
+        // Re-taking rows the caller already holds is a no-op; it keeps the
+        // serialization invariant local to this check for any future caller.
+        lockScheduleResources(scheduledClassroomIds(sectionId), sectionLecturerId(sectionId));
         // Compare individual slots: MIN(start)/MAX(end) would occupy the free
         // gap between two sessions and incorrectly reject another class there.
         String overlappingSlots = " FROM " + SECTION_SCHEDULE + " ss"
@@ -487,7 +613,8 @@ public class AdminCatalogMutationService {
                 + " AND ss2.\"startTime\" < ss.\"endTime\" AND ss2.\"endTime\" > ss.\"startTime\""
                 + " JOIN " + SECTION + " s2 ON s2.\"id\" = ss2.\"sectionId\""
                 + " WHERE ss.\"sectionId\" = :sectionId AND ss2.\"sectionId\" <> ss.\"sectionId\""
-                + " AND s2.\"semesterId\" = me.\"semesterId\"";
+                + " AND s2.\"semesterId\" = me.\"semesterId\""
+                + " AND me.\"status\" <> 'CANCELLED' AND s2.\"status\" <> 'CANCELLED'";
         Long roomClash = jdbc.queryForObject(
                 "SELECT COUNT(*)" + overlappingSlots
                         + " AND ss2.\"classroomId\" = ss.\"classroomId\"",
@@ -554,6 +681,12 @@ public class AdminCatalogMutationService {
         if (academicYearId == null || academicYearId.isBlank() || startAt == null || endAt == null) {
             return;
         }
+        // Same-year writers serialize on the AcademicYear row: without it two
+        // concurrent creates both count zero committed siblings and commit
+        // overlapping terms.
+        jdbc.queryForList(
+                "SELECT \"id\" FROM " + ACADEMIC_YEAR + " WHERE \"id\" = :academicYearId FOR UPDATE",
+                new MapSqlParameterSource("academicYearId", academicYearId), String.class);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("academicYearId", academicYearId)
                 .addValue("startDate", java.time.OffsetDateTime.ofInstant(startAt, java.time.ZoneOffset.UTC))
@@ -651,13 +784,23 @@ public class AdminCatalogMutationService {
         if (input.containsKey("status")) {
             requireSectionStatus(text(input, "status", null));
         }
+        // Every guarded read below — the placement enrollment count and the
+        // schedule-conflict resources — and the UPDATE that follows must hold
+        // the Section row: registration serializes seats on it (Student ->
+        // Section), so an unlocked guard lets a committing enrollment slip
+        // between the count and the write and fork the enrollment's placement
+        // snapshot. Locking first also keeps all admin writers on the same
+        // Section -> Classroom -> Lecturer order.
+        Map<String, Object> current = requireRowForUpdate(SECTION, id);
         boolean touchesCapacity = input.containsKey("capacity");
         boolean touchesRoom = input.containsKey("classroomId");
+        String classroomId = touchesRoom
+                ? text(input, "classroomId", null)
+                : (String) current.get("classroomId");
+        int capacity = touchesCapacity
+                ? number(input, "capacity", 0)
+                : ((Number) current.get("capacity")).intValue();
         if (touchesCapacity || touchesRoom) {
-            Map<String, Object> current = requireRow(SECTION, id);
-            int capacity = touchesCapacity
-                    ? number(input, "capacity", 0)
-                    : ((Number) current.get("capacity")).intValue();
             requireSectionCapacity(capacity);
             if (touchesCapacity) {
                 // A section cannot shrink below the students already seated: the
@@ -669,13 +812,28 @@ public class AdminCatalogMutationService {
                             "Capacity cannot go below the number of enrolled students (" + enrolled + ")");
                 }
             }
-            String classroomId = touchesRoom
-                    ? text(input, "classroomId", null)
-                    : (String) current.get("classroomId");
             if (classroomId != null) {
                 requireCatalogReference(CLASSROOM, "classroomId", classroomId);
-                requireRoomFitsCapacity(classroomId, capacity);
             }
+        }
+        boolean checksScheduleResources = input.containsKey("schedules")
+                || input.containsKey("lecturerId") || input.containsKey("semesterId");
+        if (touchesCapacity || touchesRoom || checksScheduleResources) {
+            Object lecturer = input.containsKey("lecturerId")
+                    ? input.get("lecturerId")
+                    : current.get("lecturerId");
+            List<String> roomIds = new ArrayList<>(scheduledClassroomIds(id));
+            roomIds.addAll(scheduleClassroomIds(input.get("schedules")));
+            if (current.get("classroomId") != null) {
+                roomIds.add(current.get("classroomId").toString());
+            }
+            if (classroomId != null) {
+                roomIds.add(classroomId);
+            }
+            lockScheduleResources(roomIds, lecturer);
+        }
+        if ((touchesCapacity || touchesRoom) && classroomId != null) {
+            requireRoomFitsCapacity(classroomId, capacity);
         }
         String courseId = text(input, "courseId", null);
         if (input.containsKey("courseId") && courseId != null) {
@@ -689,12 +847,38 @@ public class AdminCatalogMutationService {
         if (input.containsKey("lecturerId") && lecturerId != null) {
             requireCatalogReference(LECTURER, "lecturerId", lecturerId);
         }
+        if (input.containsKey("courseId") || input.containsKey("semesterId")) {
+            boolean placementChanged = input.containsKey("courseId")
+                    && !Objects.equals(input.get("courseId"), current.get("courseId"))
+                    || input.containsKey("semesterId")
+                    && !Objects.equals(input.get("semesterId"), current.get("semesterId"));
+            if (placementChanged) {
+                Long enrollmentCount = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Enrollment\" WHERE \"sectionId\" = :id",
+                        new MapSqlParameterSource("id", id), Long.class);
+                if (enrollmentCount != null && enrollmentCount > 0) {
+                    throw problem(HttpStatus.CONFLICT, "SECTION_HAS_ENROLLMENTS",
+                            "Course and semester cannot change after enrollments have been recorded");
+                }
+            }
+        }
     }
 
     private Map<String, Object> requireRow(String table, String id) {
         try {
             return get(table, id);
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
+        }
+    }
+
+    /** Same read as {@link #requireRow} but holds the row FOR UPDATE until commit. */
+    private Map<String, Object> requireRowForUpdate(String table, String id) {
+        try {
+            return jdbc.queryForMap(
+                    "SELECT * FROM " + table + " WHERE \"id\" = :id FOR UPDATE",
+                    new MapSqlParameterSource("id", id));
+        } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
         }
     }

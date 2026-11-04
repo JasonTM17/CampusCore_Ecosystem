@@ -12,11 +12,12 @@
 //
 // Everything it starts is torn down in `finally`.
 
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installKillGuard, preflightProjectVolumes, stopChildrenTree } from './ecosystem-verify-shared.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -29,7 +30,9 @@ const ID_TLS_PORT = 4443;
 const API_PORT = 4100;
 const BOOT_TIMEOUT_MS = 240000;
 
+let signalTeardown = null;
 const children = [];
+installKillGuard(children, { teardown: () => signalTeardown?.() });
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
@@ -140,43 +143,14 @@ function generateCerts(dir) {
 }
 
 function stopChildren() {
-  for (const child of children) {
-    if (child.exitCode !== null || child.signalCode !== null) continue;
-    try { child.kill('SIGTERM'); } catch { /* best effort */ }
-    if (process.platform === 'win32' && child.pid) {
-      try {
-        execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'],
-          { stdio: 'ignore' });
-      } catch { /* best effort */ }
-    }
-  }
-}
-
-function killPortListeners(ports) {
-  if (process.platform !== 'win32') return;
-  let table = '';
-  try {
-    table = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
-  } catch {
-    return;
-  }
-  const killed = new Set();
-  for (const line of table.split('\n')) {
-    const match = line.match(/TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
-    if (match && ports.includes(Number(match[1])) && !killed.has(match[2])) {
-      killed.add(match[2]);
-      try {
-        execFileSync('taskkill', ['/pid', match[2], '/t', '/f'],
-          { stdio: 'ignore' });
-      } catch { /* best effort */ }
-    }
-  }
+  stopChildrenTree(children);
 }
 
 async function casePreview(args) {
   const dir = path.resolve(REPO, args.evidence);
   fs.mkdirSync(dir, { recursive: true });
   const result = { case: 'content-e2e-preview', project: args.project };
+  let ownsStack = false;
   try {
     const which = tryRun('openssl', ['version']);
     if (!which.ok) throw new Error('openssl unavailable — HTTPS preview cannot build certs (BLOCKED_CAPABILITY)');
@@ -187,7 +161,11 @@ async function casePreview(args) {
     if (existing.out.trim()) {
       throw new Error(`compose project ${args.project} already exists — refusing collision`);
     }
+    preflightProjectVolumes(args.project, tryRun);
 
+    ownsStack = true;
+    signalTeardown = () => tryRun('docker', composeArgs(args,
+      ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
     const up = tryRun('docker', composeArgs(args,
       ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']),
       { timeoutMs: 600000 });
@@ -250,10 +228,14 @@ async function casePreview(args) {
     result.error = String(error.message || error).slice(-3000);
   } finally {
     stopChildren();
-    killPortListeners([WEB_PORT, ID_TLS_PORT]);
-    const down = tryRun('docker', composeArgs(args,
-      ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
-    result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    signalTeardown = null;
+    if (ownsStack) {
+      const down = tryRun('docker', composeArgs(args,
+        ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
+      result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    } else {
+      result.teardown = 'not-created';
+    }
   }
   fs.writeFileSync(path.join(dir, 'preview.json'),
     `${JSON.stringify(result, null, 2)}\n`, 'utf8');

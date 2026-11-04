@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
     <button
       type="button"
       onClick={toggle}
-      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       aria-label={visible ? messages.login.hidePassword : messages.login.showPassword}
       title={visible ? messages.login.hidePassword : messages.login.showPassword}
       aria-pressed={visible}
@@ -144,13 +144,8 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell
       portal="student"
-      eyebrow={copy.eyebrow}
       title={copy.title}
       description={copy.description}
-      features={copy.featureTitles.map((label, index) => ({
-        label,
-        description: copy.featureDescriptions[index],
-      }))}
     >
       {tokenInvalid ? (
         <div className="space-y-6">
@@ -187,7 +182,7 @@ export default function ResetPasswordPage() {
             </LocalizedLink>
             <LocalizedLink
               href="/login"
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.backToSignIn}
@@ -197,9 +192,6 @@ export default function ResetPasswordPage() {
       ) : (
         <div className="space-y-6">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-              {copy.sectionEyebrow}
-            </p>
             <h2 className="text-2xl font-semibold leading-8 text-foreground">
               {copy.heading}
             </h2>
@@ -231,7 +223,7 @@ export default function ResetPasswordPage() {
               role="alert"
               aria-live="assertive"
               tabIndex={-1}
-              className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+              className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
             >
               {formError}
             </div>
@@ -318,7 +310,7 @@ export default function ResetPasswordPage() {
           <p className="text-sm text-muted-foreground">
             <LocalizedLink
               href="/login"
-              className="inline-flex min-h-8 items-center gap-1.5 font-medium text-primary hover:underline"
+              className="inline-flex min-h-11 items-center gap-1.5 font-medium text-primary hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.backToSignIn}

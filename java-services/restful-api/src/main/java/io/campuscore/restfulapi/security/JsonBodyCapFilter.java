@@ -1,17 +1,27 @@
 package io.campuscore.restfulapi.security;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import io.campuscore.restfulapi.web.ApiErrorWriter;
 
 /**
- * Caps the declared size of JSON bodies before Jackson materialises them.
+ * Caps the size of JSON bodies before Jackson materialises them.
  *
  * <p>Multipart limits exist at the servlet level, but a JSON request is read
  * in full before message-length validation runs, so an unbounded body is an
@@ -30,6 +40,12 @@ import io.campuscore.restfulapi.web.ApiErrorWriter;
  *       carries up to a 200 KB base64 data URL and relies on bean validation
  *       to answer 400 for anything larger.</li>
  * </ul>
+ *
+ * <p>A declared {@code Content-Length} is only a fast path. Chunked and HTTP/2
+ * bodies report no length, so an unknown-length JSON body is read once through
+ * a bounded buffer here: anything above the cap is answered 413 before the
+ * body reaches a message converter, and exactly the accepted bytes are replayed
+ * downstream.
  */
 @Component
 public class JsonBodyCapFilter extends OncePerRequestFilter {
@@ -42,6 +58,8 @@ public class JsonBodyCapFilter extends OncePerRequestFilter {
 
     /** Tightest ceiling for the unauthenticated credential routes. */
     static final long MAX_JSON_BYTES_AUTH = 4 * 1024L;
+
+    private static final int READ_CHUNK_BYTES = 8192;
 
     private static final List<String> TIGHT_AUTH_ROUTES = List.of(
             "/api/v1/auth/login",
@@ -62,13 +80,114 @@ public class JsonBodyCapFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String contentType = request.getContentType();
         boolean json = contentType != null && contentType.toLowerCase().contains("application/json");
+        if (!json) {
+            chain.doFilter(request, response);
+            return;
+        }
+        long cap = capFor(request.getRequestURI());
         long length = request.getContentLengthLong();
-        if (json && length > capFor(request.getRequestURI())) {
-            errorWriter.write(request, response, org.springframework.http.HttpStatus.PAYLOAD_TOO_LARGE,
-                    "REQUEST_BODY_TOO_LARGE", "Request body exceeds the accepted size");
+        if (length > cap) {
+            reject(request, response);
+            return;
+        }
+        if (length < 0) {
+            byte[] body = readWithinCap(request.getInputStream(), cap);
+            if (body == null) {
+                reject(request, response);
+                return;
+            }
+            chain.doFilter(new BufferedBodyRequest(request, body), response);
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    private void reject(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        errorWriter.write(request, response, org.springframework.http.HttpStatus.PAYLOAD_TOO_LARGE,
+                "REQUEST_BODY_TOO_LARGE", "Request body exceeds the accepted size");
+    }
+
+    /** Returns the accepted bytes, or null as soon as the stream exceeds the cap. */
+    private static byte[] readWithinCap(InputStream input, long cap) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream((int) Math.min(cap, READ_CHUNK_BYTES));
+        byte[] chunk = new byte[READ_CHUNK_BYTES];
+        long total = 0;
+        int read;
+        while ((read = input.read(chunk)) != -1) {
+            total += read;
+            if (total > cap) {
+                return null;
+            }
+            buffer.write(chunk, 0, read);
+        }
+        return buffer.toByteArray();
+    }
+
+    /** Replays a body that was already read and length-checked by the filter. */
+    private static final class BufferedBodyRequest extends HttpServletRequestWrapper {
+
+        private final byte[] body;
+
+        BufferedBodyRequest(HttpServletRequest request, byte[] body) {
+            super(request);
+            this.body = body;
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            return new ByteArrayServletInputStream(body);
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            String encoding = getCharacterEncoding();
+            Charset charset = encoding == null ? StandardCharsets.UTF_8 : Charset.forName(encoding);
+            return new BufferedReader(new InputStreamReader(getInputStream(), charset));
+        }
+
+        @Override
+        public int getContentLength() {
+            return body.length;
+        }
+
+        @Override
+        public long getContentLengthLong() {
+            return body.length;
+        }
+    }
+
+    private static final class ByteArrayServletInputStream extends ServletInputStream {
+
+        private final ByteArrayInputStream delegate;
+
+        ByteArrayServletInputStream(byte[] body) {
+            this.delegate = new ByteArrayInputStream(body);
+        }
+
+        @Override
+        public int read() {
+            return delegate.read();
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) {
+            return delegate.read(bytes, offset, length);
+        }
+
+        @Override
+        public boolean isFinished() {
+            return delegate.available() == 0;
+        }
+
+        @Override
+        public boolean isReady() {
+            return true;
+        }
+
+        @Override
+        public void setReadListener(ReadListener listener) {
+            throw new UnsupportedOperationException("Synchronous reads only");
+        }
     }
 
     /** Tightest applicable cap wins: credential routes, then assistant, then the global ceiling. */

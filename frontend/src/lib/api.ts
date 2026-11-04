@@ -30,6 +30,7 @@ import {
   Lecturer,
   GradingSection,
   LecturerSection,
+  GradeUpdate,
   SectionGrades,
   SectionSchedule,
   MyCurriculumResponse,
@@ -39,6 +40,7 @@ import { addLocalePrefix, stripLocaleFromPathname } from '@/i18n/paths';
 import { resolvePublicApiBaseUrl } from '@/lib/public-api-url';
 import { CSRF_COOKIE_NAME, isLogoutInProgress } from '@/lib/session-hint';
 import { publishSessionChange } from '@/lib/session-sync';
+import { safeInternalPath } from '@/lib/safe-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 import type { components as GeneratedApiComponents } from '@/types/generated-api';
 
@@ -64,6 +66,40 @@ export function createRequestId(): string {
   const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+// The Idempotency-Key identifies the user's intent, not the HTTP call. A retry
+// after an unknown outcome replays the same key so the server returns the
+// committed write instead of answering a duplicate; a settled answer (success
+// or definitive rejection) ends the attempt.
+const pendingMutationKeys = new Map<string, string>();
+
+function isUnknownMutationOutcome(error: unknown): boolean {
+  const response = (
+    error as
+      | { response?: { status?: number; data?: { code?: string } } }
+      | undefined
+  )?.response;
+  if (response?.status === undefined || response.status === 0) return true;
+  if (response.status === 408 || response.status >= 500) return true;
+  const code = response.data?.code;
+  return typeof code === 'string' && code.startsWith('IDEMPOTENCY_');
+}
+
+async function withIdempotencyKey<T>(
+  intent: string,
+  send: (key: string) => Promise<T>,
+): Promise<T> {
+  const key = pendingMutationKeys.get(intent) ?? createRequestId();
+  pendingMutationKeys.set(intent, key);
+  try {
+    const result = await send(key);
+    pendingMutationKeys.delete(intent);
+    return result;
+  } catch (error) {
+    if (!isUnknownMutationOutcome(error)) pendingMutationKeys.delete(intent);
+    throw error;
+  }
+}
+
 type ApiObject = Record<string, unknown>;
 type AuthRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
@@ -157,6 +193,9 @@ export type AnnouncementRecord = {
   }>;
 };
 
+/** Lightweight pin-picker row: no body, cover, or audience fields. */
+export type AnnouncementPinOption =
+  GeneratedApiComponents['schemas']['AnnouncementPinOption'];
 
 export type CreditLimitApplication = {
   id: string;
@@ -242,7 +281,7 @@ function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
     && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
   ) {
     const target = `/session/login?return=${encodeURIComponent(
-      window.location.pathname + window.location.search,
+      pathname + window.location.search,
     )}`;
     window.location.href = target;
     return;
@@ -262,6 +301,12 @@ function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
     loginUrl.searchParams.set('portal', 'lecturer');
   } else {
     loginUrl.searchParams.set('portal', 'student');
+  }
+  // Hand the credential lane the same validated target the SSO lane already
+  // carries in `return`, so the page the visitor asked for survives the login.
+  const next = safeInternalPath(pathname + window.location.search);
+  if (next) {
+    loginUrl.searchParams.set('next', next);
   }
   window.location.href = loginUrl.toString();
 }
@@ -299,8 +344,9 @@ function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
       if (status === 401 && csrfHintAfter === csrfHintBefore) {
         // A 401 means the shared session cookie is dead for every tab — tell
         // siblings so they converge to login instead of idling on a revoked
-        // session until their own next request discovers it.
-        publishSessionChange('signed-out');
+        // session until their own next request discovers it. Siblings keep
+        // their own page as the post-login return target.
+        publishSessionChange('session-expired');
         navigateToLogin(reason);
       }
     })
@@ -406,14 +452,15 @@ const api = axios.create({
 // All browser transports share one refresh promise. This prevents concurrent
 // SSE/JSON requests from rotating the refresh token independently and racing
 // before the first stream byte is received.
-let sessionRefreshPromise: Promise<LoginResponse> | null = null;
+let sessionRefreshPromise: Promise<LoginResponse | null> | null = null;
 
 // Every transport that writes or clears session cookies runs through one FIFO
 // gate. A Web Locks critical section coordinates across tabs (each tab has
 // its own copy of this module, so an in-memory queue alone cannot stop a
 // second tab's refresh from racing this tab's sign-in); the in-memory queue
-// is the fallback where the Locks API is unavailable. A late refresh
-// Set-Cookie must never overwrite a newer sign-in session cookie.
+// is the fallback for ordinary session transports where the Locks API is
+// unavailable. Refresh adds a short shared lease on that fallback path. A late
+// refresh Set-Cookie must never overwrite a newer sign-in session cookie.
 let sessionTransportQueue: Promise<unknown> = Promise.resolve();
 
 // Every transport task carries this axios timeout, so a stalled login/logout
@@ -422,8 +469,253 @@ let sessionTransportQueue: Promise<unknown> = Promise.resolve();
 // tab would starve sign-in in every other tab forever.
 const SESSION_TRANSPORT_TIMEOUT_MS = 15000;
 const SESSION_TRANSPORT_WAIT_MS = 30000;
+const SESSION_REFRESH_DATABASE_NAME = 'campuscore-session-coordination';
+const SESSION_REFRESH_STORE_NAME = 'refresh-state';
+const SESSION_REFRESH_STATE_KEY = 'session-refresh';
+const SESSION_REFRESH_LEASE_TTL_MS = SESSION_TRANSPORT_TIMEOUT_MS + 5000;
+const SESSION_REFRESH_LEASE_POLL_MS = 25;
+const SESSION_REFRESH_SKIPPED = Symbol('session-refresh-skipped');
 
-function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
+type SessionRefreshState = {
+  generation: number;
+  fence: number;
+  activeFence: number;
+  leaseExpiresAt: number;
+};
+
+type SessionRefreshClaim =
+  | { status: 'busy' | 'rotated'; generation: number }
+  | { status: 'claimed'; generation: number; fence: number };
+
+const EMPTY_SESSION_REFRESH_STATE: SessionRefreshState = {
+  generation: 0,
+  fence: 0,
+  activeFence: 0,
+  leaseExpiresAt: 0,
+};
+
+let sessionRefreshDatabasePromise: Promise<IDBDatabase | null> | null = null;
+
+function getSessionRefreshDatabase(): Promise<IDBDatabase | null> {
+  if (!isBrowser() || typeof window === 'undefined') return Promise.resolve(null);
+  if (sessionRefreshDatabasePromise) return sessionRefreshDatabasePromise;
+
+  let indexedDatabase: IDBFactory;
+  try {
+    indexedDatabase = window.indexedDB;
+  } catch {
+    return Promise.resolve(null);
+  }
+  if (!indexedDatabase || typeof indexedDatabase.open !== 'function') {
+    return Promise.resolve(null);
+  }
+
+  const opening = new Promise<IDBDatabase | null>((resolve) => {
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDatabase.open(SESSION_REFRESH_DATABASE_NAME, 1);
+    } catch {
+      resolve(null);
+      return;
+    }
+
+    let settled = false;
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(SESSION_REFRESH_STORE_NAME)) {
+        database.createObjectStore(SESSION_REFRESH_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const database = request.result;
+      if (settled) {
+        database.close();
+        return;
+      }
+      settled = true;
+      database.onversionchange = () => {
+        database.close();
+        sessionRefreshDatabasePromise = null;
+      };
+      resolve(database);
+    };
+    request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      resolve(null);
+    };
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
+      resolve(null);
+    };
+  });
+  sessionRefreshDatabasePromise = opening;
+  void opening.then((database) => {
+    if (!database && sessionRefreshDatabasePromise === opening) {
+      sessionRefreshDatabasePromise = null;
+    }
+  });
+  return opening;
+}
+
+function normalizeSessionRefreshState(value: unknown): SessionRefreshState {
+  if (!value || typeof value !== 'object') return { ...EMPTY_SESSION_REFRESH_STATE };
+  const state = value as Partial<SessionRefreshState>;
+  return {
+    generation:
+      Number.isSafeInteger(state.generation) && (state.generation ?? -1) >= 0
+        ? state.generation as number
+        : 0,
+    fence:
+      Number.isSafeInteger(state.fence) && (state.fence ?? -1) >= 0
+        ? state.fence as number
+        : 0,
+    activeFence:
+      Number.isSafeInteger(state.activeFence) && (state.activeFence ?? -1) >= 0
+        ? state.activeFence as number
+        : 0,
+    leaseExpiresAt:
+      typeof state.leaseExpiresAt === 'number' && Number.isFinite(state.leaseExpiresAt)
+        ? state.leaseExpiresAt
+        : 0,
+  };
+}
+
+function updateSessionRefreshState<T>(
+  database: IDBDatabase,
+  update: (store: IDBObjectStore, state: SessionRefreshState) => T,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(SESSION_REFRESH_STORE_NAME, 'readwrite');
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const store = transaction.objectStore(SESSION_REFRESH_STORE_NAME);
+    const request = store.get(SESSION_REFRESH_STATE_KEY);
+    let result: T;
+    request.onsuccess = () => {
+      try {
+        result = update(store, normalizeSessionRefreshState(request.result));
+      } catch (error) {
+        try {
+          transaction.abort();
+        } catch {
+          // The transaction may already be aborting.
+        }
+        reject(error);
+      }
+    };
+    transaction.oncomplete = () => resolve(result);
+    transaction.onabort = () => {
+      reject(transaction.error ?? new Error('session refresh storage transaction aborted'));
+    };
+  });
+}
+
+function claimSessionRefreshLease(
+  database: IDBDatabase,
+  generationAtStart: number,
+  skipIfAnotherTabRotated: boolean,
+): Promise<SessionRefreshClaim> {
+  return updateSessionRefreshState(database, (store, state) => {
+    if (skipIfAnotherTabRotated && state.generation !== generationAtStart) {
+      return { status: 'rotated', generation: state.generation };
+    }
+    const now = Date.now();
+    if (state.activeFence !== 0 && state.leaseExpiresAt > now) {
+      return { status: 'busy', generation: state.generation };
+    }
+
+    const fence = state.fence + 1;
+    store.put(
+      {
+        ...state,
+        fence,
+        activeFence: fence,
+        leaseExpiresAt: now + SESSION_REFRESH_LEASE_TTL_MS,
+      },
+      SESSION_REFRESH_STATE_KEY,
+    );
+    return { status: 'claimed', generation: state.generation, fence };
+  });
+}
+
+function finishSessionRefreshLease(
+  database: IDBDatabase,
+  fence: number,
+  rotated: boolean,
+): Promise<void> {
+  return updateSessionRefreshState(database, (store, state) => {
+    if (state.activeFence !== fence) return undefined;
+    store.put(
+      {
+        ...state,
+        generation: rotated ? state.generation + 1 : state.generation,
+        activeFence: 0,
+        leaseExpiresAt: 0,
+      },
+      SESSION_REFRESH_STATE_KEY,
+    );
+    return undefined;
+  });
+}
+
+async function withFallbackSessionRefreshLease<T>(
+  task: () => Promise<T>,
+  skipIfAnotherTabRotated: boolean,
+): Promise<T | typeof SESSION_REFRESH_SKIPPED> {
+  const database = await getSessionRefreshDatabase();
+  if (!database) return task();
+
+  let generationAtStart: number;
+  try {
+    generationAtStart = (await updateSessionRefreshState(
+      database,
+      (_store, state) => state.generation,
+    ));
+  } catch {
+    return task();
+  }
+
+  const waitDeadline = Date.now() + SESSION_TRANSPORT_WAIT_MS;
+  while (Date.now() < waitDeadline) {
+    let claim: SessionRefreshClaim;
+    try {
+      claim = await claimSessionRefreshLease(
+        database,
+        generationAtStart,
+        skipIfAnotherTabRotated,
+      );
+    } catch {
+      return task();
+    }
+
+    if (claim.status === 'rotated') return SESSION_REFRESH_SKIPPED;
+    if (claim.status === 'claimed') {
+      try {
+        const result = await task();
+        await finishSessionRefreshLease(database, claim.fence, true).catch(() => undefined);
+        return result;
+      } catch (error) {
+        await finishSessionRefreshLease(database, claim.fence, false).catch(() => undefined);
+        throw error;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, SESSION_REFRESH_LEASE_POLL_MS));
+  }
+
+  throw new Error('session transport wait timed out');
+}
+
+function withSessionTransport<T, F = T>(
+  task: () => Promise<T>,
+  fallbackTask: () => Promise<F> = task as unknown as () => Promise<F>,
+): Promise<T | F> {
   const lockManager =
     isBrowser() && typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (
@@ -443,9 +735,9 @@ function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
       })
       .finally(() => {
         clearTimeout(acquisitionTimer);
-      }) as Promise<T>;
+      }) as Promise<T | F>;
   }
-  return new Promise<T>((resolve, reject) => {
+  return new Promise<T | F>((resolve, reject) => {
     let expired = false;
     const waitTimer = setTimeout(() => {
       expired = true;
@@ -455,7 +747,7 @@ function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
       clearTimeout(waitTimer);
       if (expired) return;
       try {
-        resolve(await task());
+        resolve(await fallbackTask());
       } catch (error) {
         reject(error);
       }
@@ -465,8 +757,20 @@ function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export function refreshSessionSingleFlight(): Promise<LoginResponse> {
+  return coordinatedSessionRefresh(false).then((response) => {
+    if (response) return response;
+    return coordinatedSessionRefresh(false).then((retry) => {
+      if (retry) return retry;
+      throw new Error('session refresh did not complete');
+    });
+  });
+}
+
+function coordinatedSessionRefresh(
+  skipIfAnotherTabRotated: boolean,
+): Promise<LoginResponse | null> {
   if (sessionRefreshPromise) return sessionRefreshPromise;
-  sessionRefreshPromise = withSessionTransport(() =>
+  const refresh = () =>
     api.post<LoginResponse>(
       '/auth/refresh',
       {},
@@ -475,12 +779,24 @@ export function refreshSessionSingleFlight(): Promise<LoginResponse> {
         skipAuthRedirect: true,
         timeout: SESSION_TRANSPORT_TIMEOUT_MS,
       } as AuthRequestConfig,
-    ))
-    .then((response) => response.data)
+    );
+  sessionRefreshPromise = withSessionTransport(
+    refresh,
+    () => withFallbackSessionRefreshLease(refresh, skipIfAnotherTabRotated),
+  )
+    .then((response) => {
+      if (response === SESSION_REFRESH_SKIPPED) return null;
+      syncNotificationCacheIdentity(response.data.user?.id);
+      return response.data;
+    })
     .finally(() => {
       sessionRefreshPromise = null;
     });
   return sessionRefreshPromise;
+}
+
+async function refreshSessionForUnauthorizedRequest(): Promise<void> {
+  await coordinatedSessionRefresh(true);
 }
 
 export async function waitForPendingSessionRefresh(): Promise<void> {
@@ -568,14 +884,19 @@ api.interceptors.response.use(
       originalConfig._retry = true;
 
       try {
-        await refreshSessionSingleFlight();
+        await refreshSessionForUnauthorizedRequest();
 
         return api(originalConfig);
       } catch (refreshError) {
-        const refreshRejected401 =
-          (refreshError as { response?: { status?: number } } | undefined)
-            ?.response?.status === 401;
-        if (refreshRejected401 && isBrowser() && !originalConfig.skipAuthRedirect) {
+        // The refresh endpoint answers 400 when the cookie is gone, and 401/403
+        // when it is invalid; all three mean the session cannot be renewed,
+        // while a transport failure or a 5xx does not.
+        const refreshStatus = (
+          refreshError as { response?: { status?: number } } | undefined
+        )?.response?.status;
+        const refreshRejected =
+          refreshStatus === 400 || refreshStatus === 401 || refreshStatus === 403;
+        if (refreshRejected && isBrowser() && !originalConfig.skipAuthRedirect) {
           redirectToLogin('session-expired');
         }
 
@@ -617,7 +938,11 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
-    return response.data;
+    const result = response.data;
+    if ('user' in result && result.user) {
+      syncNotificationCacheIdentity(result.user.id);
+    }
+    return result;
   },
 
   /**
@@ -638,6 +963,7 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
+    syncNotificationCacheIdentity(response.data.user?.id);
     return response.data;
   },
 
@@ -695,6 +1021,7 @@ export const authApi = {
       skipColdStartRetry: true,
       timeout: SESSION_TRANSPORT_TIMEOUT_MS,
     } as AuthRequestConfig);
+    syncNotificationCacheIdentity(response.data.id);
     return response.data;
   },
 
@@ -709,11 +1036,45 @@ export const authApi = {
     return response.data;
   },
 
-  logout: async (): Promise<void> => {
+  logout: async (): Promise<{ logoutUrl?: string }> => {
     clearNotificationCache();
     clearSemestersCache();
     clearDepartmentsCache();
-    await withSessionTransport(() =>
+    if (
+      isBrowser() &&
+      surfaceFromHost(window.location?.host ?? '')?.mode === 'bff' &&
+      process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
+    ) {
+      const csrfToken = getCookie(CSRF_COOKIE_NAME);
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        SESSION_TRANSPORT_TIMEOUT_MS,
+      );
+      try {
+        const response = await withSessionTransport(() =>
+          fetch('/session/logout', {
+            method: 'POST',
+            headers: csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : undefined,
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+          }));
+        if (!response.ok) {
+          throw new Error('BFF logout failed');
+        }
+        const body = await response.json() as { logoutUrl?: unknown };
+        return {
+          logoutUrl: typeof body.logoutUrl === 'string'
+            ? body.logoutUrl
+            : '/session/logged-out',
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    const sendLegacyLogout = () => withSessionTransport(() =>
       api.post(
         '/auth/logout',
         {},
@@ -723,6 +1084,18 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
+    try {
+      await sendLegacyLogout();
+    } catch (error) {
+      const status = (error as { response?: { status?: number } } | undefined)
+        ?.response?.status;
+      if (status !== 401) {
+        throw error;
+      }
+      await refreshSessionSingleFlight();
+      await sendLegacyLogout();
+    }
+    return {};
   },
 
   refresh: async (): Promise<LoginResponse> => {
@@ -820,7 +1193,7 @@ export const sectionsApi = {
     sectionId: string,
     // null+null clears a saved draft grade; partial nulls are rejected by the
     // backend, and published grades stay locked.
-    grades: { enrollmentId: string; processScore: number | null; finalExamScore: number | null }[],
+    grades: GradeUpdate[],
   ): Promise<{ message: string }> => {
     const response = await api.put<{ message: string }>(
       `/sections/${sectionId}/grades`,
@@ -993,20 +1366,22 @@ export const enrollmentsApi = {
     sectionId: string,
     locale?: 'en' | 'vi',
   ): Promise<EnrollmentActionResult> => {
-    const response = await api.post<EnrollmentActionResult>(
-      '/me/enrollments',
-      { sectionId, locale },
-      { headers: { 'Idempotency-Key': createRequestId() } },
-    );
+    const response = await withIdempotencyKey(`enroll:${sectionId}`, (key) =>
+      api.post<EnrollmentActionResult>(
+        '/me/enrollments',
+        { sectionId, locale },
+        { headers: { 'Idempotency-Key': key } },
+      ));
     return response.data;
   },
 
   drop: async (enrollmentId: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(
-      `/me/enrollments/${enrollmentId}/drop`,
-      {},
-      { headers: { 'Idempotency-Key': createRequestId() } },
-    );
+    const response = await withIdempotencyKey(`drop:${enrollmentId}`, (key) =>
+      api.post<{ message: string }>(
+        `/me/enrollments/${enrollmentId}/drop`,
+        {},
+        { headers: { 'Idempotency-Key': key } },
+      ));
     return response.data;
   },
 
@@ -1491,6 +1866,24 @@ export const announcementsApi = {
     );
     return response.data;
   },
+  /**
+   * Id/title catalog for the appearance pin picker. `ids` resolves specific
+   * rows (e.g. already-pinned ones) in a single bounded read; the server joins
+   * them into the same status/search filter as a plain page read.
+   */
+  pinOptions: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'ACTIVE' | 'ARCHIVED' | 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
+    search?: string;
+    ids?: string[];
+  }): Promise<ApiResponse<AnnouncementPinOption[]>> => {
+    const response = await api.get<ApiResponse<AnnouncementPinOption[]>>(
+      '/announcements/pin-options',
+      { params: params ? { ...params, ids: params.ids?.join(',') } : params },
+    );
+    return response.data;
+  },
   /** Role-aware single-record read — the backend applies the caller's feed visibility. */
   getById: async (id: string): Promise<AnnouncementRecord> => {
     const response = await api.get<AnnouncementRecord>(`/announcements/${id}`);
@@ -1644,8 +2037,11 @@ export const siteAppearanceApi = {
     });
     return response.data;
   },
-  put: async (appearance: unknown): Promise<unknown> => {
-    const response = await api.put<unknown>('/site-appearance', appearance);
+  put: async (appearance: unknown, expectedVersion?: number | null): Promise<unknown> => {
+    const body = expectedVersion == null || typeof appearance !== 'object' || appearance === null
+      ? appearance
+      : { ...(appearance as Record<string, unknown>), expectedVersion };
+    const response = await api.put<unknown>('/site-appearance', body);
     return response.data;
   },
 };
@@ -1695,10 +2091,25 @@ export const campusDistributionApi = {
   },
 };
 
-let cachedUnreadCount: { promise: Promise<number>; timestamp: number } | null = null;
+let cachedUnreadCount: {
+  promise: Promise<number>;
+  timestamp: number;
+  userId: string | null;
+} | null = null;
 const UNREAD_COUNT_CACHE_TTL_MS = 60_000;
 
+let cachedNotificationUserId: string | null = null;
+
 export function clearNotificationCache(): void {
+  cachedUnreadCount = null;
+}
+
+// The unread badge is per-account state: a sign-in as another user in the same
+// tab must drop the previous account's cached count before it is rendered.
+function syncNotificationCacheIdentity(userId: string | null | undefined): void {
+  const next = typeof userId === 'string' && userId.length > 0 ? userId : null;
+  if (next === cachedNotificationUserId) return;
+  cachedNotificationUserId = next;
   cachedUnreadCount = null;
 }
 
@@ -1726,7 +2137,12 @@ export const notificationsApi = {
   // controller wraps it: UnreadCountResponse { unreadCount }.
   unreadCount: async (options?: { force?: boolean }): Promise<number> => {
     const now = Date.now();
-    if (!options?.force && cachedUnreadCount && now - cachedUnreadCount.timestamp < UNREAD_COUNT_CACHE_TTL_MS) {
+    if (
+      !options?.force
+      && cachedUnreadCount
+      && cachedUnreadCount.userId === cachedNotificationUserId
+      && now - cachedUnreadCount.timestamp < UNREAD_COUNT_CACHE_TTL_MS
+    ) {
       return cachedUnreadCount.promise;
     }
     const promise = api
@@ -1742,7 +2158,7 @@ export const notificationsApi = {
           throw error;
         },
       );
-    cachedUnreadCount = { promise, timestamp: now };
+    cachedUnreadCount = { promise, timestamp: now, userId: cachedNotificationUserId };
     return promise;
   },
   markRead: async (id: string): Promise<ApiObject> => {
@@ -1803,9 +2219,12 @@ export const adminNotificationsApi = {
   adminCreate: async (
     body: AdminNotificationInput,
   ): Promise<AdminNotificationRecord> => {
-    const response = await api.post<AdminNotificationRecord>(
-      '/notifications',
-      body,
+    const response = await withIdempotencyKey(
+      `admin-notification:${JSON.stringify(body)}`,
+      (key) =>
+        api.post<AdminNotificationRecord>('/notifications', body, {
+          headers: { 'Idempotency-Key': key },
+        }),
     );
     return response.data;
   },
@@ -2292,7 +2711,7 @@ export const geofencedAttendanceApi = {
   },
   updateAdminGeofence: async (
     geofenceId: string,
-    request: GeofencedAttendanceGeofenceRequest,
+    request: Omit<GeofencedAttendanceGeofenceRequest, 'isActive'> & { isActive?: boolean },
   ): Promise<GeofencedAttendanceGeofenceResponse> => {
     const response = await api.put<GeofencedAttendanceGeofenceResponse>(
       `/admin/attendance/geofences/${encodeURIComponent(geofenceId)}`,

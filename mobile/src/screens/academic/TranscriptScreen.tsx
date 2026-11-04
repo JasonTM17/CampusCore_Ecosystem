@@ -6,7 +6,9 @@ import { ChartSummary } from '../../components/ui/chart-summary';
 import { groupedRows, type GroupedRow } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import { cumulativeTrend, isPublishedGrade, parseTranscript, type TranscriptRecord, type TranscriptTerm } from './gpa';
@@ -55,12 +57,15 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
               <View style={academicStyles.rowCopy}>
                 <StatusPill label={record.courseCode} tone="primary" />
                 <UiText variant="bodyMedium">{record.courseName}</UiText>
-                <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: record.credits })}</UiText>
+                <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: record.credits })}</UiText>
               </View>
               {published && record.finalGrade != null ? (
                 <View style={styles.gradeResult}>
                   <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
                   <StatusPill label={record.letterGrade ?? '—'} tone="success" />
+                  {record.gradeStatus === 'APPEALED' ? (
+                    <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
+                  ) : null}
                 </View>
               ) : <StatusPill label={result} tone="warning" />}
             </View>
@@ -76,6 +81,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.transcript', () => academicApi.transcript(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
 
   const model = useMemo(() => (query.data === undefined ? null : parseTranscript(query.data, locale)), [query.data, locale]);
@@ -90,6 +96,8 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       error={preview ? null : malformed ? copy.generic : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(visibleTerms, (entry) => entry.semesterId, (entry) => entry.records, (record) => record.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => <TermCard entry={entry} />,

@@ -114,11 +114,49 @@ retroactively identify password changes made before the revision existed.
 - **Internal AI calls** use a distinct service credential and owner boundary.
   See [ThesisAssistantInternalController](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis/assistant/ThesisAssistantInternalController.java)
   and [SupabaseKnowledgeInternalController](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis/assistant/SupabaseKnowledgeInternalController.java).
+  `X-Rag-Service-Token` alone never authorizes an owner. The authenticated Java
+  API signs `X-Assistant-Owner-Assertion` as a 30-second HS256 JWT with `iss`,
+  `sub`, `aud`, `capability`, `iat`, and `exp`; the internal controller verifies
+  it and requires `X-Assistant-Owner` to equal the signed subject. Assistant
+  calls use the `assistant` capability. Knowledge-authority calls require an
+  authenticated `ADMIN` or `SUPER_ADMIN` and the separate `knowledge-admin`
+  capability.
+
+## Staff grant visibility and library circulation
+
+- **Staff grant lists are self-views.** `GET /api/v1/careers/staff/grants`,
+  `GET /api/v1/events/staff/grants` and `GET /api/v1/library/staff/grants`
+  return only the caller's own grant rows. Holding a domain grant never
+  enumerates other staff, other organizations or other reviewers, and paged
+  totals count only those visible rows. The membership gate is unchanged:
+  callers without the domain grant, including `ADMIN`, receive `403`.
+  Owners are [CareerService](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/careers/service/CareerService.java),
+  [EventService](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/events/service/EventService.java)
+  and [LibraryService](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/library/service/LibraryService.java).
+- **Active library staff share circulation authority by design.**
+  `library."StaffGrant"` has no desk, branch or organization dimension, and
+  `Copy` and `LoanRequest` carry no desk owner. Actor fields such as `issuedBy`
+  are audit attribution, not desk ownership. Any active `STAFF:library` holder
+  may therefore approve, issue, return and manage the shared catalogue and
+  request queue. The boundary is the domain grant, not the individual
+  librarian.
+- **Shared circulation keeps transaction safety.** Approvals and returns keep
+  their row locks, optimistic version checks, server-clock reservation expiry,
+  audit rows and the one-active-request-per-copy invariant. A librarian acting
+  on another librarian's request is still constrained by the same state machine
+  and recorded under the acting account.
 
 ## Signing configuration
 
 Published development secrets are unsuitable for deployment, and access and
 refresh credentials must remain separate token families. The startup policy is
 owned by [JwtSecretPolicy](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/security/JwtSecretPolicy.java)
-and `SecurityConfig`; deployment configuration is in
-[docker-compose.prod.yml](../../docker-compose.prod.yml).
+and `SecurityConfig`; local stack configuration is in
+[docker-compose.yml](../../docker-compose.yml). A hosted deployment stack is not
+part of this repository (production is deferred). Sidecar mode also requires a
+separately generated `ASSISTANT_RAG_OWNER_ASSERTION_SECRET` shared by the API
+and sidecar. Keep it independent of `ASSISTANT_RAG_SERVICE_TOKEN`, `JWT_SECRET`,
+and `JWT_REFRESH_SECRET`; Compose has no assertion-key default and fails closed
+when it is unset. `permitAll` remains on the internal routes because the sidecar
+has no caller bearer token; their controllers enforce both the service token
+and signed assertion.

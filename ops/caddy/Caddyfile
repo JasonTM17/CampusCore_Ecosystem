@@ -2,7 +2,13 @@
     admin localhost:2019
     email {$ACME_EMAIL}
     auto_https disable_redirects
-    grace_period 10s
+    grace_period 5m
+}
+
+# Redirects are disabled globally, so this site owns the :80 upgrade path.
+# ACME challenge responses still take precedence over the redirect.
+http://{$CAMPUSCORE_DOMAIN} {
+    redir https://{host}{uri} permanent
 }
 
 {$CAMPUSCORE_DOMAIN} {

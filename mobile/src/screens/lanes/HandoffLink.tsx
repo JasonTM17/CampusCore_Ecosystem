@@ -3,12 +3,14 @@ import { View } from 'react-native';
 
 import { Button, UiText } from '../../components/Ui';
 import { openPortalPath } from '../operations/shared/helpers';
+import { configuredPortalUrl } from '../operations/shared/portal-url';
 import { useLanesCopy } from './lane-ui';
 
 /** Secondary button that opens the portal route owning the work (`web-same-path`). */
 export function HandoffLink({ label, path }: { label: string; path: string }) {
   const { copy } = useLanesCopy();
   const [failed, setFailed] = useState(false);
+  if (!configuredPortalUrl()) return null;
   return (
     <View>
       <Button

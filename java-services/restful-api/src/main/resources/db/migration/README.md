@@ -36,14 +36,15 @@ the next boot. Repair per environment, before its next deploy:
 psql "$DB_URL" -c "SELECT installed_rank, version, checksum, success
                    FROM thesis.flyway_schema_history ORDER BY installed_rank"
 
-# 2. Confirm the drift is the known kind (validation names the file).
-mvn -f java-services/pom.xml flyway:validate -Dflyway.url="$DB_URL"
-
-# 3. Rewrite stored checksums to match current files. repair performs no DDL
-#    and touches no data.
-mvn -f java-services/pom.xml flyway:repair -Dflyway.url="$DB_URL"
-
-# 4. Re-run validate, then boot the service.
+# 2. Confirm the drift is the known kind: booting Flyway (the API outside
+#    Compose, rag-service in Compose) fails validation and names the migration
+#    file. This repository declares no Flyway Maven plugin and has no root POM,
+#    so mvn flyway:* goals do not resolve.
+# 3. Realign stored checksums with a Flyway CLI installed outside this
+#    repository (flyway repair, same URL/user/password). Repair performs no DDL
+#    and touches no data. No repair command ships here; on a disposable local
+#    database, recreate it instead.
+# 4. Boot the service again and confirm validation passes.
 ```
 
 Fresh clones and CI need nothing: a clean replay of V1…V<latest> matches the

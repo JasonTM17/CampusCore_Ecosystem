@@ -2,10 +2,11 @@ import { cardRows, contentRows, renderVirtualRow } from '../../components/perf/v
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Card, DataNotice, Divider, IconChip, InlineError, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AttendanceSummaryRow } from '../academic/academic-api';
 import { localizedName, termOptions } from '../academic/academic-model';
@@ -32,10 +33,15 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
   const summaryQuery = useAcademicQuery(`academic.attendance.summary.${term}`, () => academicApi.attendanceSummary(term || null), copy);
   const recordsQuery = useAcademicQuery(`academic.attendance.records.${term}`, () => academicApi.attendanceRecords(term || null), copy);
+  const pull = usePullToRefresh(() => Promise.all([semestersQuery.reload(), summaryQuery.reload(), recordsQuery.reload()]));
 
   const summary = useMemo(() => (preview ? previewAttendance : summaryQuery.data ?? []), [preview, summaryQuery.data]);
   const records = preview ? [] : recordsQuery.data ?? [];
+  const recordsError = preview ? null : recordsQuery.error;
+  const recordsWarning = preview ? null : recordsQuery.warning;
+  const recordsLoading = !preview && recordsQuery.isLoading;
   const options = termOptions([], preview ? [] : semestersQuery.data ?? [], locale);
+  const semestersFailed = !preview && semestersQuery.error !== null && options.length === 0;
   const rows = summary.filter((row) => !sectionId || row.sectionId === sectionId);
   const visibleRecords = records
     .filter((record) => !sectionId || record.sectionId === sectionId)
@@ -47,8 +53,10 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
       title={copy.attendanceTitle}
       loading={!preview && summaryQuery.isLoading}
       error={preview ? null : summaryQuery.error}
-      warning={preview ? null : summaryQuery.warning}
-      onRetry={() => { void summaryQuery.reload(); void recordsQuery.reload(); }}
+      warning={preview ? null : [summaryQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null}
+      onRetry={() => { void Promise.all([semestersQuery.reload(), summaryQuery.reload(), recordsQuery.reload()]); }}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: [...((summary.length === 0) ? [] : contentRows("section-1", rows, (item, index) => String(item.sectionId), (row) => (
             <Card key={row.sectionId} style={academicStyles.card}>
@@ -65,7 +73,12 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
           ))),
 { key: "static-1", render: () => <>{summary.length === 0 ? null : (<><View>
           <SectionHeading title={copy.recordsTitle} />
-          {visibleRecords.length === 0 ? (
+          {recordsWarning ? <DataNotice message={recordsWarning} /> : null}
+          {recordsLoading ? <StatePanel kind="loading" title={copy.loading} /> : null}
+          {recordsError ? (
+            <InlineError message={recordsError} onRetry={() => void recordsQuery.reload()} retryLabel={copy.retry} />
+          ) : null}
+          {!recordsLoading && !recordsError && visibleRecords.length === 0 ? (
             <StatePanel kind="empty" title={copy.noRecords} />
           ) : null}</View></>)}</> },
 ...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), <>
@@ -85,6 +98,9 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
     </> }}
     >
       <CheckinEntryCard navigation={navigation} />
+      {semestersFailed ? (
+        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+      ) : null}
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyAttendance} />

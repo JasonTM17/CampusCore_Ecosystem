@@ -10,6 +10,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LoadingState } from '@/components/ui/state-block';
 import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 import { isDemoUser, loginHref, portalFromUser } from '@/lib/login-portal';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
 import { civilDateInputValue } from '@/lib/civil-date';
@@ -23,6 +24,8 @@ type PasswordFieldKey = 'oldPassword' | 'newPassword' | 'confirmPassword' | 'two
 const MAX_AVATAR_DATA_URL_LENGTH = 200_000;
 const MAX_AVATAR_DIMENSION = 320;
 const ALLOWED_AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+// Mirrors UpdateProfileRequest.address @Size(max = 500) / VARCHAR(500).
+const PROFILE_ADDRESS_MAX = 500;
 
 function createProfileAvatarDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -136,7 +139,7 @@ function PasswordField({
       endAction={
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex -mr-2 h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label={label}
           title={label}
           aria-pressed={visible}
@@ -152,9 +155,11 @@ function PasswordField({
 export default function ProfilePage() {
   const { user, refreshUser, logout } = useAuth();
   const { messages, locale, href } = useI18n();
+  const portalCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).profile;
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [addressError, setAddressError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [avatarPreview, setAvatarPreview] = useState('');
   const [visiblePasswordFields, setVisiblePasswordFields] = useState<Record<PasswordFieldKey, boolean>>({
@@ -400,12 +405,17 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
+    setAddressError('');
 
     // Client-side mirror of the backend @Pattern rule so a bad number fails
     // here instead of round-tripping a 400.
     const phone = formData.phone.trim();
     if (phone && !/^\+?[0-9][0-9\s()./-]{4,78}$/.test(phone)) {
       setProfileError(messages.profile.phoneInvalid);
+      return;
+    }
+    if (formData.address.trim().length > PROFILE_ADDRESS_MAX) {
+      setAddressError(messages.profile.addressTooLong);
       return;
     }
 
@@ -517,7 +527,7 @@ export default function ProfilePage() {
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xl font-semibold text-primary-foreground">
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPreview} alt="" width={256} height={256} className="h-full w-full object-cover" />
+                  <img src={avatarPreview} alt={messages.profile.photoLabel} width={256} height={256} className="h-full w-full object-cover" />
                 ) : (
                   initials
                 )}
@@ -573,7 +583,7 @@ export default function ProfilePage() {
                   {isDemoUser(user) && (
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-portal-chrome-accent/40 bg-portal-chrome-accent/15 px-3 py-1 text-xs font-medium text-foreground">
                       <span className="h-1.5 w-1.5 rounded-full bg-portal-chrome-accent" />
-                      {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                      {portalCopy.demoAccount}
                     </span>
                   )}
                 </div>
@@ -581,7 +591,7 @@ export default function ProfilePage() {
             </div>
 
             {profileError ? (
-              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                 {profileError}
               </div>
             ) : null}
@@ -654,11 +664,14 @@ export default function ProfilePage() {
                     id="profile-address"
                     type="text"
                     value={formData.address}
-                    onChange={(e) =>
-                      setFormData((current) => ({ ...current, address: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setAddressError('');
+                      setFormData((current) => ({ ...current, address: e.target.value }));
+                    }}
                     placeholder={messages.profile.fields.addressPlaceholder}
                     icon={<MapPin className="h-4 w-4" />}
+                    maxLength={PROFILE_ADDRESS_MAX}
+                    error={addressError || undefined}
                   />
                 </div>
               </div>
@@ -679,7 +692,7 @@ export default function ProfilePage() {
             contentClassName="space-y-4"
           >
               {passwordError ? (
-                <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                   {passwordError}
                 </div>
               ) : null}
@@ -781,7 +794,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => loadTwoFactorStatus()}
-                  className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {messages.common.actions.retry}
                 </button>
@@ -789,7 +802,7 @@ export default function ProfilePage() {
             ) : null}
 
             {twoFactorError ? (
-              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                 {twoFactorError}
               </div>
             ) : null}

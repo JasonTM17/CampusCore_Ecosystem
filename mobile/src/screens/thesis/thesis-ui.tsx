@@ -3,8 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { requestAssistantEntryScope } from '../../assistant/entry-scope';
 import { Button, Card, DataNotice, Divider, StatePanel, UiText } from '../../components/Ui';
 import { IconChip, StatusPill } from '../../components/ui/index';
+import { compactFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillThesisCopy, thesisMessages, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileNavigation } from '../../navigation/types';
@@ -63,7 +65,7 @@ export function ThesisStepper({
               backgroundColor: step.state === 'done' ? colors.successFixed : step.state === 'current' ? colors.primaryFixed : colors.surfaceLow,
               borderColor: step.state === 'done' ? colors.success : step.state === 'current' ? colors.primary : colors.outlineVariant,
             }]}>
-              <UiText variant="meta" tone={iconTone(step.state)}>{index + 1}</UiText>
+              <UiText variant="meta" tone={iconTone(step.state)} maxFontSizeMultiplier={compactFontScaleCap}>{index + 1}</UiText>
             </View>
             {index < steps.length - 1 ? <View style={[styles.stepConnector, { backgroundColor: colors.outlineVariant }]} /> : null}
           </View>
@@ -78,8 +80,8 @@ export function ThesisStepper({
 }
 
 export function DateLine({ label, text }: { label: string; text?: string | null }) {
-  if (!text) return null;
   const { window } = useTheme();
+  if (!text) return null;
   const stacked = window.fontScale >= 1.3 || window.width < 360;
   return (
     <View style={[styles.dateLine, stacked ? styles.dateLineStacked : undefined]}>
@@ -118,7 +120,7 @@ export function TopicCard({ topic, copy, onOpen }: { topic: ThesisTopic; copy: T
         <ThesisStatusBadge status={topic.status} copy={copy} />
       </View>
       <UiText variant="bodySmall" tone="muted" style={styles.brief}>{topic.description}</UiText>
-      <UiText variant="meta" tone="muted">{fillThesisCopy(copy.topicGroupsMax, { count: topic.maxGroups })}</UiText>
+      <UiText variant="meta" tone="muted">{fillThesisCopy(countForm(topic.maxGroups, copy.topicGroupsMaxOne, copy.topicGroupsMax), { count: topic.maxGroups })}</UiText>
       <Button label={copy.openTopic} onPress={onOpen} variant="secondary" accessibilityLabel={`${copy.openTopic}: ${topic.title}`} />
     </Card>
   );
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
   stepper: { gap: tokens.spacing.sm },
   stepRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.sm, minWidth: 0 },
   stepTrack: { alignItems: 'center', width: 32 },
-  stepNode: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, height: 28, justifyContent: 'center', width: 28 },
+  stepNode: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, justifyContent: 'center', minHeight: 28, minWidth: 28, paddingHorizontal: tokens.spacing.xs },
   stepConnector: { flex: 1, marginVertical: tokens.spacing.xs, width: 2 },
   stepCopy: { alignItems: 'flex-start', flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, minWidth: 0, paddingVertical: tokens.spacing.xs },
   stepLabel: { flexShrink: 1, minWidth: 120 },

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.repository;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.ApprovalStatus;
 import io.campuscore.restfulapi.thesis.domain.GroupStatus;
 import io.campuscore.restfulapi.thesis.web.ThesisGroupReadDtos.GroupMemberResponse;
@@ -8,8 +9,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -21,25 +24,75 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Profile("persistence")
 public class ThesisGroupReadRepository {
+    private static final String GROUP_COLUMNS =
+            "g.id, g.round_id, g.leader_student_id, g.topic_id, g.status, g.approval_status, g.rejection_reason";
+
+    /**
+     * The caller's live supervision of the group's topic. Reused by the
+     * governance scope predicate and projected onto the page so contact
+     * masking never needs one lookup per group.
+     */
+    private static final String SUPERVISION_EXISTS =
+            "EXISTS (SELECT 1 FROM thesis.thesis_topic_supervisor ts "
+                    + "JOIN campuscore_auth.\"Lecturer\" l "
+                    + "  ON (l.\"id\" = :lecturerId OR l.\"userId\" = :lecturerId) "
+                    + " AND l.\"isActive\" = TRUE "
+                    + " AND (ts.lecturer_id = l.\"id\" OR ts.lecturer_id = l.\"userId\") "
+                    + "WHERE ts.topic_id = g.topic_id)";
+
+    /** Faculty derivation shared with the dean overview: topic department, or topicless members' curricula. */
+    private static final String FACULTY_SCOPE =
+            "(EXISTS (SELECT 1 FROM thesis.thesis_topic t "
+                    + "JOIN academic.\"Department\" dept ON dept.\"id\" = t.department_id "
+                    + "WHERE t.id = g.topic_id AND dept.\"facultyId\" = :scopeId) "
+                    + "OR (g.topic_id IS NULL AND EXISTS ("
+                    + "  SELECT 1 FROM thesis.thesis_group_member m "
+                    + "  JOIN campuscore_auth.\"Student\" s ON s.\"id\" = m.student_id "
+                    + "  JOIN academic.\"Curriculum\" c ON c.\"id\" = s.\"curriculumId\" "
+                    + "  JOIN academic.\"Department\" md ON md.\"id\" = c.\"departmentId\" "
+                    + "  WHERE m.group_id = g.id AND md.\"facultyId\" = :scopeId)))";
+
+    /** Same derivation narrowed to one department, for a department head. */
+    private static final String DEPARTMENT_SCOPE =
+            "(EXISTS (SELECT 1 FROM thesis.thesis_topic t "
+                    + "JOIN academic.\"Department\" dept ON dept.\"id\" = t.department_id "
+                    + "WHERE t.id = g.topic_id AND dept.\"id\" = :scopeId) "
+                    + "OR (g.topic_id IS NULL AND EXISTS ("
+                    + "  SELECT 1 FROM thesis.thesis_group_member m "
+                    + "  JOIN campuscore_auth.\"Student\" s ON s.\"id\" = m.student_id "
+                    + "  JOIN academic.\"Curriculum\" c ON c.\"id\" = s.\"curriculumId\" "
+                    + "  JOIN academic.\"Department\" md ON md.\"id\" = c.\"departmentId\" "
+                    + "  WHERE m.group_id = g.id AND md.\"id\" = :scopeId)))";
+
     private final NamedParameterJdbcTemplate jdbc;
+
     public ThesisGroupReadRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    /** Page items plus the exact pre-pagination total (absent for legacy reads) and supervised group ids. */
+    public record GroupRead(List<GroupResponse> items, Long total, Set<UUID> supervisedGroupIds) {
+    }
+
     public List<GroupResponse> findByRoundId(UUID roundId) {
-        List<GroupRow> rows = jdbc.query("SELECT id, round_id, leader_student_id, topic_id, status, approval_status, rejection_reason FROM thesis.thesis_group WHERE round_id = :roundId ORDER BY created_at DESC, id", new MapSqlParameterSource("roundId", roundId), ThesisGroupReadRepository::row);
-        return hydrate(rows);
+        return findByRoundId(roundId, null).items();
+    }
+
+    public GroupRead findByRoundId(UUID roundId, ListPaging.Window window) {
+        return read(adminQuery(roundId), window);
     }
 
     public List<GroupResponse> findByRoundIdAndStudentId(UUID roundId, String studentId) {
-        List<GroupRow> rows = jdbc.query(
-                "SELECT g.id, g.round_id, g.leader_student_id, g.topic_id, g.status, "
-                        + "g.approval_status, g.rejection_reason FROM thesis.thesis_group g "
-                        + "JOIN thesis.thesis_group_member m ON m.group_id = g.id "
-                        + "WHERE g.round_id = :roundId AND m.student_id = :studentId "
-                        + "ORDER BY CASE WHEN g.status = 'CANCELLED' THEN 1 ELSE 0 END, "
-                        + "g.created_at DESC, g.id",
+        return findByRoundIdAndStudentId(roundId, studentId, null).items();
+    }
+
+    public GroupRead findByRoundIdAndStudentId(UUID roundId, String studentId, ListPaging.Window window) {
+        GroupQuery query = new GroupQuery(
+                "FROM thesis.thesis_group g "
+                        + "JOIN thesis.thesis_group_member m ON m.group_id = g.id",
+                " WHERE g.round_id = :roundId AND m.student_id = :studentId",
                 new MapSqlParameterSource("roundId", roundId).addValue("studentId", studentId),
-                ThesisGroupReadRepository::row);
-        return hydrate(rows);
+                "CASE WHEN g.status = 'CANCELLED' THEN 1 ELSE 0 END, g.created_at DESC, g.id ASC",
+                null, null);
+        return read(query, window);
     }
 
     /** All groups the student belongs to, across every round (newest first). */
@@ -79,21 +132,18 @@ public class ThesisGroupReadRepository {
 
     /** Groups of the round whose topic the lecturer supervises (EXISTS keeps rows unique). */
     public List<GroupResponse> findByRoundIdAndSupervisorId(UUID roundId, String lecturerId) {
-        List<GroupRow> rows = jdbc.query(
-                "SELECT g.id, g.round_id, g.leader_student_id, g.topic_id, g.status, "
-                        + "g.approval_status, g.rejection_reason FROM thesis.thesis_group g "
-                        + "JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "WHERE g.round_id = :roundId AND EXISTS ("
-                        + "  SELECT 1 FROM thesis.thesis_topic_supervisor ts "
-                        + "  JOIN campuscore_auth.\"Lecturer\" l "
-                        + "    ON (l.\"id\" = :lecturerId OR l.\"userId\" = :lecturerId) "
-                        + "   AND l.\"isActive\" = TRUE "
-                        + "   AND (ts.lecturer_id = l.\"id\" OR ts.lecturer_id = l.\"userId\") "
-                        + "  WHERE ts.topic_id = t.id) "
-                        + "ORDER BY g.created_at DESC, g.id",
+        return findByRoundIdAndSupervisorId(roundId, lecturerId, null).items();
+    }
+
+    public GroupRead findByRoundIdAndSupervisorId(
+            UUID roundId, String lecturerId, ListPaging.Window window) {
+        GroupQuery query = new GroupQuery(
+                "FROM thesis.thesis_group g",
+                " WHERE g.round_id = :roundId AND " + SUPERVISION_EXISTS,
                 new MapSqlParameterSource("roundId", roundId).addValue("lecturerId", lecturerId),
-                ThesisGroupReadRepository::row);
-        return hydrate(rows);
+                "g.created_at DESC, g.id ASC",
+                null, null);
+        return read(query, window);
     }
 
     /** A governance reader's live scope: their own department and its faculty. */
@@ -116,49 +166,27 @@ public class ThesisGroupReadRepository {
     }
 
     /**
-     * Groups of the round inside one faculty — same derivation the dean
-     * overview applies: the assigned topic's department, or a topicless
-     * group's member curriculum department.
+     * Groups of the round inside one faculty plus the groups the caller
+     * personally supervises, as one deduplicated set. Faculty rows rank 0 and
+     * supervised outsiders rank 1, preserving the legacy faculty-first order.
      */
     public List<GroupResponse> findByRoundIdAndFacultyId(UUID roundId, String facultyId) {
-        List<GroupRow> rows = jdbc.query(
-                "SELECT g.id, g.round_id, g.leader_student_id, g.topic_id, g.status, "
-                        + "g.approval_status, g.rejection_reason FROM thesis.thesis_group g "
-                        + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "LEFT JOIN academic.\"Department\" dept ON dept.\"id\" = t.department_id "
-                        + "WHERE g.round_id = :roundId AND ("
-                        + "  dept.\"facultyId\" = :facultyId "
-                        + "  OR (g.topic_id IS NULL AND EXISTS ("
-                        + "    SELECT 1 FROM thesis.thesis_group_member m "
-                        + "    JOIN campuscore_auth.\"Student\" s ON s.\"id\" = m.student_id "
-                        + "    JOIN academic.\"Curriculum\" c ON c.\"id\" = s.\"curriculumId\" "
-                        + "    JOIN academic.\"Department\" md ON md.\"id\" = c.\"departmentId\" "
-                        + "    WHERE m.group_id = g.id AND md.\"facultyId\" = :facultyId)) "
-                        + ") ORDER BY g.created_at DESC, g.id",
-                new MapSqlParameterSource("roundId", roundId).addValue("facultyId", facultyId),
-                ThesisGroupReadRepository::row);
-        return hydrate(rows);
+        return findByRoundIdAndFacultyId(roundId, facultyId, null, null).items();
+    }
+
+    public GroupRead findByRoundIdAndFacultyId(
+            UUID roundId, String facultyId, String lecturerId, ListPaging.Window window) {
+        return read(governanceQuery(roundId, FACULTY_SCOPE, facultyId, lecturerId), window);
     }
 
     /** Same derivation narrowed to one department, for a department head. */
     public List<GroupResponse> findByRoundIdAndDepartmentId(UUID roundId, String departmentId) {
-        List<GroupRow> rows = jdbc.query(
-                "SELECT g.id, g.round_id, g.leader_student_id, g.topic_id, g.status, "
-                        + "g.approval_status, g.rejection_reason FROM thesis.thesis_group g "
-                        + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                        + "LEFT JOIN academic.\"Department\" dept ON dept.\"id\" = t.department_id "
-                        + "WHERE g.round_id = :roundId AND ("
-                        + "  dept.\"id\" = :departmentId "
-                        + "  OR (g.topic_id IS NULL AND EXISTS ("
-                        + "    SELECT 1 FROM thesis.thesis_group_member m "
-                        + "    JOIN campuscore_auth.\"Student\" s ON s.\"id\" = m.student_id "
-                        + "    JOIN academic.\"Curriculum\" c ON c.\"id\" = s.\"curriculumId\" "
-                        + "    JOIN academic.\"Department\" md ON md.\"id\" = c.\"departmentId\" "
-                        + "    WHERE m.group_id = g.id AND md.\"id\" = :departmentId)) "
-                        + ") ORDER BY g.created_at DESC, g.id",
-                new MapSqlParameterSource("roundId", roundId).addValue("departmentId", departmentId),
-                ThesisGroupReadRepository::row);
-        return hydrate(rows);
+        return findByRoundIdAndDepartmentId(roundId, departmentId, null, null).items();
+    }
+
+    public GroupRead findByRoundIdAndDepartmentId(
+            UUID roundId, String departmentId, String lecturerId, ListPaging.Window window) {
+        return read(governanceQuery(roundId, DEPARTMENT_SCOPE, departmentId, lecturerId), window);
     }
 
     /** Whether one group sits inside the faculty (topic department or member curriculum). */
@@ -228,6 +256,76 @@ public class ThesisGroupReadRepository {
         return hydrate(rows).stream().findFirst().orElse(null);
     }
 
+    private GroupQuery adminQuery(UUID roundId) {
+        return new GroupQuery(
+                "FROM thesis.thesis_group g",
+                " WHERE g.round_id = :roundId",
+                new MapSqlParameterSource("roundId", roundId),
+                "g.created_at DESC, g.id ASC",
+                null, null);
+    }
+
+    private GroupQuery governanceQuery(
+            UUID roundId, String scope, String scopeId, String lecturerId) {
+        MapSqlParameterSource params = new MapSqlParameterSource("roundId", roundId)
+                .addValue("scopeId", scopeId)
+                .addValue("lecturerId", lecturerId);
+        return new GroupQuery(
+                "FROM thesis.thesis_group g",
+                " WHERE g.round_id = :roundId AND ((" + scope + ") OR (" + SUPERVISION_EXISTS + "))",
+                params,
+                "scope_rank ASC, g.created_at DESC, g.id ASC",
+                "CASE WHEN " + scope + " THEN 0 ELSE 1 END",
+                SUPERVISION_EXISTS);
+    }
+
+    /**
+     * Runs the shared predicate for the count and the ordered page, then
+     * hydrates only the selected parents. An out-of-range offset skips both
+     * parent and member queries.
+     */
+    private GroupRead read(GroupQuery query, ListPaging.Window window) {
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) " + query.from() + query.where(), query.params(), Long.class);
+            if (total != null && window.offset() >= total) {
+                return new GroupRead(List.of(), total, Set.of());
+            }
+        }
+        StringBuilder sql = new StringBuilder("SELECT ").append(GROUP_COLUMNS);
+        if (query.rankExpression() != null) {
+            sql.append(", ").append(query.rankExpression()).append(" AS scope_rank");
+        }
+        if (query.supervisionExpression() != null) {
+            sql.append(", CASE WHEN ").append(query.supervisionExpression())
+                    .append(" THEN TRUE ELSE FALSE END AS supervised");
+        }
+        sql.append(' ').append(query.from()).append(query.where())
+                .append(" ORDER BY ").append(query.order());
+        MapSqlParameterSource params = query.params();
+        if (window != null) {
+            sql.append(" LIMIT :limit OFFSET :offset");
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        if (query.supervisionExpression() == null) {
+            return new GroupRead(
+                    hydrate(jdbc.query(sql.toString(), params, ThesisGroupReadRepository::row)),
+                    total, Set.of());
+        }
+        List<GovernanceRow> rows = jdbc.query(sql.toString(), params,
+                (rs, index) -> new GovernanceRow(row(rs, index), rs.getBoolean("supervised")));
+        Set<UUID> supervised = new LinkedHashSet<>();
+        List<GroupRow> parents = new ArrayList<>(rows.size());
+        for (GovernanceRow governanceRow : rows) {
+            parents.add(governanceRow.row());
+            if (governanceRow.supervised()) {
+                supervised.add(governanceRow.row().id());
+            }
+        }
+        return new GroupRead(hydrate(parents), total, supervised);
+    }
+
     private List<GroupResponse> hydrate(List<GroupRow> rows) {
         if (rows.isEmpty()) return List.of();
         Map<UUID, List<String>> members = new LinkedHashMap<>();
@@ -276,4 +374,7 @@ public class ThesisGroupReadRepository {
         return new GroupRow(rs.getObject("id", UUID.class), rs.getObject("round_id", UUID.class), rs.getString("leader_student_id"), rs.getObject("topic_id", UUID.class), GroupStatus.valueOf(rs.getString("status")), ApprovalStatus.valueOf(rs.getString("approval_status")), rs.getString("rejection_reason"));
     }
     private record GroupRow(UUID id, UUID roundId, String leaderStudentId, UUID topicId, GroupStatus status, ApprovalStatus approvalStatus, String rejectionReason) { }
+    private record GovernanceRow(GroupRow row, boolean supervised) { }
+    private record GroupQuery(String from, String where, MapSqlParameterSource params, String order,
+            String rankExpression, String supervisionExpression) { }
 }

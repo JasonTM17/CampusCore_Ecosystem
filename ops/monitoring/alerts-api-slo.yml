@@ -2,7 +2,7 @@
 # Collection/routing NOT_RUN against a live Prometheus instance.
 # Missing input series produce no alert; zero traffic yields no ratio/latency breach.
 # Scrape/exporter absence requires the deployment monitoring availability policy.
-# Cross-reference: docs/ecosystem/observability.md, docs/PRODUCTION_RUNBOOK.md
+# Cross-reference: docs/ecosystem/observability.md
 groups:
   - name: campuscore-api-slo
     rules:
@@ -24,7 +24,7 @@ groups:
           description: >-
             Over the last 5 minutes, {{ $value | humanizePercentage }} of requests to restful-api
             returned HTTP 5xx responses. Expected baseline is < 1%.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
@@ -44,7 +44,7 @@ groups:
           description: >-
             Sign-in endpoint P95 latency is {{ $value | humanizeDuration }}.
             Target is < 800ms (accounting for password hashing work factor).
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       - alert: SignInServerErrorRateHigh
@@ -62,7 +62,7 @@ groups:
           description: >-
             Sign-in endpoint returned 5xx errors exceeding 0.1% threshold.
             Client errors (401 UNAUTHENTICATED, 400) are excluded from this SLI.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
@@ -82,7 +82,7 @@ groups:
           description: >-
             Course enrollment mutation P95 latency is {{ $value | humanizeDuration }}.
             Target is < 500ms under registration peak windows.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       - alert: RegistrationServerErrorRateHigh
@@ -100,7 +100,7 @@ groups:
           description: >-
             Course enrollment mutations returned 5xx errors exceeding 0.2% threshold.
             Domain conflicts (409 SECTION_FULL, SCHEDULE_CONFLICT) are excluded.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
@@ -120,7 +120,7 @@ groups:
           description: >-
             Attendance check-in P95 latency is {{ $value | humanizeDuration }}.
             Target is < 600ms (includes geofence evaluation and idempotency lock).
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       - alert: AttendanceCheckinServerErrorRateHigh
@@ -138,7 +138,7 @@ groups:
           description: >-
             Attendance check-in endpoint returned 5xx errors exceeding 0.1% threshold.
             Validation rejections (422 OUTSIDE_AREA, 409 ALREADY_CHECKED_IN) are excluded.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
@@ -158,7 +158,7 @@ groups:
           description: >-
             Student grades and transcript read P95 latency is {{ $value | humanizeDuration }}.
             Target is < 300ms for read-only queries.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       - alert: GradesReadServerErrorRateHigh
@@ -175,7 +175,7 @@ groups:
           summary: "Grades read server error rate exceeds 0.05% SLO"
           description: >-
             Student grades retrieval returned 5xx errors exceeding 0.05% threshold.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
@@ -196,7 +196,7 @@ groups:
           description: >-
             Over 5% of inbound requests are being rejected by RateLimitFilter.
             Investigate client retry loops, buggy scripts, or excessive traffic spikes.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#demo-account-and-rate-limit-switches"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       - alert: RateLimitLoginBruteForceSpike
@@ -213,5 +213,5 @@ groups:
           description: >-
             Sign-in endpoint is rejecting more than 50 requests/minute with HTTP 429
             RATE_LIMIT_EXCEEDED. Possible credential stuffing or brute force against student/staff accounts.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#demo-account-and-rate-limit-switches"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"

@@ -31,7 +31,12 @@ import {
   resolveArticleCover,
 } from '@/lib/announcement-presentation';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
+import { useI18n } from '@/i18n';
 import { ViContentBadge } from '@/components/announcements/ViContentBadge';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface AnnouncementFeedCardProps {
   announcement: AnnouncementRecord;
@@ -51,6 +56,8 @@ export function AnnouncementFeedCard({
   layout = 'horizontal',
 }: AnnouncementFeedCardProps) {
   const isVi = locale === 'vi';
+  const { messages } = useI18n();
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].feed;
   const [copied, setCopied] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   const { categories } = useArticleTaxonomy();
@@ -118,7 +125,6 @@ export function AnnouncementFeedCard({
     const isVertical = layout === 'vertical';
     return (
       <article
-        onClick={onClick}
         className={cn(
           'group relative flex overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-all hover:border-primary/50 hover:shadow-lg cursor-pointer focus-within:ring-2 focus-within:ring-primary',
           isVertical ? 'flex-col' : 'flex-col md:flex-row',
@@ -152,7 +158,7 @@ export function AnnouncementFeedCard({
               <div className="absolute -right-8 -bottom-8 opacity-15">
                 <Image
                   src="/hcmute-logo.png"
-                  alt="HCMUTE Emblem Watermark"
+                  alt={messages.meta.emblemWatermarkAlt}
                   width={220}
                   height={279}
                 />
@@ -174,12 +180,12 @@ export function AnnouncementFeedCard({
           <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-md bg-background/90 px-2.5 py-1 text-xs font-bold text-foreground backdrop-blur-md shadow-xs">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>{isVi ? 'Bài viết tiêu điểm' : 'Featured'}</span>
+              <span>{copy.featured}</span>
             </span>
             {isUrgent && (
               <span className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2 py-1 text-xs font-bold text-white shadow-xs">
                 <Flame className="h-3 w-3" />
-                <span>{isVi ? 'Khẩn' : 'Urgent'}</span>
+                <span>{copy.urgent}</span>
               </span>
             )}
           </div>
@@ -197,7 +203,7 @@ export function AnnouncementFeedCard({
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
-                <span>{readingTime.minutes} {isVi ? 'phút đọc' : 'min read'}</span>
+                <span>{readingTime.minutes} {copy.readMinutes}</span>
               </span>
               <span>•</span>
               <span>{relativeTime}</span>
@@ -206,11 +212,8 @@ export function AnnouncementFeedCard({
             <h3>
               <button
                 type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onClick();
-                }}
-                className="text-left text-xl sm:text-2xl font-bold text-foreground group-hover:text-primary transition-colors leading-snug"
+                onClick={onClick}
+                className="text-left text-xl sm:text-2xl font-bold text-foreground group-hover:text-primary transition-colors leading-snug after:absolute after:inset-0"
               >
                 {announcement.title}
               </button>
@@ -241,15 +244,15 @@ export function AnnouncementFeedCard({
               <button
                 type="button"
                 onClick={handleShare}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                title={isVi ? 'Sao chép liên kết' : 'Copy link'}
-                aria-label={isVi ? 'Chia sẻ' : 'Share'}
+                className="relative z-10 inline-flex h-8 w-8 min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                title={copy.copyLink}
+                aria-label={copy.share}
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : shareFailed ? <X className="h-3.5 w-3.5 text-destructive" /> : <Share2 className="h-3.5 w-3.5" />}
               </button>
 
               <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                <span>{isVi ? 'Đọc toàn văn' : 'Read article'}</span>
+                <span>{copy.readArticle}</span>
                 <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </div>
@@ -262,9 +265,8 @@ export function AnnouncementFeedCard({
   // Standard Card
   return (
     <article
-      onClick={onClick}
       className={cn(
-        'group flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md cursor-pointer focus-within:ring-2 focus-within:ring-primary',
+        'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md cursor-pointer focus-within:ring-2 focus-within:ring-primary',
         className,
       )}
     >
@@ -290,7 +292,7 @@ export function AnnouncementFeedCard({
             <div className="absolute -right-6 -bottom-6 opacity-15">
               <Image
                 src="/hcmute-logo.png"
-                alt="HCMUTE Emblem Watermark"
+                alt={messages.meta.emblemWatermarkAlt}
                 width={140}
                 height={177}
               />
@@ -301,7 +303,7 @@ export function AnnouncementFeedCard({
               </span>
               {isUrgent && (
                 <span className="rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-xs">
-                  {isVi ? 'Ưu tiên cao' : 'Urgent'}
+                  {copy.urgentHigh}
                 </span>
               )}
             </div>
@@ -318,7 +320,7 @@ export function AnnouncementFeedCard({
           <div className="absolute top-2.5 right-2.5 z-10">
             <span className="inline-flex items-center gap-1 rounded bg-rose-600/90 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-xs shadow-xs">
               <Flame className="h-3 w-3" />
-              <span>{isVi ? 'Khẩn' : 'Urgent'}</span>
+              <span>{copy.urgent}</span>
             </span>
           </div>
         )}
@@ -335,18 +337,15 @@ export function AnnouncementFeedCard({
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>{readingTime.minutes} {isVi ? 'phút' : 'm'}</span>
+              <span>{readingTime.minutes} {copy.readMinutesShort}</span>
             </span>
           </div>
 
           <h4>
             <button
               type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onClick();
-              }}
-              className="text-left text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2"
+              onClick={onClick}
+              className="text-left text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2 after:absolute after:inset-0"
             >
               {announcement.title}
             </button>
@@ -367,15 +366,15 @@ export function AnnouncementFeedCard({
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              title={isVi ? 'Sao chép liên kết' : 'Copy link'}
-              aria-label={isVi ? 'Chia sẻ' : 'Share'}
+              className="relative z-10 inline-flex h-8 w-8 min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              title={copy.copyLink}
+              aria-label={copy.share}
             >
               {copied ? <Check className="h-3 w-3 text-emerald-500" /> : shareFailed ? <X className="h-3 w-3 text-destructive" /> : <Share2 className="h-3 w-3" />}
             </button>
 
             <span className="inline-flex items-center gap-0.5 font-bold text-primary group-hover:translate-x-0.5 transition-transform text-xs">
-              <span>{isVi ? 'Đọc bài' : 'Read'}</span>
+              <span>{copy.read}</span>
               <ArrowRight className="h-3 w-3" />
             </span>
           </div>

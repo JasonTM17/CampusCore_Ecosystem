@@ -1,8 +1,9 @@
 // Lecturer reads and writes over the shared client. Every call hits the live
-// API; nothing here fabricates data. The attendance and grade endpoints carry
-// no row version or idempotency key, so the writes are safe by construction:
-// both are full-state PUTs that converge on replay, attendance re-reads the
-// server just before saving, and grades send only the rows that changed.
+// API; nothing here fabricates data. Attendance writes carry no row version:
+// the PUT is full-state, converges on replay, and re-reads the server just
+// before saving. Grade writes carry the `Enrollment.version` each row was
+// loaded with, so a stale baseline is rejected with 409 STALE_VERSION; the
+// screen keeps the draft and reconciles through an explicit reload.
 
 import { campusApi } from '../../api/client';
 import type { AttendanceRecord, AttendanceRosterEntry, StudentGradeRow } from '../../api/client';

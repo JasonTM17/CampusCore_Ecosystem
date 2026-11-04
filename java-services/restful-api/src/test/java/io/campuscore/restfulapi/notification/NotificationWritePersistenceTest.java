@@ -11,9 +11,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.notification.service.NotificationWriteService;
+import io.campuscore.restfulapi.notification.web.NotificationWriteDtos.CreateNotificationRequest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,14 +32,18 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
         "spring.flyway.enabled=false",
-        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
+        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=500"
 })
 class NotificationWritePersistenceTest {
 
@@ -45,6 +56,15 @@ class NotificationWritePersistenceTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private NotificationWriteService notificationWrites;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @BeforeEach
     void prepareWriteFixture() {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS notifications");
@@ -52,7 +72,7 @@ class NotificationWritePersistenceTest {
                 CREATE TABLE IF NOT EXISTS notifications.notification (
                     id VARCHAR(120) PRIMARY KEY,
                     user_id VARCHAR(120) NOT NULL,
-                    title VARCHAR(200) NOT NULL,
+                    title VARCHAR(240) NOT NULL,
                     message VARCHAR(2000) NOT NULL,
                     type VARCHAR(40) NOT NULL,
                     link VARCHAR(500),
@@ -204,6 +224,181 @@ class NotificationWritePersistenceTest {
     }
 
     @Test
+    void adminCreateWithAnIdempotencyKeyReplaysInsteadOfDuplicating() throws Exception {
+        // A retried POST used to write a second inbox row, a second audit
+        // row and a second push fan-out. A client-supplied key derives a
+        // stable notification id, so the retry returns the first row.
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+
+        MvcResult first = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "retry-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult second = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "retry-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String firstId = objectMapper.readTree(first.getResponse().getContentAsString()).get("id").asText();
+        String secondId = objectMapper.readTree(second.getResponse().getContentAsString()).get("id").asText();
+        assertThat(secondId).isEqualTo(firstId);
+        assertThat(totalRows()).isEqualTo(1);
+        assertThat(auditRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateRejectsAnIdempotencyKeyReusedWithADifferentPayload() throws Exception {
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "reused-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .header("Idempotency-Key", "reused-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Different title", "Your course grade is now available.",
+                                "/dashboard/grades", STUDENT)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+
+        assertThat(totalRows()).isEqualTo(1);
+        assertThat(auditRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateWithoutAnIdempotencyKeyKeepsCreatingDistinctRows() throws Exception {
+        String body = createBody("Grade published", "Your course grade is now available.",
+                "/dashboard/grades", STUDENT);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mvc.perform(post("/api/v1/notifications")
+                            .with(adminJwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(totalRows()).isEqualTo(2);
+        assertThat(auditRows()).isEqualTo(2);
+    }
+
+    @Test
+    void adminCreateBoundsPersistedStringsAtTheRequestBoundary() throws Exception {
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("t".repeat(241), "Message", "/dashboard", STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.title").value("title must be at most 240 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "m".repeat(2001), "/dashboard", STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.message").value("message must be at most 2000 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "Message", "/" + "l".repeat(500), STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.link").value("link must be at most 500 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "Message", "/dashboard", "u".repeat(121))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.userId").value("userId must be at most 120 characters"));
+
+        assertThat(totalRows()).isZero();
+    }
+
+    @Test
+    void adminCreateAcceptsStringsAtTheColumnLimit() throws Exception {
+        String title = "t".repeat(240);
+        String message = "m".repeat(2000);
+        String link = "/" + "l".repeat(499);
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody(title, message, link, STUDENT)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value(title))
+                .andExpect(jsonPath("$.message").value(message))
+                .andExpect(jsonPath("$.link").value(link));
+
+        assertThat(totalRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminUpdateBoundsPersistedStringsAtTheRequestBoundary() throws Exception {
+        Instant now = Instant.parse("2026-08-21T01:00:00Z");
+        insert("target", STUDENT, false, now);
+
+        mvc.perform(put("/api/v1/notifications/target")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "t".repeat(241) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.title").value("title must be at most 240 characters"));
+
+        assertThat(textValue("target", "title")).isEqualTo("Title target");
+    }
+
+    @Test
+    void adminCreateRejectsUnsafeNotificationLinks() throws Exception {
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": "student-user-1",
+                                  "title": "Grade published",
+                                  "message": "Your course grade is now available.",
+                                  "type": "SUCCESS",
+                                  "link": "//evil.example"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NOTIFICATION_LINK"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": "student-user-1",
+                                  "title": "Grade published",
+                                  "message": "Your course grade is now available.",
+                                  "type": "SUCCESS",
+                                  "link": "/%2f%2fevil"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NOTIFICATION_LINK"));
+    }
+
+    @Test
     void adminCreateFailsClosedForInvalidBodyAndStudentRole() throws Exception {
         mvc.perform(post("/api/v1/notifications")
                         .with(adminJwt())
@@ -341,6 +536,46 @@ class NotificationWritePersistenceTest {
     }
 
     @Test
+    void reassigningAReadNotificationResetsReadStateButOtherEditsKeepIt() throws Exception {
+        Instant now = Instant.parse("2026-08-21T01:00:00Z");
+        insert("reassigned-read", STUDENT, true, now);
+        insert("same-owner-read", STUDENT, true, now.minusSeconds(60));
+
+        mvc.perform(put("/api/v1/notifications/reassigned-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"" + OTHER_USER + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(OTHER_USER))
+                .andExpect(jsonPath("$.isRead").value(false))
+                .andExpect(jsonPath("$.readAt").doesNotExist());
+
+        assertThat(readFlag("reassigned-read")).isFalse();
+        assertThat(readAt("reassigned-read")).isNull();
+        assertThat(unreadCount(OTHER_USER)).isEqualTo(1);
+
+        mvc.perform(put("/api/v1/notifications/same-owner-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Updated title\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRead").value(true))
+                .andExpect(jsonPath("$.readAt").exists());
+        assertThat(readFlag("same-owner-read")).isTrue();
+        assertThat(readAt("same-owner-read")).isNotNull();
+
+        mvc.perform(put("/api/v1/notifications/same-owner-read")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"" + STUDENT + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRead").value(true))
+                .andExpect(jsonPath("$.readAt").exists());
+        assertThat(readFlag("same-owner-read")).isTrue();
+        assertThat(readAt("same-owner-read")).isNotNull();
+    }
+
+    @Test
     void adminUpdateFailsClosedForInvalidBodyMissingNotificationAndStudentRole() throws Exception {
         Instant now = Instant.parse("2026-08-21T01:00:00Z");
         insert("target", STUDENT, false, now);
@@ -379,6 +614,91 @@ class NotificationWritePersistenceTest {
 
         assertThat(textValue("target", "title")).isEqualTo("Title target");
         assertThat(textValue("target", "type")).isEqualTo("INFO");
+    }
+
+    @Test
+    void adminCreateKeepsActorAndKeyBoundariesInTheDerivedId() throws Exception {
+        MvcResult first = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt("admin-a"))
+                        .header("Idempotency-Key", "b:c")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("First title", "First message", "/dashboard/grades", STUDENT)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult second = mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt("admin-a:b"))
+                        .header("Idempotency-Key", "c")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Second title", "Second message", "/dashboard/grades", STUDENT)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat(idOf(second)).isNotEqualTo(idOf(first));
+        assertThat(totalRows()).isEqualTo(2);
+        assertThat(auditRows()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentIdempotentCreateAnswersAReplayInsteadOfFailingTheSecondRequest() throws Exception {
+        CreateNotificationRequest request = new CreateNotificationRequest(
+                STUDENT, "Grade published", "Your course grade is now available.", "INFO", "/dashboard/grades");
+        String key = "concurrent-replay-key";
+        RequestPostProcessor admin = adminJwt();
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch winnerInserted = new CountDownLatch(1);
+        CountDownLatch releaseWinner = new CountDownLatch(1);
+        try {
+            Future<String> winner = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                String id = notificationWrites.create(request, "admin-user", key).id();
+                winnerInserted.countDown();
+                await(releaseWinner);
+                return id;
+            }));
+            assertThat(winnerInserted.await(10, TimeUnit.SECONDS)).isTrue();
+
+            Future<MvcResult> replay = pool.submit(() -> mvc.perform(post("/api/v1/notifications")
+                            .with(admin)
+                            .header("Idempotency-Key", key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createBody("Grade published", "Your course grade is now available.",
+                                    "/dashboard/grades", STUDENT)))
+                    .andReturn());
+            // The winner holds the row past the second insert's lock timeout;
+            // the replay then waits for the commit and observes the row.
+            Thread.sleep(1_500);
+            releaseWinner.countDown();
+
+            MvcResult replayResult = replay.get(15, TimeUnit.SECONDS);
+            assertThat(replayResult.getResponse().getStatus()).isEqualTo(201);
+            assertThat(idOf(replayResult)).isEqualTo(winner.get(15, TimeUnit.SECONDS));
+            assertThat(totalRows()).isEqualTo(1);
+            assertThat(auditRows()).isEqualTo(1);
+        } finally {
+            releaseWinner.countDown();
+            pool.shutdownNow();
+            pool.awaitTermination(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(15, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("race barrier timeout");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted at race barrier", interrupted);
+        }
+    }
+
+    private String idOf(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+    }
+
+    private static String createBody(String title, String message, String link, String userId) {
+        return "{\"userId\":\"" + userId + "\",\"title\":\"" + title
+                + "\",\"message\":\"" + message + "\",\"type\":\"INFO\",\"link\":\"" + link + "\"}";
     }
 
     private void insert(String id, String userId, boolean read, Instant createdAt) {
@@ -427,6 +747,13 @@ class NotificationWritePersistenceTest {
         return count == null ? 0 : count;
     }
 
+    private int auditRows() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\"",
+                Integer.class);
+        return count == null ? 0 : count;
+    }
+
     private int rowCount(String id) {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM notifications.notification WHERE id = ?",
@@ -443,8 +770,12 @@ class NotificationWritePersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return fixtureJwt(jdbc, "admin-user", token -> token
-                        .subject("admin-user")
+        return adminJwt("admin-user");
+    }
+
+    private RequestPostProcessor adminJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
+                        .subject(subject)
                         .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }

@@ -1,26 +1,73 @@
 # Backup, restore, and rollback
 
-The production database backup is a PostgreSQL custom archive plus a SHA-256
-sidecar. Run it from the repository checkout on the VPS:
+This workspace runs local-first and has no production database. The backup
+scripts require an explicit `COMPOSE_PROJECT_NAME`; there is no production
+project fallback. They write a PostgreSQL custom archive, the local
+thesis-report volume archive, and one SHA-256 sidecar covering both files.
+Backups are staged and checked before publication. The database archive must
+include `thesis.flyway_schema_history`, and the report archive must be a
+readable tar file containing only regular files and directories. Child-tool
+errors are summarized without raw diagnostics by default; `VERBOSE=1` prints and
+retains non-report diagnostics in mode-600 temporary files. Report-key and
+report-tar diagnostics stay suppressed. A non-local
+thesis storage provider makes the manual backup fail so external objects cannot
+be silently omitted. `BACKUP_RETENTION_DAYS` accepts positive base-10 digits,
+including zero-padded values such as `08`. Bundle names embed the Compose
+project as `campuscore-<project>-<timestamp>`; a retention pass deletes only
+that project's expired bundles and never prunes earlier archives that lack
+the project segment.
+
+After each dump and report tar are staged, backup and verification compare `thesis.thesis_group_report.storage_key` values from the dump with tar members.
+A missing key triggers one full backup recapture; a second mismatch fails with only the missing-key count.
+An archive that contains the report table definition without its table data is
+rejected. Verification and restore run the same reconciliation before either
+restore target is created.
+This closes the report replacement gap without fencing report writes.
+
+The recovery path actually executed here is the disposable drill in
+[Disposable recovery drill (MP38)](#disposable-recovery-drill-mp38). The manual
+archive/verify/restore flow is for a local or otherwise reachable stack:
 
 ```sh
+# COMPOSE_PROJECT_NAME must name the running project:
+#   campusute            -> node scripts/local-dev.mjs up
+#   <checkout-directory> -> plain docker compose up
+export COMPOSE_PROJECT_NAME=campusute
 BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
-./ops/backup/verify-backup.sh ops/backups/campuscore-<timestamp>.dump
-./ops/backup/restore-postgres.sh ops/backups/campuscore-<timestamp>.dump campuscore_restore_<timestamp>
+./ops/backup/verify-backup.sh ops/backups/campuscore-<project>-<timestamp>.dump
+./ops/backup/restore-postgres.sh ops/backups/campuscore-<project>-<timestamp>.dump campuscore_restore_<timestamp>
 ```
 
-Restore always requires a database name different from `POSTGRES_DB`; the
-script refuses an in-place overwrite. After an isolated restore, verify the
-latest successful Flyway version, readiness, authentication, representative
-JSON/SSE assistant calls, and row counts before approving a recovery.
+The restore target must use the `campuscore_restore_` prefix and must not
+already exist. Restore runs `pg_restore --single-transaction`; a failed restore
+drops only the database created by that invocation. Report files are extracted
+to a new sibling directory named
+`campuscore-<project>-<timestamp>.reports.restore`. The original
+`campuscore_thesis_report_storage` volume is never modified. Point an isolated
+restore application at that directory when checking report downloads; do not
+mount it over the live volume.
 
-Rollback is an application/image operation: stop the edge, set
-`CAMPUSCORE_IMAGE_TAG` to the previous verified full commit SHA, pull the four
-matching digests, run `docker compose -f docker-compose.prod.yml up -d --wait`,
-and repeat the smoke checks. Never use `latest`, and never run `down -v` on a
-production volume. If a migration is irreversible, restore into an isolated
-database first and obtain an explicit recovery decision before changing the
-live volume.
+The default compose file requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`:
+`node scripts/local-dev.mjs up` generates it into the git-ignored `.env` on the
+first run, and a plain `docker compose up` needs the same key appended to `.env`
+before the stack starts.
+
+`verify-backup.sh` and `restore-postgres.sh` also require the explicit project
+name and a running local Compose stack so they can inspect the PostgreSQL TOC
+and validate the report archive. Restore refuses an in-place overwrite and any
+existing target. After an isolated restore, verify the latest successful
+Flyway version, readiness, authentication, representative JSON/SSE assistant
+calls, report downloads, and row counts before approving a recovery.
+
+Rollback is an application/image operation. Locally that means returning the
+working tree to the previous reviewed commit and rebuilding the stack
+(`git switch --detach <full-commit-sha>`, then `node scripts/local-dev.mjs up`).
+If an external publisher produced images for that commit, the no-build overlay
+pins the same immutable tag across services. Never use `latest`, and never run
+`down -v` on a volume that still holds data you need. If a migration is
+irreversible, restore into an isolated database first and obtain an explicit
+recovery decision before touching the original volume. Publishing images and
+rolling back a hosted deployment are **deferred — future deployment work**.
 
 ## Disposable recovery drill (MP38)
 

@@ -6,6 +6,17 @@ import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { auditTree } from '../a11y/audit';
 
+const mockProfileQuery = {
+  value: {
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '' },
+    error: null as string | null,
+    warning: null as string | null,
+    isLoading: false,
+    reload: jest.fn(),
+    setData: jest.fn(),
+  },
+};
+
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live', baseUrl: 'http://api.test/api/v1' },
   createApiClient: jest.fn(),
@@ -17,14 +28,7 @@ jest.mock('../../src/api/client', () => ({
   ApiClientError: class ApiClientError extends Error {},
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: () => ({
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '' },
-    error: null,
-    warning: null,
-    isLoading: false,
-    reload: jest.fn(),
-    setData: jest.fn(),
-  }),
+  useScreenQuery: () => mockProfileQuery.value,
 }));
 jest.mock('../../src/screens/account/account-api', () => ({
   accountApi: {
@@ -59,12 +63,12 @@ const navigation = {
 } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student', selectedThesisTopicId: null } as MobileScreenProps;
 
-const renderApp = (element: ReactElement, locale: 'vi' | 'en' = 'vi') =>
-  render(
-    <ThemeProvider forcedScheme="light">
-      <LocaleProvider initialLocale={locale}>{element}</LocaleProvider>
-    </ThemeProvider>,
-  );
+const appTree = (element: ReactElement, locale: 'vi' | 'en' = 'vi') => (
+  <ThemeProvider forcedScheme="light">
+    <LocaleProvider initialLocale={locale}>{element}</LocaleProvider>
+  </ThemeProvider>
+);
+const renderApp = (element: ReactElement, locale: 'vi' | 'en' = 'vi') => render(appTree(element, locale));
 
 const expectAccessible = () => {
   const result = auditTree(screen.toJSON() as Parameters<typeof auditTree>[0]);
@@ -73,6 +77,14 @@ const expectAccessible = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockProfileQuery.value = {
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '' },
+    error: null,
+    warning: null,
+    isLoading: false,
+    reload: jest.fn(),
+    setData: jest.fn(),
+  };
 });
 
 describe('forgot password', () => {
@@ -291,5 +303,43 @@ describe('profile account security', () => {
   test('the profile form meets the accessibility contract', async () => {
     await renderApp(<ProfileScreen {...props} />);
     expectAccessible();
+  });
+
+  test('profile revalidation keeps an in-progress phone edit', async () => {
+    const view = await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Số điện thoại'), '0901234567');
+    await fireEvent.changeText(screen.getByLabelText('Địa chỉ'), 'Địa chỉ đang chỉnh sửa');
+
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, phone: '0907654321', address: 'Server refresh' },
+    };
+    await act(async () => {
+      view.rerender(appTree(<ProfileScreen {...props} />));
+    });
+
+    expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0901234567');
+    expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Địa chỉ đang chỉnh sửa');
+  });
+
+  test('profile revalidation adopts newer server phone and address when unedited', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, phone: '0901111111', address: 'Initial Address' },
+    };
+    const view = await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0901111111');
+    expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Initial Address');
+
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, phone: '0902222222', address: 'Updated Address' },
+    };
+    await act(async () => {
+      view.rerender(appTree(<ProfileScreen {...props} />));
+    });
+
+    expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0902222222');
+    expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Updated Address');
   });
 });

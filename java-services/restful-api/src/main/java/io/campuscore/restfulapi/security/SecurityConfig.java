@@ -105,13 +105,13 @@ public class SecurityConfig {
 
     /**
      * Credentialed CORS is allowlist-only. The default list carries local dev
-     * hosts and the production site; extra origins (e.g. a preview deployment)
+     * hosts only; extra origins (e.g. a preview deployment)
      * must be enumerated explicitly via APP_CORS_ALLOWED_ORIGIN_PATTERNS —
      * no public wildcard such as *.vercel.app.
      */
     static final String DEFAULT_CORS_ORIGIN_PATTERNS =
             "http://localhost:[*],http://127.0.0.1:[*],http://localhost:3000,http://127.0.0.1:3000,"
-                    + "http://127.0.0.1:3100,https://campusute.io.vn,https://www.campusute.io.vn";
+                    + "http://127.0.0.1:3100";
 
     @Bean
     CorsConfigurationSource corsConfigurationSource(
@@ -127,6 +127,11 @@ public class SecurityConfig {
                 "Sunset",
                 "Idempotency-Key",
                 "X-Total-Count",
+                "X-Next-Cursor",
+                "X-Archive-Total-Count",
+                "X-Archive-File-Count",
+                "X-Archive-Url-Count",
+                "X-Topic-Total-Count",
                 "X-RateLimit-Limit",
                 "X-RateLimit-Remaining",
                 "X-RateLimit-Reset",
@@ -172,6 +177,9 @@ public class SecurityConfig {
             // anonymous homepage uses to label articles by
             // their editorial taxonomy instead of guessing.
             "/api/v1/article-taxonomy/v2/categories",
+            // These service-mesh endpoints authenticate the dedicated service
+            // token and signed owner assertion in their controllers. Keep the
+            // paths permitAll: the RAG sidecar has no user bearer token.
             "/internal/rag/assistant/**",
             "/internal/rag/thesis/assistant/**",
             // Mail endpoints used to be reachable without a

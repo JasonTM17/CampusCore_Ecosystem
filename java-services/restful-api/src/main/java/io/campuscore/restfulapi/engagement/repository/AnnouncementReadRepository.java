@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.engagement.repository;
 
 import io.campuscore.restfulapi.common.LikePattern;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementPinOption;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.CourseSummary;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.LecturerSummary;
@@ -58,6 +59,15 @@ public class AnnouncementReadRepository {
     static final String DISPLAY_ORDER_CLAUSE =
             " ORDER BY CASE WHEN \"displayOrder\" IS NULL THEN 1 ELSE 0 END,"
                     + " \"displayOrder\", COALESCE(\"publishAt\", \"createdAt\") DESC, \"id\" DESC";
+    /**
+     * Picker projection for the appearance pin list: the columns the editor
+     * renders plus the lifecycle/visibility flags and the timestamps the
+     * ordering consumes. Body columns must never appear here — the whole point
+     * of the route is that a 900-row catalog costs 900 titles, not 900 bodies.
+     */
+    private static final String PIN_SELECT_COLUMNS = """
+            "id", "title", "status", "isGlobal", "publishAt", "createdAt"
+            """;
     /** The user feed orders by createdAt alone — the id tiebreaker is load-bearing. */
     static final String USER_ORDER_CLAUSE = " ORDER BY \"createdAt\" DESC, \"id\" DESC";
     private static final RowMapper<AnnouncementResponse> ROW_MAPPER =
@@ -90,6 +100,64 @@ public class AnnouncementReadRepository {
                 Long.class);
         return Objects.requireNonNullElse(count, 0L);
     }
+
+    /**
+     * The appearance pin picker's catalog read: same status semantics and
+     * display ordering as the admin list, an optional bounded id list for
+     * resolving already-pinned rows, and title-only folded search.
+     */
+    public List<AnnouncementPinOption> findPinOptions(
+            PinOptionFilter filter,
+            long offset,
+            int limit) {
+        SqlWhere where = pinWhere(filter);
+        where.parameters().addValue("offset", offset).addValue("limit", limit);
+        return jdbc.query(
+                "SELECT " + PIN_SELECT_COLUMNS + " FROM " + TABLE + where.sql()
+                        + DISPLAY_ORDER_CLAUSE + " LIMIT :limit OFFSET :offset",
+                where.parameters(),
+                PIN_ROW_MAPPER);
+    }
+
+    public long countPinOptions(PinOptionFilter filter) {
+        SqlWhere where = pinWhere(filter);
+        Long count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + TABLE + where.sql(),
+                where.parameters(),
+                Long.class);
+        return Objects.requireNonNullElse(count, 0L);
+    }
+
+    private static SqlWhere pinWhere(PinOptionFilter filter) {
+        List<String> conditions = new ArrayList<>();
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        if ("ACTIVE".equals(filter.status())) {
+            conditions.add("\"status\" <> 'ARCHIVED'");
+        } else if (filter.status() != null && !"ALL".equals(filter.status())) {
+            conditions.add("\"status\" = :status");
+            parameters.addValue("status", filter.status());
+        }
+        if (!filter.ids().isEmpty()) {
+            conditions.add("\"id\" IN (:ids)");
+            parameters.addValue("ids", filter.ids());
+        }
+        List<String> tokens = LikePattern.tokens(filter.search());
+        for (int i = 0; i < tokens.size(); i++) {
+            String paramName = "searchToken" + i;
+            parameters.addValue(paramName, tokens.get(i));
+            conditions.add("\"foldedTitle\" LIKE :" + paramName + " ESCAPE '\\'");
+        }
+        return new SqlWhere(where(conditions), parameters);
+    }
+
+    private static final RowMapper<AnnouncementPinOption> PIN_ROW_MAPPER = (resultSet, ignored) ->
+            new AnnouncementPinOption(
+                    resultSet.getString("id"),
+                    resultSet.getString("title"),
+                    resultSet.getString("status"),
+                    resultSet.getBoolean("isGlobal"),
+                    instant(resultSet, "publishAt"),
+                    instant(resultSet, "createdAt"));
 
     public List<AnnouncementResponse> findForUser(
             UserVisibility visibility,
@@ -273,18 +341,19 @@ public class AnnouncementReadRepository {
         }
         List<String> tokens = LikePattern.tokens(filter.search());
         if (!tokens.isEmpty()) {
-            parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
-            parameters.addValue("foldTo", LikePattern.FOLD_TO);
             for (int i = 0; i < tokens.size(); i++) {
                 String paramName = "searchToken" + i;
                 parameters.addValue(paramName, tokens.get(i));
-                conditions.add("(TRANSLATE(LOWER(COALESCE(\"title\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"content\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"slug\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"courseCode\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"courseName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"semesterName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"lecturerDisplayName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\')");
+                // V147 stores the folded value per field. Keep the exact
+                // LIKE/ESCAPE semantics and the OR-across-fields, AND-across-
+                // tokens shape; only the per-row TRANSLATE is gone.
+                conditions.add("(\"foldedTitle\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedContent\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedSlug\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedCourseCode\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedCourseName\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedSemesterName\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedLecturerDisplayName\" LIKE :" + paramName + " ESCAPE '\\')");
             }
         }
         return new SqlWhere(where(conditions), parameters);
@@ -312,10 +381,12 @@ public class AnnouncementReadRepository {
         conditions.add("\"archivedAt\" IS NULL");
 
         if (visibility.studentId() != null) {
+            // A campus-wide row reaches every student regardless of any years a
+            // legacy editor stored on it; years only narrow targeted notices.
             if (visibility.studentYear() == null) {
-                conditions.add("CARDINALITY(\"targetYears\") = 0");
+                conditions.add("(\"isGlobal\" = TRUE OR CARDINALITY(\"targetYears\") = 0)");
             } else {
-                conditions.add("(CARDINALITY(\"targetYears\") = 0"
+                conditions.add("(\"isGlobal\" = TRUE OR CARDINALITY(\"targetYears\") = 0"
                         + " OR :studentYear = ANY(\"targetYears\"))");
                 parameters.addValue("studentYear", visibility.studentYear());
             }
@@ -467,6 +538,16 @@ public class AnnouncementReadRepository {
             Integer studentYear,
             String lecturerId,
             Instant now) {
+    }
+
+    public record PinOptionFilter(
+            String status,
+            String search,
+            List<String> ids) {
+
+        public PinOptionFilter {
+            ids = ids == null ? List.of() : List.copyOf(ids);
+        }
     }
 
     private record SqlWhere(String sql, MapSqlParameterSource parameters) {

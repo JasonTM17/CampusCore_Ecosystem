@@ -19,6 +19,8 @@ function loadTs(relativePath) {
   return moduleRecord.exports;
 }
 
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
+
 function loadDraftCleanup(windowMock) {
   const ts = require('typescript');
   const source = read('src/components/ui/tinymce-editor.tsx');
@@ -141,7 +143,9 @@ function loadStudioDraftActions(state, storage, updates) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const scope = {
-    ...state, copy: {}, locale: 'vi', isVi: true, useCallback: fn => fn,
+    ...state, copy: editorSurfaces.editorSurfacesVi.studio, locale: 'vi', isVi: true, useCallback: fn => fn,
+    publishInFlightRef: { current: false },
+    isPublishingNotice: false,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     STORAGE_KEY: 'campuscore_editor_document', EDITOR_TYPE_KEY: 'campuscore_editor_engine',
     toast: { success() {}, error() {} }, parseStoredEditorDocument: editorDraft.parseStoredEditorDocument,
@@ -263,6 +267,13 @@ test('K1 the two edit-mode save buttons carry distinct labels and both update', 
   );
 });
 
+test('K1 the studio compose action names the review submission it performs', () => {
+  // A new notice is always authored by the caller and the server refuses
+  // self-approval, so this button cannot publish; it must say what it does.
+  assert.match(editorPage, /: messages\.content\.lifecycle\.actions\.submit\}/);
+  assert.doesNotMatch(editorPage, /: copy\.publishAnnouncement\}/);
+});
+
 test('K2 the export slug keeps Vietnamese words and both export paths share it', () => {
   assert.equal(
     editorDraft.slugifyDocumentTitle('Đề cương đề tài khóa luận tốt nghiệp'),
@@ -307,7 +318,9 @@ test('printed transcript carries blank signature blocks, not pre-stamped names',
   assert.ok(!transcriptPage.includes('Hoàng Văn Dũng'), 'fabricated dean name must be gone');
   assert.ok(!transcriptPage.includes('Quách Thanh Hải'), 'fabricated vice rector name must be gone');
   assert.ok(!/năm 2026<\/p>/.test(transcriptPage), 'the print date must be a fill-in blank, not a fixed year');
-  assert.ok(transcriptPage.includes('Ký và ghi rõ họ tên'), 'signature guidance stays');
+  const transcriptMessages = read('src/i18n/messages-student-pages.ts');
+  assert.ok(transcriptMessages.includes("signatureHint: '(Ký và ghi rõ họ tên)'"), 'signature guidance stays in the catalogue');
+  assert.match(transcriptPage, /transcriptMessages\.print\.signatureHint/, 'the print block reads the signature guidance from the catalogue');
 });
 
 test('conversion band upper bound never overlaps the next band', () => {

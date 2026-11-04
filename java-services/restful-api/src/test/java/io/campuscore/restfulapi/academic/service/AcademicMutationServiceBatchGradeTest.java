@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic.service;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -68,7 +69,8 @@ class AcademicMutationServiceBatchGradeTest {
                 "gradeStatus" VARCHAR(32),
                 "finalGrade" NUMERIC(5,2),
                 "letterGrade" VARCHAR(8),
-                "updatedAt" TIMESTAMP
+                "updatedAt" TIMESTAMP,
+                "version" INTEGER NOT NULL DEFAULT 0
             )
         """);
 
@@ -135,7 +137,31 @@ class AcademicMutationServiceBatchGradeTest {
     void batchGradeUpdateWithEmptyListReturnsWithoutError() {
         jdbc.update("INSERT INTO \"academic\".\"Section\" (\"id\", \"semesterId\", \"lecturerId\", \"status\") VALUES (?, ?, ?, ?)",
                 "sec-01", "sem-01", "lec-01", "OPEN");
-        service.updateGrades("sec-01", "lec-01", true, List.of());
+        jdbc.update("INSERT INTO \"academic\".\"Enrollment\" (\"id\", \"studentId\", \"sectionId\", \"status\","
+                        + " \"gradeStatus\", \"finalGrade\", \"letterGrade\") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "enr-1", "stu-1", "sec-01", "ENROLLED", "DRAFT", new BigDecimal("8.50"), "A");
+        jdbc.update("INSERT INTO \"academic\".\"GradeItem\" (\"id\", \"sectionId\", \"name\", \"type\", \"maxScore\", \"weight\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?)",
+                "item-1", "sec-01", "Midterm", "PROCESS", new BigDecimal("100.00"), new BigDecimal("50.00"));
+        jdbc.update("INSERT INTO \"academic\".\"StudentGrade\" (\"id\", \"enrollmentId\", \"gradeItemId\", \"score\")"
+                        + " VALUES (?, ?, ?, ?)",
+                "sg-1", "enr-1", "item-1", new BigDecimal("8.50"));
+
+        assertDoesNotThrow(() -> service.updateGrades("sec-01", "lec-01", true, List.of()));
+
+        assertEquals("OPEN", jdbc.queryForObject(
+                "SELECT \"status\" FROM \"academic\".\"Section\" WHERE \"id\" = 'sec-01'", String.class));
+        assertEquals("ENROLLED", jdbc.queryForObject(
+                "SELECT \"status\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enr-1'", String.class));
+        assertEquals("DRAFT", jdbc.queryForObject(
+                "SELECT \"gradeStatus\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enr-1'", String.class));
+        assertEquals(new BigDecimal("8.50"), jdbc.queryForObject(
+                "SELECT \"finalGrade\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enr-1'", BigDecimal.class));
+        assertEquals("A", jdbc.queryForObject(
+                "SELECT \"letterGrade\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = 'enr-1'", String.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM \"academic\".\"StudentGrade\"", Integer.class));
+        assertEquals(new BigDecimal("8.50"), jdbc.queryForObject(
+                "SELECT \"score\" FROM \"academic\".\"StudentGrade\" WHERE \"id\" = 'sg-1'", BigDecimal.class));
     }
 
     @Test

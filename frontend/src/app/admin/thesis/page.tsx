@@ -30,6 +30,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { metricToneClass, statusToneClass } from '@/components/ui/status';
 import { cn } from '@/lib/utils';
 import { toThesisLocalInput as toLocalInput } from '@/lib/thesis-datetime';
+import { campusLocalDateTimeToUtcIso } from '@/lib/attendance-checkin';
 import {
   EmptyState,
   ForbiddenState,
@@ -45,7 +46,6 @@ import {
   type ThesisCloseRegistrationPreview,
   type ThesisCouncil,
   type ThesisCouncilMemberRole,
-  type ThesisGroup,
   type ThesisRound,
   type ThesisTopic,
 } from '@/lib/thesis-api';
@@ -60,21 +60,36 @@ function getThesisErrorCode(error: unknown): string {
   return data?.code ?? '';
 }
 
+/** datetime-local values are campus wall time; an invalid value must fail the submit. */
+function toCampusInstant(value: string): string {
+  const iso = campusLocalDateTimeToUtcIso(value);
+  if (!iso) throw new Error('Invalid campus datetime');
+  return iso;
+}
+
 /**
  * Round window timestamps follow the ACTIVE app locale, not the browser's:
  * a Vietnamese page must never render "9/15/2026, 7:00:00 AM".
  */
-function formatRoundWindow(locale: string, startIso: string, endIso: string): string {
-  const tag = locale === 'vi' ? 'vi-VN' : 'en-US';
-  const formatter = new Intl.DateTimeFormat(tag, {
+function formatRoundWindow(
+  formatDateTime: ReturnType<typeof useI18n>['formatDateTime'],
+  startIso: string,
+  endIso: string,
+): string {
+  const options: Intl.DateTimeFormatOptions = {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  });
-  return `${formatter.format(new Date(startIso))} → ${formatter.format(new Date(endIso))}`;
+  };
+  const startDate = new Date(startIso);
+  const endDate = new Date(endIso);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    throw new RangeError('Invalid time value');
+  }
+  return `${formatDateTime(startDate, options)} → ${formatDateTime(endDate, options)}`;
 }
 
 export default function AdminThesisPage() {
@@ -87,10 +102,10 @@ export default function AdminThesisPage() {
     isLoggingOut,
     isSuperAdmin,
   } = useAuth();
-  const { locale, messages } = useI18n();
+  const { formatDateTime, messages } = useI18n();
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
-  const [groups, setGroups] = useState<ThesisGroup[]>([]);
+  const [groupTotal, setGroupTotal] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -103,6 +118,7 @@ export default function AdminThesisPage() {
   const expandedRoundRef = useRef<string | null>(null);
   const detailRequestRef = useRef(0);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [councilRefreshError, setCouncilRefreshError] = useState('');
 
   // Create round form state
   const [formName, setFormName] = useState('');
@@ -115,6 +131,7 @@ export default function AdminThesisPage() {
   const [formGvpb, setFormGvpb] = useState('');
   const [formReportDate, setFormReportDate] = useState('');
   const [formDefenseDate, setFormDefenseDate] = useState('');
+  const [roundFormError, setRoundFormError] = useState('');
 
   // Council management state
   const [councils, setCouncils] = useState<ThesisCouncil[]>([]);
@@ -183,25 +200,29 @@ export default function AdminThesisPage() {
     const isCurrent = () => requestId === detailRequestRef.current && expandedRoundRef.current === roundId;
     setDetailLoading(true);
     setTopics([]);
-    setGroups([]);
+    setGroupTotal(null);
     setCouncils([]);
+    setCouncilRefreshError('');
     setError('');
     try {
       // Draft proposals are exactly what a DRAFT/PROPOSAL_OPEN round holds, so
       // the detail panel must merge both statuses or pending proposals read as
       // an empty round (same merge the staff workspace does).
-      const [published, drafts, g, c] = await Promise.all([
+      const [published, drafts, groupsPage, c] = await Promise.all([
         thesisApi.listTopics(roundId, 'PUBLISHED'),
         thesisApi.listTopics(roundId, 'DRAFT'),
-        thesisApi.listGroups(roundId),
+        thesisApi.listGroupsPage(roundId, { page: 0, limit: 1 }),
         thesisApi.listCouncils(roundId),
       ]);
       if (!isCurrent()) return;
       const byId = new Map<string, (typeof published)[number]>();
       for (const topic of [...published, ...drafts]) byId.set(topic.id, topic);
       setTopics(Array.from(byId.values()));
-      setGroups(g);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
+      setGroupTotal(groupsPage.total ?? null);
+      if (expandedRoundRef.current === roundId) {
+        setCouncils(c);
+        setCouncilRefreshError('');
+      }
       if (lecturers.length === 0) {
         await loadLecturers();
       }
@@ -233,23 +254,43 @@ export default function AdminThesisPage() {
   const transitionErrorMessage = (err: unknown): string =>
     campusCodeMessage(err, messages.common.campusErrors, messages.thesis.actionFailed);
 
+  /**
+   * The mutation and the follow-up list read are separate operations: a
+   * failed refresh must never turn a completed create/edit into a visible
+   * failure, so it reports its own retryable state instead.
+   */
+  const refreshCouncils = async (roundId: string) => {
+    try {
+      const c = await thesisApi.listCouncils(roundId);
+      if (expandedRoundRef.current === roundId) {
+        setCouncils(c);
+        setCouncilRefreshError('');
+      }
+    } catch {
+      if (expandedRoundRef.current === roundId) {
+        setCouncilRefreshError(messages.thesis.loadFailed);
+      }
+    }
+  };
+
   const handleCreateCouncil = async (roundId: string) => {
     if (!councilNameInput.trim()) return;
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.createCouncil(roundId, councilNameInput.trim());
       setSuccess(messages.thesis.councils.councilCreatedSuccess);
       setCouncilNameInput('');
       setShowCreateCouncilModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleAddMember = async (councilId: string, roundId: string) => {
@@ -265,18 +306,19 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.addCouncilMember(councilId, selectedLecturerId, nextRole);
       setSuccess(messages.thesis.councils.memberAddedSuccess);
       setSelectedLecturerId('');
       setShowAddMemberModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleRemoveMember = async (councilId: string, lecturerId: string, roundId: string) => {
@@ -291,16 +333,17 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.removeCouncilMember(councilId, lecturerId);
       setSuccess(messages.thesis.councils.memberRemovedSuccess);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleAssignTopic = async (councilId: string, roundId: string) => {
@@ -308,18 +351,19 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.assignTopicToCouncil(councilId, selectedTopicIdToAssign);
       setSuccess(messages.thesis.councils.assignSuccess);
       setSelectedTopicIdToAssign('');
       setShowAssignTopicModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (assignErr) {
       setError(campusCodeMessage(assignErr, messages.common.campusErrors, messages.thesis.actionFailed));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const toggleExpand = (roundId: string) => {
@@ -347,33 +391,35 @@ export default function AdminThesisPage() {
     if (!formName || !formStart || !formEnd || !formLecturerStart || !formLecturerEnd
         || (needsGvpb && (!formGvpb || !formReportDate))
         || (needsDefense && !formDefenseDate)) {
-      setError(messages.thesis.admin.createIncomplete);
+      setRoundFormError(messages.thesis.admin.createIncomplete);
       return;
     }
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setRoundFormError('');
     try {
       await thesisApi.createRound({
         name: formName,
         thesisType: formType,
-        registrationStart: new Date(formStart).toISOString(),
-        registrationEnd: new Date(formEnd).toISOString(),
-        lecturerSubmitStart: new Date(formLecturerStart).toISOString(),
-        lecturerSubmitEnd: new Date(formLecturerEnd).toISOString(),
-        proposalPublishAt: formProposal ? new Date(formProposal).toISOString() : undefined,
-        gvpbDeadline: needsGvpb && formGvpb ? new Date(formGvpb).toISOString() : undefined,
+        registrationStart: toCampusInstant(formStart),
+        registrationEnd: toCampusInstant(formEnd),
+        lecturerSubmitStart: toCampusInstant(formLecturerStart),
+        lecturerSubmitEnd: toCampusInstant(formLecturerEnd),
+        proposalPublishAt: formProposal ? toCampusInstant(formProposal) : undefined,
+        gvpbDeadline: needsGvpb && formGvpb ? toCampusInstant(formGvpb) : undefined,
         reportDate:
           needsGvpb && formReportDate
-            ? new Date(formReportDate).toISOString()
+            ? toCampusInstant(formReportDate)
             : undefined,
         defenseDate:
           needsDefense && formDefenseDate
-            ? new Date(formDefenseDate).toISOString()
+            ? toCampusInstant(formDefenseDate)
             : undefined,
       });
       setSuccess(messages.thesis.admin.created);
       setShowCreateModal(false);
+      setRoundFormError('');
       setFormName('');
       setFormStart('');
       setFormEnd('');
@@ -385,7 +431,7 @@ export default function AdminThesisPage() {
       setFormDefenseDate('');
       await loadData();
     } catch {
-      setError(messages.thesis.actionFailed);
+      setRoundFormError(messages.thesis.actionFailed);
     } finally {
       setIsSaving(false);
     }
@@ -460,12 +506,12 @@ export default function AdminThesisPage() {
   const transitionConfirmCopy = (
     action: 'open' | 'close' | 'publish' | 'open-proposals' | 'publish-results',
   ): string => {
-    const copy = messages.thesis.admin.transitionConfirm;
-    if (action === 'open-proposals') return copy.openProposals;
-    if (action === 'open') return copy.openRegistration;
-    if (action === 'close') return copy.closeRegistration;
-    if (action === 'publish') return copy.publishProposals;
-    return copy.publishResults;
+    const transitionCopy = messages.thesis.admin.transitionConfirm;
+    if (action === 'open-proposals') return transitionCopy.openProposals;
+    if (action === 'open') return transitionCopy.openRegistration;
+    if (action === 'close') return transitionCopy.closeRegistration;
+    if (action === 'publish') return transitionCopy.publishProposals;
+    return transitionCopy.publishResults;
   };
 
 
@@ -478,12 +524,11 @@ export default function AdminThesisPage() {
   };
 
   const extendReportDeadline = async () => {
-    const parsed = extendDeadlineValue ? new Date(extendDeadlineValue) : null;
+    const parsed = extendDeadlineValue ? campusLocalDateTimeToUtcIso(extendDeadlineValue) : null;
     if (
       !extendDeadlineRoundId ||
       !parsed ||
-      Number.isNaN(parsed.getTime()) ||
-      parsed.getTime() <= Date.now()
+      Date.parse(parsed) <= Date.now()
     ) {
       setExtendDeadlineError(messages.thesis.admin.reportDeadlineInvalid);
       return;
@@ -493,7 +538,7 @@ export default function AdminThesisPage() {
     setSuccess('');
     setExtendDeadlineError('');
     try {
-      await thesisApi.extendReportDeadline(extendDeadlineRoundId, parsed.toISOString());
+      await thesisApi.extendReportDeadline(extendDeadlineRoundId, parsed);
       setSuccess(messages.thesis.admin.reportDeadlineSuccess);
       setShowExtendDeadlineModal(false);
       setExtendDeadlineRoundId('');
@@ -511,6 +556,7 @@ export default function AdminThesisPage() {
   /** The edit modal reuses the create-form state; opening it loads the round. */
   const openEditRoundModal = (round: ThesisRound) => {
     setEditingRoundId(round.id);
+    setRoundFormError('');
     setFormName(round.name);
     setFormType(round.thesisType || 'MON_HOC');
     setFormStart(toLocalInput(round.registrationStart));
@@ -529,34 +575,36 @@ export default function AdminThesisPage() {
     if (!formName || !formStart || !formEnd || !formLecturerStart || !formLecturerEnd
         || (needsGvpb && (!formGvpb || !formReportDate))
         || (needsDefense && !formDefenseDate)) {
-      setError(messages.thesis.admin.createIncomplete);
+      setRoundFormError(messages.thesis.admin.createIncomplete);
       return;
     }
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setRoundFormError('');
     try {
       await thesisApi.updateRound(editingRoundId, {
         name: formName,
         thesisType: formType,
-        registrationStart: new Date(formStart).toISOString(),
-        registrationEnd: new Date(formEnd).toISOString(),
-        lecturerSubmitStart: new Date(formLecturerStart).toISOString(),
-        lecturerSubmitEnd: new Date(formLecturerEnd).toISOString(),
-        proposalPublishAt: formProposal ? new Date(formProposal).toISOString() : undefined,
-        gvpbDeadline: needsGvpb && formGvpb ? new Date(formGvpb).toISOString() : undefined,
-        reportDate: needsGvpb && formReportDate ? new Date(formReportDate).toISOString() : undefined,
-        defenseDate: needsDefense && formDefenseDate ? new Date(formDefenseDate).toISOString() : undefined,
+        registrationStart: toCampusInstant(formStart),
+        registrationEnd: toCampusInstant(formEnd),
+        lecturerSubmitStart: toCampusInstant(formLecturerStart),
+        lecturerSubmitEnd: toCampusInstant(formLecturerEnd),
+        proposalPublishAt: formProposal ? toCampusInstant(formProposal) : undefined,
+        gvpbDeadline: needsGvpb && formGvpb ? toCampusInstant(formGvpb) : undefined,
+        reportDate: needsGvpb && formReportDate ? toCampusInstant(formReportDate) : undefined,
+        defenseDate: needsDefense && formDefenseDate ? toCampusInstant(formDefenseDate) : undefined,
       });
       setSuccess(messages.thesis.admin.editRoundSuccess);
       setShowEditRoundModal(false);
+      setRoundFormError('');
       setEditingRoundId('');
       await loadData();
       if (expandedRoundId === editingRoundId) {
         await loadRoundDetail(editingRoundId);
       }
     } catch (err: unknown) {
-      setError(transitionErrorMessage(err));
+      setRoundFormError(transitionErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -658,21 +706,17 @@ export default function AdminThesisPage() {
   }
 
   const openRounds = rounds.filter((r) => r.status === 'REGISTRATION_OPEN').length;
-  // `topics`/`groups` are filled by loadRoundDetail for the one expanded
-  // round only — they are not global totals. An unlabeled number therefore
-  // lied twice: 0 at rest, and one round's count otherwise. Name the round
-  // the numbers belong to, and show a dash until a round is expanded (no
-  // extra API calls; the counts simply do not exist yet).
+  // Topic totals remain complete reads; group totals come from the bounded
+  // count response for the one expanded round.
   const detailRound = rounds.find((round) => round.id === expandedRoundId) ?? null;
   const totalTopics = topics.length;
-  const totalGroups = groups.length;
 
   return (
     <AdminFrame
       title={messages.thesis.admin.title}
       description={messages.thesis.admin.description}
       actions={
-        <Button type="button" onClick={() => setShowCreateModal(true)} disabled={!canAccess}>
+        <Button type="button" onClick={() => { setRoundFormError(''); setShowCreateModal(true); }} disabled={!canAccess}>
           <Plus className="mr-2 h-4 w-4" />
           {messages.thesis.admin.createRound}
         </Button>
@@ -681,7 +725,7 @@ export default function AdminThesisPage() {
       {loadError ? (
         <div
           role="alert"
-          className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground"
         >
           <span>{loadError}</span>
           <button
@@ -694,7 +738,7 @@ export default function AdminThesisPage() {
         </div>
       ) : null}
       {error ? (
-        <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
           {error}
         </div>
       ) : null}
@@ -735,7 +779,7 @@ export default function AdminThesisPage() {
                 ? messages.thesis.admin.groupsForRound.replace('{round}', detailRound.name)
                 : messages.thesis.groups
             }
-            value={detailRound && !detailLoading ? totalGroups : '—'}
+            value={detailRound && !detailLoading && groupTotal !== null ? groupTotal : '—'}
             icon={<UsersRound className="h-5 w-5" />}
             toneClassName={metricToneClass('neutral')}
           />
@@ -774,7 +818,7 @@ export default function AdminThesisPage() {
                         <div>
                           <CardTitle className="text-lg">{round.name}</CardTitle>
                           <CardDescription className="mt-1">
-                            {messages.thesis.admin.thesisTypeOptions[round.thesisType as keyof typeof messages.thesis.admin.thesisTypeOptions] ?? round.thesisType} · {formatRoundWindow(locale, round.registrationStart, round.registrationEnd)}
+                            {messages.thesis.admin.thesisTypeOptions[round.thesisType as keyof typeof messages.thesis.admin.thesisTypeOptions] ?? round.thesisType} · {formatRoundWindow(formatDateTime, round.registrationStart, round.registrationEnd)}
                           </CardDescription>
                         </div>
                       </div>
@@ -865,14 +909,14 @@ export default function AdminThesisPage() {
                             className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 hover:border-primary transition-all shadow-2xs"
                           >
                             <Archive className="h-3.5 w-3.5" />
-                            <span>{locale === 'vi' ? 'Kho lưu trữ luận án & báo cáo →' : 'Thesis & Report Archive →'}</span>
+                            <span>{messages.teachingPages.thesisLinks.archive}</span>
                           </LocalizedLink>
                           <LocalizedLink
                             href={`/dashboard/thesis?roundId=${round.id}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 py-1.5 text-xs font-semibold text-primary hover:bg-secondary/60 hover:border-primary/40 transition-all shadow-2xs"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
-                            <span>{locale === 'vi' ? 'Quản lý Đề tài & Nhóm trong Workspace →' : 'Manage Topics & Groups in Workspace →'}</span>
+                            <span>{messages.teachingPages.thesisLinks.workspaceTopics}</span>
                           </LocalizedLink>
                         </div>
                       </div>
@@ -897,13 +941,35 @@ export default function AdminThesisPage() {
                               setTargetRoundIdForCouncil(round.id);
                               setShowCreateCouncilModal(true);
                             }}
+                            disabled={detailLoading || Boolean(loadError)}
                           >
                             <Plus className="mr-1.5 h-3.5 w-3.5" />
                             {messages.thesis.councils.createCouncil}
                           </Button>
                         </div>
 
-                        {councils.length === 0 ? (
+                        {councilRefreshError ? (
+                          <div
+                            role="alert"
+                            className="mb-4 flex items-center justify-between gap-3 rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning-foreground"
+                          >
+                            <span>{councilRefreshError}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => void refreshCouncils(round.id)}
+                            >
+                              {messages.common.actions.retry}
+                            </Button>
+                          </div>
+                        ) : null}
+
+                        {detailLoading ? (
+                          <p role="status" className="rounded-xl border border-dashed border-border/80 bg-card/50 p-6 text-center text-sm text-muted-foreground">
+                            {messages.common.states.loading}
+                          </p>
+                        ) : loadError ? null : councils.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground bg-card/50">
                             {messages.thesis.councils.noCouncils}
                           </div>
@@ -1078,6 +1144,11 @@ export default function AdminThesisPage() {
                                                     {messages.thesis.councils.finalScorePoints.replace('{score}', String(top.finalScore))}
                                                   </span>
                                                 )}
+                                                {top?.finalScore == null && top?.resultStatus === 'NOT_QUALIFIED' && (
+                                                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                                    {messages.thesis.results.notQualified}
+                                                  </span>
+                                                )}
                                               </div>
                                               {/* GVPB counter-reviewer (spec: one reviewer per defended topic) */}
                                               <div className="flex items-center gap-1.5">
@@ -1153,6 +1224,11 @@ export default function AdminThesisPage() {
         title={messages.thesis.admin.createRound}
       >
         <div className="space-y-4">
+          {roundFormError ? (
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
+              {roundFormError}
+            </div>
+          ) : null}
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             {messages.thesis.admin.roundName}
             <Input placeholder={messages.thesis.admin.roundNamePlaceholder} value={formName} onChange={(e) => setFormName(e.target.value)} />
@@ -1356,6 +1432,11 @@ export default function AdminThesisPage() {
         title={messages.thesis.admin.editRoundTitle}
       >
         <div className="space-y-4">
+          {roundFormError ? (
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
+              {roundFormError}
+            </div>
+          ) : null}
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             {messages.thesis.admin.roundName}
             <Input placeholder={messages.thesis.admin.roundNamePlaceholder} value={formName} onChange={(e) => setFormName(e.target.value)} />
@@ -1461,6 +1542,7 @@ export default function AdminThesisPage() {
               (t) =>
                 !allAssigned.has(t.id) &&
                 t.finalScore == null &&
+                t.resultStatus == null &&
                 (t.status === 'PUBLISHED' || t.status === 'APPROVED')
             );
 
@@ -1518,7 +1600,7 @@ export default function AdminThesisPage() {
             {messages.thesis.admin.reportDeadlineModalDescription}
           </p>
           {extendDeadlineError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {extendDeadlineError}
             </div>
           ) : null}

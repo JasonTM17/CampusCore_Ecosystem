@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CalendarRange, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -27,8 +27,11 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { sessionExpiredLoginHref } from '@/lib/login-portal';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { toast } from 'sonner';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusErrorKind, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface AcademicYear {
   id: string;
@@ -39,10 +42,23 @@ interface AcademicYear {
   isCurrent?: boolean;
 }
 
+function buildAcademicYearUpdatePayload(
+  baseline: AcademicYear,
+  formData: { year: number; startDate: string; endDate: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const dateOnly = (value: string) => value.split('T')[0];
+  if (Number(formData.year) !== baseline.year) payload.year = Number(formData.year);
+  if (formData.startDate !== dateOnly(baseline.startDate)) payload.startDate = formData.startDate;
+  if (formData.endDate !== dateOnly(baseline.endDate)) payload.endDate = formData.endDate;
+  return payload;
+}
+
 export default function AdminAcademicYearsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatDate, formatNumber, messages } = useI18n();
   const router = useRouter();
+  const copy = { en: adminAcademicsEn.academicYears, vi: adminAcademicsVi.academicYears }[locale];
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +68,10 @@ export default function AdminAcademicYearsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
+  const academicYearsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingYearId, setDeletingYearId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     year: new Date().getFullYear(),
     startDate: '',
@@ -60,6 +79,10 @@ export default function AdminAcademicYearsPage() {
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const editLabel = (year: number) =>
+    copy.editLabel.replace('{year}', () => String(year));
+  const deleteLabel = (year: number) =>
+    copy.deleteLabel.replace('{year}', () => String(year));
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -67,7 +90,7 @@ export default function AdminAcademicYearsPage() {
     }
 
     if (!user) {
-      router.replace(`${href('/login')}?portal=admin&reason=session-expired`);
+      router.replace(sessionExpiredLoginHref(href, 'admin'));
       return;
     }
 
@@ -77,6 +100,7 @@ export default function AdminAcademicYearsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchAcademicYears = useCallback(async () => {
+    const epoch = academicYearsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -85,18 +109,21 @@ export default function AdminAcademicYearsPage() {
       // them in the browser reports "no results" for anything on another page.
       const query = { page, limit: 20, search: search || undefined };
       const response = await academicYearsApi.getAll(query);
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
       setAcademicYears(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải năm học.'
-          : 'Academic years could not be loaded.',
-      );
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
+      setError(copy.loadFailed);
     } finally {
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [locale, page, search]);
+  }, [academicYearsEpoch, copy, page, search]);
+
+  useEffect(() => () => {
+    academicYearsEpoch.invalidate();
+  }, [academicYearsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -123,100 +150,13 @@ export default function AdminAcademicYearsPage() {
 
   const pageSummary = useMemo(() => {
     if (academicYears.length === 0) {
-      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
+      return copy.pageSummaryEmpty;
     }
 
-    return locale === 'vi'
-      ? `Trang ${page} / ${totalPages}`
-      : `Page ${page} of ${totalPages}`;
-  }, [academicYears.length, locale, page, totalPages]);
-
-  const copy =
-    locale === 'vi'
-      ? {
-          loading: 'Đang tải năm học',
-          title: 'Năm học',
-          description:
-            'Giữ lịch học năm học rõ ràng, dễ tìm và có chủ đích trước khi học kỳ và đợt đăng ký dựa vào đó.',
-          create: 'Tạo năm học',
-          searchLabel: 'Tìm năm học',
-          searchPlaceholder: 'Tìm theo năm',
-          unavailableTitle: 'Năm học chưa sẵn sàng',
-          emptyTitle: 'Không có năm học phù hợp',
-          emptyDescription:
-            'Hãy tạo năm học mới để kế hoạch học kỳ có một mốc chuẩn rõ ràng.',
-          tableTitle: 'Bản ghi năm học',
-          headers: {
-            year: 'Năm',
-            startDate: 'Ngày bắt đầu',
-            endDate: 'Ngày kết thúc',
-            status: 'Trạng thái',
-            actions: 'Tác vụ',
-          },
-          active: 'Đang hoạt động',
-          inactive: 'Ngừng hoạt động',
-          deleteTitle: 'Xóa năm học',
-          deleteMessage: (year: number) =>
-            `Xóa năm học ${year}? Hành động này sẽ gỡ năm học khỏi màn hình quản trị hiện tại.`,
-          deleteConfirm: 'Xóa năm học',
-          deleted: 'Đã xóa năm học',
-          deleteFailed: 'Hiện chưa thể xóa năm học này.',
-          updated: 'Đã cập nhật năm học',
-          created: 'Đã tạo năm học',
-          saveFailed: 'Hiện chưa thể lưu năm học.',
-          endDateBeforeStart: 'Ngày kết thúc phải sau ngày bắt đầu.',
-          editTitle: 'Chỉnh sửa năm học',
-          createTitle: 'Tạo năm học',
-          yearLabel: 'Năm',
-          startDateLabel: 'Ngày bắt đầu',
-          endDateLabel: 'Ngày kết thúc',
-          saving: 'Đang lưu...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (year: number) => `Chỉnh sửa năm học ${year}`,
-          deleteLabel: (year: number) => `Xóa năm học ${year}`,
-        }
-      : {
-          loading: 'Loading academic years',
-          title: 'Academic years',
-          description:
-            'Keep the academic calendar clean, searchable, and deliberate before semesters and registration windows build on top of it.',
-          create: 'Create academic year',
-          searchLabel: 'Search academic years',
-          searchPlaceholder: 'Search by year',
-          unavailableTitle: 'Academic years unavailable',
-          emptyTitle: 'No matching academic years',
-          emptyDescription:
-            'Create a new academic year to give semester planning a clean anchor.',
-          tableTitle: 'Academic year records',
-          headers: {
-            year: 'Year',
-            startDate: 'Start date',
-            endDate: 'End date',
-            status: 'Status',
-            actions: 'Actions',
-          },
-          active: 'Active',
-          inactive: 'Inactive',
-          deleteTitle: 'Delete academic year',
-          deleteMessage: (year: number) =>
-            `Delete ${year}? This removes the academic year from the current admin view.`,
-          deleteConfirm: 'Delete academic year',
-          deleted: 'Academic year deleted',
-          deleteFailed: 'We could not delete that academic year.',
-          updated: 'Academic year updated',
-          created: 'Academic year created',
-          saveFailed: 'The academic year could not be saved.',
-          endDateBeforeStart: 'End date must be after the start date.',
-          editTitle: 'Edit academic year',
-          createTitle: 'Create academic year',
-          yearLabel: 'Year',
-          startDateLabel: 'Start date',
-          endDateLabel: 'End date',
-          saving: 'Saving...',
-          editAction: messages.common.actions.saveChanges,
-          editLabel: (year: number) => `Edit academic year ${year}`,
-          deleteLabel: (year: number) => `Delete academic year ${year}`,
-        };
+    return copy.pageSummary
+      .replace('{currentPage}', () => String(page))
+      .replace('{pages}', () => String(totalPages));
+  }, [academicYears.length, copy, page, totalPages]);
 
   if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
@@ -261,19 +201,27 @@ export default function AdminAcademicYearsPage() {
   };
 
   const handleDelete = async (record: AcademicYear) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(record.year),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingYearId(record.id);
 
     try {
-      await academicYearsApi.delete(record.id);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{year}', () => String(record.year)),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      await academicYearsApi.delete(record.id).catch((deleteError: unknown) => {
+        // The goal state of a delete is the row being gone: an already-removed
+        // row answers 404, which is still a success, not a false failure.
+        if (campusErrorKind(deleteError) !== 'notFound') throw deleteError;
+      });
       toast.success(copy.deleted);
       // Deleting the last row of a later page leaves a stale empty view;
       // step back so the page-effect refetches real content.
@@ -284,6 +232,9 @@ export default function AdminAcademicYearsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingYearId(null);
     }
   };
 
@@ -299,7 +250,10 @@ export default function AdminAcademicYearsPage() {
 
     try {
       if (editingYear) {
-        await academicYearsApi.update(editingYear.id, formData);
+        const payload = buildAcademicYearUpdatePayload(editingYear, formData);
+        if (Object.keys(payload).length > 0) {
+          await academicYearsApi.update(editingYear.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await academicYearsApi.create(formData);
@@ -424,8 +378,8 @@ export default function AdminAcademicYearsPage() {
                         size="icon"
                         variant="ghost"
                         onClick={() => openEdit(record)}
-                        aria-label={copy.editLabel(record.year)}
-                        title={copy.editLabel(record.year)}
+                        aria-label={editLabel(record.year)}
+                        title={editLabel(record.year)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -434,8 +388,9 @@ export default function AdminAcademicYearsPage() {
                         variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDelete(record)}
-                        aria-label={copy.deleteLabel(record.year)}
-                        title={copy.deleteLabel(record.year)}
+                        disabled={deletingYearId !== null}
+                        aria-label={deleteLabel(record.year)}
+                        title={deleteLabel(record.year)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -476,8 +431,8 @@ export default function AdminAcademicYearsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(record)}
-                              aria-label={copy.editLabel(record.year)}
-                              title={copy.editLabel(record.year)}
+                              aria-label={editLabel(record.year)}
+                              title={editLabel(record.year)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -486,8 +441,9 @@ export default function AdminAcademicYearsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(record)}
-                              aria-label={copy.deleteLabel(record.year)}
-                              title={copy.deleteLabel(record.year)}
+                              disabled={deletingYearId !== null}
+                              aria-label={deleteLabel(record.year)}
+                              title={deleteLabel(record.year)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -558,7 +514,7 @@ export default function AdminAcademicYearsPage() {
               {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? copy.saving : editingYear ? copy.editAction : copy.create}
+              {isSaving ? copy.saving : editingYear ? messages.common.actions.saveChanges : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

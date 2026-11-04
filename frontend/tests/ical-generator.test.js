@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 
@@ -92,5 +93,155 @@ test('iCalendar (.ics) generator specifications and RFC 5545 compliance', async 
     assert.match(fileSource, /END:VEVENT/, 'must close VEVENT blocks');
     assert.match(fileSource, /END:VCALENDAR/, 'must close VCALENDAR');
     assert.match(fileSource, /\\r\\n/, 'must format lines with RFC 5545 CRLF endings');
+  });
+});
+
+function loadModule(relativePath, aliases = {}) {
+  const output = ts.transpileModule(
+    fs.readFileSync(path.join(root, relativePath), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } },
+  ).outputText;
+  const moduleRecord = { exports: {} };
+  const resolve = (specifier) =>
+    Object.hasOwn(aliases, specifier) ? aliases[specifier] : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
+  return moduleRecord.exports;
+}
+
+function loadGenerator() {
+  const fragments = [
+    ['@/i18n/messages-thesis-workflow', 'src/i18n/messages-thesis-workflow.ts'],
+    ['@/i18n/messages-dean-overview', 'src/i18n/messages-dean-overview.ts'],
+    ['@/i18n/messages-content', 'src/i18n/messages-content.ts'],
+    ['@/i18n/messages-attendance-geofence', 'src/i18n/messages-attendance-geofence.ts'],
+    ['@/i18n/messages-teaching-pages', 'src/i18n/messages-teaching-pages.ts'],
+    ['@/i18n/messages-admin-pages', 'src/i18n/messages-admin-pages.ts'],
+    ['@/i18n/messages-student-pages', 'src/i18n/messages-student-pages.ts'],
+  ];
+  const messageAliases = { '@/i18n/config': {} };
+  for (const [specifier, relativePath] of fragments) {
+    messageAliases[specifier] = loadModule(relativePath);
+  }
+  const messages = loadModule('src/i18n/messages.ts', messageAliases);
+  return loadModule('src/lib/ical-generator.ts', {
+    '@/i18n/messages': messages,
+    './enrollment-status': loadModule('src/lib/enrollment-status.ts'),
+  });
+}
+
+function withFixedDate(value, callback) {
+  const OriginalDate = global.Date;
+  const fixedTime = new OriginalDate(value).getTime();
+  global.Date = class extends OriginalDate {
+    constructor(...args) {
+      if (args.length === 0) super(fixedTime);
+      else super(...args);
+    }
+
+    static now() {
+      return fixedTime;
+    }
+  };
+  try {
+    return callback();
+  } finally {
+    global.Date = OriginalDate;
+  }
+}
+
+test('iCalendar localized display descriptions preserve exact output and bytes', () => {
+  const generator = loadGenerator();
+  const { getMessages } = loadModule('src/i18n/messages.ts', {
+    '@/i18n/config': {},
+    '@/i18n/messages-thesis-workflow': loadModule('src/i18n/messages-thesis-workflow.ts'),
+    '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
+    '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
+    '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
+    '@/i18n/messages-teaching-pages': loadModule('src/i18n/messages-teaching-pages.ts'),
+    '@/i18n/messages-admin-pages': loadModule('src/i18n/messages-admin-pages.ts'),
+    '@/i18n/messages-student-pages': loadModule('src/i18n/messages-student-pages.ts'),
+  });
+  const enrollments = [{
+    id: 17,
+    status: 'ENROLLED',
+    section: {
+      sectionNumber: 'L01',
+      course: { code: 'CS101', name: 'Programming', nameVi: 'Lập trình', credits: 3 },
+      lecturer: { fullName: 'Nguyễn An' },
+      schedules: [{
+        id: 9,
+        dayOfWeek: 2,
+        startTime: '08:00',
+        endTime: '09:30',
+        classroom: { roomNumber: 'A101', building: 'A' },
+      }],
+    },
+  }];
+  const semester = { startDate: '2026-09-01', endDate: '2026-12-31' };
+  const localized = {
+    vi: {
+      summary: '[CS101] Lập trình - L01',
+      location: 'Phòng A101, A',
+      description: 'Môn học: Lập trình (CS101)\nLớp học phần: L01\nSố tín chỉ: 3\nGiảng viên: Nguyễn An\nĐịa điểm: Phòng A101, A',
+      escapedDescription: 'Môn học: Lập trình (CS101)\\nLớp học phần: L01\\nSố tín chỉ: 3\\nGiảng viên: Nguyễn An\\nĐịa điểm: Phòng A101\\, A',
+      escapedLocation: 'Phòng A101\\, A',
+      calendarName: 'Lịch học - Fall 2026',
+    },
+    en: {
+      summary: '[CS101] Programming - L01',
+      location: 'Room A101, A',
+      description: 'Course: Programming (CS101)\nSection: L01\nCredits: 3\nLecturer: Nguyễn An\nLocation: Room A101, A',
+      escapedDescription: 'Course: Programming (CS101)\\nSection: L01\\nCredits: 3\\nLecturer: Nguyễn An\\nLocation: Room A101\\, A',
+      escapedLocation: 'Room A101\\, A',
+      calendarName: 'Schedule - Fall 2026',
+    },
+  };
+
+  for (const locale of ['vi', 'en']) {
+    const [event] = generator.buildScheduleIcsEvents(enrollments, semester, locale);
+    assert.equal(event.summary, localized[locale].summary);
+    assert.equal(event.location, localized[locale].location);
+    assert.equal(event.description, localized[locale].description);
+    assert.equal(event.uid, 'schedule-17-9@campuscore.edu');
+    assert.equal(event.dtstart, '20260907T080000');
+    assert.equal(event.dtend, '20260907T093000');
+    assert.equal(event.rrule, 'FREQ=WEEKLY;UNTIL=20261231T165959Z');
+    assert.equal(
+      getMessages(locale).studentPages.ics.defaultCalendarName,
+      locale === 'vi' ? 'Thời khóa biểu CampusUTE' : 'CampusUTE Timetable',
+    );
+  }
+
+  withFixedDate('2026-11-01T12:34:56.000Z', () => {
+    for (const locale of ['vi', 'en']) {
+      const [event] = generator.buildScheduleIcsEvents(enrollments, semester, locale);
+      const calendarName = getMessages(locale).studentPages.schedule.ics.calendarName
+        .replace('{semesterName}', 'Fall 2026');
+      const output = generator.generateIcsCalendar([event], calendarName);
+      const expected = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//CampusUTE//Academic Timetable//VI',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        `X-WR-CALNAME:${localized[locale].calendarName}`,
+        'X-WR-TIMEZONE:Asia/Ho_Chi_Minh',
+        'BEGIN:VEVENT',
+        'UID:schedule-17-9@campuscore.edu',
+        'DTSTAMP:20261101T123456Z',
+        'DTSTART;TZID=Asia/Ho_Chi_Minh:20260907T080000',
+        'DTEND;TZID=Asia/Ho_Chi_Minh:20260907T093000',
+        'RRULE:FREQ=WEEKLY;UNTIL=20261231T165959Z',
+        `SUMMARY:${localized[locale].summary}`,
+        `DESCRIPTION:${localized[locale].escapedDescription}`,
+        `LOCATION:${localized[locale].escapedLocation}`,
+        'STATUS:CONFIRMED',
+        'TRANSP:OPAQUE',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n') + '\r\n';
+      assert.equal(output, expected);
+      assert.equal(Buffer.compare(Buffer.from(output, 'utf8'), Buffer.from(expected, 'utf8')), 0);
+    }
   });
 });

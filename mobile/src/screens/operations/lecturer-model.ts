@@ -2,6 +2,8 @@
 // parsing and the changed-rows-only save payload. No React or native imports so
 // the same code runs under `node --test`.
 
+import { campusDayOfWeek } from '../../i18n/locale';
+
 export type MarkStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
 
 export const MARK_STATUSES: readonly MarkStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
@@ -68,7 +70,7 @@ export function termOptions(sections: readonly SectionLike[]): TermOption[] {
 /** Backend day numbers run 1 = Sunday … 7 = Saturday; 0 is read as Sunday. */
 export const normalizeDay = (day: number): number => (day === 0 ? 1 : day);
 
-export const dayNumberOf = (date: Date): number => date.getDay() + 1;
+export const dayNumberOf = (date: Date): number => campusDayOfWeek(date);
 
 /** `limit` rows of `items`, growing by `limit` each time the lecturer asks for more. */
 export const windowOf = <T>(items: readonly T[], pages: number, limit: number): { rows: T[]; hasMore: boolean } => ({
@@ -124,20 +126,26 @@ export function buildRosterRows(roster: readonly RosterEntryLike[], marks: reado
 export interface AttendanceBaseline {
   roster: string[];
   marks: Record<string, string>;
+  /** Stored note per marked student, so a note edited elsewhere also makes the sheet stale. */
+  notes?: Record<string, string>;
 }
 
 export function baselineOf(roster: readonly RosterEntryLike[], marks: readonly MarkLike[]): AttendanceBaseline {
+  const stored = marks.filter((mark) => isMarkStatus(mark.status));
   return {
     roster: roster.map((entry) => entry.studentId).sort(),
-    marks: Object.fromEntries(marks.filter((mark) => isMarkStatus(mark.status)).map((mark) => [mark.studentId, mark.status])),
+    marks: Object.fromEntries(stored.map((mark) => [mark.studentId, mark.status])),
+    notes: Object.fromEntries(stored.map((mark) => [mark.studentId, mark.notes?.trim() ?? ''])),
   };
 }
 
 /** The baseline the server holds right after the rows were saved: every marked row is now stored. */
 export function savedBaseline(rows: readonly RosterRow[]): AttendanceBaseline {
+  const stored = rows.filter((row) => row.status !== null);
   return {
     roster: rows.map((row) => row.studentId).sort(),
-    marks: Object.fromEntries(rows.filter((row) => row.status !== null).map((row) => [row.studentId, row.status as string])),
+    marks: Object.fromEntries(stored.map((row) => [row.studentId, row.status as string])),
+    notes: Object.fromEntries(stored.map((row) => [row.studentId, row.notes.trim()])),
   };
 }
 
@@ -160,7 +168,11 @@ export function isStaleAttendance(
   }
   const before = Object.keys(baseline.marks);
   const after = Object.keys(latest.marks);
-  return before.length !== after.length || before.some((id) => baseline.marks[id] !== latest.marks[id]);
+  if (before.length !== after.length || before.some((id) => baseline.marks[id] !== latest.marks[id])) return true;
+  const notes = baseline.notes;
+  if (!notes) return false;
+  const latestNotes = latest.notes ?? {};
+  return Object.keys(notes).some((id) => notes[id] !== (latestNotes[id] ?? ''));
 }
 
 export const setRowStatus = (rows: readonly RosterRow[], studentId: string, status: MarkStatus | null): RosterRow[] =>
@@ -240,6 +252,8 @@ export interface GradeRowLike {
   processScore?: number | null;
   finalExamScore?: number | null;
   gradeStatus?: string;
+  /** `Enrollment.version` loaded with the sheet; absent on legacy responses. */
+  version?: number;
 }
 
 export interface ScoreEdit {
@@ -253,6 +267,43 @@ export interface GradeChange {
   enrollmentId: string;
   processScore: number | null;
   finalExamScore: number | null;
+  /** The version this row was loaded with; omitted for a legacy last-write-wins save. */
+  version?: number;
+}
+
+/** A loaded grade sheet: the rows form the baseline every save is checked against. */
+export interface GradeSheetLike {
+  sectionId: string;
+  rows: readonly GradeRowLike[];
+}
+
+/**
+ * Two loaded sheets are the same only when every row is equal, including the
+ * row version: a version-only bump means the server moved under the draft.
+ */
+export const sameGradeSheet = (left: GradeSheetLike, right: GradeSheetLike): boolean =>
+  left.sectionId === right.sectionId && JSON.stringify(left.rows) === JSON.stringify(right.rows);
+
+/** Fields that make two rows a different editing baseline, version included. */
+const gradeRowSignature = (row: GradeRowLike | undefined): string | null =>
+  row === undefined
+    ? null
+    : JSON.stringify([
+      row.processScore ?? null,
+      row.finalExamScore ?? null,
+      row.gradeStatus ?? null,
+      row.version ?? null,
+    ]);
+
+/** Enrollment ids whose stored row appeared, disappeared or moved between two loads. */
+export function changedGradeRows(
+  previous: readonly GradeRowLike[],
+  next: readonly GradeRowLike[],
+): string[] {
+  const before = new Map(previous.map((row) => [row.enrollmentId, row]));
+  const after = new Map(next.map((row) => [row.enrollmentId, row]));
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((id) => gradeRowSignature(before.get(id)) !== gradeRowSignature(after.get(id)));
 }
 
 /** Empty text is a cleared score (null); anything outside 0–10 or not a number is undefined. */
@@ -277,7 +328,9 @@ export interface GradeDraft {
 /**
  * Only rows whose text differs from the server value are sent, so rows the
  * lecturer never touched keep their stored scores. A final score without a
- * process score cannot be averaged and is flagged before any request.
+ * process score cannot be averaged and is flagged before any request. Each
+ * change carries the version its row was loaded with; legacy rows without one
+ * stay unversioned so the server keeps last-write-wins for them.
  */
 export function buildGradeDraft(rows: readonly GradeRowLike[], edits: Readonly<Record<string, ScoreEdit>>): GradeDraft {
   const changes: GradeChange[] = [];
@@ -298,9 +351,33 @@ export function buildGradeDraft(rows: readonly GradeRowLike[], edits: Readonly<R
       problems[row.enrollmentId] = rowProblems;
       continue;
     }
-    changes.push({ enrollmentId: row.enrollmentId, processScore: processScore as number | null, finalExamScore: finalExamScore as number | null });
+    const change: GradeChange = {
+      enrollmentId: row.enrollmentId,
+      processScore: processScore as number | null,
+      finalExamScore: finalExamScore as number | null,
+    };
+    if (typeof row.version === 'number') change.version = row.version;
+    changes.push(change);
   }
   return { changes, problems };
+}
+
+/**
+ * Rows as the grade cards show them: a valid draft text replaces the loaded
+ * score, while invalid text keeps the loaded one, as the web sheet does.
+ */
+export function mergeGradeEdits<T extends GradeRowLike>(rows: readonly T[], edits: Readonly<Record<string, ScoreEdit>>): T[] {
+  return rows.map((row) => {
+    const edit = edits[row.enrollmentId];
+    if (!edit) return row;
+    const processScore = edit.processScore === undefined ? row.processScore : parseScore(edit.processScore);
+    const finalExamScore = edit.finalExamScore === undefined ? row.finalExamScore : parseScore(edit.finalExamScore);
+    return {
+      ...row,
+      processScore: processScore === undefined ? row.processScore : processScore,
+      finalExamScore: finalExamScore === undefined ? row.finalExamScore : finalExamScore,
+    };
+  });
 }
 
 /** Number of rows with unsaved text, valid or not. */

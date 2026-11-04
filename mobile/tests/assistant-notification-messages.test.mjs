@@ -30,7 +30,7 @@ function placeholderNames(value) {
 test('assistant English and Vietnamese message keys match the frozen R20 list', () => {
   const expected = [
     'streamingStatus', 'completedStatus', 'stoppedStatus', 'interruptedStatus',
-    'retryAction', 'retryingStatus', 'busy', 'rateLimited', 'quotaExceeded',
+    'retryAction', 'retryingStatus', 'busy', 'rateLimited', 'rateLimitedOne', 'quotaExceeded',
     'streamInvalid', 'sessionExpired', 'forbidden', 'unavailable', 'cancelFailed',
     'a11yStreaming', 'a11yCompleted', 'a11yStopped', 'a11yInterrupted',
   ].sort();

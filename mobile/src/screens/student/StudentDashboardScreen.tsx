@@ -15,14 +15,15 @@ import {
   StatStrip,
   StatePanel,
 } from '../../components/Ui';
-import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
+import { apiClient, campusApi, type MobileAnnouncementPage, type MobileEnrollment } from '../../api/client';
+import { countForm } from '../../i18n/locale';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
-import { localizedName } from '../academic/academic-model';
+import { buildAgenda, isActiveEnrollment, localizedName, nextMeetings } from '../academic/academic-model';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
 import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
-import { upcomingClasses } from './shared/preview';
+import { upcomingClasses, courses as previewCourses } from './shared/preview';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 
@@ -38,36 +39,52 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     isLoading,
     reload,
   } = useLiveResource<MobileEnrollment[]>(
-    'enrollments',
+    'academic.enrollments',
     [],
     () => campusApi.enrollments(),
     c.loadError,
   );
   const {
-    data: liveAnnouncements,
+    data: announcementsPage,
     error: announcementsError,
     isLoading: announcementsLoading,
-  } = useLiveResource<JsonObject[]>(
+    reload: reloadAnnouncements,
+  } = useLiveResource<MobileAnnouncementPage>(
     'announcements',
-    [],
-    async () => (await campusApi.announcements()).data ?? [],
+    { data: [] },
+    () => campusApi.announcements(),
     c.announcementsError,
   );
-  const activeEnrollments = liveEnrollments.filter((item) => item.status === 'ENROLLED');
+  const announcementRows = announcementsPage.data ?? [];
+  const announcementTotal = announcementsPage.meta?.total ?? announcementRows.length;
+  const activeEnrollments = liveEnrollments.filter((item) => isActiveEnrollment(item.status));
+  const upcoming = apiClient.mode === 'preview'
+    ? []
+    : nextMeetings(buildAgenda(activeEnrollments, locale), new Date(), 3);
+  const pendingRows = activeEnrollments
+    .filter((item) => !(item.section?.schedules?.length))
+    .slice(0, Math.max(0, 3 - upcoming.length))
+    .map((item) => ({
+      code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
+      name: localizedName(item.section?.course, locale, c.course),
+      time: c.schedulePending,
+      room: c.roomTba,
+      semesterId: item.semesterId,
+    }));
   const dashboardClasses: Array<{ semesterId?: string; code: string; name: string; time: string; room: string }> = apiClient.mode === 'preview'
     ? upcomingClasses
-    : activeEnrollments.slice(0, 3).map((item) => ({
-        code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
-        name: localizedName(item.section?.course, locale, c.course),
-        time: item.section?.schedules?.[0]
-          ? `${item.section.schedules[0].startTime} – ${item.section.schedules[0].endTime}`
-          : c.schedulePending,
-        room: item.section?.schedules?.[0]?.classroom
-          ? `${item.section.schedules[0].classroom?.building ?? ''}${item.section.schedules[0].classroom?.roomNumber ? ` ${item.section.schedules[0].classroom.roomNumber}` : ''}`.trim()
-          : c.roomTba,
-        semesterId: item.semesterId,
-      }));
+    : [
+        ...upcoming.map((item) => ({
+          code: item.courseCode || item.sectionNumber || c.course,
+          name: item.courseName || c.course,
+          time: `${item.startTime} – ${item.endTime}`,
+          room: item.room || c.roomTba,
+          semesterId: item.semesterId,
+        })),
+        ...pendingRows,
+      ];
   const scheduledSessions = activeEnrollments.reduce((total, item) => total + (item.section?.schedules?.length ?? 0), 0);
+  const activeSectionCount = apiClient.mode === 'preview' ? previewCourses.length : activeEnrollments.length;
 
   if (isLoading || error) {
     return (
@@ -85,21 +102,27 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
 
   return (
     <ScreenShell
-      eyebrow={apiClient.mode === 'preview' ? c.previewEyebrow : c.eyebrow}
+      eyebrow={c.eyebrow}
       title={c.title}
     >
       {warning ? <DataNotice message={warning} /> : null}
       <HeroCard
         icon="school-outline"
         eyebrow={c.currentSemester}
-        title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-        detail={apiClient.mode === 'preview' ? undefined : announcementsError ?? (announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length }))}
+        title={fillShellCopy(countForm(activeSectionCount, c.activeSectionsOne, c.activeSections), { n: activeSectionCount })}
+        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(countForm(announcementTotal, c.announcementsOne, c.announcements), { n: announcementTotal })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>
+      {announcementsError ? (
+        <View style={styles.announcementError}>
+          <DataNotice message={announcementsError} />
+          <Button label={c.retry} variant="text" onPress={() => void reloadAnnouncements()} />
+        </View>
+      ) : null}
 
       <StatStrip style={styles.stats} items={[
-        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? '3' : String(activeEnrollments.length) },
+        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? String(previewCourses.length) : String(activeEnrollments.length) },
         { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
       ]} />
 
@@ -137,4 +160,5 @@ const styles = StyleSheet.create({
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
   actionGrid: { flexDirection: 'row', alignItems: 'stretch', gap: tokens.spacing.sm },
   actionStack: { flexDirection: 'column' },
+  announcementError: { gap: tokens.spacing.xs },
 });

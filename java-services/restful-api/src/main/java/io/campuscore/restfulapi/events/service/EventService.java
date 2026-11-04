@@ -46,6 +46,8 @@ public class EventService {
     static final String AUDIT = "events.\"Audit\"";
     static final String AUTH_USER = "campuscore_auth.\"User\"";
     static final String EVENT_SCOPE = "events";
+    /** One manual attendance submit may not lock the event row for an unbounded roster sweep. */
+    static final int MAX_ATTENDANCE_BATCH = 500;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -103,15 +105,20 @@ public class EventService {
     public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
             ListPaging.Window window) {
         requireStaffGrant(actorId);
-        MapSqlParameterSource params = new MapSqlParameterSource("scope", EVENT_SCOPE);
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", EVENT_SCOPE)
+                .addValue("actor", actorId);
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT
+                            + " WHERE \"scope\" = :scope AND \"userId\" = :actor",
                     params, Long.class);
         }
+        // Self-view over the grant table: a staffer sees only its own rows,
+        // never a staff directory.
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT
+                + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());
@@ -280,6 +287,14 @@ public class EventService {
         if (!actorId.equals(String.valueOf(event.get("owner_id")))) {
             throw problem(HttpStatus.FORBIDDEN, "EVENT_NOT_OWNER",
                     "Only the event owner can publish this event");
+        }
+        // Registration opens only before startsAt and completion requires the
+        // registration transitions, so a window that already started could
+        // never leave PUBLISHED.
+        Instant startsAt = toInstant(event.get("starts_at"));
+        if (startsAt == null || !Instant.now().isBefore(startsAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "startsAt must be in the future to publish an event");
         }
         transition(eventId, "DRAFT", "PUBLISHED", actorId, null);
         return findEvent(eventId, null);
@@ -466,6 +481,11 @@ public class EventService {
     @Transactional
     public List<RosterEntry> markAttendance(String actorId, String eventId, AttendanceBatchRequest request) {
         requireStaffGrant(actorId);
+        if (request != null && request.marks() != null
+                && request.marks().size() > MAX_ATTENDANCE_BATCH) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_ATTENDANCE_BATCH_TOO_LARGE",
+                    "A single attendance batch may mark at most " + MAX_ATTENDANCE_BATCH + " registrations");
+        }
         Map<String, Object> event = lockEvent(eventId);
         requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         String status = String.valueOf(event.get("status"));
@@ -670,15 +690,19 @@ public class EventService {
                         .addValue("detail", detail));
     }
 
-    /** The window must be ordered and must close no later than the event starts. */
+    /** The registration window must end before the event starts. */
     private static void validateRegistrationWindow(Instant opensAt, Instant closesAt, Instant startsAt) {
         if (opensAt != null && closesAt != null && !closesAt.isAfter(opensAt)) {
             throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
                     "registrationClosesAt must be after registrationOpensAt");
         }
-        if (startsAt != null && closesAt != null && closesAt.isAfter(startsAt)) {
+        if (startsAt != null && opensAt != null && !opensAt.isBefore(startsAt)) {
             throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
-                    "registrationClosesAt must not be after startsAt");
+                    "registrationOpensAt must be before startsAt");
+        }
+        if (startsAt != null && closesAt != null && !closesAt.isBefore(startsAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "registrationClosesAt must be before startsAt");
         }
     }
 

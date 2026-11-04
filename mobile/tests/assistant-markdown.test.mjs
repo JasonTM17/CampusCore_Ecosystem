@@ -4,15 +4,22 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const fixture = JSON.parse(fs.readFileSync(path.resolve(mobileRoot, '../contracts/assistant-link-policy-cases.json'), 'utf8'));
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-assistant-markdown-'));
-const { outputText } = ts.transpileModule(fs.readFileSync(path.join(mobileRoot, 'src/assistant/markdown.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-});
-fs.writeFileSync(path.join(tempRoot, 'markdown.mjs'), outputText);
-const md = await import(pathToFileURL(path.join(tempRoot, 'markdown.mjs')).href);
+for (const name of ['assistant-link-policy', 'markdown']) {
+  const source = path.join(mobileRoot, `src/assistant/${name}.ts`);
+  const { outputText } = ts.transpileModule(fs.readFileSync(source, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  fs.writeFileSync(path.join(tempRoot, `${name}.js`), outputText);
+}
+const require = createRequire(import.meta.url);
+const md = require(path.join(tempRoot, 'markdown.js'));
+const policy = require(path.join(tempRoot, 'assistant-link-policy.js'));
 
 const text = (spans) => md.spansToText(spans);
 
@@ -33,25 +40,74 @@ test('inline bold, italic and code keep their text', () => {
   assert.ok(spans.some((span) => span.code && span.text === 'mã'));
 });
 
-test('only https links with a real host become links', () => {
-  assert.equal(md.safeLinkUrl('https://example.edu/quy-che'), 'https://example.edu/quy-che');
+test('shared conformance fixture is enforced by the mobile policy', () => {
+  assert.deepEqual([...policy.ASSISTANT_ALLOWED_DASHBOARD_ROUTES], fixture.dashboardRoutes);
+  for (const item of fixture.cases) {
+    assert.equal(policy.isAssistantMobileDestinationAllowed(item.destination), item.allowed, item.name);
+    assert.equal(policy.resolveAssistantMobileTarget(item.destination), item.mobileTarget ?? null, item.name);
+  }
+});
+
+test('only published docs and safe dashboard routes become native navigation spans', () => {
+  assert.equal(md.safeLinkUrl('/docs/quy-che'), '/docs?slug=quy-che');
+  assert.equal(md.safeLinkUrl('/dashboard/schedule'), '/schedule');
   for (const bad of [
-    'http://example.edu',
+    'https://example.edu',
     'javascript:alert(1)',
     'data:text/html,<b>x</b>',
-    'https://user:pass@example.edu',
-    'https://localhost/x',
-    'https://example.edu/a b',
-    'https://example.edu/"onclick',
-    '//example.edu',
+    'vbscript:msgbox(1)',
+    'HTTPS://example.edu',
+    'https://xn--e1afmkfd.example/docs/policy',
+    '//example.edu/docs/policy',
+    '/docs/%2f%2fexample.edu',
+    '/docs/%252f%252fexample.edu',
+    '/dashboard%2fschedule',
+    '/dashboard/profile',
+    ' /docs/quy-che',
+    '\t/docs/quy-che',
     '',
   ]) {
     assert.equal(md.safeLinkUrl(bad), null, bad);
   }
-  const [paragraph] = md.parseMarkdown('Xem [quy chế](https://example.edu/q) và [bẫy](javascript:alert(1)).');
-  assert.ok(paragraph.spans.some((span) => span.type === 'link' && span.url === 'https://example.edu/q'));
-  assert.ok(paragraph.spans.every((span) => span.type !== 'link' || span.url.startsWith('https://')));
+  const [paragraph] = md.parseMarkdown('Xem [quy chế](/docs/quy-che) và [lịch](/dashboard/schedule), nhưng [bẫy](javascript:alert(1)) stays text.');
+  assert.ok(paragraph.spans.some((span) => span.type === 'link' && span.url === '/docs?slug=quy-che'));
+  assert.ok(paragraph.spans.some((span) => span.type === 'link' && span.url === '/schedule'));
+  assert.ok(paragraph.spans.every((span) => span.type !== 'link' || span.url.startsWith('/')));
   assert.ok(text(paragraph.spans).includes('bẫy'));
+  assert.ok(text(paragraph.spans).includes('stays text.'));
+});
+
+test('bare route strings link only when the complete route is allowlisted', () => {
+  const [safe] = md.parseMarkdown('Open /docs/quy-che and /dashboard/schedule.');
+  assert.ok(safe.spans.some((span) => span.type === 'link' && span.url === '/docs?slug=quy-che'));
+  assert.ok(safe.spans.some((span) => span.type === 'link' && span.url === '/schedule'));
+  const [denied] = md.parseMarkdown('Keep /dashboard/profile and /dashboard%2fschedule as text.');
+  assert.ok(denied.spans.every((span) => span.type !== 'link'));
+  assert.ok(text(denied.spans).includes('/dashboard%2fschedule'));
+});
+
+test('every SSE split boundary keeps denied links plain and allowed docs internal', () => {
+  const denied = 'Before [outside](https://xn--e1afmkfd.example/docs/policy) after.';
+  let accumulated = '';
+  for (const character of denied) {
+    accumulated += character;
+    const blocks = md.parseMarkdown(accumulated, { streaming: true });
+    assert.ok(blocks.every((block) => !('spans' in block) || block.spans.every((span) => span.type !== 'link')));
+  }
+  const finalDenied = md.parseMarkdown(accumulated);
+  assert.ok(finalDenied.every((block) => !('spans' in block) || block.spans.every((span) => span.type !== 'link')));
+  assert.ok(text(finalDenied[0].spans).includes('Before'));
+  assert.ok(text(finalDenied[0].spans).includes('outside'));
+  assert.ok(text(finalDenied[0].spans).includes('after.'));
+
+  const allowed = 'Before [document](/docs/quy-che?rev=2) after.';
+  accumulated = '';
+  for (const character of allowed) {
+    accumulated += character;
+    md.parseMarkdown(accumulated, { streaming: true });
+  }
+  const finalAllowed = md.parseMarkdown(accumulated);
+  assert.ok(finalAllowed[0].spans.some((span) => span.type === 'link' && span.url === '/docs?slug=quy-che&rev=2'));
 });
 
 test('raw html is kept as literal text, never as markup', () => {

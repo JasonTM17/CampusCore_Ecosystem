@@ -53,6 +53,30 @@ async function loadGeofencePanelHelpers() {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
 
+async function loadAdminGeofenceUpdateHelper() {
+  const source = read('src/app/admin/attendance-geofences/page.tsx');
+  const ast = ts.createSourceFile(
+    'attendance-geofences/page.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const declaration = ast.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'buildGeofenceUpdatePayload',
+  );
+  assert.ok(declaration, 'the admin update payload builder must remain directly testable');
+  const helperSource = `${declaration.getFullText(ast)}\nexport { buildGeofenceUpdatePayload };`;
+  const { outputText } = ts.transpileModule(helperSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: 'attendance-geofences.helpers.ts',
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}
+
 const VALID_ID = '9f2c1b7a-3d4e-4a5f-8b6c-0d1e2f3a4b5c';
 const SEEDED_ROW = {
   id: 'ute-main-placeholder',
@@ -329,7 +353,8 @@ test('lecturer page mounts the geofenced check-in panel behind the lecturer guar
   const panelMount = /\/\* Geofenced app check-in[\s\S]*?\/\* Metrics Row \*\//.exec(page)?.[0] ?? '';
   assert.ok(panelMount, 'panel mount block must exist');
   assert.doesNotMatch(panelMount, /selectedSectionId\s*\?\s*\(/, 'empty selections must not unmount a live session');
-  assert.match(panelMount, /selectedSectionId \|\| copy\.noSectionsTitle/, 'empty selection keeps an identifiable label');
+  assert.match(panelMount, /selectedSectionId \|\| attendanceMessages\.noSectionsTitle/, 'empty selection keeps an identifiable label');
+  assert.match(read('src/i18n/messages.ts'), /noSectionsTitle: 'No classes assigned'/, 'the identifiable label lives in the catalogue');
   const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
   assert.match(panel, /if \(!sectionId && !session\) return null;/, 'hide the empty panel while retaining session state');
   assert.match(panel, /if \(!sectionId \|\| geofencesLoadStartedRef\.current\) return;/,
@@ -489,6 +514,35 @@ test('admin geofence console is role-guarded and uses the external map link only
   assert.match(frame, /href:\s*'\/admin\/attendance-geofences'/, 'admin nav links the console');
 });
 
+test('admin geofence edits carry the opened version and require a reload after a stale conflict', async () => {
+  const { buildGeofenceUpdatePayload } = await loadAdminGeofenceUpdateHelper();
+  const values = {
+    name: 'Main campus',
+    campusCode: 'UTE-MAIN',
+    centerLat: 10.8506,
+    centerLng: 106.7719,
+    radiusMeters: 150,
+    isActive: true,
+  };
+  assert.deepEqual(buildGeofenceUpdatePayload(values, true, 7), {
+    name: 'Main campus',
+    campusCode: 'UTE-MAIN',
+    centerLat: 10.8506,
+    centerLng: 106.7719,
+    radiusMeters: 150,
+    expectedVersion: 7,
+  });
+
+  const page = read('src/app/admin/attendance-geofences/page.tsx');
+  assert.match(page, /buildGeofenceUpdatePayload\(values, Boolean\(editor\.row\.isActive\), editor\.row\.version\)/);
+  assert.match(page, /expectedVersion: row\.version/, 'activation updates use the row version too');
+  assert.match(page, /isStaleVersionError/);
+  assert.match(page, /messages\.adminPages\.announcements\.conflict/);
+  assert.match(page, /reloadStaleEditor/);
+  assert.match(page, /setEditor\(\{ mode: 'edit', row: latest \}\)/);
+  assert.match(page, /row\.id === updated\.id \? updated : row/, 'the saved row refreshes its returned version');
+});
+
 test('landing page is public, fetch-free, noindex and deep-link only', () => {
   const landing = read('src/app/attendance/checkin/[sessionId]/page.tsx');
   assert.match(landing, /buildCheckinDeepLink\(sessionId\)/, 'hands off via the app scheme');
@@ -577,4 +631,90 @@ test('student attendance API still lacks method/review fields — nothing fabric
     /submitStudentCheckin|geofencedAttendanceApi|navigator\.geolocation|checkinMethod|reviewState/i,
     'the student web page must never expose a browser check-in or fabricated fields',
   );
+});
+
+test('active session storage helpers round-trip a valid session id and reject invalid ones', async () => {
+  const {
+    saveActiveCheckinSession,
+    readActiveCheckinSession,
+    clearActiveCheckinSession,
+    activeSessionStorageKey,
+  } = await loadCheckinLib();
+
+  assert.equal(typeof saveActiveCheckinSession, 'function');
+  assert.equal(typeof readActiveCheckinSession, 'function');
+  assert.equal(typeof clearActiveCheckinSession, 'function');
+
+  const key = activeSessionStorageKey('sec-1', '2026-11-03');
+  assert.match(key, /sec-1/);
+  assert.match(key, /2026-11-03/);
+});
+
+test('check-in panel restores a remembered session on mount and clears on close', () => {
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+
+  assert.match(panel, /readActiveCheckinSession\(sectionId, date\)/,
+    'mount effect checks for a remembered active session');
+  assert.match(panel, /saveActiveCheckinSession\(sectionId, date, created\.id\)/,
+    'opening a session persists its identity for recovery');
+  assert.match(panel, /clearActiveCheckinSession\(session\.sectionId, session\.date\)/,
+    'closing a session clears the persisted identity');
+  assert.match(panel, /data-testid="checkin-resume-action"/,
+    'SESSION_ALREADY_OPEN or conflict exposes a resume action');
+});
+
+test('reviewing a check-in refreshes session counters even when closed', () => {
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+
+  const reviewBlock = /const submitReview = useCallback[\s\S]*?\}, \[[\s\S]*?\]\);/.exec(panel)?.[0] ?? '';
+  assert.ok(reviewBlock, 'submitReview exists');
+  assert.match(reviewBlock, /void refreshSession\(sessionRef\.current\?\.id\)/,
+    'submitReview must refresh session counters after updating the row');
+});
+
+
+async function loadProjectorTabTarget() {
+  const source = read('src/components/lecturer/ProjectorCodeOverlay.tsx');
+  const ast = ts.createSourceFile(
+    'ProjectorCodeOverlay.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const names = ['projectorTabTarget'];
+  const declarations = ast.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && names.includes(node.name?.text),
+  );
+  assert.equal(declarations.length, names.length, 'projector focus helper must remain directly testable');
+  const helperSource = `${declarations.map((node) => node.getFullText(ast)).join('\n')}\nexport { ${names.join(', ')} };`;
+  const { outputText } = ts.transpileModule(helperSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: 'ProjectorCodeOverlay.helpers.ts',
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}
+
+test('W14 projector overlay traps Tab focus, locks scroll and restores the trigger', async () => {
+  const { projectorTabTarget } = await loadProjectorTabTarget();
+
+  assert.equal(projectorTabTarget(-1, 3, false), 0, 'Tab from the dialog enters at the first control');
+  assert.equal(projectorTabTarget(-1, 3, true), 2, 'Shift+Tab from the dialog enters at the last control');
+  assert.equal(projectorTabTarget(2, 3, false), 0, 'Tab past the last control wraps');
+  assert.equal(projectorTabTarget(0, 3, true), 2, 'Shift+Tab before the first control wraps');
+  assert.equal(projectorTabTarget(1, 3, false), null, 'middle controls keep native Tab order');
+  assert.equal(projectorTabTarget(0, 0, false), null, 'an empty dialog has no wrap target');
+
+  const overlay = read('src/components/lecturer/ProjectorCodeOverlay.tsx');
+  assert.match(overlay, /role="dialog"/);
+  assert.match(overlay, /aria-modal="true"/);
+  assert.match(overlay, /tabIndex=\{-1\}/);
+  assert.match(overlay, /previousFocusRef\.current = document\.activeElement/);
+  assert.match(overlay, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(overlay, /previousFocusRef\.current\?\.focus\(\)/);
+  assert.match(overlay, /if \(event\.key !== 'Tab'\)/);
+  assert.match(overlay, /projectorTabTarget\(/);
 });

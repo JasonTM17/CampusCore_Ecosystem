@@ -92,9 +92,13 @@ public class IdentityGrantRetentionJob {
                         + " expires_at < :cutoff OR revoked_at < :cutoff",
                 params);
         int bffTx = jdbc.update(
+                // Reserved logout-fence rows keep the per-client epoch after
+                // central end-session clears their pending state.
                 "DELETE FROM campuscore_identity.bff_transaction"
-                        + " WHERE expires_at < :cutoff",
-                params);
+                        + " WHERE expires_at < :cutoff AND tx_id <> :markerTx",
+                new MapSqlParameterSource()
+                        .addValue("cutoff", cutoffTs)
+                        .addValue("markerTx", BffLogoutMarker.TX_ID));
         if (authz + lineage + audit + bffSessions + bffTx > 0) {
             log.info("IDENTITY_GRANT_RETENTION authz={} lineage={} audit={} bffSessions={} bffTx={} cutoff={}",
                     authz, lineage, audit, bffSessions, bffTx, cutoff);

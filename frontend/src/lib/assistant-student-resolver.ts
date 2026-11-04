@@ -1,4 +1,5 @@
 import { authApi } from '@/lib/api';
+import { getAssistantWindowMessages } from '@/components/assistant/assistant-messages';
 
 /**
  * Local smalltalk resolver for the CampusCore chatbot.
@@ -116,7 +117,8 @@ export async function resolveStudentAssistantQuery(
 ): Promise<StudentAssistantResolution | null> {
   if (!isStudentAssistantQuery(message)) return null;
 
-  let displayName = locale === 'vi' ? 'bạn' : 'there';
+  const copy = getAssistantWindowMessages(locale);
+  let displayName: string = copy.resolver.defaultName;
   try {
     const currentUser = await authApi.me();
     if (currentUser?.firstName) {
@@ -130,69 +132,39 @@ export async function resolveStudentAssistantQuery(
 
   // 0. GREETING & CASUAL HELLO
   if (GREETING_REGEX.test(message)) {
-    const greetingHeader =
-      locale === 'vi'
-        ? `Chào **${displayName}**! Mình là **Trợ lý học vụ CampusUTE**.`
-        : `Hello **${displayName}**! I’m the **CampusUTE academic assistant**.`;
-
-    const answer =
-      locale === 'vi'
-        ? `${greetingHeader}\n\n` +
-          `Mình hỗ trợ tra cứu thông tin học vụ công khai và dữ liệu cá nhân mà tài khoản của bạn được phép xem. Bạn có thể hỏi về:\n\n` +
-          `1. **Lịch học**: lớp học, thời gian, phòng và lịch theo ngày.\n` +
-          `2. **Điểm số**: điểm học phần, GPA và bảng điểm.\n` +
-          `3. **Đăng ký học phần**: điều kiện, thời hạn và số tín chỉ theo từng học kỳ.\n` +
-          `4. **Đồ án hoặc khóa luận**: tiến độ, đề tài và các mốc cần lưu ý.\n` +
-          `5. **Thông báo và quy định**: hướng dẫn, chính sách và biểu mẫu học vụ.\n\n` +
-          `Bạn muốn bắt đầu với nội dung nào?`
-        : `${greetingHeader}\n\n` +
-          `I can help with public academic guidance and personal records that your account is allowed to view. You can ask about:\n\n` +
-          `1. **Schedules**: classes, times, rooms, and a specific day.\n` +
-          `2. **Grades**: course results, GPA, and your transcript.\n` +
-          `3. **Course registration**: eligibility, deadlines, and term credit limits.\n` +
-          `4. **Thesis or capstone work**: progress, topics, and important dates.\n` +
-          `5. **Announcements and regulations**: official guidance and forms.\n\n` +
-          `What would you like to check first?`;
+    const greetingHeader = copy.resolver.greeting.header.replace('{displayName}', displayName);
+    const greetingBody = [
+      copy.resolver.greeting.body.introduction,
+      ...copy.resolver.greeting.body.topics,
+      copy.resolver.greeting.body.closing,
+    ].join('\n\n');
+    const answer = `${greetingHeader}\n\n${greetingBody}`;
 
     return { answer };
   }
 
   // 0.1 CAPABILITIES / WHO ARE YOU / HELP
   if (CAPABILITIES_REGEX.test(message)) {
-    const answer =
-      locale === 'vi'
-        ? `Mình là **Trợ lý học vụ CampusUTE**.\n\n` +
-          `Mình có thể:\n` +
-          `- Tra cứu lịch học, điểm số, thông báo và tiến độ học tập của bạn khi dữ liệu được cung cấp.\n` +
-          `- Giải thích các hướng dẫn học vụ công khai dựa trên nguồn đã được duyệt.\n` +
-          `- Hỗ trợ sinh viên và giảng viên theo quyền truy cập của từng tài khoản.\n\n` +
-          `Nếu chưa đủ căn cứ, mình sẽ nói rõ thay vì tự suy đoán. Bạn có thể hỏi: *"Hôm nay tôi có lịch học không?"* hoặc *"Điểm GPA của tôi là bao nhiêu?"*.`
-        : `I’m the **CampusUTE academic assistant**.\n\n` +
-          `I can:\n` +
-          `- Check your schedules, grades, announcements, and academic progress when the records are available.\n` +
-          `- Explain public academic guidance from approved sources.\n` +
-          `- Support students and lecturers within each account’s access.\n\n` +
-          `When the available evidence is insufficient, I will say so instead of guessing. Try asking: *"Do I have classes today?"* or *"What is my GPA?"*.`;
+    const capabilities = copy.resolver.capabilities;
+    const answer = [
+      capabilities.introduction,
+      `${capabilities.lead}\n${capabilities.points.join('\n')}`,
+      capabilities.closing,
+    ].join('\n\n');
 
     return { answer };
   }
 
   // 0.2 THANK YOU / PRAISE
   if (THANK_YOU_REGEX.test(message)) {
-    const answer =
-      locale === 'vi'
-        ? `Không có gì! Nếu cần, bạn có thể hỏi mình về lịch học, điểm số, đăng ký học phần hoặc đồ án tốt nghiệp.`
-        : `You’re welcome. You can ask me about schedules, grades, course registration, or thesis work whenever you need.`;
+    const answer = copy.resolver.thankYou;
 
     return { answer };
   }
 
   // 0.3 GOODBYE / FAREWELL
   if (GOODBYE_REGEX.test(message)) {
-    const answer =
-      locale === 'vi'
-        ? `Hẹn gặp lại **${displayName}**. Chúc bạn học tập hiệu quả!`
-        : `Goodbye **${displayName}**. Have a productive day!`;
+    const answer = copy.resolver.goodbye.replace('{displayName}', displayName);
 
     return { answer };
   }

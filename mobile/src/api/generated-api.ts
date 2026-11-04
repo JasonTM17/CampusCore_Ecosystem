@@ -111,7 +111,7 @@ export interface paths {
   "/api/v1/admin/registration/credit-limit-applications": {
     /**
      * Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)
-     * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt
+     * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất
      */
     get: operations["creditLimitApplications"];
   };
@@ -259,6 +259,13 @@ export interface paths {
      * @description Truy vấn thông báo phân quyền theo vai trò (Sinh viên, Giảng viên, Quản trị viên) và đối tượng lớp/học kỳ
      */
     get: operations["getMyAnnouncements"];
+  };
+  "/api/v1/announcements/pin-options": {
+    /**
+     * Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)
+     * @description Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim
+     */
+    get: operations["getPinOptions"];
   };
   "/api/v1/announcements/public": {
     /**
@@ -723,7 +730,7 @@ export interface paths {
     post: operations["transition"];
   };
   "/api/v1/careers/staff/grants": {
-    /** Danh sách grants careers (org/reviewer) */
+    /** Grants careers của tôi (org/reviewer) */
     get: operations["grants_2"];
     /** Cấp grant theo tổ chức hoặc reviewer (admin) */
     post: operations["grant_2"];
@@ -1029,7 +1036,7 @@ export interface paths {
     post: operations["create_3"];
   };
   "/api/v1/events/staff/grants": {
-    /** Danh sách staff grants */
+    /** Staff grants của tôi */
     get: operations["grants_1"];
     /** Cấp grant STAFF:events (admin) */
     post: operations["grant_1"];
@@ -1329,7 +1336,7 @@ export interface paths {
     post: operations["retire"];
   };
   "/api/v1/library/staff/grants": {
-    /** Danh sách staff grants */
+    /** Staff grant của tôi */
     get: operations["grants"];
     /** Cấp grant STAFF:library (admin) */
     post: operations["grant"];
@@ -1992,10 +1999,17 @@ export interface paths {
   };
   "/api/v1/thesis/rounds/{id}/publish-results": {
     /**
-     * Công bố điểm và kết quả bảo vệ khóa luận
-     * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức
+     * Công bố kết quả khóa luận
+     * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận
      */
     post: operations["publishResults"];
+  };
+  "/api/v1/thesis/rounds/{id}/publish-results/notifications/retry": {
+    /**
+     * Gửi lại thông báo kết quả khóa luận
+     * @description Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm
+     */
+    post: operations["retryPublishedResultsNotifications"];
   };
   "/api/v1/thesis/rounds/{id}/report-deadline": {
     /**
@@ -2005,9 +2019,17 @@ export interface paths {
     put: operations["extendReportDeadline"];
   };
   "/api/v1/thesis/rounds/{id}/reports": {
+    /**
+     * Báo cáo của đợt
+     * @description Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. Thêm page/limit để phân trang kèm X-Total-Count.
+     */
     get: operations["listReportsByRound"];
   };
   "/api/v1/thesis/rounds/{id}/repository": {
+    /**
+     * Kho báo cáo của đợt
+     * @description Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web
+     */
     get: operations["listRepository"];
   };
   "/api/v1/thesis/students/search": {
@@ -2016,7 +2038,7 @@ export interface paths {
   "/api/v1/thesis/topics": {
     /**
      * Lấy danh sách đề tài theo đợt khóa luận
-     * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên
+     * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên. Thêm search để lọc đúng như trang danh mục; khi có page/limit trả thêm X-Topic-Total-Count (tổng trước khi lọc).
      */
     get: operations["list_1"];
     post: operations["createTopic"];
@@ -2239,6 +2261,21 @@ export interface components {
       data?: components["schemas"]["AnnouncementResponse"][];
       meta?: components["schemas"]["PageMeta"];
     };
+    AnnouncementPinOption: {
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      isGlobal?: boolean;
+      /** Format: date-time */
+      publishAt?: string | null;
+      /** @enum {string|null} */
+      status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
+      title?: string;
+    };
+    AnnouncementPinOptionListResponse: {
+      data?: components["schemas"]["AnnouncementPinOption"][];
+      meta?: components["schemas"]["PageMeta"];
+    };
     AnnouncementResponse: {
       /** Format: date-time */
       archivedAt?: string | null;
@@ -2398,7 +2435,7 @@ export interface components {
       description?: string;
       /** Format: double */
       maxScore?: number;
-      title?: string;
+      title: string;
       /** Format: int32 */
       version?: number;
     };
@@ -2506,13 +2543,26 @@ export interface components {
       /** @description Currently required consent version; echo it in POST /location-consent */
       version?: string;
     };
+    AttendanceCourseSummary: {
+      code?: string;
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     AttendanceGeofenceRequest: {
       campusCode: string;
       /** Format: double */
       centerLat: number;
       /** Format: double */
       centerLng: number;
-      isActive: boolean;
+      /**
+       * Format: int64
+       * @description Optional expected version for update conflict checking
+       */
+      expectedVersion?: number;
+      /** @description Optional on update; omit to keep the stored activation state. Defaults to inactive on create. */
+      isActive?: boolean;
       name: string;
       note?: string;
       /** Format: int32 */
@@ -2530,6 +2580,8 @@ export interface components {
       note?: string;
       /** Format: int32 */
       radiusMeters?: number;
+      /** Format: int64 */
+      version?: number;
     };
     AttendanceListResponse: {
       data?: components["schemas"]["AttendanceResponse"][];
@@ -2577,7 +2629,7 @@ export interface components {
       date?: string;
       id?: string;
       notes?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["AttendanceSectionSummary"];
       sectionId?: string;
       status?: string;
       student?: components["schemas"]["StudentSummary"];
@@ -2594,6 +2646,12 @@ export interface components {
       studentCode?: string;
       studentEmail?: string;
       studentId?: string;
+    };
+    AttendanceSectionSummary: {
+      course?: components["schemas"]["AttendanceCourseSummary"];
+      id?: string;
+      sectionNumber?: string;
+      semesterId?: string;
     };
     AttendanceSessionResponse: {
       /** Format: int64 */
@@ -2654,6 +2712,54 @@ export interface components {
       /** Format: uuid */
       clientRequestId?: string;
       status?: string;
+    };
+    CareerApplicationResponse: {
+      attachments?: components["schemas"]["AttachmentResponse"][];
+      candidateEmail?: string;
+      candidateUserId?: string;
+      coverLetter?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      moderationReason?: string;
+      opportunityId?: string;
+      opportunityTitle?: string;
+      organizationId?: string;
+      organizationName?: string;
+      status?: string;
+      /** Format: date-time */
+      statusChangedAt?: string;
+      statusChangedBy?: string;
+      /** Format: date-time */
+      submittedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
+    CareerStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      organizationId?: string;
+      scope?: string;
+      userId?: string;
+    };
+    CareerTransitionRequest: {
+      /** Format: int32 */
+      expectedVersion?: number;
+      reason?: string;
+    };
+    CatalogDepartmentSummary: {
+      code?: string;
+      description?: string;
+      descriptionEn?: string;
+      descriptionVi?: string;
+      facultyId?: string;
+      id?: string;
+      isActive?: boolean;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
     };
     CatalogSectionResponse: {
       alreadyEnrolled?: boolean;
@@ -2913,7 +3019,7 @@ export interface components {
       createdAt?: string;
       /** Format: int32 */
       credits?: number;
-      department?: components["schemas"]["DepartmentSummary"];
+      department?: components["schemas"]["CatalogDepartmentSummary"];
       departmentId?: string;
       description?: string;
       descriptionEn?: string;
@@ -2931,6 +3037,21 @@ export interface components {
     CourseSummary: {
       code?: string;
       name?: string;
+    };
+    CreateAnnouncementRequest: {
+      content: string;
+      /** Format: date-time */
+      expiresAt?: string;
+      isGlobal?: boolean;
+      lecturerId?: string;
+      priority?: string;
+      /** Format: date-time */
+      publishAt?: string;
+      sectionId?: string;
+      semesterId?: string;
+      targetRoles?: unknown[];
+      targetYears?: unknown[];
+      title: string;
     };
     CreateApplicationRequest: {
       cycle: string;
@@ -3210,6 +3331,15 @@ export interface components {
     EnrollRequest: {
       sectionId: string;
     };
+    EnrollmentCourseSummary: {
+      code?: string;
+      /** Format: int32 */
+      credits?: number;
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     EnrollmentGradeDetail: {
       courseCode?: string;
       courseName?: string;
@@ -3221,6 +3351,11 @@ export interface components {
       semesterNameVi?: string;
       studentId?: string;
       studentName?: string;
+    };
+    EnrollmentLecturerSummary: {
+      employeeId?: string;
+      id?: string;
+      user?: components["schemas"]["UserSummary"];
     };
     EnrollmentListResponse: {
       data?: components["schemas"]["EnrollmentResponse"][];
@@ -3237,15 +3372,36 @@ export interface components {
       gradeStatus?: string;
       id?: string;
       letterGrade?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["EnrollmentSectionSummary"];
       sectionId?: string;
-      semester?: components["schemas"]["SemesterSummary"];
+      semester?: components["schemas"]["EnrollmentSemesterSummary"];
       semesterId?: string;
       status?: string;
       student?: components["schemas"]["StudentSummary"];
       studentId?: string;
       /** Format: date-time */
       updatedAt?: string;
+    };
+    EnrollmentSectionSummary: {
+      /** Format: int32 */
+      capacity?: number;
+      course?: components["schemas"]["EnrollmentCourseSummary"];
+      /** Format: int32 */
+      enrolledCount?: number;
+      id?: string;
+      lecturer?: components["schemas"]["EnrollmentLecturerSummary"];
+      schedules?: components["schemas"]["SectionScheduleResponse"][];
+      sectionNumber?: string;
+      semester?: components["schemas"]["EnrollmentSemesterSummary"];
+      status?: string;
+    };
+    EnrollmentSemesterSummary: {
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+      /** Format: date-time */
+      startDate?: string;
     };
     ErrorResponse: {
       code?: string;
@@ -3292,6 +3448,14 @@ export interface components {
       updatedAt?: string;
       /** Format: int32 */
       version?: number;
+    };
+    EventStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      scope?: string;
+      userId?: string;
     };
     FacultyDepartmentSummary: {
       building?: string;
@@ -3429,7 +3593,7 @@ export interface components {
       id?: string;
       maxScore?: number;
       name?: string;
-      section?: components["schemas"]["SectionSummary"];
+      section?: components["schemas"]["EnrollmentSectionSummary"];
       sectionId?: string;
       type?: string;
       weight?: number;
@@ -3459,6 +3623,8 @@ export interface components {
       enrollmentId: string;
       finalExamScore?: number;
       processScore?: number;
+      /** Format: int32 */
+      version?: number;
     };
     GradeUpdateRequest: {
       grades: components["schemas"]["GradeUpdate"][];
@@ -3579,6 +3745,8 @@ export interface components {
     KnowledgeRequest: {
       content?: string;
       domain?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
       locale?: string;
       /** Format: int32 */
       priority?: number;
@@ -3601,6 +3769,17 @@ export interface components {
       sync?: components["schemas"]["SyncResult"];
       /** Format: int32 */
       version?: number;
+    };
+    LearningFeedbackResponse: {
+      authorId?: string;
+      comment?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      revisionId?: string;
+      /** Format: double */
+      score?: number;
+      submissionId?: string;
     };
     LecturerGradingSectionResponse: {
       canPublish?: boolean;
@@ -3683,6 +3862,14 @@ export interface components {
       councils?: components["schemas"]["CouncilAssignment"][];
       gradingTasks?: components["schemas"]["GradingTask"][];
       topics?: components["schemas"]["SupervisedTopic"][];
+    };
+    LibraryStaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      scope?: string;
+      userId?: string;
     };
     LoanRequestResponse: {
       /** Format: date-time */
@@ -3767,7 +3954,7 @@ export interface components {
       contentType?: string;
       description?: string;
       fileName?: string;
-      title?: string;
+      title: string;
       /** Format: int32 */
       version?: number;
     };
@@ -3965,9 +4152,14 @@ export interface components {
       reportId?: string;
       /** Format: date-time */
       reportSubmittedAt?: string;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
+      resultStatus?: string;
       /** Format: uuid */
       roundId?: string;
       roundStatus?: string;
+      skippedMilestones?: string[];
       /** Format: uuid */
       topicId?: string;
       topicTitle?: string;
@@ -4087,6 +4279,19 @@ export interface components {
       registeredAt?: string;
       status?: string;
       studentId?: string;
+    };
+    RegistrationRoundResponse: {
+      /** Format: int32 */
+      creditLimit?: number;
+      id?: string;
+      kind?: string;
+      name?: string;
+      semesterId?: string;
+      status?: string;
+      /** Format: date-time */
+      windowEnd?: string;
+      /** Format: date-time */
+      windowStart?: string;
     };
     ReportDeadlineUpdateRequest: {
       /** Format: date-time */
@@ -4364,6 +4569,23 @@ export interface components {
       date: string;
       records: components["schemas"]["StudentAttendanceEntry"][];
     };
+    SectionCourseSummary: {
+      code?: string;
+      /** Format: int32 */
+      credits?: number;
+      department?: components["schemas"]["SectionDepartmentSummary"];
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
+    SectionDepartmentSummary: {
+      code?: string;
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+    };
     SectionGradeEnrollmentResponse: {
       email?: string;
       enrollmentStatus?: string;
@@ -4376,6 +4598,8 @@ export interface components {
       studentCode?: string;
       studentId?: string;
       studentName?: string;
+      /** Format: int32 */
+      version?: number;
     };
     SectionGradesResponse: {
       courseCode?: string;
@@ -4396,6 +4620,11 @@ export interface components {
       semesterNameVi?: string;
       status?: string;
     };
+    SectionLecturerSummary: {
+      employeeId?: string;
+      id?: string;
+      user?: components["schemas"]["UserSummary"];
+    };
     SectionListResponse: {
       data?: components["schemas"]["SectionResponse"][];
       meta?: components["schemas"]["PageMeta"];
@@ -4405,19 +4634,19 @@ export interface components {
       capacity?: number;
       classroom?: components["schemas"]["ClassroomSummary"];
       classroomId?: string;
-      course?: components["schemas"]["CourseSummary"];
+      course?: components["schemas"]["SectionCourseSummary"];
       courseId?: string;
       /** Format: int32 */
       enrolledCount?: number;
       id?: string;
-      lecturer?: components["schemas"]["LecturerSummary"];
+      lecturer?: components["schemas"]["SectionLecturerSummary"];
       lecturerId?: string;
       /** Format: int32 */
       maxCredits?: number;
       schedules?: components["schemas"]["SectionScheduleResponse"][];
       sectionId?: string;
       sectionNumber?: string;
-      semester?: components["schemas"]["SemesterSummary"];
+      semester?: components["schemas"]["SectionSemesterSummary"];
       semesterId?: string;
       status?: string;
     };
@@ -4456,6 +4685,14 @@ export interface components {
        * @example 07:00
        */
       startTime?: string;
+    };
+    SectionSemesterSummary: {
+      id?: string;
+      name?: string;
+      nameEn?: string;
+      nameVi?: string;
+      /** Format: date-time */
+      startDate?: string;
     };
     SectionSummary: {
       course?: components["schemas"]["CourseSummary"];
@@ -4629,6 +4866,10 @@ export interface components {
       /** Format: uuid */
       groupId?: string;
       leaderStudentId?: string;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
+      resultStatus?: string;
       topicTitle?: string;
     };
     StudentSearchResponse: {
@@ -4647,6 +4888,11 @@ export interface components {
     SubmissionResponse: {
       assignmentId?: string;
       currentRevisionId?: string;
+      draftContentType?: string;
+      draftFileName?: string;
+      /** Format: int64 */
+      draftSizeBytes?: number;
+      draftText?: string;
       id?: string;
       /** Format: date-time */
       returnedAt?: string;
@@ -4803,6 +5049,9 @@ export interface components {
       id?: string;
       /** Format: int32 */
       maxGroups?: number;
+      resultReason?: string;
+      /** Format: date-time */
+      resultResolvedAt?: string;
       resultStatus?: string;
       /** Format: uuid */
       roundId?: string;
@@ -4873,6 +5122,25 @@ export interface components {
       /** Format: int64 */
       unreadCount?: number;
     };
+    UpdateAnnouncementRequest: {
+      content?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      /** Format: date-time */
+      expiresAt?: string;
+      isGlobal?: boolean;
+      lecturerId?: string;
+      presentFields?: string[];
+      priority?: string;
+      /** Format: date-time */
+      publishAt?: string;
+      reason?: string;
+      sectionId?: string;
+      semesterId?: string;
+      targetRoles?: unknown[];
+      targetYears?: unknown[];
+      title?: string;
+    };
     UpdateDisplayOrderRequest: {
       /** Format: int32 */
       displayOrder: number;
@@ -4936,14 +5204,17 @@ export interface operations {
    */
   getAcademicYears: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Từ khóa tìm kiếm theo năm học */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -5055,7 +5326,7 @@ export interface operations {
       /** @description Chỉ Quản trị viên hoặc Quản trị viên cấp cao */
       403: {
         content: {
-          "*/*": components["schemas"]["AnalyticsOverview"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5164,7 +5435,7 @@ export interface operations {
       /** @description Không tìm thấy tài liệu */
       404: {
         content: {
-          "*/*": components["schemas"]["KnowledgeDocumentView"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5192,6 +5463,12 @@ export interface operations {
           "*/*": components["schemas"]["KnowledgeRevision"];
         };
       };
+      /** @description Bản nháp đã thay đổi kể từ lần đọc gần nhất */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /**
@@ -5212,7 +5489,9 @@ export interface operations {
       };
       /** @description Không tìm thấy tài liệu */
       404: {
-        content: never;
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
       };
     };
   };
@@ -5237,7 +5516,7 @@ export interface operations {
       /** @description Người tạo không thể tự duyệt phiên bản của chính mình */
       409: {
         content: {
-          "*/*": components["schemas"]["KnowledgeRevision"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5263,7 +5542,7 @@ export interface operations {
       /** @description Xung đột trạng thái phiên bản */
       409: {
         content: {
-          "*/*": components["schemas"]["KnowledgeRevision"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5287,8 +5566,8 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
-      200: {
+      /** @description Vùng điểm danh đã được tạo */
+      201: {
         content: {
           "*/*": components["schemas"]["AttendanceGeofenceResponse"];
         };
@@ -5322,7 +5601,7 @@ export interface operations {
    */
   list_10: {
     parameters: {
-      query: {
+      query?: {
         page?: number;
         limit?: number;
         action?: string;
@@ -5330,7 +5609,10 @@ export interface operations {
         entityId?: string;
         actorId?: string;
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -5346,18 +5628,26 @@ export interface operations {
   };
   /**
    * Danh sách đơn xin nâng hạn mức tín chỉ (Phòng Đào tạo / Admin)
-   * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt
+   * @description Lấy danh sách các đơn xin nâng trần tín chỉ cần xét duyệt; không có page/limit trả về tối đa 500 đơn mới nhất
    */
   creditLimitApplications: {
     parameters: {
       query?: {
         /** @description Trạng thái đơn (PENDING, APPROVED, REJECTED) */
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
       /** @description Lấy danh sách đơn thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["Response"][];
         };
@@ -5390,7 +5680,7 @@ export interface operations {
       /** @description Không tìm thấy đơn chỉ định */
       404: {
         content: {
-          "*/*": components["schemas"]["Response"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5479,7 +5769,7 @@ export interface operations {
       /** @description Không tìm thấy tài liệu */
       404: {
         content: {
-          "*/*": components["schemas"]["KnowledgeDocumentView"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5507,6 +5797,12 @@ export interface operations {
           "*/*": components["schemas"]["KnowledgeRevision"];
         };
       };
+      /** @description Bản nháp đã thay đổi kể từ lần đọc gần nhất */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /**
@@ -5527,7 +5823,9 @@ export interface operations {
       };
       /** @description Không tìm thấy tài liệu */
       404: {
-        content: never;
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
       };
     };
   };
@@ -5552,7 +5850,7 @@ export interface operations {
       /** @description Người tạo không thể tự duyệt phiên bản của chính mình */
       409: {
         content: {
-          "*/*": components["schemas"]["KnowledgeRevision"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5578,7 +5876,7 @@ export interface operations {
       /** @description Xung đột trạng thái phiên bản */
       409: {
         content: {
-          "*/*": components["schemas"]["KnowledgeRevision"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -5586,8 +5884,8 @@ export interface operations {
   /** Tạo hồ sơ nháp cho một đợt tuyển */
   create_6: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
     };
     requestBody: {
@@ -5670,8 +5968,8 @@ export interface operations {
       query?: {
         checksum?: string;
       };
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -5698,8 +5996,8 @@ export interface operations {
   /** Xóa tệp đính kèm (dọn byte, không để orphan) */
   deleteAttachment: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -5735,8 +6033,8 @@ export interface operations {
   /** Nộp hồ sơ (DRAFT hoặc RETURNED) */
   submit_3: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -5759,8 +6057,8 @@ export interface operations {
   /** Rút hồ sơ (khi còn cho phép) */
   withdraw_1: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -5961,7 +6259,7 @@ export interface operations {
    */
   getAllAnnouncements: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng thông báo trên một trang */
@@ -5976,7 +6274,10 @@ export interface operations {
         status?: string;
         /** @description Từ khóa tìm kiếm (tiêu đề, nội dung, môn học, giảng viên) */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -5989,7 +6290,7 @@ export interface operations {
       /** @description Chỉ Quản trị viên mới có quyền truy cập */
       403: {
         content: {
-          "*/*": components["schemas"]["AnnouncementListResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6001,7 +6302,7 @@ export interface operations {
   create_5: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["JsonNode"];
+        "application/json": components["schemas"]["CreateAnnouncementRequest"];
       };
     };
     responses: {
@@ -6014,13 +6315,13 @@ export interface operations {
       /** @description Dữ liệu thông báo không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền tạo thông báo */
       403: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6031,12 +6332,15 @@ export interface operations {
    */
   getMyAnnouncements: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng thông báo trên một trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -6049,13 +6353,51 @@ export interface operations {
       /** @description Chưa xác thực danh tính JWT */
       401: {
         content: {
-          "*/*": components["schemas"]["AnnouncementListResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Thiếu thông tin phân quyền hợp lệ */
       403: {
         content: {
-          "*/*": components["schemas"]["AnnouncementListResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)
+   * @description Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim
+   */
+  getPinOptions: {
+    parameters: {
+      query?: {
+        /** @description Số trang phân trang (bắt đầu từ 1) */
+        page?: number;
+        /** @description Số lượng thông báo trên một trang */
+        limit?: number;
+        /** @description Trạng thái thông báo (ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, PUBLISHED) */
+        status?: string;
+        /** @description Từ khóa tìm kiếm theo tiêu đề */
+        search?: string;
+        /** @description Danh sách mã thông báo cách nhau bởi dấu phẩy, dùng để định danh các mục đã ghim */
+        ids?: string;
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Truy vấn danh mục thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementPinOptionListResponse"];
+        };
+      };
+      /** @description Chỉ quản trị viên mới có quyền truy cập */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6066,12 +6408,15 @@ export interface operations {
    */
   getPublicAnnouncements: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng thông báo trên một trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -6103,7 +6448,7 @@ export interface operations {
       /** @description Không tìm thấy bản tin công khai */
       404: {
         content: {
-          "*/*": components["schemas"]["PublicAnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6129,7 +6474,7 @@ export interface operations {
       /** @description Không tìm thấy thông báo */
       404: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6147,7 +6492,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["JsonNode"];
+        "application/json": components["schemas"]["UpdateAnnouncementRequest"];
       };
     };
     responses: {
@@ -6160,7 +6505,7 @@ export interface operations {
       /** @description Không tìm thấy thông báo */
       404: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6206,7 +6551,7 @@ export interface operations {
       /** @description Người duyệt trùng tác giả, trạng thái không hợp lệ hoặc hết hạn xuất bản */
       409: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6242,12 +6587,15 @@ export interface operations {
    */
   history: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -6289,13 +6637,13 @@ export interface operations {
       /** @description displayOrder không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy thông báo */
       404: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6351,13 +6699,13 @@ export interface operations {
       /** @description Thiếu ghi chú lý do */
       400: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-      /** @description Trạng thái vòng đời không hợp lệ */
+      /** @description Người duyệt trùng tác giả hoặc trạng thái vòng đời không hợp lệ */
       409: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6383,13 +6731,13 @@ export interface operations {
       /** @description Không phải tác giả hoặc quản trị viên */
       403: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Trạng thái vòng đời không hợp lệ */
       409: {
         content: {
-          "*/*": components["schemas"]["AnnouncementResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6449,7 +6797,7 @@ export interface operations {
       /** @description Không tìm thấy chuyên mục với slug tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["ArticleCategory"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6509,7 +6857,7 @@ export interface operations {
       /** @description Không tìm thấy thẻ bài viết với slug tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["ArticleTag"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6573,7 +6921,7 @@ export interface operations {
       /** @description Không tìm thấy chuyên mục với slug tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["CategoryDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6637,7 +6985,7 @@ export interface operations {
       /** @description Không tìm thấy thẻ bài viết với slug tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["TagDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6662,13 +7010,13 @@ export interface operations {
       /** @description Tin nhắn không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["ChatResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực danh tính */
       401: {
         content: {
-          "*/*": components["schemas"]["ChatResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -6726,6 +7074,10 @@ export interface operations {
     responses: {
       /** @description Lấy danh sách phiên hội thoại thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Conversation"][];
         };
@@ -6789,6 +7141,10 @@ export interface operations {
     responses: {
       /** @description Lấy lịch sử tin nhắn thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Message"][];
         };
@@ -6864,7 +7220,7 @@ export interface operations {
    */
   getAttendance: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
@@ -6875,7 +7231,10 @@ export interface operations {
         studentId?: string;
         /** @description Ngày điểm danh (YYYY-MM-DD) */
         date?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -6925,12 +7284,15 @@ export interface operations {
    */
   getMySectionAttendance: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh lớp học phần (UUID) */
         sectionId?: string;
         /** @description Ngày điểm danh (YYYY-MM-DD) */
         date?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -6975,12 +7337,15 @@ export interface operations {
    */
   getMyAttendance: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh lớp học phần (UUID) */
         sectionId?: string;
         /** @description Mã định danh học kỳ (UUID) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -6998,10 +7363,13 @@ export interface operations {
    */
   getMyAttendanceSummary: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh học kỳ (UUID) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -7019,10 +7387,13 @@ export interface operations {
    */
   getSectionAttendance: {
     parameters: {
-      query: {
+      query?: {
         /** @description Ngày điểm danh (YYYY-MM-DD) */
         date?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
       path: {
         /** @description Mã định danh lớp học phần (UUID) */
@@ -7064,19 +7435,19 @@ export interface operations {
       /** @description Dữ liệu không hợp lệ hoặc sinh viên không thuộc lớp */
       400: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Giảng viên không phụ trách lớp này */
       403: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy lớp học phần */
       404: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7087,8 +7458,11 @@ export interface operations {
    */
   getSectionAttendanceRoster: {
     parameters: {
-      query: {
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      query?: {
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
       path: {
         /** @description Mã định danh lớp học phần (UUID) */
@@ -7110,8 +7484,11 @@ export interface operations {
    */
   getSectionAttendanceSummary: {
     parameters: {
-      query: {
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      query?: {
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
       path: {
         /** @description Mã định danh lớp học phần (UUID) */
@@ -7153,19 +7530,19 @@ export interface operations {
       /** @description Dữ liệu không hợp lệ hoặc sinh viên không thuộc lớp */
       400: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Giảng viên không phụ trách lớp này */
       403: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy lớp học phần */
       404: {
         content: {
-          "*/*": components["schemas"]["AttendanceMutationResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7235,37 +7612,37 @@ export interface operations {
       /** @description INVALID_LOCATION */
       400: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description NOT_ENROLLED hoặc CONSENT_REQUIRED */
       403: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description ALREADY_CHECKED_IN */
       409: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description SESSION_CLOSED */
       410: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY */
       422: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description TOO_MANY_ATTEMPTS; Retry-After */
       429: {
         content: {
-          "*/*": components["schemas"]["ErrorResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7364,7 +7741,7 @@ export interface operations {
       /** @description Mật khẩu cũ không đúng hoặc mật khẩu mới không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["MessageResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7389,7 +7766,7 @@ export interface operations {
       /** @description Vượt quá số lần yêu cầu cho phép */
       429: {
         content: {
-          "*/*": components["schemas"]["MessageResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7414,13 +7791,13 @@ export interface operations {
       /** @description Email hoặc mật khẩu không chính xác */
       401: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Vượt quá số lần thử đăng nhập cho phép */
       429: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7499,7 +7876,7 @@ export interface operations {
       /** @description Refresh Token không hợp lệ hoặc đã hết hạn */
       401: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7524,7 +7901,7 @@ export interface operations {
       /** @description Liên kết không hợp lệ, đã hết hạn hoặc mật khẩu mới không đạt chính sách */
       400: {
         content: {
-          "*/*": components["schemas"]["MessageResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7549,19 +7926,19 @@ export interface operations {
       /** @description Mã không đúng, hết hạn, thử thách bị khoá hoặc không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Tài khoản không ở trạng thái đăng nhập được */
       401: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Vượt quá số lần thử cho phép */
       429: {
         content: {
-          "*/*": components["schemas"]["LoginResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -7569,8 +7946,8 @@ export interface operations {
   /** Ứng tuyển một tin PUBLISHED (→ SUBMITTED) */
   apply: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
     };
     requestBody: {
@@ -7582,7 +7959,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7605,7 +7982,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"][];
+          "*/*": components["schemas"]["CareerApplicationResponse"][];
         };
       };
     };
@@ -7621,7 +7998,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7632,8 +8009,8 @@ export interface operations {
       query?: {
         checksum?: string;
       };
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -7652,7 +8029,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7677,8 +8054,8 @@ export interface operations {
   /** Rút hồ sơ trước trạng thái kết thúc (→ WITHDRAWN) */
   withdraw: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         applicationId: string;
@@ -7686,14 +8063,14 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7781,7 +8158,7 @@ export interface operations {
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"][];
+          "*/*": components["schemas"]["CareerApplicationResponse"][];
         };
       };
     };
@@ -7797,7 +8174,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7828,14 +8205,14 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
@@ -7856,12 +8233,12 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["ApplicationResponse"];
+          "*/*": components["schemas"]["CareerApplicationResponse"];
         };
       };
     };
   };
-  /** Danh sách grants careers (org/reviewer) */
+  /** Grants careers của tôi (org/reviewer) */
   grants_2: {
     parameters: {
       query?: {
@@ -7872,14 +8249,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Danh sách grants careers */
+      /** @description Grants careers của tôi */
       200: {
         headers: {
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["CareerStaffGrantResponse"][];
         };
       };
     };
@@ -7895,7 +8272,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["CareerStaffGrantResponse"];
         };
       };
     };
@@ -7979,7 +8356,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8000,7 +8377,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8021,7 +8398,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8042,7 +8419,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8063,7 +8440,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8084,7 +8461,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["TransitionRequest"];
+        "application/json": components["schemas"]["CareerTransitionRequest"];
       };
     };
     responses: {
@@ -8148,14 +8525,17 @@ export interface operations {
    */
   getClassrooms: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Từ khóa tìm kiếm theo tòa nhà hoặc số phòng */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8267,7 +8647,7 @@ export interface operations {
       /** @description Chỉ sinh viên mới có quyền truy cập */
       403: {
         content: {
-          "*/*": components["schemas"]["StudentConductSummaryDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8293,7 +8673,7 @@ export interface operations {
       /** @description Không có dữ liệu điểm rèn luyện trong học kỳ */
       404: {
         content: {
-          "*/*": components["schemas"]["ConductSemesterScoreDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8319,13 +8699,13 @@ export interface operations {
       /** @description Không có thẩm quyền xem sinh viên ngoài danh sách lớp phụ trách */
       403: {
         content: {
-          "*/*": components["schemas"]["StudentConductSummaryDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy hồ sơ sinh viên */
       404: {
         content: {
-          "*/*": components["schemas"]["StudentConductSummaryDto"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8373,7 +8753,7 @@ export interface operations {
    */
   getCourses: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
@@ -8382,7 +8762,10 @@ export interface operations {
         search?: string;
         /** @description Mã Bộ môn (Department ID) */
         departmentId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8485,12 +8868,15 @@ export interface operations {
    */
   getCurricula: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8528,14 +8914,17 @@ export interface operations {
    */
   getDepartments: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Từ khóa tìm kiếm theo mã hoặc tên Bộ môn */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8638,14 +9027,17 @@ export interface operations {
    */
   list_5: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng tài liệu trên một trang */
         limit?: number;
         /** @description Trạng thái vòng đời (DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED, ALL) */
         status?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8677,7 +9069,7 @@ export interface operations {
       /** @description Slug đã tồn tại */
       409: {
         content: {
-          "*/*": components["schemas"]["DocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8703,7 +9095,7 @@ export interface operations {
       /** @description Không tìm thấy tài liệu */
       404: {
         content: {
-          "*/*": components["schemas"]["DocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8734,13 +9126,13 @@ export interface operations {
       /** @description Không tìm thấy tài liệu */
       404: {
         content: {
-          "*/*": components["schemas"]["DocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Tài liệu đã lưu trữ hoặc slug bị đổi */
       409: {
         content: {
-          "*/*": components["schemas"]["DocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -8861,7 +9253,7 @@ export interface operations {
    */
   getEnrollments: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
@@ -8878,7 +9270,10 @@ export interface operations {
         sectionId?: string;
         /** @description Từ khóa tìm kiếm theo tên/MSSV/email sinh viên hoặc môn học */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8896,9 +9291,9 @@ export interface operations {
    */
   enroll_1: {
     parameters: {
-      header?: {
+      header: {
         /** @description Khóa chống trùng lặp Idempotency */
-        "Idempotency-Key"?: string;
+        "Idempotency-Key": string;
       };
     };
     requestBody: {
@@ -8921,7 +9316,7 @@ export interface operations {
    */
   exportEnrollments: {
     parameters: {
-      query: {
+      query?: {
         /** @description Trạng thái ghi danh */
         status?: string;
         /** @description Mã định danh học kỳ (UUID) */
@@ -8934,7 +9329,10 @@ export interface operations {
         sectionId?: string;
         /** @description Từ khóa tìm kiếm (tên/MSSV/email sinh viên, mã lớp hoặc môn học) */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8958,10 +9356,13 @@ export interface operations {
    */
   getMyEnrollments: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh học kỳ (UUID) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -8979,10 +9380,13 @@ export interface operations {
    */
   getMyGrades: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh học kỳ (UUID) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -9000,8 +9404,11 @@ export interface operations {
    */
   getMyTranscript: {
     parameters: {
-      query: {
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      query?: {
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -9019,10 +9426,13 @@ export interface operations {
    */
   getStudentEnrollments: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh học kỳ (UUID) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
       path: {
         /** @description Mã định danh sinh viên (UUID) */
@@ -9086,9 +9496,9 @@ export interface operations {
    */
   drop_1: {
     parameters: {
-      header?: {
+      header: {
         /** @description Khóa chống trùng lặp Idempotency */
-        "Idempotency-Key"?: string;
+        "Idempotency-Key": string;
       };
       path: {
         /** @description Mã định danh ghi danh (UUID) */
@@ -9127,6 +9537,12 @@ export interface operations {
           "*/*": components["schemas"]["EventResponse"][];
         };
       };
+      /** @description Lỗi phân trang: limit là bắt buộc khi có page */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /** Lịch sử đăng ký của tôi */
@@ -9155,8 +9571,8 @@ export interface operations {
   /** Hủy đăng ký sự kiện của chính mình */
   cancel_5: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         registrationId: string;
@@ -9210,7 +9626,7 @@ export interface operations {
       };
     };
   };
-  /** Danh sách staff grants */
+  /** Staff grants của tôi */
   grants_1: {
     parameters: {
       query?: {
@@ -9221,14 +9637,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Danh sách staff grants */
+      /** @description Staff grants của tôi */
       200: {
         headers: {
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
           "X-Total-Count"?: number;
         };
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["EventStaffGrantResponse"][];
         };
       };
     };
@@ -9246,7 +9662,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["EventStaffGrantResponse"];
         };
       };
     };
@@ -9458,8 +9874,8 @@ export interface operations {
   /** Đăng ký tham gia sự kiện */
   register_1: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         eventId: string;
@@ -9480,12 +9896,15 @@ export interface operations {
    */
   getFaculties: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -9577,10 +9996,13 @@ export interface operations {
    */
   getMyStudentGrades: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã định danh lớp học phần (UUID) */
         sectionId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -9669,9 +10091,9 @@ export interface operations {
   /** Mở nháp bài nộp — idempotent (LMS-T03) */
   openDraft: {
     parameters: {
-      header?: {
+      header: {
         /** @description Khóa chống gửi trùng */
-        "Idempotency-Key"?: string;
+        "Idempotency-Key": string;
       };
       path: {
         assignmentId: string;
@@ -9693,8 +10115,8 @@ export interface operations {
         textBody?: string;
         checksum?: string;
       };
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         assignmentId: string;
@@ -9721,8 +10143,8 @@ export interface operations {
   /** Nộp bài — deadline theo đồng hồ máy chủ (LMS-X01), revision bất biến (LMS-X02) */
   submit: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         assignmentId: string;
@@ -9919,13 +10341,23 @@ export interface operations {
   /** Danh sách roster với trạng thái nộp bài */
   roster: {
     parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0 */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; mặc định 100 */
+        limit?: number;
+      };
       path: {
         assignmentId: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Roster lớp học phần */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RosterRowResponse"][];
         };
@@ -10120,7 +10552,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["FeedbackResponse"][];
+          "*/*": components["schemas"]["LearningFeedbackResponse"][];
         };
       };
     };
@@ -10239,7 +10671,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["FeedbackResponse"][];
+          "*/*": components["schemas"]["LearningFeedbackResponse"][];
         };
       };
     };
@@ -10266,14 +10698,17 @@ export interface operations {
    */
   getLecturers: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Từ khóa tìm kiếm theo mã giảng viên, họ tên hoặc email */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -10422,8 +10857,8 @@ export interface operations {
   /** Giữ chỗ một bản sao (AVAILABLE → RESERVED + REQUESTED) */
   request: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
     };
     requestBody: {
@@ -10442,9 +10877,21 @@ export interface operations {
   };
   /** Đơn mượn của tôi */
   myLoans: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit; mặc định 0 */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; mặc định 100 */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Đơn mượn của tôi */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["LoanRequestResponse"][];
         };
@@ -10470,8 +10917,8 @@ export interface operations {
   /** Hủy giữ chỗ trước khi phát sách (→ CANCELLED) */
   cancel_3: {
     parameters: {
-      header?: {
-        "Idempotency-Key"?: string;
+      header: {
+        "Idempotency-Key": string;
       };
       path: {
         requestId: string;
@@ -10528,13 +10975,13 @@ export interface operations {
       };
     };
   };
-  /** Danh sách staff grants */
+  /** Staff grant của tôi */
   grants: {
     responses: {
       /** @description OK */
       200: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"][];
+          "*/*": components["schemas"]["LibraryStaffGrantResponse"][];
         };
       };
     };
@@ -10552,7 +10999,7 @@ export interface operations {
       /** @description Created */
       201: {
         content: {
-          "*/*": components["schemas"]["StaffGrantResponse"];
+          "*/*": components["schemas"]["LibraryStaffGrantResponse"];
         };
       };
     };
@@ -10576,11 +11023,19 @@ export interface operations {
     parameters: {
       query?: {
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi đơn mượn */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["LoanRequestResponse"][];
         };
@@ -10847,9 +11302,9 @@ export interface operations {
    */
   enroll: {
     parameters: {
-      header?: {
+      header: {
         /** @description Khóa chống trùng lặp Idempotency */
-        "Idempotency-Key"?: string;
+        "Idempotency-Key": string;
       };
     };
     requestBody: {
@@ -10867,19 +11322,19 @@ export interface operations {
       /** @description Thiếu khóa Idempotency */
       400: {
         content: {
-          "*/*": components["schemas"]["EnrollmentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Lớp đã đầy/đóng, trùng lịch học, đăng ký trùng, hoặc khóa Idempotency đang được xử lý */
       409: {
         content: {
-          "*/*": components["schemas"]["EnrollmentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Vượt trần tín chỉ hoặc thiếu điều kiện tiên quyết/song hành */
       422: {
         content: {
-          "*/*": components["schemas"]["EnrollmentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -10890,9 +11345,9 @@ export interface operations {
    */
   drop: {
     parameters: {
-      header?: {
+      header: {
         /** @description Khóa chống trùng lặp Idempotency */
-        "Idempotency-Key"?: string;
+        "Idempotency-Key": string;
       };
       path: {
         /** @description Mã ghi danh (UUID) */
@@ -10909,19 +11364,19 @@ export interface operations {
       /** @description Thiếu khóa Idempotency */
       400: {
         content: {
-          "*/*": components["schemas"]["DropResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy bản ghi ghi danh */
       404: {
         content: {
-          "*/*": components["schemas"]["DropResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Đợt hủy đã đóng hoặc bản ghi không còn trạng thái active */
       409: {
         content: {
-          "*/*": components["schemas"]["DropResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -10946,9 +11401,7 @@ export interface operations {
       };
       /** @description Chưa có đơn nào được nộp cho đợt này */
       204: {
-        content: {
-          "*/*": components["schemas"]["Response"];
-        };
+        content: never;
       };
     };
   };
@@ -10972,7 +11425,7 @@ export interface operations {
       /** @description Yêu cầu không hợp lệ hoặc đã tồn tại đơn */
       400: {
         content: {
-          "*/*": components["schemas"]["Response"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11000,19 +11453,19 @@ export interface operations {
       /** @description Không có hồ sơ sinh viên hoạt động */
       403: {
         content: {
-          "*/*": components["schemas"]["EligibilityResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có đợt đăng ký nào đang mở */
       409: {
         content: {
-          "*/*": components["schemas"]["EligibilityResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Sinh viên ngoài phạm vi cohort của đợt */
       422: {
         content: {
-          "*/*": components["schemas"]["EligibilityResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11113,7 +11566,7 @@ export interface operations {
       /** @description Mã không đúng, hết hạn, thử thách bị khoá hoặc không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["TwoFactorStatusResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11138,7 +11591,7 @@ export interface operations {
       /** @description Mã không đúng hoặc đã hết hạn */
       400: {
         content: {
-          "*/*": components["schemas"]["TwoFactorStatusResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11163,19 +11616,19 @@ export interface operations {
       /** @description Mật khẩu không đúng */
       400: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Tài khoản chưa bật xác thực hai yếu tố */
       409: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không gửi được email */
       502: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11200,19 +11653,19 @@ export interface operations {
       /** @description Mật khẩu không đúng */
       400: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Tài khoản đã bật xác thực hai yếu tố */
       409: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không gửi được email mã xác thực */
       502: {
         content: {
-          "*/*": components["schemas"]["ChallengeResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11246,6 +11699,12 @@ export interface operations {
    * @description Quản trị viên gửi thông báo đến một hoặc nhiều người dùng
    */
   create_1: {
+    parameters: {
+      header?: {
+        /** @description Khóa chống trùng lặp Idempotency */
+        "Idempotency-Key"?: string;
+      };
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["JsonNode"];
@@ -11256,6 +11715,12 @@ export interface operations {
       201: {
         content: {
           "*/*": components["schemas"]["NotificationResponse"];
+        };
+      };
+      /** @description Idempotency-Key được tái sử dụng với nội dung khác */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11456,7 +11921,7 @@ export interface operations {
    */
   list_8: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang phân trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng tài liệu trên một trang */
@@ -11467,7 +11932,10 @@ export interface operations {
         category?: string;
         /** @description Lọc theo mã thẻ */
         tag?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11500,7 +11968,7 @@ export interface operations {
       /** @description Không tìm thấy tài liệu */
       404: {
         content: {
-          "*/*": components["schemas"]["PublicDocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11528,7 +11996,7 @@ export interface operations {
       /** @description Không tìm thấy tệp đính kèm */
       404: {
         content: {
-          "*/*": components["schemas"]["PublicDocumentAttachmentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11556,7 +12024,7 @@ export interface operations {
       /** @description Không tìm thấy revision */
       404: {
         content: {
-          "*/*": components["schemas"]["PublicDocumentResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -11576,7 +12044,7 @@ export interface operations {
       /** @description Truy vấn thành công danh sách đợt đăng ký */
       200: {
         content: {
-          "*/*": components["schemas"]["RoundResponse"][];
+          "*/*": components["schemas"]["RegistrationRoundResponse"][];
         };
       };
     };
@@ -11587,12 +12055,15 @@ export interface operations {
    */
   getSchedules: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11630,7 +12101,7 @@ export interface operations {
    */
   getSections: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
@@ -11643,7 +12114,10 @@ export interface operations {
         courseId?: string;
         /** @description Từ khóa tìm kiếm theo mã lớp, môn học hoặc giảng viên */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11681,10 +12155,13 @@ export interface operations {
    */
   getMyGradingSections: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã học kỳ (tùy chọn) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11702,10 +12179,13 @@ export interface operations {
    */
   getMySchedule: {
     parameters: {
-      query: {
+      query?: {
         /** @description Mã học kỳ (tùy chọn) */
         semesterId?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11857,14 +12337,17 @@ export interface operations {
    */
   getSemesters: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Từ khóa tìm kiếm theo tên học kỳ, loại hoặc năm học */
         search?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -11995,19 +12478,25 @@ export interface operations {
       /** @description Dữ liệu cấu hình không hợp lệ hoặc vượt quá dung lượng cho phép */
       400: {
         content: {
-          "application/json": string;
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "application/json": string;
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền quản trị */
       403: {
         content: {
-          "application/json": string;
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cấu hình đã được người khác thay đổi; tải lại trước khi sửa */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12018,14 +12507,17 @@ export interface operations {
    */
   getStudents: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số trang */
         page?: number;
         /** @description Số lượng bản ghi mỗi trang */
         limit?: number;
         /** @description Trạng thái học vụ (ACTIVE) — giá trị khác trả về 400 */
         status?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -12038,7 +12530,7 @@ export interface operations {
       /** @description Trạng thái học vụ không hợp lệ (chỉ nhận ACTIVE) */
       400: {
         content: {
-          "*/*": components["schemas"]["StudentListResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12083,13 +12575,13 @@ export interface operations {
       /** @description Tin nhắn không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["ChatResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực danh tính */
       401: {
         content: {
-          "*/*": components["schemas"]["ChatResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12147,6 +12639,10 @@ export interface operations {
     responses: {
       /** @description Lấy danh sách phiên hội thoại thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Conversation"][];
         };
@@ -12210,6 +12706,10 @@ export interface operations {
     responses: {
       /** @description Lấy lịch sử tin nhắn thành công */
       200: {
+        headers: {
+          /** @description Cursor for the next page */
+          "X-Next-Cursor"?: string;
+        };
         content: {
           "*/*": components["schemas"]["Message"][];
         };
@@ -12341,19 +12841,19 @@ export interface operations {
       /** @description Chưa đủ điều kiện chốt điểm */
       400: {
         content: {
-          "*/*": components["schemas"]["TopicResult"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["TopicResult"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền chốt điểm */
       403: {
         content: {
-          "*/*": components["schemas"]["TopicResult"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12381,13 +12881,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền truy cập */
       403: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12420,19 +12920,19 @@ export interface operations {
       /** @description Điểm số không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền chấm điểm */
       403: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12483,19 +12983,19 @@ export interface operations {
       /** @description Dữ liệu không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền thực hiện */
       403: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12523,13 +13023,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền thực hiện */
       403: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12560,19 +13060,19 @@ export interface operations {
       /** @description Dữ liệu không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền thực hiện */
       403: {
         content: {
-          "*/*": components["schemas"]["CouncilResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12598,19 +13098,19 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["DeanOverviewResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không phải Trưởng khoa hoặc thiếu hồ sơ giảng viên đang hoạt động */
       403: {
         content: {
-          "*/*": components["schemas"]["DeanOverviewResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không tìm thấy đợt khóa luận */
       404: {
         content: {
-          "*/*": components["schemas"]["DeanOverviewResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12644,13 +13144,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["GroupResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền truy cập */
       403: {
         content: {
-          "*/*": components["schemas"]["GroupResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12697,13 +13197,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["GroupResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có hồ sơ sinh viên/giảng viên */
       403: {
         content: {
-          "*/*": components["schemas"]["GroupResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12729,7 +13229,7 @@ export interface operations {
       /** @description Không tìm thấy nhóm với UUID tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["GroupResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -12911,7 +13411,7 @@ export interface operations {
       content: {
         "multipart/form-data": {
           /** Format: binary */
-          file: string;
+          file?: string;
           note?: string;
           title?: string;
         };
@@ -12986,13 +13486,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["ProgressResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chỉ sinh viên mới có quyền xem tiến độ cá nhân */
       403: {
         content: {
-          "*/*": components["schemas"]["ProgressResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13018,7 +13518,7 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["StudentResultRow"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13038,13 +13538,13 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["LecturerWorkload"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chỉ giảng viên mới có quyền truy cập */
       403: {
         content: {
-          "*/*": components["schemas"]["LecturerWorkload"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13257,8 +13757,8 @@ export interface operations {
     };
   };
   /**
-   * Công bố điểm và kết quả bảo vệ khóa luận
-   * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên xem điểm đánh giá chính thức
+   * Công bố kết quả khóa luận
+   * @description Chuyển đợt sang RESULTS_PUBLISHED để sinh viên tra cứu kết quả khóa luận
    */
   publishResults: {
     parameters: {
@@ -13273,6 +13773,24 @@ export interface operations {
         content: {
           "*/*": components["schemas"]["RoundResponse"];
         };
+      };
+    };
+  };
+  /**
+   * Gửi lại thông báo kết quả khóa luận
+   * @description Gửi lại thông báo hộp thư cho một đợt đã công bố kết quả; thông báo trùng của cùng người nhận không được tạo thêm
+   */
+  retryPublishedResultsNotifications: {
+    parameters: {
+      path: {
+        /** @description Mã UUID của đợt */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        content: never;
       };
     };
   };
@@ -13301,30 +13819,66 @@ export interface operations {
       };
     };
   };
+  /**
+   * Báo cáo của đợt
+   * @description Trả về mảng báo cáo đã được phân quyền; nếu không truyền page/limit, tối đa 100 dòng được trả về. Thêm page/limit để phân trang kèm X-Total-Count.
+   */
   listReportsByRound: {
     parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy tối đa 100 dòng đầu */
+        limit?: number;
+      };
       path: {
         id: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Báo cáo đã được phân quyền */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ReportResponse"][];
         };
       };
     };
   };
+  /**
+   * Kho báo cáo của đợt
+   * @description Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web
+   */
   listRepository: {
     parameters: {
+      query?: {
+        /** @description Từ khóa tìm kiếm trên kho báo cáo (chỉ một giá trị); so khớp không dấu, không phân biệt hoa thường */
+        search?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
       path: {
         id: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Kho báo cáo */
       200: {
+        headers: {
+          /** @description Số báo cáo đã phân quyền có tên tệp khác rỗng, không phụ thuộc search */
+          "X-Archive-File-Count"?: number;
+          /** @description Tổng số báo cáo đã phân quyền của đợt, không phụ thuộc search */
+          "X-Archive-Total-Count"?: number;
+          /** @description Số báo cáo đã phân quyền có URL khác rỗng, không phụ thuộc search */
+          "X-Archive-Url-Count"?: number;
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RepositoryReportResponse"][];
         };
@@ -13348,7 +13902,7 @@ export interface operations {
   };
   /**
    * Lấy danh sách đề tài theo đợt khóa luận
-   * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên
+   * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên. Thêm search để lọc đúng như trang danh mục; khi có page/limit trả thêm X-Topic-Total-Count (tổng trước khi lọc).
    */
   list_1: {
     parameters: {
@@ -13357,6 +13911,8 @@ export interface operations {
         roundId: string;
         /** @description Trạng thái đề tài (PUBLISHED, APPROVED, DRAFT...) */
         status?: "DRAFT" | "PUBLISHED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+        /** @description Từ khoá lọc theo đúng ngữ nghĩa trang danh mục; bỏ trống hoặc 'all' là không lọc */
+        search?: string;
         /** @description Trang bắt đầu từ 0; cần đi cùng limit */
         page?: number;
         /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
@@ -13367,6 +13923,8 @@ export interface operations {
       /** @description Truy xuất danh sách đề tài thành công */
       200: {
         headers: {
+          /** @description Số đề tài người gọi được xem trước khi áp dụng search (chỉ khi có page/limit) */
+          "X-Topic-Total-Count"?: number;
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
           "X-Total-Count"?: number;
         };
@@ -13374,10 +13932,10 @@ export interface operations {
           "*/*": components["schemas"]["TopicResponse"][];
         };
       };
-      /** @description Tham số roundId hoặc page/limit không hợp lệ */
+      /** @description Tham số roundId, search hoặc page/limit không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["TopicResponse"][];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13418,7 +13976,7 @@ export interface operations {
       /** @description Không tìm thấy đề tài với UUID tương ứng */
       404: {
         content: {
-          "*/*": components["schemas"]["TopicResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13480,11 +14038,15 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Topic report */
       200: {
         content: {
           "*/*": components["schemas"]["ReportResponse"];
         };
+      };
+      /** @description No report is available for this topic. */
+      204: {
+        content: never;
       };
     };
   };
@@ -13516,25 +14078,19 @@ export interface operations {
       /** @description Dữ liệu không hợp lệ */
       400: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không có quyền thực hiện */
       403: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13560,19 +14116,19 @@ export interface operations {
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không phải giảng viên phản biện được phân công */
       403: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa có điểm phản biện */
       404: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13603,19 +14159,19 @@ export interface operations {
       /** @description Điểm số không hợp lệ */
       400: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Chưa xác thực */
       401: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Không phải giảng viên phản biện được phân công */
       403: {
         content: {
-          "*/*": components["schemas"]["ScoreResponse"];
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13663,7 +14219,7 @@ export interface operations {
    */
   list: {
     parameters: {
-      query: {
+      query?: {
         /** @description Số thứ tự trang (bắt đầu từ 1) */
         page?: number;
         /** @description Số lượng bản ghi trên một trang */
@@ -13674,7 +14230,10 @@ export interface operations {
         search?: string;
         /** @description Bộ lọc vai trò hệ thống (STUDENT, LECTURER, ADMIN, TRUONG_KHOA, SUPER_ADMIN) */
         role?: string;
-        queryParameters: components["schemas"]["MultiValueMapStringString"];
+        /** @description Optional free-form map of query parameter names to string values. */
+        queryParameters?: {
+          [key: string]: string;
+        };
       };
     };
     responses: {
@@ -13689,9 +14248,7 @@ export interface operations {
       /** @description Tham số truy vấn không được hỗ trợ hoặc vai trò lọc không hợp lệ */
       400: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13718,9 +14275,7 @@ export interface operations {
       /** @description Dữ liệu đầu vào không hợp lệ hoặc email đã tồn tại */
       400: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13748,9 +14303,7 @@ export interface operations {
       /** @description Không tìm thấy người dùng */
       404: {
         content: {
-          "*/*": {
-            [key: string]: unknown;
-          };
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -13936,11 +14489,9 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
-      200: {
-        content: {
-          "*/*": Record<string, never>;
-        };
+      /** @description Redirects the browser to the configured surface. */
+      302: {
+        content: never;
       };
     };
   };
@@ -13961,11 +14512,9 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
-      200: {
-        content: {
-          "*/*": Record<string, never>;
-        };
+      /** @description Redirects the browser to the identity provider. */
+      302: {
+        content: never;
       };
     };
   };

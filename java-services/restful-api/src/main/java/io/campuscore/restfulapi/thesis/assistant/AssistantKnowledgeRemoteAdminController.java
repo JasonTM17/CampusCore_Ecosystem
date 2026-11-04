@@ -83,7 +83,8 @@ public class AssistantKnowledgeRemoteAdminController {
 
     @Operation(summary = "Cập nhật tài liệu tri thức từ xa")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Cập nhật thành công")
+        @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+        @ApiResponse(responseCode = "409", description = "Bản nháp đã thay đổi kể từ lần đọc gần nhất")
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")

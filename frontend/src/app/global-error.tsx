@@ -3,27 +3,16 @@
 import { useEffect } from 'react';
 import { readLocaleCookie, resolveClientLocale } from '@/i18n/resolve-locale';
 import { stripLocaleFromPathname } from '@/i18n/paths';
+import { ERROR_BOUNDARY_COPY } from '@/lib/error-boundary-copy';
 
 // app/error.tsx cannot catch a crash in the root layout or its providers
 // (I18nProvider/AuthProvider live there) — only global-error can, and it
 // renders without the root layout, so there is no Tailwind stylesheet, no
 // Link context and no React context. Everything below is therefore plain
 // markup with inline styles, and the locale comes straight from the
-// persisted cookie exactly like app/error.tsx does.
-const COPY = {
-  vi: {
-    title: 'Đã xảy ra sự cố không mong muốn',
-    body: 'Cổng học vụ đã ghi nhận lỗi nghiêm trọng. Bạn có thể thử tải lại ứng dụng.',
-    retry: 'Thử lại',
-    home: 'Về trang chủ',
-  },
-  en: {
-    title: 'Something went wrong',
-    body: 'The academic portal logged a critical error. You can try reloading the application.',
-    retry: 'Try again',
-    home: 'Back to home',
-  },
-} as const;
+// persisted cookie exactly like app/error.tsx does. The copy itself lives in
+// a plain module for the same reason: the dictionary provider is one of the
+// things that may have crashed.
 
 function readLocale(): 'vi' | 'en' {
   if (typeof document === 'undefined') return 'vi';
@@ -45,7 +34,7 @@ export default function GlobalError({
     console.error('Unhandled application error in the root layout:', error);
   }, [error]);
 
-  const copy = COPY[readLocale()];
+  const copy = ERROR_BOUNDARY_COPY[readLocale()];
 
   return (
     <html lang={readLocale()}>

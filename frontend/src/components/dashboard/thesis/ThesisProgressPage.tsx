@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Clock3, FileText, UsersRound } from 'lucide-react';
+import { Check, Clock3, FileText, Minus, UsersRound } from 'lucide-react';
 import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
@@ -28,12 +29,14 @@ const PROGRESS_MILESTONES = [
 export default function ThesisProgressPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
   const { locale, messages } = useI18n();
+  const progressCopy = locale === 'vi' ? thesisWorkflowVi.progress : thesisWorkflowEn.progress;
   const isStudent = Boolean(user?.roles?.includes('STUDENT'));
   const workspace = useThesisWorkspace('', { topicsEnabled: false, groupsEnabled: false });
   const selectedRound = workspace.selectedRound;
   const [progress, setProgress] = useState<ThesisProgressResponse | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
   const [progressError, setProgressError] = useState('');
+  const [progressReloadToken, setProgressReloadToken] = useState(0);
 
   useEffect(() => {
     if (!isStudent || !selectedRound?.id) {
@@ -60,7 +63,7 @@ export default function ThesisProgressPage() {
     return () => {
       cancelled = true;
     };
-  }, [isStudent, messages.thesis.loadFailed, selectedRound?.id]);
+  }, [isStudent, messages.thesis.loadFailed, progressReloadToken, selectedRound?.id]);
 
   if (authLoading) {
     return <LoadingState label={messages.thesis.loading} />;
@@ -106,10 +109,23 @@ export default function ThesisProgressPage() {
           eyebrow={<SectionEyebrow>{messages.thesis.navigation.progress}</SectionEyebrow>}
           title={messages.thesis.progressTitle}
           description={messages.thesis.progressDescription}
+          actions={
+            <LinkButton href="/dashboard/thesis" variant="outline">
+              {messages.thesis.backToWorkspace}
+            </LinkButton>
+          }
+        />
+        <Select
+          label={messages.thesis.selectRound}
+          value={workspace.selectedRoundId}
+          onChange={(event) => workspace.setSelectedRoundId(event.target.value)}
+          aria-label={messages.thesis.selectRound}
+          options={workspace.rounds.map((round) => ({ value: round.id, label: round.name }))}
         />
         <ErrorState
           title={messages.thesis.loadFailed}
           description={progressError || messages.thesis.loadFailed}
+          onRetry={() => setProgressReloadToken((token) => token + 1)}
         />
       </div>
     );
@@ -117,6 +133,7 @@ export default function ThesisProgressPage() {
 
   const progressIndex = Math.max(PROGRESS_MILESTONES.indexOf(progress.currentMilestone), 0);
   const completedMilestones = new Set(progress.completedMilestones);
+  const skippedMilestones = new Set(progress.skippedMilestones ?? []);
   const hasGroup = progress.participationState === 'PARTICIPATING';
   const attentionMessage = progress.attentionState === 'NOT_PARTICIPATING'
     ? messages.thesis.progressNotParticipating
@@ -130,7 +147,9 @@ export default function ThesisProgressPage() {
           ? messages.thesis.progressGroupRejected
           : progress.attentionState === 'GROUP_CANCELLED'
             ? messages.thesis.progressGroupCancelled
-            : '';
+            : progress.attentionState === 'NOT_QUALIFIED'
+              ? messages.thesis.results.notQualified
+              : '';
 
   return (
     <div className="space-y-8">
@@ -167,6 +186,7 @@ export default function ThesisProgressPage() {
         <CardContent className="space-y-4">
           {messages.thesis.progressSteps.map((step, index) => {
             const completed = completedMilestones.has(PROGRESS_MILESTONES[index]);
+            const skipped = skippedMilestones.has(PROGRESS_MILESTONES[index]);
             const current = progressIndex === index;
             return (
               <div key={step} className="flex items-start gap-4">
@@ -181,7 +201,7 @@ export default function ThesisProgressPage() {
                           : 'border-border bg-card text-muted-foreground',
                     )}
                   >
-                    {completed ? <Check className="h-4 w-4" /> : index + 1}
+                    {completed ? <Check className="h-4 w-4" /> : skipped ? <Minus className="h-4 w-4" /> : index + 1}
                   </div>
                   {index < messages.thesis.progressSteps.length - 1 ? (
                     <div className={cn('mt-2 h-8 w-px', completed ? 'bg-primary' : 'bg-border')} />
@@ -190,6 +210,9 @@ export default function ThesisProgressPage() {
                 <div className="min-w-0 flex-1 pb-4">
                   <p className={cn('font-semibold', current || completed ? 'text-foreground' : 'text-muted-foreground')}>
                     {step}
+                    {skipped ? (
+                      <span className="font-normal"> · {messages.thesis.milestoneNotApplicable}</span>
+                    ) : null}
                   </p>
                   {current ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{messages.thesis.roundStatus}: {workspace.statusLabel(progress.roundStatus)}</p> : null}
                 </div>
@@ -225,7 +248,7 @@ export default function ThesisProgressPage() {
               <div>
                 <p className="font-semibold text-foreground">{messages.thesis.groupsTitle}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {progress.memberCount} {locale === 'vi' ? 'thành viên' : 'members'} · {workspace.statusLabel(progress.userReportedGroupStatus || progress.groupStatus || 'PENDING')}
+                  {progress.memberCount} {progressCopy.members} · {workspace.statusLabel(progress.userReportedGroupStatus || progress.groupStatus || 'PENDING')}
                 </p>
                 {progress.topicTitle ? <p className="mt-1 text-sm text-muted-foreground">{progress.topicTitle}</p> : null}
               </div>

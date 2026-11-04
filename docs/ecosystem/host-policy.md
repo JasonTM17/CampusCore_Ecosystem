@@ -1,5 +1,9 @@
 # Host policy — Browser BFF, host isolation và SSO xuyên miền (P05)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Các host `*.campusute.io.vn` dưới đây là **thiết kế host đích tương lai**; local quick start:
+> [README.md](../../README.md#quick-start-local).
+
 Contract implementation của ADR-B phần browser surface (selected-design §ADR-B,
 §trust boundaries). P04 đã có identity authority (`identity-contract.md`); P05
 thêm **browser-facing BFF lane**: mỗi host là confidential OIDC client riêng,
@@ -17,7 +21,7 @@ preview SSO: `www` (portal) + `learn` (dummy protected route) + `apply`
 Single source server-side; frontend `src/lib/surfaces.ts` là projection đọc
 config cùng shape (không tự khai client).
 
-| Surface | Host production | Host local preview | Mode | OIDC client |
+| Surface | Host production (future) | Host local preview | Mode | OIDC client |
 | --- | --- | --- | --- | --- |
 | `apex` | `campusute.io.vn` | `apex.localhost` | redirect→portal, legacy lane | — |
 | `portal` | `www.campusute.io.vn` | `portal.localhost` | BFF | `cu-portal` |
@@ -31,8 +35,8 @@ config cùng shape (không tự khai client).
 `portal/learn/apply.localhost:3102` (cùng Next HTTPS dev, phân biệt Host),
 `id.localhost:PORT` → TLS terminator → Java, `apex/news/docs.localhost` → Next.
 
-**Surface resolution (KM-H2):** Host header của caller **không đủ** — prod là
-Vercel→Render, custom host Java chỉ có `id`/`api`, `Host: www.campusute.io.vn`
+**Surface resolution (KM-H2):** Host header của caller **không đủ** — ở topology
+go-live dự kiến (edge proxy → Java), custom host Java chỉ có `id`/`api`, `Host: www.campusute.io.vn`
 không tới được Java BFF. Nên Next edge proxy (điểm duy nhất biết public host)
 resolve surface từ Host, strip mọi `x-campuscore-*` do caller đưa, rồi set
 `x-campuscore-surface: <surface>` + `x-campuscore-scheme: https` kèm
@@ -100,16 +104,24 @@ surface resolution theo §1:
   `{ userId, roles, surface, expiresAt, csrfToken }` + `no-store`. Không
   token nào trong body.
 - `POST /session/logout` — CSRF triple-check (§4) → **đọc `id_token`
-  qua `findById(authorization_id)` (decrypt) TRƯỚC khi revoke** (KM-M5) →
-  revoke `bff_session` (`revoked_at`) → `revokeClientGrants` → trả
-  `{ logoutUrl }` = id `/connect/logout?id_token_hint&
-  post_logout_redirect_uri={base}/session/logged-out` → browser full-page.
-  Idempotent: session đã revoked → trả logoutUrl với hint null → id logout
-  vẫn chạy (xóa `cc_session` id) → về logged-out.
+  qua `findById(authorization_id)` dưới User lock TRƯỚC khi xóa → đánh dấu
+  fence per-client trong reserved row của `bff_transaction` (nonce chứa digest
+  user+client, verifier chứa epoch), rồi xóa mọi `bff_session` của user/client
+  trong cùng transaction. Epoch tăng khi logout bắt đầu; callback và grant-save
+  cùng client bị từ chối trong lúc pending hoặc khi epoch đã đổi. Fence và
+  xóa local rollback cùng nhau nếu transaction lỗi. Grant vẫn còn để SAS xác thực hint
+  → trả `{ logoutUrl }` = id
+  `/connect/logout?id_token_hint&post_logout_redirect_uri={base}/session/logged-out`
+  → browser full-page. SAS chỉ revoke grant/session mirror và xóa cookie
+  central `cc_*` sau khi revoke commit, hint hợp lệ và redirect đã đăng ký.
+  Nếu revoke lỗi, grant/session mirror rollback và cookie central được giữ lại,
+  dù handler hiện tại vẫn redirect.
+  Idempotent: session đã revoked/đã bị xóa → URL không chứa hint; local
+  cookie vẫn bị xóa. SAS 7.1 có thể từ chối URL retry thiếu hint.
 - `GET /session/logged-out` — trả landing page metadata (owner của page
   là **Next static route** — endpoint này chỉ là API probe nếu cần; chọn
   Next làm owner — KM-L13).
-- `ANY /bff/api/**` — business proxy (§5).
+- `ANY /bff/api/**` — business proxy (§5). Lỗi do BFF tự sinh trên `/session/*` và `/bff/api/**` (surface/allowlist/CSRF/body-cap/upstream-unreachable) trả JSON có cả `error` và `code` (ví dụ `{"error":"...","code":"..."}`); lỗi nghiệp vụ proxy từ Java API giữ nguyên `ErrorResponse` của upstream — có `code`, không có trường `error`.
 
 Authorization server dùng chung machinery P04: grant BFF nằm trong
 `oauth2_authorization` (`campuscore_identity`), mirror Session + lineage qua
@@ -137,9 +149,9 @@ CREATE TABLE campuscore_identity.bff_session (
 -- indexes: (user_id), (user_id, client_id), (authorization_id), (expires_at)
 CREATE TABLE campuscore_identity.bff_transaction (
   state_hash varchar(64) PRIMARY KEY,
-  tx_id varchar(32) NOT NULL,                -- cookie-name suffix (KM-M6)
-  surface varchar(24) NOT NULL,
-  nonce varchar(64) NOT NULL, verifier varchar(512) NOT NULL,
+  tx_id varchar(32) NOT NULL,                -- cookie suffix or reserved logout fence
+  surface varchar(24) NOT NULL,              -- surface id or pending/cleared fence state
+  nonce varchar(64) NOT NULL, verifier varchar(512) NOT NULL, -- fence nonce is user+client digest; verifier stores epoch
   return_path varchar(300) NOT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at timestamp NOT NULL);
@@ -155,8 +167,10 @@ proxy/NAT làm IP đổi giữa phiên là bình thường; binding cứng tạo
 ### Retention (KM-M8)
 
 `IdentityGrantRetentionJob` mở rộng cùng flag/bounded-batch: delete
-`bff_transaction WHERE expires_at < now` (orphan authorize legs) +
-`bff_session WHERE expires_at < now OR revoked_at < now - grace`.
+`bff_transaction WHERE expires_at < now AND tx_id <> '$logout_pending$'`
+(orphan authorize legs) +
+`bff_session WHERE expires_at < now OR revoked_at < now - grace`. The reserved
+logout row keeps its client epoch after end-session clears its pending state.
 
 ## 4. CSRF model (same-site siblings vẫn cross-origin)
 
@@ -238,6 +252,17 @@ Browser → Next edge (set `x-campuscore-surface` + proxy token) → BFF chain:
    `proxy-authenticate`, `authorization`).
 6. Response pass-through + `Cache-Control: no-store` cho private; không
    bao giờ serialize token ra body.
+   - **Giới hạn body request**: JSON giới hạn ở 1 MB (`MAX_JSON_BODY_BYTES`).
+     Yêu cầu `multipart/form-data` bỏ qua bộ giải mã multipart của servlet
+     ([`BffMultipartConfiguration`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/identity/bff/BffMultipartConfiguration.java))
+     để chuyển nguyên vẹn stream tải lên upstream, với trần kiểm soát từ
+     `spring.servlet.multipart.max-request-size` (`application.yml` đặt 21 MB, tệp
+     tối đa 20 MB). Request vượt trần bị từ chối với
+     413 `REQUEST_BODY_TOO_LARGE`.
+   - **Giới hạn body response upstream**: response từ upstream được đệm có giới
+     hạn theo giá trị lớn hơn giữa `spring.servlet.multipart.max-request-size` và
+     `spring.servlet.multipart.max-file-size` (21 MB theo `application.yml`). Response
+     vượt trần bị từ chối với 502 `UPSTREAM_RESPONSE_TOO_LARGE`.
 
 Allowlist path: `identity.bff.api-allowlist` prefix list — path khác → 404.
 Không proxy `/bff/**`, `/oauth2/**`, `/connect/**`, actuator. Loopback call
@@ -282,8 +307,8 @@ session path vẫn 401, stale cookie trên public path vẫn 401.
 
 ## 7. `id` host surface
 
-Java trên `id.localhost` (TLS terminator dev) / `id.campusute.io.vn` (prod —
-Java custom host trực tiếp): `/oauth2/**`, `/.well-known/**`,
+Java trên `id.localhost` (TLS terminator dev) / `id.campusute.io.vn` (host go-live
+tương lai — Java custom host trực tiếp): `/oauth2/**`, `/.well-known/**`,
 `/connect/logout`, `/login` (minimal HTML form — POST
 `/api/v1/auth/login` qua fetch, success → `continue` allowlisted:
 chỉ `/oauth2/authorize?…` cùng host), `/api/v1/auth/login|refresh|logout|
@@ -297,7 +322,7 @@ password` (central session authority). Response id host:
 | `identity.bff.enabled` | `false` | `/bff/**` → 404; host validation vẫn chạy (apex/news/docs cần routing) nhưng không tạo session |
 | `identity.bff.dev-http` | `false` | cookie không `__Host-`, Secure off — startup **fail** nếu không có profile nào trong `{local, dev, test, e2e, h2}` (prod `persistence` cố ý ngoài danh sách — `IDENTITY_BFF_DEV_HTTP=true` trên prod = refuse boot) |
 | `app.rate-limit.proxy-token` | — | ngoài dev profiles thì **bắt buộc non-empty** khi BFF enabled (startup fail) — không token thì edge-stamped headers không auth được |
-| `NEXT_PUBLIC_BFF_LANE` | `false` | `/api/v1` proxy đi `/bff/api` thay legacy direct |
+| `NEXT_PUBLIC_BFF_LANE` | `true` với surface `mode: bff` (opt-out) | Unset hoặc bất kỳ giá trị nào khác `false` giữ BFF lane; chỉ `false` mới dùng legacy direct. Lane BFF cần `IDENTITY_BFF_ENABLED=true`, nếu không `/bff/api` trả 404. |
 
 Rollback: tắt `identity.bff.enabled` → consumer routes mới 404, portal
 legacy lane sống trong transition window; session đã revoke vẫn revoked
@@ -327,12 +352,13 @@ cho self-signed; VI+EN pass trên portal route):
   terminator cho id; Playwright `ignoreHTTPSErrors`. Thiếu → gate BLOCKED.
 - `apply`: registry entry only — UI P10. `news`: no-session mode — UI P06.
 - docs host CSP riêng hạn chế script — P06. HSTS includeSubDomains — P14.
-- `id_token_hint` chỉ còn hiệu lực khi grant chưa bị delete khác — logout
-  idempotent chấp nhận hint null (id logout endpoint không đòi hint khi
-  cookie `cc_session` còn). Ghi rõ phạm vi "browser không nhận token":
-  access/refresh **không bao giờ** rời server; `id_token` xuất hiện duy
-  nhất bên trong `logoutUrl` (id_token_hint là cơ chế chuẩn RP-initiated
-  logout — nó không phải credential cho `/api/v1`, resource lane đòi
-  `tokenType=access`).
+- Logout xóa session BFF, tăng epoch per-client và giữ grant cùng pending
+  fence chỉ tới lúc SAS chấp nhận `id_token_hint` trong end-session request;
+  SAS hoàn tất revoke grant/session mirror, clear pending bit và xóa cookie
+  central `cc_*`. Fence row giữ epoch sau khi clear, sống qua OAuth2 revoke và
+  retention. Retry sau khi session đã revoked không lấy lại hint, nên SAS 7.1
+  có thể trả 400. `id_token` xuất hiện duy nhất trong
+  `logoutUrl` trả về cho browser; nó không được ghi vào store hay log, không
+  phải credential cho `/api/v1`, resource lane đòi `tokenType=access`.
 - Loopback `/bff/api` là một HTTP hop nội bộ — latency cộng thêm ~1-2ms
   local; honest BFF, resource chain không đổi.

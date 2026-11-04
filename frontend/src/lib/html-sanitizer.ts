@@ -94,11 +94,15 @@ function normalizeForSchemeCheck(value: string): string {
   return value
     .replace(/&#x([0-9a-f]+);?/gi, (_m, hex: string) => {
       const code = Number.parseInt(hex, 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : _m;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _m;
     })
     .replace(/&#(\d+);?/g, (_m, dec: string) => {
       const code = Number.parseInt(dec, 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : _m;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _m;
     })
     .replace(/&(?:amp|lt|gt|quot|apos|nbsp|#39);/gi, (m) => {
       const named: Record<string, string> = {
@@ -171,7 +175,8 @@ function sanitizeAttributes(tag: string, rawAttributes: string): string {
     }
     out += ` ${name}="${value.replace(/"/g, '&quot;').replace(/[\r\n\u0000]/g, '')}"`;
   }
-  if (tag === 'a' && /\btarget="_blank"/.test(out) && !/\brel=/.test(out)) {
+  if (tag === 'a' && /\btarget="_blank"/i.test(out)) {
+    out = out.replace(/\srel="[^"]*"/gi, '');
     out += ' rel="noopener noreferrer"';
   }
   return out;

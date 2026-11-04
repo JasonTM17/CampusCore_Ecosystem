@@ -69,6 +69,8 @@ const vi = {
 
   entryTitle: 'Điểm danh',
   entryDetail: '{n} buổi điểm danh đang mở',
+  entryDetailOne: '{n} buổi điểm danh đang mở',
+  entryError: 'Không tải được buổi điểm danh đang mở',
   entryAction: 'Mở',
   demoTitle: 'Kịch bản mô phỏng',
   scenarios: {
@@ -156,7 +158,9 @@ const en: CheckinCopy = {
   authRecoveryBody: 'Retry to reload check-in sessions, or sign in again if your session has expired.',
 
   entryTitle: 'Check in',
-  entryDetail: '{n} open check-in session(s)',
+  entryDetail: '{n} open check-in sessions',
+  entryDetailOne: '{n} open check-in session',
+  entryError: 'Could not load open check-in sessions',
   entryAction: 'Open',
   demoTitle: 'Simulated scenario',
   scenarios: {

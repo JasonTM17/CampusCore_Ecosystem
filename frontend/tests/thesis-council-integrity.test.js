@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-const root = path.resolve(__dirname, '..');
+const root = process.env.W13_SRC_ROOT
+  ? path.resolve(process.env.W13_SRC_ROOT)
+  : path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 // Render the real module under test with its imports replaced by stubs; the
@@ -20,12 +22,24 @@ function loadModule(relative, aliases = {}) {
     fileName: relative,
   }).outputText;
   const moduleRecord = { exports: {} };
-  const resolve = (name) => Object.prototype.hasOwnProperty.call(aliases, name)
-    ? aliases[name]
-    : require(name);
+  const resolve = (name) => {
+    if (name === '@/lib/safe-url') return safeUrlModule;
+    return Object.prototype.hasOwnProperty.call(aliases, name)
+      ? aliases[name]
+      : require(name);
+  };
   Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
   return moduleRecord.exports;
 }
+
+const safeUrlModule = (() => {
+  const output = ts.transpileModule(read('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+})();
 
 // Execute the actual async page callback, supplying its hook/API dependencies.
 function pageFunction(file, name, dependencies) {
@@ -93,6 +107,7 @@ function loadThesisApi(getImpl) {
       createRequestId: () => 'req-test',
       refreshSessionSingleFlight: async () => {},
     },
+    '@/lib/array-list-page': loadModule('src/lib/array-list-page.ts'),
     '@/lib/assistant-stream-helpers': { CANCEL_REQUEST_TIMEOUT_MS: 1_000 },
     '@/lib/assistant-stream': {
       createAssistantSseParser: () => ({}),
@@ -133,6 +148,7 @@ function councilDetailDeps(api, calls) {
     setTopicReportErrors: record('topicReportErrors'),
     setDraftScores: record('draftScores'),
     setDraftComments: record('draftComments'),
+    COUNCIL_TOPIC_CONCURRENCY: 4,
   };
 }
 
@@ -166,16 +182,20 @@ test('a load that goes stale mid-flight stops before writing or requesting more'
       getTopicReport: async () => { requested.push('report'); return null; },
     }, calls));
   const pending = load(
-    [{ id: 'council', topicIds: ['topic-1', 'topic-2'], members: [] }],
+    [{
+      id: 'council',
+      topicIds: ['topic-1', 'topic-2', 'topic-3', 'topic-4', 'topic-5', 'topic-6'],
+      members: [],
+    }],
     () => current,
   );
-  // First topic's requests are in flight; switching rounds now must prevent
-  // both the state write and the second topic's requests.
+  // The first capped wave is in flight; switching rounds now must prevent both
+  // the state write and every topic the pool has not started yet.
   current = false;
   release();
   await pending;
-  assert.equal(requested.filter((name) => name === 'scores').length, 1,
-    'the stale load must not request the next topic');
+  assert.equal(requested.filter((name) => name === 'scores').length, 4,
+    'the stale load must not request past the in-flight wave');
   assert.deepEqual(calls.calls, [], 'writes after an await must check the predicate first');
 });
 
@@ -211,6 +231,7 @@ function effectDeps(overrides) {
     refreshTopics: async () => {},
     thesisApi: {
       listGroups: async () => [],
+      listGroupsPage: async () => ({ items: [], page: 0, total: 0, totalPages: 1 }),
       listCouncils: async () => [],
       listRoundRepository: async () => [],
     },
@@ -219,13 +240,16 @@ function effectDeps(overrides) {
     setIsRepositoryLoading: calls.record('isRepositoryLoading'),
     setRepositoryReports: calls.record('repositoryReports'),
     setRepositoryError: calls.record('repositoryError'),
+    GROUP_PAGE_LIMIT: 100,
+    supervisedReportsRef: { current: {} },
+    councilDetailsRoundRef: { current: '' },
     ...overrides,
   };
   for (const name of [
-    'setTopics', 'setGroups', 'setViewingTopic', 'setActionError', 'setActionSuccess',
+    'setTopics', 'setGroups', 'setGroupTotal', 'setViewingTopic', 'setActionError', 'setActionSuccess',
     'setCouncils', 'setCouncilScores', 'setCouncilScoreErrors', 'setDraftScores',
     'setDraftComments', 'setTopicSupervisors', 'setTopicReports', 'setTopicReportErrors',
-    'setCouncilLoadError',
+    'setCouncilLoadError', 'setTopicRefreshFailed', 'setSupervisedReports',
   ]) {
     if (!(name in deps)) deps[name] = calls.record(name);
   }
@@ -245,24 +269,50 @@ test('selecting no round clears every council-specific map and draft', () => {
   assert.equal(cleared.get('setCouncilLoadError'), '', 'a previous council load failure must be cleared');
 });
 
-test('the council detail load is invalidated by the effect cleanup', async () => {
-  const { deps, loadCouncilDetailsCalls } = effectDeps({
+test('selecting the defense tab loads council details under a live request identity', async () => {
+  const loadCouncilDetailsCalls = [];
+  const selectedRoundRef = { current: 'round-1' };
+  const councilRequestRef = { current: 1 };
+  const deps = {
+    canLoadStaffRelations: true,
+    lecturerTab: 'defense',
     selectedRoundId: 'round-1',
-    selectedRoundRef: { current: 'round-1' },
-    thesisApi: {
-      listGroups: async () => [],
-      listCouncils: async () => [{ id: 'council', topicIds: ['topic'], members: [] }],
-      listRoundRepository: async () => [],
-    },
-  });
-  const cleanup = pageEffect('app/dashboard/thesis/page.tsx', 'loadWorkspace', deps)();
+    selectedRoundRef,
+    councilRequestRef,
+    councilDetailsRoundRef: { current: '' },
+    visibleCouncils: [{ id: 'council', topicIds: ['topic'], members: [] }],
+    loadCouncilDetails: async (...args) => { loadCouncilDetailsCalls.push(args); },
+  };
+  const effect = pageEffect(
+    'app/dashboard/thesis/page.tsx',
+    "lecturerTab !== 'defense'",
+    deps,
+  );
+  effect();
   await flush();
-  assert.equal(loadCouncilDetailsCalls.length, 1, 'council details were requested for the round');
+  assert.equal(loadCouncilDetailsCalls.length, 1, 'council details were requested for the open tab');
   const isCurrent = loadCouncilDetailsCalls[0][1];
   assert.equal(typeof isCurrent, 'function', 'the loader receives a current-request predicate');
   assert.equal(isCurrent(), true, 'the predicate is live while the round stays selected');
-  cleanup();
-  assert.equal(isCurrent(), false, 'cleanup must invalidate the in-flight load');
+  councilRequestRef.current += 1;
+  assert.equal(isCurrent(), false, 'a newer council request retires the in-flight load');
+});
+
+test('council details stay unloaded while the reader is on another tab', async () => {
+  const loadCouncilDetailsCalls = [];
+  const deps = {
+    canLoadStaffRelations: true,
+    lecturerTab: 'supervision',
+    selectedRoundId: 'round-1',
+    selectedRoundRef: { current: 'round-1' },
+    councilRequestRef: { current: 0 },
+    councilDetailsRoundRef: { current: '' },
+    visibleCouncils: [{ id: 'council', topicIds: ['topic'], members: [] }],
+    loadCouncilDetails: async (...args) => { loadCouncilDetailsCalls.push(args); },
+  };
+  pageEffect('app/dashboard/thesis/page.tsx', "lecturerTab !== 'defense'", deps)();
+  await flush();
+  assert.equal(loadCouncilDetailsCalls.length, 0, 'an unopened defense tab issues no detail reads');
 });
 
 test('a council listing failure surfaces a localized error without failing the workspace', async () => {
@@ -271,6 +321,7 @@ test('a council listing failure surfaces a localized error without failing the w
     selectedRoundRef: { current: 'round-1' },
     thesisApi: {
       listGroups: async () => [{ id: 'group-1' }],
+      listGroupsPage: async () => ({ items: [{ id: 'group-1' }], page: 0, total: 1, totalPages: 1 }),
       listCouncils: async () => { throw new Error('500'); },
       listRoundRepository: async () => [{ id: 'report-1' }],
     },
@@ -296,6 +347,7 @@ test('reloadCouncils retries the listing and hands a live predicate to the detai
     selectedRoundId: 'round-1',
     selectedRoundRef: { current: 'round-1' },
     councilRequestRef,
+    councilDetailsRoundRef: { current: '' },
     canLoadStaffRelations: true,
     messages: { thesis: { loadFailed: 'LOAD_FAILED' } },
     thesisApi: {
@@ -328,6 +380,7 @@ test('a successful initial council listing re-clears the error after writing cou
     selectedRoundRef: { current: 'round-1' },
     thesisApi: {
       listGroups: async () => [],
+      listGroupsPage: async () => ({ items: [], page: 0, total: 0, totalPages: 1 }),
       listCouncils: async () => [{ id: 'council', topicIds: [], members: [] }],
       listRoundRepository: async () => [],
     },
@@ -358,6 +411,7 @@ function staleListingSetup() {
   let listCalls = 0;
   const thesisApi = {
     listGroups: async () => [],
+    listGroupsPage: async () => ({ items: [], page: 0, total: 0, totalPages: 1 }),
     listRoundRepository: async () => [],
     listCouncils: () => {
       listCalls += 1;
@@ -380,6 +434,7 @@ function staleListingSetup() {
     selectedRoundId: 'round-1',
     selectedRoundRef,
     councilRequestRef,
+    councilDetailsRoundRef: { current: '' },
     canLoadStaffRelations: true,
     messages: { thesis: { loadFailed: 'LOAD_FAILED' } },
     thesisApi,
@@ -461,6 +516,7 @@ const uiStubs = {
     LoadingState: () => null,
   },
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+  '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
 };
 
 function loadWorkspaceComponent() {
@@ -473,6 +529,7 @@ function loadWorkspaceComponent() {
     '@/lib/thesis-api': {},
     '@/features/thesis/components/thesis-helpers': helpers,
     '@/lib/thesis-text': thesisText,
+    '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
   }).default;
 }
 
@@ -483,6 +540,9 @@ function loadMessages() {
     '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
     '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
     '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
+    '@/i18n/messages-teaching-pages': loadModule('src/i18n/messages-teaching-pages.ts'),
+    '@/i18n/messages-admin-pages': loadModule('src/i18n/messages-admin-pages.ts'),
+    '@/i18n/messages-student-pages': loadModule('src/i18n/messages-student-pages.ts'),
   }).en;
 }
 
@@ -677,4 +737,31 @@ test('the rendered retry control invokes the page retry handler', () => {
   assert.equal(typeof onRetry, 'function', 'the error state element carries a retry handler');
   onRetry();
   assert.equal(retried, true, 'the rendered retry invokes the page retry handler');
+});
+
+// ---------- W13-DEEPSEEK-WEB-B: council report link safety ----------
+
+test('council defense report links render only absolute http(s) URLs', () => {
+  const workspace = read('src/features/thesis/components/CouncilDefenseWorkspace.tsx');
+  const { isHttpUrl } = loadModule('src/lib/safe-url.ts');
+  for (const safe of ['https://files.example.edu/report.pdf', 'http://localhost:8080/report.pdf']) {
+    assert.equal(isHttpUrl(safe), true, safe);
+  }
+  for (const unsafe of [
+    'javascript:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'mailto:lecturer@example.edu',
+    '/dashboard/thesis',
+    '//evil.example/report.pdf',
+    'not a url',
+  ]) {
+    assert.equal(isHttpUrl(unsafe), false, unsafe);
+  }
+  assert.match(workspace, /import \{ isHttpUrl \} from '@\/lib\/safe-url'/, 'the workspace imports the guard');
+  assert.match(
+    workspace,
+    /topicReports\[tid\]\?\.url \? \([\s\S]*?isHttpUrl\(topicReports\[tid\]\?\.url\) \? \([\s\S]*?<a[\s\S]*?rel="noopener noreferrer"[\s\S]*?<\/a>\s*\) : \([\s\S]*?<span[\s\S]*?pageCopy\.thesisDocumentLabel/,
+    'the report href is gated on an absolute http(s) URL',
+  );
+  assert.match(workspace, /rel="noopener noreferrer"/, 'noopener also closes the window.opener path');
 });

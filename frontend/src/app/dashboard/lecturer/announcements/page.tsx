@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArrowRight,
@@ -51,6 +51,12 @@ import {
   formatAnnouncementSemester,
 } from '@/lib/announcement-presentation';
 import { cn } from '@/lib/utils';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
+import { hasNextPage } from '@/lib/pager';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 type LecturerNoticeCategory =
   | 'ALL'
@@ -62,7 +68,12 @@ type LecturerNoticeCategory =
 type QueueStatusFilter = 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
 
 export default function LecturerAnnouncementsPage() {
-  const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth(['LECTURER']);
+  const auth = useRequireAuth(['LECTURER']);
+  return <LecturerAnnouncementsWorkspace key={auth.user?.id ?? 'anonymous'} auth={auth} />;
+}
+
+function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useRequireAuth> }) {
+  const { user, hasAccess, isLoading: authLoading, isForbidden } = auth;
   const { locale, formatDateTime, messages } = useI18n();
   const lifecycleCopy = messages.content.lifecycle;
   const [items, setItems] = useState<AnnouncementRecord[]>([]);
@@ -88,85 +99,34 @@ export default function LecturerAnnouncementsPage() {
   const [queueItems, setQueueItems] = useState<AnnouncementRecord[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState(false);
-  const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
+  const [queuePage, setQueuePage] = useState(1);
+  const [queueTotalPages, setQueueTotalPages] = useState(1);
+  const [queueLoadingMore, setQueueLoadingMore] = useState(false);
+  const [queueLoadMoreError, setQueueLoadMoreError] = useState(false);
+  const queueMutationRef = useRef<string | null>(null);
+  const [queueMutationKey, setQueueMutationKey] = useState<string | null>(null);
   const [returnTarget, setReturnTarget] = useState<AnnouncementRecord | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const feedEpoch = useRef(createRequestEpoch()).current;
+  const queueEpoch = useRef(createRequestEpoch()).current;
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Giảng viên',
-          title: 'Thông báo Giảng dạy & Nghiên cứu',
-          description:
-            'Cổng thông báo chuyên trách dành cho Cán bộ giảng dạy về kế hoạch đào tạo, lịch coi thi, nhập điểm và nghiên cứu khoa học.',
-          backToDashboard: 'Quay lại trang tổng quan giảng viên',
-          refresh: 'Làm mới',
-          loading: 'Đang tải thông báo',
-          unavailableTitle: 'Thông báo chưa sẵn sàng',
-          emptyTitle: 'Không tìm thấy thông báo phù hợp',
-          emptyDescription:
-            'Không có thông báo nào khớp với bộ lọc hoặc từ khóa tìm kiếm của Thầy/Cô.',
-          recentNotices: 'Bảng Tin Thông Báo Chính Thức',
-          semesterPrefix: 'Học kỳ',
-          sectionPrefix: 'Lớp học phần',
-          loadFailed: 'Hiện chưa thể tải thông báo.',
-          readFull: 'Đọc toàn văn',
-          officialBadge: 'Khoa CNTT & Phòng Đào Tạo',
-          searchPlaceholder: 'Tìm kiếm thông báo nghiệp vụ, khảo thí, đề tài...',
-          filterAll: 'Tất cả thông báo',
-          filterGlobal: '🌐 Thông báo toàn trường',
-          filterLecturerOnly: '👨‍🏫 Nghiệp vụ Giảng viên',
-          filterExamGrades: 'Khảo thí & Sổ điểm',
-          filterResearch: 'NCKH & Đề cương',
-          loadMore: 'Tải thêm thông báo',
-          loadingMore: 'Đang tải thêm…',
-          loadMoreFailed: 'Chưa tải thêm được — nhấn lại để thử.',
-          queueTitle: 'Bài của tôi & hàng chờ duyệt',
-          queueEmpty: 'Chưa có bài nào trong nhóm trạng thái này.',
-          queueLoadFailed: 'Chưa tải được danh sách bài của bạn.',
-          queueOwnBadge: 'Bài của tôi',
-          queueReviewBadge: 'Chờ duyệt',
-          queueCancel: 'Hủy',
-        }
-      : {
-          eyebrow: 'Lecturer area',
-          title: 'Teaching & Research Notices',
-          description:
-            'Dedicated announcement board for faculty members regarding academic planning, exams, grading, and scientific research.',
-          backToDashboard: 'Back to lecturer dashboard',
-          refresh: 'Refresh',
-          loading: 'Loading announcements',
-          unavailableTitle: 'Announcements unavailable',
-          emptyTitle: 'No matching notices found',
-          emptyDescription:
-            'There are no announcements matching your selected category or search keywords.',
-          recentNotices: 'Official Notice Feed',
-          semesterPrefix: 'Semester',
-          sectionPrefix: 'Class',
-          loadFailed: 'Announcements could not be loaded right now.',
-          readFull: 'Read full notice',
-          officialBadge: 'Faculty of IT & Academic Office',
-          searchPlaceholder: 'Search teaching notices, exams, research...',
-          filterAll: 'All notices',
-          filterGlobal: '🌐 Campus-wide',
-          filterLecturerOnly: '👨‍🏫 Faculty dedicated',
-          filterExamGrades: 'Exams & Gradebook',
-          filterResearch: 'Research & Syllabus',
-          loadMore: 'Load more notices',
-          loadingMore: 'Loading more…',
-          loadMoreFailed: 'Could not load more — press again to retry.',
-          queueTitle: 'My notices & review queue',
-          queueEmpty: 'No notices in this status group yet.',
-          queueLoadFailed: 'Your notices could not be loaded.',
-          queueOwnBadge: 'Mine',
-          queueReviewBadge: 'Awaiting review',
-          queueCancel: 'Cancel',
-        };
+  useEffect(() => () => {
+    feedEpoch.invalidate();
+  }, [feedEpoch]);
+
+  useEffect(() => () => {
+    queueEpoch.invalidate();
+  }, [queueEpoch]);
+
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].lecturer;
 
   const fetchFeed = useCallback(async (nextPage = 1) => {
+    const epoch = feedEpoch.begin();
     if (nextPage === 1) {
       setIsLoading(true);
+      setIsLoadingMore(false);
+      setLoadMoreError(false);
       setError('');
     } else {
       setIsLoadingMore(true);
@@ -175,6 +135,7 @@ export default function LecturerAnnouncementsPage() {
 
     try {
       const response = await announcementsApi.getMy({ page: nextPage, limit: 25 });
+      if (!feedEpoch.isCurrent(epoch)) return;
       const data = response.data ?? [];
       // Page 1 replaces the feed; later pages append so the reader keeps what
       // is already on screen. Dedupe by id — offset pagination shifts when a
@@ -187,36 +148,62 @@ export default function LecturerAnnouncementsPage() {
       setTotalPages(Math.max(response.meta?.totalPages ?? 1, 1));
       setPage(nextPage);
     } catch {
+      if (!feedEpoch.isCurrent(epoch)) return;
       if (nextPage === 1) {
         setError(copy.loadFailed);
       } else {
         setLoadMoreError(true);
       }
     } finally {
+      if (!feedEpoch.isCurrent(epoch)) return;
       if (nextPage === 1) {
         setIsLoading(false);
       } else {
         setIsLoadingMore(false);
       }
     }
-  }, [copy.loadFailed]);
+  }, [copy.loadFailed, feedEpoch]);
 
-  const fetchQueue = useCallback(async () => {
-    setQueueLoading(true);
-    setQueueError(false);
+  const fetchQueue = useCallback(async (nextPage = 1) => {
+    const epoch = queueEpoch.begin();
+    if (nextPage === 1) {
+      setQueueLoading(true);
+      setQueueError(false);
+    } else {
+      setQueueLoadingMore(true);
+      setQueueLoadMoreError(false);
+    }
     try {
       const response = await announcementsApi.getAll({
         status: queueStatus,
-        page: 1,
+        page: nextPage,
         limit: 50,
       });
-      setQueueItems(response.data ?? []);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      const data = response.data ?? [];
+      setQueueItems((current) => {
+        if (nextPage === 1) return data;
+        const seen = new Set(current.map((item) => item.id));
+        return [...current, ...data.filter((item) => !seen.has(item.id))];
+      });
+      setQueueTotalPages(Math.max(response.meta?.totalPages ?? 1, 1));
+      setQueuePage(nextPage);
     } catch {
-      setQueueError(true);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      if (nextPage === 1) {
+        setQueueError(true);
+      } else {
+        setQueueLoadMoreError(true);
+      }
     } finally {
-      setQueueLoading(false);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      if (nextPage === 1) {
+        setQueueLoading(false);
+      } else {
+        setQueueLoadingMore(false);
+      }
     }
-  }, [queueStatus]);
+  }, [queueEpoch, queueStatus]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -225,12 +212,26 @@ export default function LecturerAnnouncementsPage() {
     }
   }, [fetchFeed, fetchQueue, hasAccess]);
 
+  const beginQueueMutation = (actionKey: string) => {
+    if (queueMutationRef.current !== null) return false;
+    queueMutationRef.current = actionKey;
+    setQueueMutationKey(actionKey);
+    return true;
+  };
+
+  const finishQueueMutation = (actionKey: string) => {
+    if (queueMutationRef.current !== actionKey) return;
+    queueMutationRef.current = null;
+    setQueueMutationKey(null);
+  };
+
   /** DRAFT -> IN_REVIEW (own posts) or IN_REVIEW -> PUBLISHED (others'). */
   const runQueueWorkflow = async (
     item: AnnouncementRecord,
     action: 'submit' | 'approve',
   ) => {
-    setQueueBusyId(item.id);
+    const actionKey = `${action}:${item.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     try {
       if (action === 'submit') {
         await announcementsApi.submit(item.id);
@@ -242,12 +243,10 @@ export default function LecturerAnnouncementsPage() {
       await fetchQueue();
     } catch {
       toast.error(
-        locale === 'vi'
-          ? 'Không thể chuyển trạng thái thông báo. Vui lòng thử lại.'
-          : 'Could not transition the notice. Please try again.',
+        copy.transitionFailed,
       );
     } finally {
-      setQueueBusyId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -257,7 +256,8 @@ export default function LecturerAnnouncementsPage() {
       toast.error(lifecycleCopy.returnReasonRequired);
       return;
     }
-    setQueueBusyId(returnTarget.id);
+    const actionKey = `return:${returnTarget.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     try {
       await announcementsApi.returnForRework(returnTarget.id, { reason: returnReason.trim() });
       toast.success(lifecycleCopy.returned);
@@ -266,12 +266,10 @@ export default function LecturerAnnouncementsPage() {
       await fetchQueue();
     } catch {
       toast.error(
-        locale === 'vi'
-          ? 'Không thể trả thông báo về nháp. Vui lòng thử lại.'
-          : 'Could not return the notice to draft. Please try again.',
+        copy.returnFailed,
       );
     } finally {
-      setQueueBusyId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -287,27 +285,29 @@ export default function LecturerAnnouncementsPage() {
   }, [filterActive, isLoading, isLoadingMore, loadMoreError, page, totalPages, fetchFeed]);
 
   const handleArchiveOwn = async (announcement: AnnouncementRecord) => {
-    const isVi = locale === 'vi';
-    const confirmed = await confirm({
-      title: isVi ? 'Lưu trữ thông báo?' : 'Archive this notice?',
-      message: isVi
-        ? 'Thông báo sẽ được đưa vào lưu trữ và sinh viên không còn thấy trên bảng tin.'
-        : 'The notice will be archived and students will no longer see it in the feed.',
-      confirmText: isVi ? 'Lưu trữ' : 'Archive',
-      cancelText: isVi ? 'Hủy' : 'Cancel',
-      variant: 'destructive',
-    });
-    if (!confirmed) return;
-    setArchivingId(announcement.id);
+    const actionKey = `archive:${announcement.id}`;
+    if (!beginQueueMutation(actionKey)) return;
     try {
-      await announcementsApi.delete(announcement.id);
-      toast.success(isVi ? 'Đã lưu trữ thông báo' : 'Notice archived');
-      await fetchFeed(1);
-      await fetchQueue();
-    } catch {
-      toast.error(isVi ? 'Không thể lưu trữ thông báo. Vui lòng thử lại.' : 'Could not archive the notice. Please try again.');
+      const confirmed = await confirm({
+        title: copy.archiveTitle,
+        message: copy.archiveMessage,
+        confirmText: copy.archiveConfirm,
+        cancelText: copy.archiveCancel,
+        variant: 'destructive',
+      });
+      if (!confirmed) return;
+      setArchivingId(announcement.id);
+      try {
+        await announcementsApi.delete(announcement.id);
+        toast.success(copy.archived);
+        await fetchFeed(1);
+        await fetchQueue();
+      } catch {
+        toast.error(copy.archiveFailed);
+      }
     } finally {
       setArchivingId(null);
+      finishQueueMutation(actionKey);
     }
   };
 
@@ -370,7 +370,7 @@ export default function LecturerAnnouncementsPage() {
           <div className="flex flex-wrap gap-3">
             <Button type="button" onClick={() => setIsComposerOpen(true)}>
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              {locale === 'vi' ? 'Soạn thông báo cho sinh viên' : 'Draft student announcement'}
+              {copy.draftAction}
             </Button>
             <LinkButton
               href="/dashboard/lecturer"
@@ -477,7 +477,11 @@ export default function LecturerAnnouncementsPage() {
               {copy.loading}
             </div>
           ) : queueError ? (
-            <p className="py-4 text-sm text-destructive">{copy.queueLoadFailed}</p>
+            <ErrorState
+              title={copy.unavailableTitle}
+              description={copy.queueLoadFailed}
+              onRetry={() => void fetchQueue()}
+            />
           ) : queueItems.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">{copy.queueEmpty}</p>
           ) : (
@@ -496,9 +500,9 @@ export default function LecturerAnnouncementsPage() {
                         <span className={cn(
                           'rounded-md px-2.5 py-0.5 text-xs font-semibold border',
                           item.status === 'PUBLISHED'
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400'
+                            ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400'
                             : item.status === 'IN_REVIEW'
-                              ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400'
+                              ? 'bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400'
                               : item.status === 'ARCHIVED'
                                 ? 'bg-secondary text-muted-foreground border-border/60'
                                 : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
@@ -528,9 +532,9 @@ export default function LecturerAnnouncementsPage() {
                           onClick={() => void runQueueWorkflow(item, 'submit')}
                           aria-label={`${lifecycleCopy.actions.submit}: ${item.title}`}
                           title={lifecycleCopy.actions.submit}
-                          disabled={queueBusyId === item.id}
+                          disabled={queueMutationKey === `submit:${item.id}`}
                         >
-                          {queueBusyId === item.id
+                          {queueMutationKey === `submit:${item.id}`
                             ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                             : <Send className="h-4 w-4" aria-hidden="true" />}
                         </Button>
@@ -544,7 +548,7 @@ export default function LecturerAnnouncementsPage() {
                             onClick={() => void runQueueWorkflow(item, 'approve')}
                             aria-label={`${lifecycleCopy.actions.approve}: ${item.title}`}
                             title={lifecycleCopy.actions.approve}
-                            disabled={queueBusyId === item.id}
+                            disabled={queueMutationKey === `approve:${item.id}`}
                           >
                             <CheckCircle className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -558,7 +562,7 @@ export default function LecturerAnnouncementsPage() {
                             }}
                             aria-label={`${lifecycleCopy.actions.returnForRework}: ${item.title}`}
                             title={lifecycleCopy.actions.returnForRework}
-                            disabled={queueBusyId === item.id}
+                            disabled={queueMutationKey === `return:${item.id}`}
                           >
                             <Undo2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -568,13 +572,13 @@ export default function LecturerAnnouncementsPage() {
                         <button
                           type="button"
                           onClick={() => void handleArchiveOwn(item)}
-                          disabled={archivingId === item.id}
+                          disabled={queueMutationKey === `archive:${item.id}`}
                           className="inline-flex items-center gap-1.5 px-2 text-xs font-bold text-destructive/80 hover:text-destructive hover:underline disabled:opacity-50"
                         >
                           <Archive className="h-3.5 w-3.5" />
                           {archivingId === item.id
-                            ? (locale === 'vi' ? 'Đang lưu trữ…' : 'Archiving…')
-                            : (locale === 'vi' ? 'Lưu trữ' : 'Archive')}
+                            ? copy.archiving
+                            : copy.archiveAction}
                         </button>
                       ) : null}
                     </div>
@@ -583,6 +587,26 @@ export default function LecturerAnnouncementsPage() {
               );
             })
           )}
+          {!queueLoading && !queueError && hasNextPage(queuePage, queueTotalPages) ? (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void fetchQueue(queuePage + 1)}
+                disabled={queueLoadingMore}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 motion-reduce:animate-none ${queueLoadingMore ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                {queueLoadingMore ? copy.loadingMore : copy.loadMore}
+              </Button>
+              {queueLoadMoreError ? (
+                <p className="text-xs text-destructive" role="alert">{copy.loadMoreFailed}</p>
+              ) : null}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -650,7 +674,7 @@ export default function LecturerAnnouncementsPage() {
                       </span>
                       {announcementIsUpdated(announcement) ? (
                         <span className="rounded-md bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                          {locale === 'vi' ? 'Đã cập nhật' : 'Updated'}
+                          {copy.updated}
                         </span>
                       ) : null}
                     </div>
@@ -686,13 +710,13 @@ export default function LecturerAnnouncementsPage() {
                               e.stopPropagation();
                               void handleArchiveOwn(announcement);
                             }}
-                            disabled={archivingId === announcement.id}
+                            disabled={queueMutationKey === `archive:${announcement.id}`}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-destructive/80 hover:text-destructive hover:underline disabled:opacity-50"
                           >
                             <Archive className="h-3.5 w-3.5" />
                             {archivingId === announcement.id
-                              ? (locale === 'vi' ? 'Đang lưu trữ…' : 'Archiving…')
-                              : (locale === 'vi' ? 'Lưu trữ' : 'Archive')}
+                              ? copy.archiving
+                              : copy.archiveAction}
                           </button>
                         ) : null}
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary group-hover:underline">
@@ -745,13 +769,15 @@ export default function LecturerAnnouncementsPage() {
               void submitReturn();
             }}
           >
-            <p className="text-sm leading-6 text-muted-foreground">
+            <label htmlFor="announcement-return-reason" className="block text-sm leading-6 text-muted-foreground">
               {lifecycleCopy.returnReasonLabel}
-            </p>
+            </label>
             <p className="rounded-md border border-border/70 bg-secondary/25 p-4 font-semibold text-foreground">
               {returnTarget.title}
             </p>
             <Textarea
+              id="announcement-return-reason"
+              aria-label={lifecycleCopy.returnReasonLabel}
               autoFocus
               value={returnReason}
               onChange={(event) => setReturnReason(event.target.value)}
@@ -764,11 +790,11 @@ export default function LecturerAnnouncementsPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setReturnTarget(null)}
-                disabled={queueBusyId === returnTarget.id}
+                disabled={queueMutationKey === `return:${returnTarget.id}`}
               >
                 {copy.queueCancel}
               </Button>
-              <Button type="submit" disabled={queueBusyId === returnTarget.id}>
+              <Button type="submit" disabled={queueMutationKey === `return:${returnTarget.id}`}>
                 {lifecycleCopy.actions.returnForRework}
               </Button>
             </div>

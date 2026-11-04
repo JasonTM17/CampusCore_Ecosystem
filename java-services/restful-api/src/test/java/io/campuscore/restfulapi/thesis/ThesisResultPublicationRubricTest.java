@@ -8,11 +8,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
 import io.campuscore.restfulapi.mail.service.EmailService;
+import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisNotificationService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,6 +73,9 @@ class ThesisResultPublicationRubricTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private MailDispatchQueue mailDispatch;
 
     @MockitoBean
     private EmailService emailService;
@@ -139,6 +144,7 @@ class ThesisResultPublicationRubricTest {
     @Test
     void committedPublicationSendsHtmlEmailToEveryDistinctEligibleMemberOfOnlyThatRound() {
         var response = mutations.publishResults(roundId, admin());
+        awaitMailIdle();
         Observation actual = observe();
         printObservation("committed-publication", actual);
 
@@ -183,6 +189,7 @@ class ThesisResultPublicationRubricTest {
             printObservation("before-outer-commit", beforeCommit.get());
         });
         printObservation("after-outer-commit", observe());
+        awaitMailIdle();
 
         assertSoftly(softly -> {
             softly.assertThat(beforeCommit.get().inboxUsers()).as("no inbox events before the outer commit").isEmpty();
@@ -194,6 +201,7 @@ class ThesisResultPublicationRubricTest {
     @Test
     void repeatedPublicationReturns409WithoutAdditionalEvents() {
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
         Observation beforeRepeat = observe();
         assertThat(beforeRepeat.inboxUsers()).containsExactlyElementsOf(EXPECTED_USERS);
 
@@ -202,6 +210,7 @@ class ThesisResultPublicationRubricTest {
                     assertThat(failure.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(failure.getCode()).isEqualTo("ROUND_STATE_CONFLICT");
                 });
+        awaitMailIdle();
 
         Observation actual = observe();
         printObservation("after-repeated-publication-409", actual);
@@ -294,6 +303,12 @@ class ThesisResultPublicationRubricTest {
     private Observation observe() {
         return new Observation(jdbc.queryForList("SELECT user_id FROM notifications.notification ORDER BY user_id", String.class),
                 deliveries.size());
+    }
+
+    private void awaitMailIdle() {
+        assertThat(mailDispatch.awaitIdle(Duration.ofSeconds(20)))
+                .as("mail dispatch queue drained")
+                .isTrue();
     }
 
     private void printObservation(String checkpoint, Observation actual) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
 import {
@@ -19,9 +19,11 @@ import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
+import { correctEmptyPage, createSequenceGuard } from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof admissionsMessages)['vi'];
+const PAGE_SIZE = 20;
 
 const STATUS_TONE: Record<ApplicationStatus, StatusTone> = {
   DRAFT: 'neutral',
@@ -49,6 +51,16 @@ function friendlyError(copy: Copy, error: unknown): string {
   return copy.failed;
 }
 
+export function canActOnDetail(detailId: string | null, selectedId: string): boolean {
+  return detailId !== null && detailId !== '' && detailId === selectedId;
+}
+
+export function cleanChecklist(checklist: ChecklistItem[]): ChecklistItem[] {
+  return checklist
+    .map((item) => ({ ...item, item: item.item.trim() }))
+    .filter((item) => item.item.length > 0);
+}
+
 /**
  * Staff admissions review surface (contract §7, phase-10). The queue is
  * scope-wide for grantees; claim binds the review lanes to the claiming
@@ -60,8 +72,11 @@ export function AdmissionsReviewPage() {
   const copy = admissionsMessages[locale];
   const [queue, setQueue] = useState<AdmissionApplication[]>([]);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<AdmissionApplication | null>(null);
+  const [detailError, setDetailError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isActing, setIsActing] = useState(false);
   const [error, setError] = useState('');
@@ -69,15 +84,48 @@ export function AdmissionsReviewPage() {
   const [returnNote, setReturnNote] = useState('');
   const [decisionNote, setDecisionNote] = useState('');
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const queueSequence = useRef(createSequenceGuard());
+  const detailSequence = useRef(createSequenceGuard());
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const currentQueueSelection = useRef<{ status: ApplicationStatus | ''; page: number }>({
+    status: '',
+    page: 0,
+  });
 
-  const loadQueue = useCallback(async () => {
+  const loadQueue = useCallback(async (
+    status: ApplicationStatus | '' = currentQueueSelection.current.status,
+    requestedPage: number = currentQueueSelection.current.page,
+  ) => {
+    const requestId = queueSequence.current.begin();
+    currentQueueSelection.current = { status, page: requestedPage };
     setIsLoading(true);
     setError('');
     setForbidden(false);
     try {
-      const rows = await admissionsApi.queue(statusFilter || undefined);
-      setQueue(rows);
+      let result = await admissionsApi.queuePage(status || undefined, requestedPage, PAGE_SIZE);
+      if (!queueSequence.current.isCurrent(requestId)) return;
+
+      let resultPage = requestedPage;
+      const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+      if (correction) {
+        resultPage = correction.page;
+        if (correction.refetch) {
+          result = await admissionsApi.queuePage(status || undefined, resultPage, PAGE_SIZE);
+          if (!queueSequence.current.isCurrent(requestId)) return;
+        }
+      }
+      if (result.items.length === 0 && result.total !== undefined && result.total > 0) {
+        setError(copy.failed);
+        return;
+      }
+
+      setQueue(result.items);
+      setTotal(result.total ?? null);
+      setPage(resultPage);
+      currentQueueSelection.current = { status, page: resultPage };
     } catch (cause) {
+      if (!queueSequence.current.isCurrent(requestId)) return;
       const kind = campusErrorKind(cause);
       if (errorCode(cause) === 'ADMISSIONS_STAFF_REQUIRED'
         || kind === 'forbidden' || kind === 'unauthorized') {
@@ -86,36 +134,50 @@ export function AdmissionsReviewPage() {
         setError(friendlyError(copy, cause));
       }
     } finally {
-      setIsLoading(false);
+      if (queueSequence.current.isCurrent(requestId)) setIsLoading(false);
     }
-  }, [copy, statusFilter]);
+  }, [copy]);
 
   const loadDetail = useCallback(async (id: string) => {
+    const requestId = detailSequence.current.begin();
+    setDetail(null);
+    setDetailError('');
+    setChecklist([]);
+    setReturnNote('');
+    setDecisionNote('');
     if (!id) {
-      setDetail(null);
       return;
     }
     try {
       const row = await admissionsApi.staffApplication(id);
+      if (!detailSequence.current.isCurrent(requestId)) return;
       setDetail(row);
-      setChecklist([]);
-      setReturnNote('');
-      setDecisionNote('');
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      if (!detailSequence.current.isCurrent(requestId)) return;
+      setDetailError(friendlyError(copy, cause));
     }
   }, [copy]);
 
   useEffect(() => {
-    void loadQueue();
+    void loadQueue('', 0);
   }, [loadQueue]);
 
   useEffect(() => {
     void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
 
+  const changeFilter = (filter: ApplicationStatus | '') => {
+    setStatusFilter(filter);
+    setPage(0);
+    void loadQueue(filter, 0);
+  };
+
+  const goToPage = (nextPage: number) => {
+    void loadQueue(currentQueueSelection.current.status, nextPage);
+  };
+
   const act = async (action: () => Promise<unknown>, okMessage: string) => {
-    if (!detail) {
+    if (!detail || !canActOnDetail(detail.id, selectedId)) {
       return;
     }
     setIsActing(true);
@@ -123,9 +185,18 @@ export function AdmissionsReviewPage() {
     try {
       await action();
       toast.success(okMessage);
-      await Promise.all([loadQueue(), loadDetail(detail.id)]);
+      // A selection made while the action was in flight must not be replaced
+      // by the row the action was started from.
+      if (selectedIdRef.current === detail.id) {
+        await Promise.all([loadQueue(), loadDetail(detail.id)]);
+      } else {
+        await Promise.all([loadQueue(), loadDetail(selectedIdRef.current)]);
+      }
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setDetailError(friendlyError(copy, cause));
+      if (selectedIdRef.current) {
+        void Promise.all([loadQueue(), loadDetail(selectedIdRef.current)]);
+      }
     } finally {
       setIsActing(false);
     }
@@ -133,11 +204,22 @@ export function AdmissionsReviewPage() {
 
   const claim = () => act(() => admissionsApi.claim(detail!.id, detail!.version), copy.claimedOk);
   const returnApplication = () => act(
-    () => admissionsApi.returnApplication(detail!.id, checklist, returnNote, detail!.version),
+    () => admissionsApi.returnApplication(detail!.id, cleanChecklist(checklist), returnNote, detail!.version),
     copy.returnedOk);
   const decide = (decision: 'ACCEPTED' | 'REJECTED') => act(
-    () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version),
+    () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version, cleanChecklist(checklist)),
     copy.decidedOk);
+
+  const totalPages = total === null ? null : Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasPreviousPage = page > 0;
+  const hasNextPage = totalPages === null
+    ? queue.length === PAGE_SIZE
+    : page + 1 < totalPages;
+  const firstVisible = queue.length === 0 ? 0 : page * PAGE_SIZE + 1;
+  const lastVisible = page * PAGE_SIZE + queue.length;
+  const paginationSummary = total === null
+    ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+    : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
 
   if (authLoading) {
     return <LoadingState />;
@@ -150,7 +232,14 @@ export function AdmissionsReviewPage() {
         title={copy.staffTitle}
         description={copy.staffDescription}
         actions={(
-          <Button variant="outline" onClick={() => void loadQueue()} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void loadQueue();
+              if (selectedId) void loadDetail(selectedId);
+            }}
+            disabled={isLoading}
+          >
             {copy.refresh}
           </Button>
         )}
@@ -186,7 +275,7 @@ export function AdmissionsReviewPage() {
                   size="sm"
                   variant={statusFilter === filter ? 'default' : 'outline'}
                   data-testid={`admissions-filter-${filter || 'all'}`}
-                  onClick={() => setStatusFilter(filter)}
+                  onClick={() => changeFilter(filter)}
                 >
                   {filter === '' ? copy.filterAll : copy.statusLabels[filter]}
                 </Button>
@@ -197,28 +286,34 @@ export function AdmissionsReviewPage() {
               <EmptyState title={copy.queueEmpty} description="" />
             ) : (
               <ul className="space-y-3" data-testid="admissions-queue">
-                {queue.map((application) => (
-                  <li key={application.id}>
+                {queue.map((app) => (
+                  <li key={app.id}>
                     <button
                       type="button"
-                      data-testid={`admissions-queue-row-${application.id}`}
-                      onClick={() => setSelectedId(application.id)}
+                      data-testid={`admissions-queue-row-${app.id}`}
+                      onClick={() => {
+                        if (selectedId === app.id && (!detail || detailError)) {
+                          void loadDetail(app.id);
+                        } else {
+                          setSelectedId(app.id);
+                        }
+                      }}
                       className={cn(
                         'w-full rounded-xl border px-4 py-3 text-left transition',
-                        application.id === selectedId
+                        app.id === selectedId
                           ? 'border-primary bg-primary/10'
                           : 'border-border bg-card hover:border-primary/60',
                       )}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-medium">{application.fullName || application.applicantEmail}</p>
+                          <p className="font-medium">{app.fullName || app.applicantEmail}</p>
                           <p className="text-xs text-muted-foreground">
-                            {application.applicantEmail} • {application.cycle}
+                            {app.applicantEmail} • {app.cycle}
                           </p>
                         </div>
-                        <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', statusToneClass(STATUS_TONE[application.status]))}>
-                          {copy.statusLabels[application.status]}
+                        <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', statusToneClass(STATUS_TONE[app.status]))}>
+                          {copy.statusLabels[app.status]}
                         </span>
                       </div>
                     </button>
@@ -226,10 +321,46 @@ export function AdmissionsReviewPage() {
                 ))}
               </ul>
             )}
+            <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p role="status" aria-live="polite" data-testid="admissions-pagination-summary"
+                className="text-sm text-muted-foreground">
+                {paginationSummary}
+                <span className="ml-2">
+                  {messages.common.states.page} {page + 1}
+                  {totalPages === null ? '' : ` / ${totalPages}`}
+                </span>
+              </p>
+              {hasPreviousPage || hasNextPage ? (
+                <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={!hasPreviousPage}
+                    onClick={() => goToPage(page - 1)}>
+                    {messages.common.states.goToPreviousPage}
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={!hasNextPage}
+                    onClick={() => goToPage(page + 1)}>
+                    {messages.common.states.goToNextPage}
+                  </Button>
+                </nav>
+              ) : null}
+            </div>
           </section>
 
           <section>
-            {detail && (
+            {selectedId && detailError ? (
+              <div className="rounded-xl border border-border bg-card p-5" data-testid="admissions-detail-error">
+                <ErrorState
+                  title={copy.failed}
+                  description={detailError}
+                  onRetry={() => {
+                    setDetailError('');
+                    void loadDetail(selectedId);
+                  }}
+                />
+              </div>
+            ) : selectedId && detail?.id !== selectedId ? (
+              <LoadingState label={copy.loading} />
+            ) : null}
+            {detail && detail.id === selectedId && (
               <div className="rounded-xl border border-border bg-card p-5" data-testid="admissions-review-detail">
                 <div className="flex items-center justify-between">
                   <div>
@@ -294,33 +425,38 @@ export function AdmissionsReviewPage() {
                       <h3 className="font-semibold">{copy.checklist}</h3>
                       <div className="mt-2 space-y-2" data-testid="admissions-checklist">
                         {checklist.map((item, index) => (
-                          <div key={index} className="grid gap-2 sm:grid-cols-[1fr_120px_1fr]">
-                            <Input
-                              value={item.item}
-                              placeholder={copy.checklistItem}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index ? { ...entry, item: event.target.value } : entry)))}
-                            />
-                            <select
-                              className="rounded-md border border-border bg-background px-2 text-sm"
-                              aria-label={copy.checklistResult}
-                              value={item.result ?? 'NOTE'}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index
-                                  ? { ...entry, result: event.target.value as ChecklistItem['result'] }
-                                  : entry)))}
-                            >
-                              <option value="PASS">PASS</option>
-                              <option value="FAIL">FAIL</option>
-                              <option value="NOTE">NOTE</option>
-                            </select>
-                            <Input
-                              value={item.note ?? ''}
-                              placeholder={copy.checklistNote}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index ? { ...entry, note: event.target.value } : entry)))}
-                            />
-                          </div>
+                          <fieldset key={index} className="m-0 min-w-0 border-0 p-0">
+                            <legend className="sr-only">{`${copy.checklistItem} ${index + 1}`}</legend>
+                            <div className="grid gap-2 sm:grid-cols-[1fr_120px_1fr]">
+                              <Input
+                                value={item.item}
+                                placeholder={copy.checklistItem}
+                                aria-label={`${copy.checklistItem} ${index + 1}`}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index ? { ...entry, item: event.target.value } : entry)))}
+                              />
+                              <select
+                                className="rounded-md border border-border bg-background px-2 text-sm"
+                                aria-label={`${copy.checklistResult} ${index + 1}`}
+                                value={item.result ?? 'NOTE'}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index
+                                    ? { ...entry, result: event.target.value as ChecklistItem['result'] }
+                                    : entry)))}
+                              >
+                                <option value="PASS">PASS</option>
+                                <option value="FAIL">FAIL</option>
+                                <option value="NOTE">NOTE</option>
+                              </select>
+                              <Input
+                                value={item.note ?? ''}
+                                placeholder={copy.checklistNote}
+                                aria-label={`${copy.checklistNote} ${index + 1}`}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index ? { ...entry, note: event.target.value } : entry)))}
+                              />
+                            </div>
+                          </fieldset>
                         ))}
                       </div>
                       <Button
@@ -334,8 +470,9 @@ export function AdmissionsReviewPage() {
                       </Button>
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground">{copy.returnNote}</label>
+                      <label htmlFor="admissions-return-note" className="text-sm text-muted-foreground">{copy.returnNote}</label>
                       <Textarea
+                        id="admissions-return-note"
                         data-testid="admissions-return-note"
                         value={returnNote}
                         onChange={(event) => setReturnNote(event.target.value)}
@@ -343,8 +480,9 @@ export function AdmissionsReviewPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground">{copy.decisionNote}</label>
+                      <label htmlFor="admissions-decision-note" className="text-sm text-muted-foreground">{copy.decisionNote}</label>
                       <Textarea
+                        id="admissions-decision-note"
                         data-testid="admissions-decision-note"
                         value={decisionNote}
                         onChange={(event) => setDecisionNote(event.target.value)}

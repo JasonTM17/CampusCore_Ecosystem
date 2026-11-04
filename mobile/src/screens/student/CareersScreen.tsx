@@ -58,7 +58,9 @@ export function CareersScreen(_props: MobileScreenProps) {
     try {
       await action();
       success(ok);
-      void apps.reload();
+      // The application row keeps its pre-write status until the read lands;
+      // hold the lock across it so a second tap cannot repeat the write.
+      await apps.reload();
       return true;
     } catch (error) {
       fail(failureFor?.(errorCode(error)) ?? contentErrorMessage(common, error, copy.failed));
@@ -132,7 +134,8 @@ export function CareersScreen(_props: MobileScreenProps) {
       options={[{ value: 'board', label: copy.board }, { value: 'mine', label: copy.myApplications }]}
     />
   );
-  const banner = <DataNotice message={copy.simulatedBanner} />;
+  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
+  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
   const mine = apps.items.filter((item) => (sub === 'active') === isApplicationWithdrawable(item));
 
   return (

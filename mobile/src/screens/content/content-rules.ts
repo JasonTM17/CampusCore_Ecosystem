@@ -6,15 +6,18 @@ export type EventAction = 'register' | 'cancel' | 'full' | 'none';
 interface EventLike {
   status: string;
   seatsRemaining: number;
+  startsAt?: string | null;
   myRegistrationId?: string | null;
   myRegistrationStatus?: string | null;
 }
 
-export function eventAction(event: EventLike): EventAction {
+export function eventAction(event: EventLike, now: number = Date.now()): EventAction {
   const registered = event.myRegistrationStatus === 'REGISTERED';
   if (registered) {
     const ended = event.status === 'CANCELLED' || event.status === 'COMPLETED';
-    return !ended && event.myRegistrationId ? 'cancel' : 'none';
+    const startsAt = event.startsAt ? Date.parse(event.startsAt) : Number.NaN;
+    const started = Number.isFinite(startsAt) && startsAt <= now;
+    return !ended && !started && event.myRegistrationId ? 'cancel' : 'none';
   }
   if (event.status !== 'REGISTRATION_OPEN') return 'none';
   return event.seatsRemaining > 0 ? 'register' : 'full';
@@ -50,6 +53,22 @@ export function filterLoans<T extends { status: string }>(loans: readonly T[], t
 
 export function firstAvailableCopy<C extends { status: string }>(copies: readonly C[] | null | undefined): C | null {
   return (copies ?? []).find((copy) => copy.status === 'AVAILABLE') ?? null;
+}
+
+/**
+ * The server and the local detail read use different codes for "this copy is
+ * gone"; both must reach the patron as the specific message, not the generic
+ * conflict copy. An unknown code returns null so the caller falls back to the
+ * shared error classifier.
+ */
+export function copyFailureMessage(
+  copy: { noCopiesAvailable: string; copyUnavailable: string },
+  error: unknown,
+): string | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === 'NO_COPY') return copy.noCopiesAvailable;
+  if (code === 'COPY_UNAVAILABLE' || code === 'COPY_TERMINAL') return copy.copyUnavailable;
+  return null;
 }
 
 /* ---------- careers ---------- */
@@ -173,6 +192,25 @@ export function newsCategoryLabel(labels: Readonly<Record<string, string>>, cate
 /** The detail target one announcement row opens: the permalink slug, else the id. */
 export function newsTargetOf(item: { id: string; slug?: string | null }): string {
   return item.slug ?? item.id;
+}
+
+/**
+ * The publisher a reader can name. Internal subject ids and technical
+ * placeholders are not names, so the mobile reader omits the byline instead of
+ * printing an account id (the web reader applies the same guard).
+ */
+const TECHNICAL_PUBLISHER =
+  /^(?:admin(?:[-_].*)?|super_admin|system|user)$|^[0-9a-f]{8}-[0-9a-f]{4}/i;
+
+export function publisherName(
+  displayName: string | null | undefined,
+  publishedBy?: string | null,
+): string | null {
+  for (const candidate of [displayName, publishedBy]) {
+    const trimmed = candidate?.trim();
+    if (trimmed && !TECHNICAL_PUBLISHER.test(trimmed)) return trimmed;
+  }
+  return null;
 }
 
 export function joinMeta(parts: ReadonlyArray<string | null | undefined | false>): string {

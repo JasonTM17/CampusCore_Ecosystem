@@ -310,16 +310,16 @@ export default function AttendancePage() {
                   ))}
                 </div>
                 <div role="region" aria-label={copy.byCourseTitle} tabIndex={0} className="hidden overflow-x-auto md:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <table className="w-full min-w-[760px] text-sm">
+                  <table className="w-full min-w-[760px] text-sm" aria-label={copy.byCourseTitle}>
                     <thead>
                       <tr className="border-b border-border/70 text-left text-muted-foreground">
-                        <th className="px-2 py-3 font-medium">{copy.tableHeaders.course}</th>
-                        <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.sessions}</th>
-                        <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.present}</th>
-                        <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.late}</th>
-                        <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.absent}</th>
-                        <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.excused}</th>
-                        <th className="px-2 py-3 text-right font-medium">{copy.tableHeaders.rate}</th>
+                        <th scope="col" className="px-2 py-3 font-medium">{copy.tableHeaders.course}</th>
+                        <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.sessions}</th>
+                        <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.present}</th>
+                        <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.late}</th>
+                        <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.absent}</th>
+                        <th scope="col" className="px-2 py-3 text-center font-medium">{copy.tableHeaders.excused}</th>
+                        <th scope="col" className="px-2 py-3 text-right font-medium">{copy.tableHeaders.rate}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">

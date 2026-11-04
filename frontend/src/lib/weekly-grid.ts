@@ -40,6 +40,21 @@ export function sortWeeklyMeetings<T extends WeeklyGridItem>(items: T[]): T[] {
 }
 
 /**
+ * Days until the next occurrence of an ISO weekday (1 = Monday .. 7 = Sunday),
+ * where a meeting that already ended today counts as next week instead of
+ * staying at the top of an "upcoming" list for the rest of the day.
+ */
+export function daysUntilMeeting(
+  isoDayOfWeek: number,
+  todayIsoDay: number,
+  endTime: string,
+  campusHHmm: string,
+): number {
+  const days = (isoDayOfWeek - todayIsoDay + 7) % 7;
+  return days === 0 && endTime <= campusHHmm ? 7 : days;
+}
+
+/**
  * Builds a deterministic weekly grid from flat schedule items. The backend
  * stores Sunday as 1; legacy JS-shaped records may still send Sunday as 0.
  * Items with a dayOfWeek outside 1..7 or a missing start time are ignored.

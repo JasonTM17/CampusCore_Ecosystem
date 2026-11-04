@@ -213,7 +213,7 @@ class AnnouncementWritePersistenceTest {
                                   "priority": "HIGH",
                                   "targetRoles": ["STUDENT", "LECTURER"],
                                   "targetYears": [3, 4],
-                                  "isGlobal": true,
+                                  "isGlobal": false,
                                   "publishAt": "2026-08-20T08:00:00Z",
                                   "expiresAt": "2026-09-20T08:00:00Z",
                                   "semesterId": "semester-1",
@@ -227,7 +227,7 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(jsonPath("$.targetRoles[1]").value("LECTURER"))
                 .andExpect(jsonPath("$.targetYears[0]").value(3))
                 .andExpect(jsonPath("$.targetYears[1]").value(4))
-                .andExpect(jsonPath("$.isGlobal").value(true))
+                .andExpect(jsonPath("$.isGlobal").value(false))
                 .andExpect(jsonPath("$.publishAt").value("2026-08-20T08:00:00.000Z"))
                 .andExpect(jsonPath("$.expiresAt").value("2026-09-20T08:00:00.000Z"))
                 .andExpect(jsonPath("$.semesterId").value("semester-1"))
@@ -350,7 +350,7 @@ class AnnouncementWritePersistenceTest {
                                   "priority": "URGENT",
                                   "targetRoles": ["STUDENT"],
                                   "targetYears": [2],
-                                  "isGlobal": true,
+                                  "isGlobal": false,
                                   "publishAt": "2026-08-21T08:00:00Z",
                                   "expiresAt": "2026-09-21T08:00:00Z",
                                   "semesterId": "semester-2",
@@ -368,7 +368,7 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(jsonPath("$.version").value(1))
                 .andExpect(jsonPath("$.targetRoles[0]").value("STUDENT"))
                 .andExpect(jsonPath("$.targetYears[0]").value(2))
-                .andExpect(jsonPath("$.isGlobal").value(true))
+                .andExpect(jsonPath("$.isGlobal").value(false))
                 .andExpect(jsonPath("$.publishAt").value("2026-08-21T08:00:00.000Z"))
                 .andExpect(jsonPath("$.expiresAt").value("2026-09-21T08:00:00.000Z"))
                 .andExpect(jsonPath("$.publishedBy").value("admin-1"))
@@ -398,6 +398,261 @@ class AnnouncementWritePersistenceTest {
                         + " AND \"beforeState\" IS NOT NULL AND \"afterState\" IS NOT NULL",
                 Integer.class);
         org.junit.jupiter.api.Assertions.assertEquals(1, auditCount);
+    }
+
+    @Test
+    void updateWithLongSanitizerAuditReasonKeepsTheEdit() throws Exception {
+        seedAnnouncement();
+        String reason = "R".repeat(500);
+
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Sanitized title",
+                                  "content": "<p>safe</p><xss>removed</xss>",
+                                  "reason": "%s",
+                                  "expectedVersion": 0
+                                }
+                                """.formatted(reason)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Sanitized title"));
+
+        String storedReason = jdbc.queryForObject(
+                "SELECT \"reason\" FROM \"engagement\".\"AnnouncementAudit\""
+                        + " WHERE \"announcementId\" = ? AND \"action\" = 'UPDATED'",
+                String.class,
+                "existing-announcement");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                500, storedReason.codePointCount(0, storedReason.length()));
+        assertTrue(storedReason.endsWith("… (sanitizer removed 1 element(s))"));
+    }
+
+    @Test
+    void updateKeepsDerivedNamesWhenAcademicScopeIsUnchanged() throws Exception {
+        seedAnnouncement();
+
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Typo fix",
+                                  "semesterId": "semester-1",
+                                  "sectionId": "section-1",
+                                  "lecturerId": "lecturer-1",
+                                  "reason": "Sửa chính tả",
+                                  "expectedVersion": 0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Typo fix"))
+                .andExpect(jsonPath("$.semester.name").value("Semester 1"))
+                .andExpect(jsonPath("$.section.sectionNumber").value("01"))
+                .andExpect(jsonPath("$.section.course.code").value("CS101"))
+                .andExpect(jsonPath("$.section.course.name").value("Web Programming"))
+                .andExpect(jsonPath("$.lecturer.id").value("lecturer-1"))
+                .andExpect(jsonPath("$.lecturer.displayName").value("Lecturer One"));
+
+        Integer kept = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"id\" = 'existing-announcement'"
+                        + " AND \"semesterName\" = 'Semester 1' AND \"sectionNumber\" = '01'"
+                        + " AND \"courseCode\" = 'CS101' AND \"courseName\" = 'Web Programming'"
+                        + " AND \"lecturerDisplayName\" = 'Lecturer One'",
+                Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, kept);
+    }
+
+    @Test
+    void updateAppliesTheCreateTitleContract() throws Exception {
+        seedAnnouncement();
+
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"   \",\"reason\":\"Sửa tựa\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"" + "T".repeat(241)
+                                + "\",\"reason\":\"Sửa tựa\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        Integer unchanged = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"id\" = 'existing-announcement'"
+                        + " AND \"title\" = 'Original title' AND \"version\" = 0",
+                Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, unchanged);
+    }
+
+    @Test
+    void campusWideAnnouncementCannotKeepASectionScope() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Campus-wide with section",
+                                  "content": "Body.",
+                                  "isGlobal": true,
+                                  "sectionId": "section-1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"title\" = 'Campus-wide with section'",
+                Integer.class));
+
+        seedAnnouncement();
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"isGlobal\":true,\"reason\":\"Mở rộng\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        // Clearing the section and lecturer keeps the campus-wide switch itself valid.
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"isGlobal\":true,\"sectionId\":null,\"lecturerId\":null,"
+                                + "\"reason\":\"Mở rộng\",\"expectedVersion\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isGlobal").value(true))
+                .andExpect(jsonPath("$.sectionId").doesNotExist())
+                .andExpect(jsonPath("$.section").doesNotExist());
+    }
+
+    @Test
+    void campusWideAnnouncementCannotTargetALecturerAndLegacyRowsStayEditable() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Campus-wide with lecturer",
+                                  "content": "Body.",
+                                  "isGlobal": true,
+                                  "lecturerId": "lecturer-1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        // A row stored with the refused pair by an earlier editor can still take an edit that
+        // leaves its audience alone; only an edit that touches the audience is validated.
+        seedAnnouncement();
+        jdbc.update("UPDATE \"engagement\".\"Announcement\" SET \"isGlobal\" = TRUE, \"sectionId\" = 'section-1'"
+                + " WHERE \"id\" = 'existing-announcement'");
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Legacy title fix\",\"reason\":\"Sửa tiêu đề\",\"expectedVersion\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Legacy title fix"));
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"isGlobal\":true,\"reason\":\"Giữ nguyên\",\"expectedVersion\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void campusWideAnnouncementCannotCarryTargetYears() throws Exception {
+        // A row stored before the write gate must still reach every student:
+        // campus-wide delivery ignores the year filter.
+        jdbc.update("""
+                INSERT INTO "engagement"."Announcement"
+                ("id", "title", "content", "priority", "targetRoles", "targetYears",
+                 "isGlobal", "createdAt", "updatedAt", "status", "authorId")
+                VALUES ('legacy-global', 'Legacy campus notice', 'Body.', 'NORMAL',
+                        ARRAY['STUDENT'], ARRAY[3], TRUE,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'PUBLISHED', 'admin-1')
+                """);
+        mvc.perform(get("/api/v1/announcements/my").with(yearOneStudentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id=='legacy-global')]").isNotEmpty());
+
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "title": "Campus-wide with years",
+                                  "content": "Body.",
+                                  "isGlobal": true,
+                                  "targetYears": [3]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"title\" = 'Campus-wide with years'",
+                Integer.class));
+
+        seedAnnouncement();
+        jdbc.update("UPDATE \"engagement\".\"Announcement\""
+                + " SET \"isGlobal\" = TRUE, \"sectionId\" = NULL, \"lecturerId\" = NULL,"
+                + " \"targetYears\" = ARRAY[] WHERE \"id\" = 'existing-announcement'");
+        mvc.perform(put("/api/v1/announcements/existing-announcement")
+                        .with(adminJwt("admin-2"))
+                        .contentType("application/json")
+                        .content("{\"targetYears\":[3],\"reason\":\"Thêm năm\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"id\" = 'existing-announcement' AND \"title\" = 'Original title'"
+                        + " AND CARDINALITY(\"targetYears\") = 0 AND \"version\" = 0",
+                Integer.class));
+    }
+
+    @Test
+    void targetedAnnouncementWithoutAudienceCannotEnterReviewOrPublish() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Nobody hears this\",\"content\":\"Body.\"}"))
+                .andExpect(status().isCreated());
+        String orphanDraft = jdbc.queryForObject(
+                "SELECT \"id\" FROM \"engagement\".\"Announcement\""
+                        + " WHERE \"title\" = 'Nobody hears this'",
+                String.class);
+
+        mvc.perform(post("/api/v1/announcements/" + orphanDraft + "/submit")
+                        .with(adminJwt("admin-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_AUDIENCE_EMPTY"));
+        assertEquals("DRAFT", jdbc.queryForObject(
+                "SELECT \"status\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?",
+                String.class, orphanDraft));
+
+        jdbc.update("""
+                INSERT INTO "engagement"."Announcement"
+                ("id", "title", "content", "priority", "targetRoles", "targetYears",
+                 "isGlobal", "createdAt", "updatedAt", "status", "authorId")
+                VALUES ('orphan-review', 'Private review', 'Body.', 'NORMAL',
+                        ARRAY[], ARRAY[], FALSE,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'IN_REVIEW', 'admin-1')
+                """);
+        mvc.perform(post("/api/v1/announcements/orphan-review/approve")
+                        .with(adminJwt("admin-2")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_AUDIENCE_EMPTY"));
+        assertEquals("IN_REVIEW", jdbc.queryForObject(
+                "SELECT \"status\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = 'orphan-review'",
+                String.class));
     }
 
     @Test
@@ -778,6 +1033,16 @@ class AnnouncementWritePersistenceTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, remaining);
     }
 
+    private org.springframework.test.web.servlet.request.RequestPostProcessor yearOneStudentJwt() {
+        return fixtureJwt(jdbc, "student-1", token -> token
+                        .subject("student-1")
+                        .claim("email", "student-1@campuscore.edu")
+                        .claim("roles", List.of("STUDENT"))
+                        .claim("studentId", "student-profile")
+                        .claim("student", Map.of("year", 1)), "STUDENT")
+                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    }
+
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt(String subject) {
         return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
@@ -805,6 +1070,71 @@ class AnnouncementWritePersistenceTest {
                         .claim("lastName", lastName)
                         .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    @Test
+    void publicationWindowMustBeOrderedAtCreateUpdateAndReview() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Inverted window\",\"content\":\"Body.\","
+                                + "\"publishAt\":\"2026-11-10T00:00:00Z\","
+                                + "\"expiresAt\":\"2026-11-05T00:00:00Z\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\" WHERE \"title\" = 'Inverted window'",
+                Integer.class));
+
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Ordered window\",\"content\":\"Body.\","
+                                + "\"publishAt\":\"2026-11-05T00:00:00Z\","
+                                + "\"expiresAt\":\"2026-11-10T00:00:00Z\"}"))
+                .andExpect(status().isCreated());
+        String id = jdbc.queryForObject(
+                "SELECT \"id\" FROM \"engagement\".\"Announcement\" WHERE \"title\" = 'Ordered window'",
+                String.class);
+
+        // A partial update must compare the patched value with the stored one.
+        mvc.perform(put("/api/v1/announcements/" + id)
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"expiresAt\":\"2026-11-04T00:00:00Z\","
+                                + "\"reason\":\"Window check\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?",
+                Integer.class, id));
+
+        // A stored inverted window cannot enter review or be approved either.
+        seedInvertedWindow("inverted-draft", "DRAFT");
+        mvc.perform(post("/api/v1/announcements/inverted-draft/submit").with(adminJwt("admin-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        seedInvertedWindow("inverted-review", "IN_REVIEW");
+        mvc.perform(post("/api/v1/announcements/inverted-review/approve").with(adminJwt("admin-2")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+    }
+
+    private void seedInvertedWindow(String id, String status) {
+        jdbc.update(
+                "INSERT INTO \"engagement\".\"Announcement\""
+                        + " (\"id\", \"title\", \"content\", \"priority\", \"targetRoles\", \"targetYears\","
+                        + " \"isGlobal\", \"publishAt\", \"expiresAt\", \"publishedBy\", \"createdAt\","
+                        + " \"updatedAt\", \"status\", \"authorId\")"
+                        + " VALUES (?, ?, 'Body.', 'NORMAL', ARRAY['ADMIN'], ARRAY[1], FALSE, ?, ?,"
+                        + " 'admin-1', ?, ?, ?, 'admin-1')",
+                id,
+                "Inverted " + id,
+                offsetDateTime(Instant.parse("2026-11-10T00:00:00Z")),
+                offsetDateTime(Instant.parse("2026-11-05T00:00:00Z")),
+                offsetDateTime(BASE_TIME),
+                offsetDateTime(BASE_TIME),
+                status);
     }
 
     @Test

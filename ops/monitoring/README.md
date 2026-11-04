@@ -3,12 +3,17 @@
 > **Operational Notice:**
 > The Prometheus alert rules defined in this directory (`alerts-api-slo.yml`, `alerts-infrastructure.yml`, `alerts-assistant.yml`)
 > are **declarative specifications only** (**NOT_RUN** against a live monitoring backend in this audit phase).
-> They establish the service level objectives (SLOs), threshold baselines, and runbook linkage required
-> for production deployment (Wave 3 / Backlog Lane F).
+> They establish the service level objectives (SLOs), threshold baselines, and runbook linkage a future
+> hosted target would need. This workspace runs local-first and wires no Prometheus/Alertmanager:
+> shipping the collector is **deferred — future deployment work**.
+
+CI checks the three rule files and runs `promtool test rules
+ops/monitoring/alert-tests.yml` with Prometheus 2.55.1. These offline rule
+checks do not imply that a live collector or alert destination is configured.
 
 ---
 
-## 1. Metric Inventory: Code Verification vs "TO INSTRUMENT"
+## 1. Metric Inventory: Code Verification
 
 To ensure zero phantom metrics, every metric used in our operational contracts is explicitly audited
 against the `java-services/restful-api` and `frontend` source code.
@@ -26,10 +31,11 @@ against the `java-services/restful-api` and `frontend` source code.
 | `api.client.request` (Ring buffer) | `frontend/src/lib/observability.ts:18` & `mobile/.../observability.ts` | **VERIFIED_IN_CODE** | In-memory 100-entry ring buffer on client for diagnostic and future OTel telemetry. |
 | `http_server_requests_seconds_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | Standard Spring Boot HTTP request timer exported via `micrometer-registry-prometheus`. |
 | `hikaricp_connections_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | HikariCP connection pool metrics exported via Prometheus registry. |
-| `campuscore_assistant_requests_total` | `ThesisAssistantController.java` | **TO INSTRUMENT** | Custom Micrometer meter with tags `{degraded="true|false", reason_code="..."}`. |
-| `campuscore_assistant_quota_consumed`| `ThesisAssistantTurnRepository.java` | **TO INSTRUMENT** | Custom Micrometer gauge/counter for user & global daily quota tracking. |
-| `campuscore_assistant_turn_stale_recovered`| `ThesisAssistantService.java:recovery` | **TO INSTRUMENT** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |
-| `campuscore_assistant_rls_verified` | `AssistantDatabaseConfiguration.java` | **TO INSTRUMENT** | Gauge tracking verified (1) vs degraded (0) Assistant RLS database state. |
+| `campuscore_assistant_requests_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:86` | **VERIFIED_IN_CODE** | Custom Micrometer counter; the only exported tag is `{degraded="true|false"}` (`reason_code` is intentionally not exported). |
+| `campuscore_assistant_quota_consumed_daily` | `java-services/restful-api/.../config/MetricsConfiguration.java:93` | **VERIFIED_IN_CODE** | Gauge for the committed GLOBAL daily quota bucket. |
+| `campuscore_assistant_quota_limit_daily` | [`MetricsConfiguration.java`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/config/MetricsConfiguration.java) | **VERIFIED_IN_CODE** | Gauge for the configured `AssistantProperties.globalDailyQuota`; used by the quota alert ratio. |
+| `campuscore_assistant_turn_stale_recovered_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:88` | **VERIFIED_IN_CODE** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |
+| `campuscore_assistant_rls_verified` | `java-services/restful-api/.../config/MetricsConfiguration.java:89` | **VERIFIED_IN_CODE** | Gauge tracking verified (1) vs degraded (0) Assistant RLS database state. |
 
 ---
 
@@ -42,13 +48,13 @@ Enforces API availability and latency/error-rate SLOs across critical user journ
 - **Sign-in Journey** (`POST /api/v1/auth/login`, `POST /oauth2/token`):
   - Latency: P95 < 800ms (`SignInLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.1% (`SignInServerErrorRateHigh`)
-- **Course Registration Journey** (`POST /api/v1/academic/me/enrollments`, `POST /api/v1/academic/enrollments`, `DELETE /api/v1/academic/me/enrollments/{sectionId}`):
+- **Course Registration Journey** (`POST /api/v1/me/enrollments`, `POST /api/v1/me/enrollments/{id}/drop`):
   - Latency: P95 < 500ms (`RegistrationLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.2% (`RegistrationServerErrorRateHigh`)
 - **Attendance Check-in Journey** (`POST /api/v1/attendance/sessions/{id}/checkin`):
   - Latency: P95 < 600ms (`AttendanceCheckinLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.1% (`AttendanceCheckinServerErrorRateHigh`)
-- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/grades/.*`):
+- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/sections/{id}/grades`):
   - Latency: P95 < 300ms (`GradesReadLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.05% (`GradesReadServerErrorRateHigh`)
 - **Rate-Limit Anomalies** (`RateLimitFilter`):
@@ -69,10 +75,17 @@ Monitors platform health, connection pool capacity, and container lifecycles:
 - **Frontend Health**:
   - Critical: Web route `/health` failing for > 1m (`WebFrontendHealthFailed`)
 
+External blackbox scrape jobs must be named
+`blackbox-http-api-liveness`, `blackbox-http-api-readiness`, and
+`blackbox-http-frontend-health`. Use the standard `job` and `instance` labels;
+the API liveness and readiness targets for one service instance must share the
+same `instance` value. The alert rules do not depend on custom `endpoint` or
+`service` labels.
+
 ### 3. `alerts-assistant.yml`
 Monitors AI campus assistant service health, provider availability, and quotas:
 - **Degraded Response Rate**: > 20% of turns served as degraded lexical fallback over 10m (`AssistantHighDegradedRate`)
-- **Quota Exhaustion**: Global daily synthesis attempts reach >= 90% (180/200) (`AssistantGlobalQuotaExhaustionRisk`)
+- **Quota Exhaustion**: Global daily synthesis attempts exceed 90% of the configured limit (`AssistantGlobalQuotaExhaustionRisk`)
 - **RLS Degraded**: Assistant database RLS state degraded (`AssistantRlsStateDegraded` — causes 503 on chat)
 - **Turn Recovery Surge**: Expired turn leases recovered > 5 in 10m (`AssistantStaleLeaseRecoverySurge`)
 
@@ -90,12 +103,14 @@ Monitors AI campus assistant service health, provider availability, and quotas:
 
 ## 4. Cold-Start & Probe Best Practices
 
-When deploying onto platforms with container sleep/wake cycles (such as Render free tier or serverless containers):
+The local compose stack keeps its containers running, so there is no cold start to tune today.
+The guidance below applies only to a future hosted target with container sleep/wake cycles
+(**deferred — future deployment work**); the endpoints it relies on are live in the local stack.
 
 1. **Health is NOT Readiness**:
    - `/api/v1/health/liveness` confirms the Spring Boot process is alive.
    - `/api/v1/health/readiness` confirms the database connection pool is warm, migrations are settled, and queries succeed.
-2. **Probe Timing**:
+2. **Probe Timing** (hosted targets only):
    - Set orchestrator `initialDelaySeconds: 45` for liveness probes to avoid reboot loops while the JVM warms up and Flyway runs.
    - Configure readiness probe interval to `10s` with `failureThreshold: 3`.
 3. **Client-Side Absorption**:
@@ -109,12 +124,12 @@ When an alert fires or a user reports an error:
 1. Extract `requestId` from the client response envelope (`ErrorResponse.requestId`), response header `X-Request-Id`, or client metric ring.
 2. Search application logs:
    ```bash
-   # Docker Compose / local container logs
-   docker compose logs api | grep "<requestId>"
-
-   # Production / aggregator log query (Loki / CloudWatch)
-   {service="restful-api"} |= "<requestId>"
+   # Local compose stack (service name from docker-compose.yml)
+   docker compose logs restful-api | grep "<requestId>"
    ```
+
+   Hosted log aggregation (Loki / CloudWatch) does not exist in this workspace; wiring it is
+   **deferred — future deployment work**.
 3. Join with web/mobile logs using the exact same identifier.
 4. **Redaction Notice:** All logs pass through `redactForLog()`. Passwords, Bearer tokens, cookies, and student PII are redacted. Verify log hygiene using `node scripts/check-assistant-secrets.mjs`.
 
@@ -122,7 +137,6 @@ When an alert fires or a user reports an error:
 
 ## 6. Runbook References
 
-- Production Deployment & Operations: [PRODUCTION_RUNBOOK.md](../../docs/PRODUCTION_RUNBOOK.md)
 - Demo Environment Operations: [DEMO_RUNBOOK.md](../../docs/DEMO_RUNBOOK.md)
 - Assistant & RAG Operations: [deepseek-assistant.md](../../docs/integrations/deepseek-assistant.md)
 - Supabase Assistant Knowledge: [supabase-assistant.md](../../docs/integrations/supabase-assistant.md)

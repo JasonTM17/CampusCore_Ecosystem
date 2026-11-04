@@ -22,10 +22,12 @@ import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useI18n } from '@/i18n';
+import { countLabel } from '@/lib/plural';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
 import { useApiQuery } from '@/lib/query';
 import { cn } from '@/lib/utils';
 import {
+  articleCategoryLabel,
   resolveAnnouncementDomain,
   resolveArticleCover,
   calculateReadingTime,
@@ -36,64 +38,32 @@ import {
   type ArticleCategoryCode,
 } from '@/lib/announcement-presentation';
 import { ViContentBadge } from '@/components/announcements/ViContentBadge';
+import { homeMarketingEn, homeMarketingVi } from '@/i18n/messages-home';
 
 type CategoryFilter = 'ALL' | ArticleCategoryCode;
 
 interface CategoryTab {
   key: CategoryFilter;
-  labelVi: string;
-  labelEn: string;
   icon: React.ReactNode;
 }
 
+// Labels are not stored here: every tab resolves its copy from
+// INSTITUTIONAL_ARTICLE_CATEGORIES through `articleCategoryLabel`, so the
+// homepage can never drift from the feed badges or the reader.
 const CATEGORY_TABS: CategoryTab[] = [
-  {
-    key: 'ALL',
-    labelVi: 'Tất cả bài viết',
-    labelEn: 'All Stories',
-    icon: <Newspaper className="h-4 w-4" />,
-  },
-  {
-    key: 'RESEARCH_TECH',
-    labelVi: 'Nghiên cứu & Công nghệ',
-    labelEn: 'Research & Tech',
-    icon: <FlaskConical className="h-4 w-4" />,
-  },
-  {
-    key: 'AWARDS_HONORS',
-    labelVi: 'Học bổng & Khen thưởng',
-    labelEn: 'Scholarships & Honors',
-    icon: <Award className="h-4 w-4" />,
-  },
-  {
-    key: 'STUDENT_LIFE',
-    labelVi: 'Đời sống Sinh viên',
-    labelEn: 'Student Life',
-    icon: <Users className="h-4 w-4" />,
-  },
-  {
-    key: 'CULTURE_ARTS',
-    labelVi: 'Văn hóa & Nghệ thuật',
-    labelEn: 'Culture & Arts',
-    icon: <Sparkles className="h-4 w-4" />,
-  },
-  {
-    key: 'ACADEMIC_AFFAIRS',
-    labelVi: 'Đào tạo & Học vụ',
-    labelEn: 'Academic Affairs',
-    icon: <BookOpen className="h-4 w-4" />,
-  },
-  {
-    key: 'CAREER_OPPORTUNITIES',
-    labelVi: 'Việc làm & Doanh nghiệp',
-    labelEn: 'Career & Industry',
-    icon: <Briefcase className="h-4 w-4" />,
-  },
+  { key: 'ALL', icon: <Newspaper className="h-4 w-4" /> },
+  { key: 'RESEARCH_TECH', icon: <FlaskConical className="h-4 w-4" /> },
+  { key: 'AWARDS_HONORS', icon: <Award className="h-4 w-4" /> },
+  { key: 'STUDENT_LIFE', icon: <Users className="h-4 w-4" /> },
+  { key: 'CULTURE_ARTS', icon: <Sparkles className="h-4 w-4" /> },
+  { key: 'ACADEMIC_AFFAIRS', icon: <BookOpen className="h-4 w-4" /> },
+  { key: 'CAREER_OPPORTUNITIES', icon: <Briefcase className="h-4 w-4" /> },
 ];
 
 export function HomeNewsSection() {
   const { user } = useAuth();
   const { locale, messages } = useI18n();
+  const homeMarketingCopy = locale === 'vi' ? homeMarketingVi : homeMarketingEn;
   const { categories } = useArticleTaxonomy();
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementRecord | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('ALL');
@@ -146,15 +116,13 @@ export function HomeNewsSection() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1.5">
             <SectionEyebrow>
-              {isVi ? 'TẠP CHÍ & BẢN TIN ĐẠI HỌC' : 'CAMPUS PRESS & MAGAZINE'}
+              {homeMarketingCopy.news.eyebrow}
             </SectionEyebrow>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-              {isVi ? 'Nhịp Sống Học Thuật & Sáng Tạo HCMUTE' : 'HCMUTE Academic Life & Innovation'}
+              {homeMarketingCopy.news.title}
             </h2>
             <p className="text-sm text-muted-foreground max-w-2xl">
-              {isVi
-                ? 'Thông báo học vụ, sự kiện học thuật, thành tựu nghiên cứu khoa học và chính sách đào tạo chính thức từ Trường Đại học Công nghệ Kỹ thuật TP.HCM.'
-                : 'Official academic announcements, research breakthroughs, student initiatives, and university governance updates.'}
+              {homeMarketingCopy.news.description}
             </p>
           </div>
 
@@ -162,7 +130,7 @@ export function HomeNewsSection() {
             href="/dashboard/announcements"
             className="group inline-flex min-h-8 items-center gap-1.5 font-bold text-sm text-primary hover:underline self-start sm:self-end"
           >
-            <span>{isVi ? 'Xem tất cả thông báo' : 'View all announcements'}</span>
+            <span>{homeMarketingCopy.news.viewAllAnnouncements}</span>
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </LocalizedLink>
         </div>
@@ -193,7 +161,11 @@ export function HomeNewsSection() {
                 )}
               >
                 {tab.icon}
-                <span>{isVi ? tab.labelVi : tab.labelEn}</span>
+                <span>
+                  {tab.key === 'ALL'
+                    ? homeMarketingCopy.news.allStories
+                    : articleCategoryLabel(tab.key, locale)}
+                </span>
                 <span
                   className={cn(
                     'rounded-md px-1.5 py-0.5 text-[11px] font-bold',
@@ -215,12 +187,10 @@ export function HomeNewsSection() {
           <div className="rounded-2xl border border-status-warning/40 bg-status-warning/10 p-12 text-center">
             <Newspaper className="mx-auto h-12 w-12 text-status-warning-foreground/60 mb-3" />
             <h3 className="text-base font-semibold text-foreground">
-              {isVi ? 'Chưa tải được bản tin' : 'Could not load the news feed'}
+              {homeMarketingCopy.news.errorTitle}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-              {isVi
-                ? 'Máy chủ thông báo đang không phản hồi. Vui lòng thử lại.'
-                : 'The announcements service is not responding right now. Please retry.'}
+              {homeMarketingCopy.news.errorDescription}
             </p>
             <button
               type="button"
@@ -237,12 +207,10 @@ export function HomeNewsSection() {
           <div className="rounded-2xl border border-dashed border-border/80 bg-card/60 p-12 text-center">
             <Newspaper className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
             <h3 className="text-base font-semibold text-foreground">
-              {isVi ? 'Chưa có bản tin nào được công bố' : 'No announcements published yet'}
+              {homeMarketingCopy.news.emptyTitle}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-              {isVi
-                ? 'Các thông báo học thuật và tin tức chính thức của Nhà trường sẽ hiển thị tại đây ngay khi được phát hành.'
-                : 'Official academic announcements and institutional news will appear here once published.'}
+              {homeMarketingCopy.news.emptyDescription}
             </p>
           </div>
         )}
@@ -275,7 +243,7 @@ export function HomeNewsSection() {
               ))}
               {secondaryList.length === 0 && (
                 <div className="flex h-full min-h-[280px] items-center justify-center rounded-2xl border border-dashed border-border/80 bg-card/50 p-6 text-center text-sm text-muted-foreground">
-                  {isVi ? 'Không có thêm bài viết trong danh mục này' : 'No more stories in this category'}
+                  {homeMarketingCopy.news.noMoreStories}
                 </div>
               )}
             </div>
@@ -288,8 +256,8 @@ export function HomeNewsSection() {
             <div className="flex items-center justify-between border-t border-border/60 pt-6">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span>{isVi ? 'Phóng sự & Chuyên đề Khác' : 'Special Feature Stories'}</span>
-                <span className="text-xs font-normal text-muted-foreground">({isVi ? `${galleryGrid.length} bài viết` : `${galleryGrid.length} articles`})</span>
+                <span>{homeMarketingCopy.news.specialFeatures}</span>
+                <span className="text-xs font-normal text-muted-foreground">({countLabel(galleryGrid.length, homeMarketingCopy.news.articleCountOne, homeMarketingCopy.news.articleCount).replace('{count}', String(galleryGrid.length))})</span>
               </h3>
             </div>
 
@@ -359,7 +327,7 @@ export function HomeNewsSection() {
                           <span>{reading.displayText}</span>
                         </span>
                         <span className="font-bold text-primary inline-flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                          <span>{isVi ? 'Đọc bài' : 'Read'}</span>
+                          <span>{homeMarketingCopy.news.readArticle}</span>
                           <ArrowRight className="h-3 w-3" />
                         </span>
                       </div>
@@ -379,12 +347,12 @@ export function HomeNewsSection() {
                 >
                   {isExpanded ? (
                     <>
-                      <span>{isVi ? 'Thu gọn bài viết' : 'Show Less'}</span>
+                      <span>{homeMarketingCopy.news.showLess}</span>
                       <ChevronUp className="h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      <span>{isVi ? `Xem thêm ${galleryGrid.length - 6} bài viết khác` : `View ${galleryGrid.length - 6} More Stories`}</span>
+                      <span>{countLabel(galleryGrid.length - 6, homeMarketingCopy.news.viewMoreOne, homeMarketingCopy.news.viewMore).replace('{count}', String(galleryGrid.length - 6))}</span>
                       <ChevronDown className="h-4 w-4" />
                     </>
                   )}

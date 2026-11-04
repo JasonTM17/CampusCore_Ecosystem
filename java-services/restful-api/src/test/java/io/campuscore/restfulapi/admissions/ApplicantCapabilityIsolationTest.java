@@ -164,7 +164,7 @@ class ApplicantCapabilityIsolationTest {
         AuthUserRepository repository = mock(AuthUserRepository.class);
         when(repository.findAccountAuthorization("applicant-1")).thenReturn(Optional.of(
                 new AuthUserRepository.AccountAuthorization(
-                        "ACTIVE", false, null, null, null, Set.of(), Set.of(), 0L)));
+                        "ACTIVE", false, null, null, null, Set.of(), Set.of(), 0L, "acct@campuscore.edu", null, null)));
 
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder();
         new IdentityTokenCustomizer(repository).customize(accessContext(claims, "applicant-1"));
@@ -179,7 +179,7 @@ class ApplicantCapabilityIsolationTest {
         AuthUserRepository repository = mock(AuthUserRepository.class);
         when(repository.findAccountAuthorization("locked-demo")).thenReturn(Optional.of(
                 new AuthUserRepository.AccountAuthorization(
-                        "LOCKED", false, null, null, null, Set.of(), Set.of(), 0L)));
+                        "LOCKED", false, null, null, null, Set.of(), Set.of(), 0L, "acct@campuscore.edu", null, null)));
 
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder();
         new IdentityTokenCustomizer(repository).customize(accessContext(claims, "locked-demo"));
@@ -320,4 +320,36 @@ class ApplicantCapabilityIsolationTest {
         mvc.perform(get("/api/v1/admissions/applications/my").with(lockedJwt))
                 .andExpect(status().isForbidden());
     }
+    @Test
+    void oidcCustomizerMintsEmailNameAndStatusClaimsForStudentAndLecturer() {
+        AuthUserRepository repository = mock(AuthUserRepository.class);
+        when(repository.findAccountAuthorization("student-1")).thenReturn(Optional.of(
+                new AuthUserRepository.AccountAuthorization(
+                        "ACTIVE", false, "student-9", 3, null,
+                        Set.of("STUDENT"), Set.of("students:self"), 4L,
+                        "student@campuscore.edu", "Son", "Nguyen")));
+        when(repository.findAccountAuthorization("lect-user-1")).thenReturn(Optional.of(
+                new AuthUserRepository.AccountAuthorization(
+                        "ACTIVE", false, null, null, "lecturer-5",
+                        Set.of("LECTURER"), Set.of("courses:self"), 2L,
+                        "lecturer@campuscore.edu", "An", "Tran")));
+
+        JwtClaimsSet.Builder studentClaims = JwtClaimsSet.builder();
+        new IdentityTokenCustomizer(repository).customize(accessContext(studentClaims, "student-1"));
+        java.util.Map<String, Object> built = studentClaims.build().getClaims();
+        assertEquals("student@campuscore.edu", built.get("email"));
+        assertEquals("ACTIVE", built.get("status"));
+        assertEquals("Son", built.get("firstName"));
+        assertEquals("Nguyen", built.get("lastName"));
+        assertEquals("student-9", built.get("studentId"));
+        assertEquals(List.of("STUDENT"), built.get("roles"));
+
+        JwtClaimsSet.Builder lecturerClaims = JwtClaimsSet.builder();
+        new IdentityTokenCustomizer(repository).customize(accessContext(lecturerClaims, "lect-user-1"));
+        java.util.Map<String, Object> lbuilt = lecturerClaims.build().getClaims();
+        assertEquals("lecturer@campuscore.edu", lbuilt.get("email"));
+        assertEquals("lecturer-5", lbuilt.get("lecturerId"));
+        assertEquals(List.of("LECTURER"), lbuilt.get("roles"));
+    }
+
 }

@@ -167,8 +167,12 @@ public class BffSessionService {
                 || account.get().mustChangePassword()) {
             return new CallbackResult(false, null, null, null, "ACCOUNT_INELIGIBLE");
         }
-        if (authorizations.findById(grant.getId()) == null) {
+        OAuth2Authorization liveGrant = authorizations.findById(grant.getId());
+        if (liveGrant == null) {
             return new CallbackResult(false, null, null, null, "GRANT_GONE");
+        }
+        if (store.isClientLogoutPending(userId, surface.getClientId())) {
+            return new CallbackResult(false, null, null, null, "LOGOUT_PENDING");
         }
 
         String opaque = BffSessionStore.randomId(32);
@@ -327,28 +331,41 @@ public class BffSessionService {
     }
 
     /**
-     * Per-surface logout (KM-M5 ordering): read the id_token BEFORE the
-     * grant delete — the hint is stored inside the grant row and is
-     * unrecoverable afterwards. Revokes the BFF session and the OIDC grant
-     * through the unified authority; repeated calls are no-ops.
+     * Per-surface logout: read the id_token before deleting
+     * the BFF sessions, then leave its authorization available for SAS to
+     * validate the returned RP-initiated end-session request. SAS performs
+     * the per-client grant revoke after it accepts that hint. If the grant
+     * cannot supply a hint, retain the existing immediate revoke fallback.
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public LogoutResult logout(Surface surface, String base, String opaqueValue) {
         Session session = opaqueValue == null ? null
                 : store.findSession(opaqueValue, surface.getId());
         String idTokenHint = null;
-        String userId = null;
-        if (session != null) {
-            userId = session.userId();
+        if (session != null && session.revokedAt() == null) {
+            String userId = session.userId();
+            users.lockUserRow(userId);
             OAuth2Authorization grant =
                     authorizations.findById(session.authorizationId());
-            if (grant != null) {
+            if (grant != null && userId.equals(grant.getPrincipalName())
+                    && surface.getClientId().equals(grant.getRegisteredClientId())) {
                 idTokenHint = idTokenValue(grant);
             }
-            users.lockUserRow(userId);
-            store.revokeSession(opaqueValue, surface.getId());
-            authority.revokeClientGrants(userId, surface.getClientId(),
-                    "BFF_LOGOUT", null);
+            int revoked = store.revokeSession(opaqueValue, surface.getId());
+            if (revoked == 0) {
+                // Another revoke won while this request waited for the User
+                // lock; a stale cookie must not recover the hint afterward.
+                idTokenHint = null;
+            } else {
+                if (idTokenHint != null) {
+                    store.markClientLogoutPending(userId, surface.getClientId());
+                }
+                store.deleteSessionsForClient(userId, surface.getClientId());
+                if (idTokenHint == null) {
+                    authority.revokeClientGrants(userId, surface.getClientId(),
+                            "BFF_LOGOUT", null);
+                }
+            }
         }
         StringBuilder url = new StringBuilder(
                 properties.getBff().getIssuerPublic() + "/connect/logout");

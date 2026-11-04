@@ -173,6 +173,55 @@ class BffPatchProxyTest {
         assertThat(response.body()).contains("CSRF_TOKEN");
     }
 
+    // ---- error shape ------------------------------------------------------
+
+    @Test
+    void proxyRejectionsCarryMachineCodeAlongsideLegacyErrorField() throws Exception {
+        // A sibling surface origin passes CORS but not the surface's own
+        // origin guard, so the proxy's error helper answers it.
+        HttpResponse<String> origin = mutation("/bff/api/notifications/bff-error-probe",
+                Map.of("Origin", "http://learn.test", "Sec-Fetch-Site", "cross-site"));
+        assertThat(origin.statusCode()).as("foreign origin: %s", origin.body()).isEqualTo(403);
+        assertMachineCode(origin, "ORIGIN_SURFACE_MISMATCH");
+
+        HttpResponse<String> csrf = mutation("/bff/api/notifications/bff-error-probe",
+                Map.of("Origin", "http://portal.test", "Sec-Fetch-Site", "same-origin"));
+        assertThat(csrf.statusCode()).as("missing csrf: %s", csrf.body()).isEqualTo(403);
+        assertMachineCode(csrf, "CSRF_TOKEN");
+
+        HttpResponse<String> path = mutation("/bff/api/not-allowlisted/bff-error-probe",
+                Map.of("Origin", "http://portal.test", "Sec-Fetch-Site", "same-origin"));
+        assertThat(path.statusCode()).as("path gate: %s", path.body()).isEqualTo(404);
+        assertMachineCode(path, "PATH_NOT_ALLOWED");
+
+        HttpResponse<String> surface = http.send(HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/bff/api/notifications/bff-error-probe"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(surface.statusCode()).as("unknown surface: %s", surface.body()).isEqualTo(404);
+        assertMachineCode(surface, "SURFACE_UNKNOWN");
+    }
+
+    private HttpResponse<String> mutation(String path, Map<String, String> extraHeaders) throws Exception {
+        Map<String, String> headers = edgePortal();
+        headers.putAll(extraHeaders);
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{}"));
+        headers.forEach(builder::header);
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void assertMachineCode(HttpResponse<String> response, String expected) throws Exception {
+        var body = mapper.readTree(response.body());
+        assertThat(body.path("error").asText()).as("legacy error field: %s", response.body())
+                .isEqualTo(expected);
+        assertThat(body.path("code").asText()).as("machine code: %s", response.body())
+                .isEqualTo(expected);
+    }
+
     // ---- attendance allowlist ---------------------------------------------
 
     @Test

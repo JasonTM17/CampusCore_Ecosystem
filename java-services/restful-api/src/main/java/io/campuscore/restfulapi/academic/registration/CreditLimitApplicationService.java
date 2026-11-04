@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.academic.registration;
 
 import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos.Response;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -128,19 +129,48 @@ public class CreditLimitApplicationService {
 
     @Transactional(readOnly = true)
     public List<Response> list(String status) {
+        return listPage(status, null).items();
+    }
+
+    /**
+     * Admin queue read with an optional {@link ListPaging.Window}. A {@code null}
+     * window keeps the legacy contract: the newest {@link #MAX_LIST_RESULTS}
+     * rows and no total. A window answers the pre-page total plus a LIMIT/OFFSET
+     * slice ordered by ({@code createdAt}, {@code id}) so consecutive pages
+     * cannot overlap a queue that keeps growing.
+     */
+    @Transactional(readOnly = true)
+    public ListPaging.Result<Response> listPage(String status, ListPaging.Window window) {
         String filter = status == null || status.isBlank() ? "PENDING" : status.trim().toUpperCase(Locale.ROOT);
         if (!filter.equals("ALL") && !List.of("PENDING", "APPROVED", "REJECTED").contains(filter)) {
             throw problem(HttpStatus.BAD_REQUEST, "CREDIT_LIMIT_APPLICATION_STATUS_INVALID",
                     "Credit-limit application status is invalid");
         }
-        String sql = applicationSelect();
+        String where = "";
         MapSqlParameterSource parameters = new MapSqlParameterSource();
         if (!filter.equals("ALL")) {
-            sql += " WHERE application.\"status\" = :status";
+            where = " WHERE application.\"status\" = :status";
             parameters.addValue("status", filter);
         }
-        sql += " ORDER BY application.\"createdAt\" DESC LIMIT " + MAX_LIST_RESULTS;
-        return jdbc.queryForList(sql, parameters).stream().map(this::map).toList();
+        if (window == null) {
+            List<Response> items = jdbc.queryForList(
+                    applicationSelect() + where
+                            + " ORDER BY application.\"createdAt\" DESC LIMIT " + MAX_LIST_RESULTS,
+                    parameters).stream().map(this::map).toList();
+            return new ListPaging.Result<>(items, null);
+        }
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + APPLICATION + " application" + where,
+                parameters, Long.class);
+        List<Response> items = jdbc.queryForList(
+                applicationSelect() + where
+                        + " ORDER BY application.\"createdAt\" DESC, application.\"id\""
+                        + " LIMIT :limit OFFSET :offset",
+                parameters
+                        .addValue("limit", window.limit())
+                        .addValue("offset", window.offset()))
+                .stream().map(this::map).toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     @Transactional

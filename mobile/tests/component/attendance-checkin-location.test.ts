@@ -82,6 +82,19 @@ test('timeout during refinement returns a usable best fix', async () => {
     .mockImplementation(() => new Promise(() => {}));
   await expect(setup({ currentPosition }).provider.getFreshFix({ timeoutMs: 5 })).resolves.toMatchObject({ accuracyMeters: 70 });
 });
+test('a stale refinement sample keeps the usable earlier fix', async () => {
+  const currentPosition = jest.fn<LocationSource['currentPosition']>()
+    .mockResolvedValueOnce(raw(80)).mockResolvedValueOnce(raw(10, now - 31000));
+  await expect(setup({ currentPosition }).provider.getFreshFix()).resolves.toMatchObject({ accuracyMeters: 80 });
+  expect(currentPosition).toHaveBeenCalledTimes(2);
+});
+test('an invalid refinement sample keeps the usable earlier fix', async () => {
+  const currentPosition = jest.fn<LocationSource['currentPosition']>()
+    .mockResolvedValueOnce(raw(80))
+    .mockResolvedValueOnce({ ...raw(10), coords: { latitude: 91, longitude: 106, accuracy: 10 } });
+  await expect(setup({ currentPosition }).provider.getFreshFix()).resolves.toMatchObject({ accuracyMeters: 80 });
+  expect(currentPosition).toHaveBeenCalledTimes(2);
+});
 test('timeout during poor refinement yields low accuracy', async () => {
   const currentPosition = jest.fn<LocationSource['currentPosition']>().mockResolvedValueOnce(raw(110))
     .mockImplementation(() => new Promise(() => {}));

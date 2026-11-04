@@ -18,6 +18,7 @@ const vi = {
     server: 'Hệ thống đang bận. Vui lòng thử lại sau.',
     preview: 'Tính năng này không khả dụng ở bản xem thử.',
     unknown: 'Chưa thể hoàn tất. Vui lòng thử lại.',
+    issuerNotConfigured: 'Đăng nhập chưa được cấu hình cho bản này.',
     codes: {
       PASSWORD_TOO_SHORT: 'Mật khẩu cần có ít nhất 8 ký tự.',
       PASSWORD_TOO_LONG: 'Mật khẩu không được quá 128 ký tự.',
@@ -144,6 +145,28 @@ const vi = {
       failed: 'Chưa thể hoàn tất. Vui lòng thử lại.',
     },
   },
+  signIn: {
+    title: 'Chào mừng trở lại',
+    portal: 'Cổng thông tin đào tạo',
+    heading: 'Đăng nhập',
+    preview: 'Bản xem thử — khám phá bằng phiên cục bộ.',
+    live: 'Tiếp tục trong trình duyệt với CampusUTE ID. Thông tin đăng nhập không đi qua ứng dụng này.',
+    explore: 'Khám phá bản xem thử',
+    signIn: 'Đăng nhập bằng CampusUTE ID',
+    unreachable: 'Không kết nối được dịch vụ định danh CampusUTE.',
+    storage: 'Không thể lưu phiên đăng nhập an toàn trên thiết bị này.',
+    invalid: 'Không thể xác thực phản hồi đăng nhập.',
+    noMobileSurface: 'Tài khoản này không có quyền dùng ứng dụng. Hãy đăng nhập trên cổng thông tin.',
+    unavailable: 'Phiên đã lưu tạm thời không khả dụng.',
+    retry: 'Thử lại phiên',
+  },
+  blocked: {
+    title: 'Đăng nhập bị chặn',
+    subtitle: 'Cần xác minh quyền truy cập',
+    status: 'Bị chặn',
+    openPortal: 'Mở cổng thông tin',
+    fallbackReason: 'Không thể hoàn tất đăng nhập. Hãy dùng cổng thông tin trên web nếu tình trạng này vẫn tiếp diễn.',
+  },
 };
 
 type Messages = typeof vi;
@@ -166,6 +189,7 @@ const en: Messages = {
     server: 'The service is busy. Please try again later.',
     preview: 'This feature is not available in the preview build.',
     unknown: 'We could not complete that. Please try again.',
+    issuerNotConfigured: 'Sign-in is not configured for this build.',
     codes: {
       PASSWORD_TOO_SHORT: 'Use at least 8 characters.',
       PASSWORD_TOO_LONG: 'Use no more than 128 characters.',
@@ -291,6 +315,28 @@ const en: Messages = {
       unauthorized: 'Your session has expired. Sign in again.',
       failed: 'We could not complete that. Please try again.',
     },
+  },
+  signIn: {
+    title: 'Welcome back',
+    portal: 'Academic information portal',
+    heading: 'Sign in',
+    preview: 'Preview build — explore with a local pseudo-session.',
+    live: 'Continue in your browser with CampusUTE ID. Your credentials never touch this app.',
+    explore: 'Explore preview',
+    signIn: 'Sign in with CampusUTE ID',
+    unreachable: 'Sign-in could not reach the CampusUTE identity service.',
+    storage: 'Sign-in could not save the session securely on this device.',
+    invalid: 'The sign-in response could not be validated.',
+    noMobileSurface: 'This account has no mobile access. Sign in on the web portal.',
+    unavailable: 'The saved session is temporarily unavailable.',
+    retry: 'Retry session',
+  },
+  blocked: {
+    title: 'Sign-in blocked',
+    subtitle: 'Access verification required',
+    status: 'Blocked',
+    openPortal: 'Open web portal',
+    fallbackReason: 'Sign-in could not finish. Use the web portal if this keeps happening.',
   },
 };
 
