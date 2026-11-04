@@ -312,7 +312,7 @@ export const thesisWorkflowEn = {
     repositoryDescription:
       'Department-scoped archive of approved groups, submitted reports, attached artifacts, and research rosters.',
     repositorySearchPlaceholder:
-      'Search by topic title, student name, student ID (MSSV), or supervisor...',
+      'Search topic, student, MSSV, or supervisor…',
     allReports: 'All reports ({count})',
     noReportsFound: 'No thesis reports match your search criteria.',
     noRoundReportsYet: 'No thesis reports have been submitted for this registration round yet.',
@@ -822,7 +822,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
     repositoryDescription:
       'Kho theo bộ môn dành cho nhóm đã duyệt, báo cáo đã nộp, tài liệu đính kèm và danh sách thành viên.',
     repositorySearchPlaceholder:
-      'Tìm kiếm theo tên đề tài, họ tên sinh viên, MSSV hoặc GVHD...',
+      'Tìm đề tài, sinh viên, MSSV hoặc GVHD…',
     allReports: 'Tất cả báo cáo ({count})',
     noReportsFound: 'Không tìm thấy báo cáo luận văn nào phù hợp với điều kiện tìm kiếm.',
     noRoundReportsYet: 'Chưa có nhóm nào nộp báo cáo luận văn trong đợt đăng ký này.',

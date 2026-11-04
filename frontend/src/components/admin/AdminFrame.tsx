@@ -683,7 +683,7 @@ export function AdminFrame({
           id="admin-main-content"
           ref={mainRef}
           tabIndex={-1}
-          className="mx-auto min-w-0 max-w-[var(--content-max)] px-4 py-5 pb-28 focus:outline-none sm:px-6 lg:px-8 lg:pb-28"
+          className="mx-auto min-w-0 max-w-[var(--content-max)] px-4 py-5 pb-[var(--portal-bottom-clearance,calc(10.5rem+env(safe-area-inset-bottom)))] focus:outline-none sm:px-6 lg:px-8 lg:pb-28"
         >
           {pathname !== resolvedBackHref ? (
             <LocalizedLink
