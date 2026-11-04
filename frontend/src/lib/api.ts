@@ -344,8 +344,9 @@ function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
       if (status === 401 && csrfHintAfter === csrfHintBefore) {
         // A 401 means the shared session cookie is dead for every tab — tell
         // siblings so they converge to login instead of idling on a revoked
-        // session until their own next request discovers it.
-        publishSessionChange('signed-out');
+        // session until their own next request discovers it. Siblings keep
+        // their own page as the post-login return target.
+        publishSessionChange('session-expired');
         navigateToLogin(reason);
       }
     })

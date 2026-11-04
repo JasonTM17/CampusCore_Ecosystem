@@ -20,19 +20,16 @@ import { TopicCardGridSkeleton } from '@/components/ui/skeleton';
 import { ListPager } from '@/components/ui/list-pager';
 import { plainTextThesisDescription as plainTextDescription } from '@/lib/thesis-text';
 import { catalogEmptyState } from '@/lib/thesis-page-list';
+import {
+  isTopicSearchWithinBudget,
+  TOPIC_SEARCH_MAX_LENGTH,
+} from '@/lib/thesis-topic-search';
 import { cn } from '@/lib/utils';
 import { useThesisWorkspace } from './useThesisWorkspace';
 import { thesisApi, type ThesisTopic } from '@/lib/thesis-api';
 import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
 
 const CATALOG_PAGE_SIZE = 20;
-const TOPIC_SEARCH_MAX_LENGTH = 200;
-const TOPIC_SEARCH_MAX_TOKENS = 16;
-
-function isTopicSearchWithinBudget(value: string) {
-  const tokens = value.trim().split(/\s+/).filter(Boolean);
-  return value.length <= TOPIC_SEARCH_MAX_LENGTH && tokens.length <= TOPIC_SEARCH_MAX_TOKENS;
-}
 
 export default function ThesisTopicCatalogPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
