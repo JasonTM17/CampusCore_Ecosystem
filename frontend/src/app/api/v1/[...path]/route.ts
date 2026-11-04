@@ -7,6 +7,7 @@ import {
   resolveJavaApiOrigin,
 } from '@/lib/proxy-url';
 import { checkProxyRequestOrigin } from '@/lib/proxy-request-origin';
+import { buildProxyRequestHeaders } from '@/lib/proxy-request-headers';
 import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
@@ -158,44 +159,15 @@ async function handle(request: NextRequest, context: RouteContext) {
     }
   }
 
-  const headers = new Headers(request.headers);
-  headers.delete('host');
-  headers.set('accept-encoding', 'identity');
+  const headers = buildProxyRequestHeaders(request);
 
   if (bffLane) {
-    for (const name of [...headers.keys()]) {
-      if (name.toLowerCase().startsWith('x-campuscore-')) {
-        headers.delete(name);
-      }
-    }
     headers.set('x-campuscore-surface', surface.id);
     headers.set(
       'x-campuscore-scheme',
       request.nextUrl.protocol.replace(':', ''),
     );
     headers.set('x-campuscore-host', request.headers.get('host') ?? '');
-  }
-
-  // Forwarded headers are client-controlled until we overwrite them: an
-  // forwarded identity must come from runtime metadata, never a caller's XFF.
-  // Vercel overwrites its platform header; trust it only on that platform.
-  // Self-hosted runtimes without peer metadata use the shared proxy bucket.
-  const clientIp =
-    (request as any).ip ||
-    (process.env.VERCEL === '1' ? request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() : undefined) ||
-    'web-proxy';
-  headers.delete('x-real-ip');
-  headers.delete('x-forwarded-for');
-  headers.set('x-forwarded-for', clientIp);
-
-  // Extra hop marker: Render appends this function's egress IP after our XFF
-  // entry, so the backend's rightmost-XFF rule would see the edge, not the
-  // user. A shared token authenticates the edge and lets the backend trust
-  // this dedicated client-IP header instead.
-  const proxyToken = process.env.CAMPUSCORE_PROXY_TOKEN;
-  if (proxyToken) {
-    headers.set('x-campuscore-proxy-token', proxyToken);
-    headers.set('x-campuscore-client-ip', clientIp);
   }
 
   let body: ArrayBuffer | undefined;

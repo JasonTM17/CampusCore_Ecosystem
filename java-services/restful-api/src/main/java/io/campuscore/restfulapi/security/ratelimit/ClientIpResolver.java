@@ -1,6 +1,8 @@
 package io.campuscore.restfulapi.security.ratelimit;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,8 +49,11 @@ public class ClientIpResolver {
         // its own peer metadata. A missing or mismatched token silently falls
         // through to the generic forwarded-header / socket paths below.
         String token = properties.getProxyToken();
+        String suppliedToken = request.getHeader("X-Campuscore-Proxy-Token");
         if (!token.isEmpty()
-                && token.equals(request.getHeader("X-Campuscore-Proxy-Token"))) {
+                && suppliedToken != null
+                && MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8),
+                        suppliedToken.getBytes(StandardCharsets.UTF_8))) {
             String clientIp = request.getHeader("X-Campuscore-Client-Ip");
             if (clientIp != null && !clientIp.isBlank()) {
                 return clientIp.trim();

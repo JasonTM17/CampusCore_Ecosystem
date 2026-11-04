@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.security.ratelimit;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,9 @@ public class RateLimitProperties {
     private final int defaultLimit;
     private final int defaultWindowSeconds;
 
+    @Value("${CAMPUSCORE_TRUST_EDGE_HEADERS:false}")
+    private boolean trustEdgeHeaders;
+
     public RateLimitProperties(
             @Value("${app.rate-limit.enabled:true}") boolean enabled,
             @Value("${app.rate-limit.trust-proxy-headers:false}") boolean trustProxyHeaders,
@@ -32,6 +36,23 @@ public class RateLimitProperties {
         this.loginLimit = loginLimit;
         this.defaultLimit = defaultLimit;
         this.defaultWindowSeconds = defaultWindowSeconds;
+    }
+
+    @PostConstruct
+    void validateEdgeTrust() {
+        if (trustEdgeHeaders) {
+            requireStrongEdgeProxyToken(proxyToken);
+        }
+    }
+
+    public static void requireStrongEdgeProxyToken(String token) {
+        String normalized = token == null ? "" : token.trim();
+        if (normalized.length() < 32
+                || "sso-preview-proxy-token-0123456789".equals(normalized)) {
+            throw new IllegalStateException(
+                    "CAMPUSCORE_TRUST_EDGE_HEADERS=true requires app.rate-limit.proxy-token"
+                            + " (RATE_LIMIT_PROXY_TOKEN) with at least 32 characters and an unpublished value");
+        }
     }
 
     public boolean isEnabled() {

@@ -112,6 +112,7 @@ The assistant runtime provisioner applies its generated password during startup.
 | `RATE_LIMIT_ENABLED` | Global rate-limit switch | config | optional | safe default `true` |
 | `RATE_LIMIT_TRUST_PROXY_HEADERS`, `RATE_LIMIT_TRUST_REAL_IP` | Trust `X-Forwarded-For`/real IP from proxy | config | prod behind proxy | forbidden unless proxy strips spoofed headers |
 | `RATE_LIMIT_PROXY_TOKEN` | Shared token proving request came via trusted edge | secret | prod (with trusted proxy) | required only with trusted-proxy mode |
+| `CAMPUSCORE_TRUST_EDGE_HEADERS` | Opt into the private edge → Next → Java client-address trust chain; set the same flag in web and API environments | config | optional | `false`; when exactly `true`, both services require an unpublished shared proxy token of at least 32 characters and refuse startup otherwise (including the published SSO-preview token) |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_WINDOW_SECONDS` | Bucket sizes + window | config | tuning | safe default |
 | `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | Base Compose pins `false`; `docker-compose.local.yml` opts in when selected by `local-dev up` |
 | `DEMO_ACCOUNTS_ROLES` | Restrict which demo roles unlock | config | local demo | safe default all demo roles |
@@ -119,6 +120,27 @@ The assistant runtime provisioner applies its generated password during startup.
 | `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |
 
 A deployment behind a reverse proxy must set `RATE_LIMIT_TRUST_PROXY_HEADERS=true` (and `RATE_LIMIT_TRUST_REAL_IP=true` only when that proxy overwrites `X-Real-IP`); otherwise every client resolves to the proxy address and all IP-keyed buckets, including the login bucket, are shared by the whole institution.
+
+For requests routed through Next `/api/v1/**` or `/session/**`, set
+`CAMPUSCORE_TRUST_EDGE_HEADERS=true` in **both** web and API and supply the same
+generated secret as web `CAMPUSCORE_PROXY_TOKEN` and API `RATE_LIMIT_PROXY_TOKEN`.
+The opt-in consumes only the rightmost IP literal in `X-Forwarded-For`; ingress
+must overwrite that header or append its observed peer address last, and Next
+must be reachable only through that trusted ingress. The shared secret proves
+Next's identity to Java; it does not authenticate an incoming header to Next.
+Both routes strip caller forwarding metadata and `x-campuscore-*` before setting
+their own headers. Missing or invalid edge addresses retain the shared
+`web-proxy` fallback. With the opt-in off, the existing runtime/Vercel/shared
+identity selection remains; configuring a token alone does not trust incoming XFF.
+The authenticated client-address pair does not require the separate Java
+`RATE_LIMIT_TRUST_PROXY_HEADERS` switch, which still governs direct proxy traffic.
+
+The committed Caddy configuration sends `/api/v1/*` directly to Java and all other
+paths to Next. Its direct API hops overwrite XFF/real IP; the web hop relies on
+Caddy's normal XFF handling. An operator must verify this ingress boundary and
+choose direct Java versus Next/BFF API routing before enabling the new mode.
+Direct mobile bearer requests retain their current contract and must never
+include either shared proxy secret; no mobile payload or endpoint changes.
 
 ## 6. Identity (OIDC issuer + BFF)
 
@@ -173,7 +195,7 @@ A deployment behind a reverse proxy must set `RATE_LIMIT_TRUST_PROXY_HEADERS=tru
 | `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS` | Show "fill demo" button on login | public | local demo only | **forbidden in prod** |
 | `NEXT_PUBLIC_DEMO_STUDENT_PASSWORD`, `NEXT_PUBLIC_DEMO_LECTURER_PASSWORD`, `NEXT_PUBLIC_DEMO_DEAN_PASSWORD` | Prefill values for demo button | public (demo only) | local demo only | **forbidden in prod** |
 | `JAVA_API_ORIGIN`, `BACKEND_INTERNAL_ORIGIN` | Server-side proxy target (compose arg/runtime) | config | compose, vercel | safe default |
-| `CAMPUSCORE_PROXY_TOKEN` | Edge→backend shared secret for proxy routes | secret | when edge token used | required then |
+| `CAMPUSCORE_PROXY_TOKEN` | Next→backend shared secret for proxy routes; must equal API `RATE_LIMIT_PROXY_TOKEN` | secret | when edge token used | required then; unpublished, at least 32 characters with `CAMPUSCORE_TRUST_EDGE_HEADERS=true`; never expose as `NEXT_PUBLIC_*` |
 | `OUTPUT_STANDALONE` | `output: 'standalone'` for slim Docker image | config | docker build | `true` forces standalone; on non-Windows the build is standalone even when unset or `false` (effective default `true` on Linux/macOS, `false` on Windows) |
 | `SITE_APPEARANCE_PATH` | Path for site appearance JSON persistence | config | optional | safe default `.data/campuscore-site-appearance.json` |
 | `NEXT_DIST_DIR` | Custom build output directory for Next.js | config | optional | safe default `.next` |
