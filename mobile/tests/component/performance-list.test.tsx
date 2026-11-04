@@ -1,10 +1,44 @@
-import { expect, jest, test } from '@jest/globals';
+import { afterEach, expect, jest, test } from '@jest/globals';
 import { render } from '@testing-library/react-native';
-import { FlatList, RefreshControl, Text } from 'react-native';
+import { Dimensions, FlatList, RefreshControl, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { createRef } from 'react';
 
+import { ASSISTANT_FAB_CLEARANCE } from '../../src/components/AssistantFab';
+import { ScreenShell } from '../../src/components/Ui';
 import { PerformanceList } from '../../src/components/perf/performance-list';
 import { cardRows, renderVirtualRow } from '../../src/components/perf/virtual-rows';
+import { tokens } from '../../src/design/tokens';
+
+afterEach(() => { jest.restoreAllMocks(); });
+
+test('screen and list scroll content leave a shared assistant button inset at supported widths and scales', async () => {
+  const getDimensions = jest.spyOn(Dimensions, 'get');
+  const expectedEndInset = tokens.layout.mobileGutter + ASSISTANT_FAB_CLEARANCE;
+  const data = ['row'];
+  const listRef = createRef<FlatList<string>>();
+
+  for (const width of [360, 390, 411, 1000]) {
+    for (const fontScale of [1, 2]) {
+      getDimensions.mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
+      const view = await render(
+        <>
+          <ScreenShell title="Screen"><Text>screen content</Text></ScreenShell>
+          <PerformanceList listRef={listRef} data={data} keyExtractor={(item) => item} renderItem={({ item }) => <Text>{item}</Text>} />
+        </>,
+      );
+
+      type TestNode = { parent?: TestNode | null; props: Record<string, unknown> };
+      const screenText = view.getByText('screen content') as unknown as TestNode;
+      let parent = screenText.parent;
+      while (parent && parent.props.contentContainerStyle === undefined) parent = parent.parent;
+      const scrollStyle = parent?.props.contentContainerStyle;
+      const listStyle = listRef.current?.props.contentContainerStyle;
+      expect(StyleSheet.flatten(scrollStyle as StyleProp<ViewStyle>)?.paddingEnd).toBe(expectedEndInset);
+      expect(StyleSheet.flatten(listStyle as StyleProp<ViewStyle>)?.paddingEnd).toBe(expectedEndInset);
+      await view.unmount();
+    }
+  }
+});
 
 test('header, empty, footer, refresh and paging retain the native list contract', async () => {
   const refresh = jest.fn(), page = jest.fn();

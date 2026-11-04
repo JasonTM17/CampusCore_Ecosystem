@@ -27,6 +27,7 @@ import { ListFrame, useConfirm, useContentCopy, useFlash } from '../content/cont
 import { previewNotifications } from '../content/preview-data';
 import { useContentQuery } from '../content/use-content-query';
 import { usePagedList } from '../content/use-paged-list';
+import { stripNotificationTagPrefix } from './notification-title';
 
 /** Inbox row as the API returns it: the producer link rides along with the typed fields. */
 type InboxNotification = MobileNotification & { link?: unknown };
@@ -135,7 +136,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
 
   const remove = (item: MobileNotification) => ask({
     title: copy.deleteTitle,
-    description: item.title,
+    description: stripNotificationTagPrefix(item.title),
     confirmLabel: copy.deleteNotification,
     cancelLabel: copy.keep,
     destructive: true,
@@ -191,11 +192,12 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
         )}
         renderItem={(item) => {
           const hasLink = typeof item.link === 'string' && item.link.length > 0;
+          const title = stripNotificationTagPrefix(item.title);
           return (
           <Card style={[styles.rowCard, !item.isRead ? { borderColor: colors.primaryFixed } : undefined]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, item.title, item.message, formatDateTime(item.createdAt)])}
+              accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, title, item.message, formatDateTime(item.createdAt)])}
               accessibilityHint={hasLink ? center.openHint : item.isRead ? undefined : copy.markRead}
               disabled={list.preview || (!hasLink && (item.isRead || busy || offline))}
               onPress={() => openItem(item)}
@@ -203,7 +205,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
             >
               <View style={styles.titleRow}>
                 <IconChip icon={item.isRead ? 'bell-check-outline' : 'bell-ring-outline'} tone={item.isRead ? 'neutral' : 'primary'} />
-                <UiText variant="label" tone={item.isRead ? 'default' : 'primary'} style={styles.title}>{item.title}</UiText>
+                <UiText variant="label" tone={item.isRead ? 'default' : 'primary'} style={styles.title}>{title}</UiText>
               </View>
               {item.message ? <UiText variant="bodySmall" tone="muted">{item.message}</UiText> : null}
               <View style={styles.metaRow}>
@@ -213,7 +215,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${copy.deleteNotification}: ${item.title}`}
+              accessibilityLabel={`${copy.deleteNotification}: ${title}`}
               accessibilityState={{ disabled: busy || offline || list.preview }}
               disabled={busy || offline || list.preview}
               onPress={() => remove(item)}

@@ -190,6 +190,7 @@ return (
           <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
         ) : null}
       </HeroCard>
+      <ScreenSpacer />
       {workspace?.eligibilityError ? (
         <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
       ) : null}
