@@ -46,8 +46,14 @@ test('failed mark-read restores the preview row and unread badge without duplica
   await expect.poll(() => writes).toBe(1);
   await expect(menu).not.toContainText('1');
   releaseWrite();
-  await expect(page.getByText('Không thể cập nhật thông báo này. Hãy thử lại.', { exact: true })).toBeVisible();
+  const updateFailed = page.getByText('Không thể cập nhật thông báo này. Hãy thử lại.', { exact: true });
+  await expect(updateFailed).toBeVisible();
   await expect(menu).toContainText('1');
+  // At 390px the error toast spans the header and covers the bell, so it must
+  // clear before the panel can be reopened; park the pointer off it first so
+  // its auto-dismiss timer is not paused by hover.
+  await page.mouse.move(8, 400);
+  await expect(updateFailed).toBeHidden({ timeout: 15_000 });
   await bell.click();
   await expect(row).toHaveCount(1);
   await expect(row).toBeVisible();
