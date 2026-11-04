@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: axllent/mailpit:v1.21
+    image: axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a
     ports:
       - "127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
       - "127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}:8025"
@@ -37,7 +37,7 @@ services:
   # ASSISTANT_DB_PASSWORD fails. The default below is a dev-only non-secret;
   # a public host must set ASSISTANT_DB_PASSWORD explicitly.
   assistant-db-provisioner:
-    image: node:20-alpine
+    image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
     working_dir: /provision
     volumes:
       - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
