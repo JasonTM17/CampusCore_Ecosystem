@@ -7,8 +7,13 @@ import { pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 64 * 1024 * 1024;
+const SUPABASE_MIGRATION_DIR = 'supabase/migrations/';
 
 function migrationFamily(file) {
+  if (file.startsWith(SUPABASE_MIGRATION_DIR)) {
+    const name = file.slice(SUPABASE_MIGRATION_DIR.length);
+    return name.endsWith('.sql') && !name.includes('/') ? 'supabase' : null;
+  }
   if (!file.startsWith('java-services/') || !file.endsWith('.sql')) return null;
   const parts = file.split('/');
   const index = parts.findIndex((part, partIndex) => part === 'db'
@@ -18,6 +23,9 @@ function migrationFamily(file) {
 
 function migrationVersion(file) {
   const filename = file.split('/').at(-1);
+  // A Supabase migration is identified by its full filename, so a rename is a
+  // new migration. Flyway identifies a migration by its version instead.
+  if (migrationFamily(file) === 'supabase') return filename;
   return /^V(\d+(?:[._]\d+)*)__/.exec(filename)?.[1] ?? null;
 }
 
@@ -37,7 +45,7 @@ export function parseMigrationTree(output) {
 }
 
 export async function readMigrationTree(ref, git = execFileAsync) {
-  const { stdout } = await git('git', ['ls-tree', '-r', '-z', ref, '--', 'java-services'], {
+  const { stdout } = await git('git', ['ls-tree', '-r', '-z', ref, '--', 'java-services', 'supabase/migrations'], {
     encoding: 'utf8',
     maxBuffer: MAX_BUFFER,
   });
@@ -77,7 +85,13 @@ async function main(argv = process.argv.slice(2)) {
     for (const migration of result.failures) {
       console.error(`IMMUTABLE migration content changed or removed: ${migration.path}`);
     }
-    console.error('Corrective changes must use a new Flyway version; see the migration README.');
+    const families = new Set(result.failures.map(
+      (migration) => migration.family ?? migrationFamily(migration.path)));
+    if (families.size === 1 && families.has('supabase')) {
+      console.error('Corrective changes to an applied Supabase migration must use a new timestamped file.');
+    } else {
+      console.error('Corrective changes must use a new Flyway version; see the migration README.');
+    }
     process.exitCode = 1;
     return;
   }
