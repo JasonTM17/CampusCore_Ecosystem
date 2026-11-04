@@ -303,6 +303,7 @@ function mountAuthProvider(options = {}) {
     },
     '@/lib/login-portal': {
       loginHref: () => '/en/login',
+      sessionExpiredLoginHref: () => '/en/login?reason=session-expired',
       portalFromPathname: () => 'student',
       portalFromUser: () => 'student',
     },
@@ -1740,7 +1741,7 @@ test('session transport: the cold-start retry honors the opt-out flag only', asy
   await warmed;
 });
 
-test('session transport: a discovered 401 publishes signed-out to sibling tabs before redirecting', async () => {
+test('session transport: a discovered 401 publishes session-expired to sibling tabs before redirecting', async () => {
   const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
@@ -1756,7 +1757,7 @@ test('session transport: a discovered 401 publishes signed-out to sibling tabs b
     await settle();
     assert.deepEqual(
       sessionSyncPublished,
-      ['signed-out'],
+      ['session-expired'],
       'siblings must hear about the dead shared session, not discover it one-by-one',
     );
     assert.ok(location.href.includes('/login'), 'the failing tab still navigates to login');
@@ -1780,7 +1781,7 @@ test('session transport: a dead cookie on /login does not reload the page in a l
     assert.equal(meCalls.length, 1, 'the redirect boundary confirms the cookie once');
     meCalls[0].reject({ response: { status: 401 } });
     await settle();
-    assert.deepEqual(sessionSyncPublished, ['signed-out'], 'siblings still converge on the dead session');
+    assert.deepEqual(sessionSyncPublished, ['session-expired'], 'siblings still converge on the dead session');
     assert.equal(location.href, '', 'already on /login — navigating again would reload the login page forever');
   } finally {
     globalThis.window = previousWindow;
@@ -2761,7 +2762,7 @@ test('api 401: a protected 401 confirms me() first and stays put while the cooki
   }
 });
 
-test('api 401: a dead shared cookie publishes signed-out and navigates once under concurrent 401s', async () => {
+test('api 401: a dead shared cookie publishes session-expired and navigates once under concurrent 401s', async () => {
   const env = mountApiBrowserGlobals();
   try {
     const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
@@ -2784,7 +2785,7 @@ test('api 401: a dead shared cookie publishes signed-out and navigates once unde
     await first;
     await second;
     await settle();
-    assert.deepEqual(sessionSyncPublished, ['signed-out']);
+    assert.deepEqual(sessionSyncPublished, ['session-expired']);
     assert.equal(env.navigations.length, 1, 'concurrent 401s share one redirect');
     assert.match(env.navigations[0], /\/login/);
     assert.match(env.navigations[0], /reason=unauthorized/);
@@ -3141,7 +3142,7 @@ test('BFF sign-out follows the issuer logout URL even when local redirection is 
   }
 });
 
-test('session poll: a definitive refresh rejection publishes signed-out once and navigates to localized login', async () => {
+test('session poll: a definitive refresh rejection publishes session-expired once and navigates to localized login', async () => {
   const env = mountPollGlobals();
   try {
     const mounted = mountAuthProvider();
@@ -3156,7 +3157,7 @@ test('session poll: a definitive refresh rejection publishes signed-out once and
     assert.equal(mounted.refreshCalls.length, 1, 'the poll confirms expiry through refresh first');
     mounted.refreshCalls[0].reject({ response: { status: 401 } });
     await settle();
-    assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
+    assert.deepEqual(mounted.sessionSync.published, ['session-expired']);
     assert.equal(env.replaces.length, 1);
     assert.match(env.replaces[0], /\/en\/login/);
     assert.equal(env.reloads.length, 0);
@@ -3178,7 +3179,7 @@ test('session poll: a 401 on a BFF surface signs out without a browser refresh',
     mounted.meCalls[1].reject({ response: { status: 401 } });
     await settle();
     assert.equal(mounted.refreshCalls.length, 0, 'the BFF lane has no browser refresh route');
-    assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
+    assert.deepEqual(mounted.sessionSync.published, ['session-expired']);
     assert.equal(env.replaces.length, 1);
   } finally {
     env.restore();
