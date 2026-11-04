@@ -49,7 +49,8 @@ test('base Compose requires each runtime secret and keeps demo credentials disab
   assert.match(base, /DEMO_ACCOUNTS_ENABLED: "false"/);
   assert.match(base, /NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS: \$\{NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS:-\}/);
   assert.doesNotMatch(base, /password123|DEMO_ACCOUNTS_ENABLED:\s*\$\{/);
-  assert.match(overlay, /DEMO_ACCOUNTS_ENABLED: "true"/);
+  assert.match(overlay, /DEMO_ACCOUNTS_ENABLED: \$\{DEMO_ACCOUNTS_ENABLED:-true\}/);
+  assert.match(overlay, /DEMO_ACCOUNTS_ROLES: \$\{DEMO_ACCOUNTS_ROLES:-\}/);
   assert.match(overlay, /password123/);
 });
 
@@ -97,6 +98,85 @@ test('base Compose rejects missing runtime secrets and resolves with demos disab
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('local overlay honours an explicit demo switch and role scope', (t) => {
+  const version = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' });
+  if (version.error || version.status !== 0) {
+    t.skip('Docker Compose CLI is unavailable; static contract assertions still run');
+    return;
+  }
+
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'compose-demo-'));
+  try {
+    const envPath = path.join(directory, 'compose.env');
+    const env = { ...process.env };
+    const names = [...new Set(requiredVariables('docker-compose.yml'))];
+    for (const name of names) delete env[name];
+    delete env.DEMO_ACCOUNTS_ENABLED;
+    delete env.DEMO_ACCOUNTS_ROLES;
+    const values = Object.fromEntries(names.map((name) => [name, `ci-test-${name.toLowerCase()}`]));
+    const writeEnv = (extra) => writeFileSync(
+      envPath,
+      Object.entries({ ...values, ...extra }).map(([name, value]) => `${name}=${value}`).join('\n'),
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    const resolve = () => spawnSync('docker', [
+      'compose', '--env-file', envPath,
+      '-f', path.join(repoRoot, 'docker-compose.yml'),
+      '-f', path.join(repoRoot, 'docker-compose.local.yml'),
+      'config', '--format', 'json',
+    ], { cwd: repoRoot, env, encoding: 'utf8' });
+
+    writeEnv({ DEMO_ACCOUNTS_ENABLED: 'false', DEMO_ACCOUNTS_ROLES: 'STUDENT' });
+    const explicit = resolve();
+    assert.equal(explicit.status, 0, explicit.stderr);
+    const explicitConfig = JSON.parse(explicit.stdout);
+    for (const service of ['restful-api', 'rag-service']) {
+      assert.equal(
+        explicitConfig.services[service].environment.DEMO_ACCOUNTS_ENABLED,
+        'false',
+        `${service} must honour an explicit DEMO_ACCOUNTS_ENABLED`,
+      );
+      assert.equal(
+        explicitConfig.services[service].environment.DEMO_ACCOUNTS_ROLES,
+        'STUDENT',
+        `${service} must forward DEMO_ACCOUNTS_ROLES`,
+      );
+    }
+
+    writeEnv({});
+    const defaults = resolve();
+    assert.equal(defaults.status, 0, defaults.stderr);
+    const defaultConfig = JSON.parse(defaults.stdout);
+    for (const service of ['restful-api', 'rag-service']) {
+      assert.equal(
+        defaultConfig.services[service].environment.DEMO_ACCOUNTS_ENABLED,
+        'true',
+        `${service} keeps the overlay demo default when no value is set`,
+      );
+      assert.equal(
+        defaultConfig.services[service].environment.DEMO_ACCOUNTS_ROLES,
+        '',
+        `${service} forwards an empty role scope when no value is set`,
+      );
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('mobile overlay header uses the secret-generating runner', () => {
+  const overlay = readFileSync(path.join(repoRoot, 'docker-compose.mobile-local.yml'), 'utf8');
+  assert.match(overlay, /node scripts\/local-dev\.mjs up --mobile/);
+  assert.doesNotMatch(overlay, /docker compose .*\bup\b/);
+});
+
+test('published-image smoke enables the demo accounts the checklist verifies', () => {
+  const release = readFileSync(path.join(repoRoot, 'docs', 'RELEASE.md'), 'utf8');
+  const smoke = release.split(/\r?\n/).find((line) => line.includes('--no-build'));
+  assert.ok(smoke, 'docs/RELEASE.md must document the published-image smoke');
+  assert.match(smoke, /-f docker-compose\.local\.yml/);
 });
 
 test('every host-side Compose stack runner uses the shared secret generator', () => {
