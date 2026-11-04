@@ -37,17 +37,21 @@ installKillGuard(children, { teardown: () => signalTeardown?.() });
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
-  console.error('Usage: ecosystem-events-verify.mjs preview --project <campuscore-*> [--evidence dir]');
+  console.error('Usage: ecosystem-events-verify.mjs preview --project <campuscore-*> [--web-port 3102] [--evidence dir]');
   process.exit(2);
 }
 
 function parseArgs(argv) {
-  const args = { evidence: 'artifacts/verification/events' };
+  const args = { evidence: 'artifacts/verification/events', webPort: String(WEB_PORT) };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--project') args.project = argv[++i];
+    else if (a === '--web-port') args.webPort = argv[++i];
     else if (a === '--evidence') args.evidence = argv[++i];
     else usage(`unknown arg ${a}`);
+  }
+  if (!/^\d+$/.test(args.webPort) || Number(args.webPort) < 1 || Number(args.webPort) > 65535) {
+    usage('--web-port must be an integer between 1 and 65535');
   }
   return args;
 }
@@ -180,7 +184,7 @@ async function casePreview(args) {
   try {
     const which = tryRun('openssl', ['version']);
     if (!which.ok) throw new Error('openssl unavailable — HTTPS preview cannot build certs (BLOCKED_CAPABILITY)');
-    await assertPortFree(WEB_PORT, 'next-dev');
+    await assertPortFree(args.webPort, 'next-dev');
     await assertPortFree(ID_TLS_PORT, 'id-tls');
     const existing = tryRun('docker', ['ps', '-aq', '--filter',
       `label=com.docker.compose.project=${args.project}`]);
@@ -223,7 +227,7 @@ async function casePreview(args) {
       '--experimental-https-key', key,
       '--experimental-https-cert', cert,
       '--hostname', '127.0.0.1',
-      '--port', String(WEB_PORT),
+      '--port', String(args.webPort),
     ], {
       cwd: FRONTEND,
       env: {
@@ -237,7 +241,7 @@ async function casePreview(args) {
       },
       shell: process.platform === 'win32',
     }, path.join(dir, 'next-dev.log'));
-    await waitFor(`https://portal.localhost:${WEB_PORT}/`, { insecure: true });
+    await waitFor(`https://portal.localhost:${args.webPort}/`, { insecure: true });
     result.nextUp = true;
 
     const pw = tryRun(process.execPath, [
@@ -246,8 +250,8 @@ async function casePreview(args) {
     ], {
       cwd: FRONTEND, timeoutMs: 900000,
       env: {
-        E2E_BASE_URL: `https://portal.localhost:${WEB_PORT}`,
-        SSO_PORTAL_BASE: `https://portal.localhost:${WEB_PORT}`,
+        E2E_BASE_URL: `https://portal.localhost:${args.webPort}`,
+        SSO_PORTAL_BASE: `https://portal.localhost:${args.webPort}`,
         SSO_ID_BASE: `https://id.localhost:${ID_TLS_PORT}`,
         EVENTS_API_BASE: `http://127.0.0.1:${API_PORT}`,
         E2E_ADMIN_PASSCODE: 'password123',

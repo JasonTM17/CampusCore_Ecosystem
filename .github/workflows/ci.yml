@@ -17,6 +17,8 @@
 # 2. java-api (BLOCKS MERGE):
 #    - Java modular monolith compile and surefire verification.
 #    - Surefire zero-test assertion: fails if total tests run equals 0 across reports.
+#    - Disposable-PostgreSQL integration lane (platform-verify.mjs pgit): every
+#      *PostgresIT runs; a zero or skipped IT run fails the gate.
 #
 # 3. frontend (BLOCKS MERGE):
 #    - Web dependencies (npm ci), typecheck, lint, build.
@@ -32,6 +34,8 @@
 #
 # 6. e2e (BLOCKS MERGE):
 #    - Official Playwright e2e suite against disposable container stack.
+#    - Every ecosystem HTTPS preview lane (one spec each, SSO_PORTAL_BASE set by
+#      its runner); the single-host suite legitimately ignores those specs.
 #
 # 7. compose (BLOCKS MERGE):
 #    - Migration immutability check, docker compose config validation.
@@ -130,6 +134,7 @@ jobs:
             scripts/check-migration-immutability.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/check-supabase-migrations.test.mjs \
+            scripts/ci-required-lane-guard.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
@@ -307,6 +312,9 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: java-services/pom.xml
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.13'
       - name: Install pypdf for PDF parser round-trip tests
         run: python -m pip install --quiet pypdf
       - name: Verify Java API
@@ -339,6 +347,8 @@ jobs:
             }
             console.log(`PASS: Verified ${total} Java tests executed across ${files.length} report files.`);
           '
+      - name: Verify PostgreSQL integration tests
+        run: node scripts/platform-verify.mjs pgit --project campuscore-ci-java-it-${{ github.run_id }} --evidence artifacts/verification/pgit-ci
       - name: Write and validate CI timing summary
         if: always()
         continue-on-error: true
@@ -628,6 +638,8 @@ jobs:
           E2E_PLAYWRIGHT_PROJECT: mobile-390
           E2E_PLAYWRIGHT_FILTER: failed mark-read restores the preview row and unread badge without duplicates
         run: node scripts/run-course-e2e.mjs
+      - name: Run every ecosystem HTTPS preview lane
+        run: node scripts/ecosystem-e2e-verify.mjs --project-prefix campuscore-ci-${{ github.run_id }} --evidence-root artifacts/verification
       - name: Upload Playwright failure traces
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

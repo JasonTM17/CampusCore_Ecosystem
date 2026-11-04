@@ -7,26 +7,23 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 
-test('preview collision leaves the existing listener and unowned stack alone', async (t) => {
+test('preview collision leaves the existing listener and unowned stack alone', async () => {
   const server = net.createServer(socket => {
     // The preflight probe deliberately destroys its connection after connect.
     socket.on('error', () => {});
   });
-  try {
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(3102, '127.0.0.1', resolve);
-    });
-  } catch (error) {
-    if (error.code === 'EADDRINUSE') return t.skip('existing port3102 listener: cannot own collision fixture');
-    throw error;
-  }
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = server.address();
   const evidence = fs.mkdtempSync(path.join(os.tmpdir(), 'campusute-collision-'));
   try {
     await assert.rejects(promisify(execFile)(process.execPath, [
       'scripts/ecosystem-events-verify.mjs', 'preview', '--project', 'campuscore-collision-test',
+      '--web-port', String(port),
       '--evidence', evidence,
-    ], { cwd: process.cwd(), timeout: 15000 }), error => error.code === 1 && error.stderr.includes('port 3102 in use'));
+    ], { cwd: process.cwd(), timeout: 15000 }), error => error.code === 1 && error.stderr.includes(`port ${port} in use`));
     assert.equal(server.listening, true);
     const report = JSON.parse(fs.readFileSync(path.join(evidence, 'preview.json'), 'utf8'));
     assert.equal(report.teardown, 'not-created');
