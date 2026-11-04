@@ -246,6 +246,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
     <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, paddingLeft: spacing.md }, style]}>
       <TextInput
         {...input}
+        multiline={false}
         value={value}
         onChangeText={onChangeText}
         accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}

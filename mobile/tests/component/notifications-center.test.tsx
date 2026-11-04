@@ -147,6 +147,38 @@ const vi = {
 };
 
 describe('notifications centre opens only allowlisted routes', () => {
+  test('notification titles strip only leading transport tags in content and accessibility labels', async () => {
+    const cases = [
+      ['[Announcement] Cập nhật quy định', 'Cập nhật quy định'],
+      ['Tiêu đề bình thường', 'Tiêu đề bình thường'],
+      ['[Announcement]', '[Announcement]'],
+      ['[aNnOuNcEmEnT] Thông báo hỗn hợp', 'Thông báo hỗn hợp'],
+      ['[THONG BAO] Lịch học mới', 'Lịch học mới'],
+      ['See announcement in this sentence', 'See announcement in this sentence'],
+    ] as const;
+    const items = cases.map(([title], index) => ({
+      ...row(`title-${index}`, title, null),
+      message: 'Nội dung thông báo',
+    }));
+    showRows(items);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    for (const [original, expected] of cases) {
+      expect(screen.getByText(expected)).toBeOnTheScreen();
+      const row = screen.getAllByRole('button').find((element) =>
+        !String(element.props.accessibilityLabel ?? '').startsWith(`${vi.deleteNotification}:`)
+        && String(element.props.accessibilityLabel ?? '').includes(expected),
+      );
+      expect(row).toBeDefined();
+      expect(row?.props.accessibilityLabel).toContain(expected);
+      expect(screen.getByRole('button', { name: `${vi.deleteNotification}: ${expected}` })).toBeOnTheScreen();
+      if (original !== expected) expect(screen.queryByText(original)).toBeNull();
+    }
+    expect(items.map((item) => item.title)).toEqual(cases.map(([original]) => original));
+    await fireEvent.press(screen.getByRole('button', { name: `${vi.deleteNotification}: Cập nhật quy định` }));
+    expect(screen.queryByText('[Announcement] Cập nhật quy định')).toBeNull();
+  });
+
   test('optimistic mark-read rolls back the visible row after a rejected write', async () => {
     let reject!: (error: unknown) => void;
     jest.mocked(contentApi.markNotificationRead).mockImplementationOnce(() => new Promise((_yes, no) => { reject = no; }));
