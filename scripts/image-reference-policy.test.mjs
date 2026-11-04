@@ -19,13 +19,6 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const skippedDirectories = new Set(['.git', '.next', '.expo', 'build', 'dist', 'node_modules', 'target']);
-const mutableBaselineCeiling = new Set([
-  'docker-compose.yml|mailpit|axllent/mailpit:v1.21',
-  'docker-compose.yml|assistant-db-provisioner|node:20-alpine',
-  'docker-compose.e2e.yml|postgres|postgres:15-alpine',
-  'docker-compose.e2e.yml|assistant-db-provisioner|node:20-alpine',
-  'scripts/caddy-validate.mjs|DEFAULT_CADDY_IMAGE|caddy:2.10.2-alpine',
-]);
 
 function isDockerfile(name) {
   return name === 'Dockerfile' || name.startsWith('Dockerfile.') || name.endsWith('.Dockerfile');
@@ -68,14 +61,14 @@ function scanRepository(root) {
   ));
 }
 
-function copyImageSources(root, destination, injectMutableComposeImage = false) {
+function copyImageSources(root, destination, injectedComposeImages = []) {
   for (const relativePath of listImageSourceFiles(root)) {
     let content = readFileSync(path.join(root, relativePath), 'utf8');
-    if (injectMutableComposeImage && relativePath === 'docker-compose.yml') {
-      content = content.replace(
-        /^services:\s*$/m,
-        'services:\n  unpinned-policy-probe:\n    image: nginx:latest',
-      );
+    if (injectedComposeImages.length > 0 && relativePath === 'docker-compose.yml') {
+      const services = injectedComposeImages
+        .map(({ service, image }) => `  ${service}:\n    image: ${image}`)
+        .join('\n');
+      content = content.replace(/^services:\s*$/m, `services:\n${services}`);
     }
 
     const destinationPath = path.join(destination, relativePath);
@@ -85,15 +78,16 @@ function copyImageSources(root, destination, injectMutableComposeImage = false) 
 }
 
 test('image parser inventories Compose images and ignores build-only services', () => {
+  const mailpit = 'axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a';
   const references = parseReferences('docker-compose.fixture.yml', `services:
   built-from-source:
     build: .
   mailpit:
-    image: axllent/mailpit:v1.21
+    image: ${mailpit}
 `);
 
   assert.deepEqual(references.map(({ service, reference }) => ({ service, reference })), [
-    { service: 'mailpit', reference: 'axllent/mailpit:v1.21' },
+    { service: 'mailpit', reference: mailpit },
   ]);
 });
 
@@ -140,10 +134,23 @@ test('unapproved local-build tags and unchecked variable overrides are rejected'
     file: 'docker-compose.e2e.yml',
     service: 'restful-api',
   }).classification, 'MUTABLE');
+
+  assert.equal(classifyReference('${E2E_CORE_API_IMAGE}', {
+    file: 'docker-compose.e2e.yml',
+    service: 'restful-api',
+  }).classification, 'MUTABLE');
+
+  assert.equal(classifyReference('${E2E_CORE_API_IMAGE:-student-management-ute-restful-api:local}', {
+    file: 'docker-compose.e2e.yml',
+    service: 'restful-api',
+  }).classification, 'MUTABLE');
 });
 
 test('digest pins, scratch, exact local builds and reviewed GHCR interpolation are accepted', () => {
   assert.equal(classifyReference(`node:20-alpine@sha256:${'a'.repeat(64)}`).classification, 'digest-pinned');
+  assert.equal(classifyReference('axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a').classification, 'digest-pinned');
+  assert.equal(classifyReference('postgres:15-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b').classification, 'digest-pinned');
+  assert.equal(classifyReference('caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d').classification, 'digest-pinned');
   assert.equal(classifyReference('scratch').classification, 'scratch');
   assert.equal(classifyReference('student-management-ute-database:local', {
     file: 'docker-compose.yml',
@@ -179,12 +186,8 @@ test('evaluation rejects stale baseline entries and mutable references outside t
   )));
 });
 
-test('known mutable baseline only shrinks from its reviewed ceiling', () => {
-  for (const entry of KNOWN_MUTABLE) {
-    const key = `${entry.file}|${entry.service}|${entry.reference}`;
-    assert.ok(mutableBaselineCeiling.has(key), `${key} is outside the reviewed baseline ceiling`);
-    assert.equal(entry.reason, 'owner digest pending');
-  }
+test('known mutable baseline is empty now that every external reference is pinned', () => {
+  assert.deepEqual([...KNOWN_MUTABLE], []);
 });
 
 test('repo scan rejects a new mutable reference in a scratch Compose copy', (t) => {
@@ -195,7 +198,7 @@ test('repo scan rejects a new mutable reference in a scratch Compose copy', (t) 
     rmSync(scratchRoot, { recursive: true, force: true });
   });
 
-  copyImageSources(repoRoot, scratchRoot, true);
+  copyImageSources(repoRoot, scratchRoot, [{ service: 'unpinned-policy-probe', image: 'nginx:latest' }]);
   const result = evaluateReferences(scanRepository(scratchRoot));
 
   assert.equal(result.ok, false);
@@ -206,7 +209,51 @@ test('repo scan rejects a new mutable reference in a scratch Compose copy', (t) 
   )));
 });
 
-test('real repository image inventory passes with the explicit mutable baseline', () => {
+test('repo scan fails first on every newly added floating reference form', (t) => {
+  const scratchRoot = mkdtempSync(path.join(repoRoot, '.test-image-policy-'));
+  t.after(() => {
+    assert.equal(path.dirname(path.resolve(scratchRoot)), path.resolve(repoRoot));
+    assert.ok(path.basename(scratchRoot).startsWith('.test-image-policy-'));
+    rmSync(scratchRoot, { recursive: true, force: true });
+  });
+
+  const floating = [
+    { service: 'probe-no-tag', image: 'redis' },
+    { service: 'probe-latest', image: 'redis:latest' },
+    { service: 'probe-major-tag', image: 'redis:7' },
+    { service: 'probe-exact-tag', image: 'redis:7.2.5' },
+    { service: 'probe-short-digest', image: 'redis@sha256:abcd' },
+  ];
+  copyImageSources(repoRoot, scratchRoot, floating);
+  const result = evaluateReferences(scanRepository(scratchRoot));
+
+  assert.equal(result.ok, false);
+  for (const { image } of floating) {
+    assert.ok(
+      result.issues.some(({ type, reference }) => (
+        type === 'unapproved-mutable-reference' && reference === image
+      )),
+      `${image} must fail evaluation`,
+    );
+  }
+  assert.ok(
+    result.issues.every(({ reference }) => floating.some(({ image }) => image === reference)),
+    'only the injected floating references may fail: local builds, scratch and pins stay green',
+  );
+});
+
+test('approved local builds and scratch evaluate without issues', () => {
+  const result = evaluateReferences([
+    { file: 'docker-compose.yml', service: 'postgres', reference: 'student-management-ute-database:local' },
+    { file: 'docker-compose.yml', service: 'web', reference: 'student-management-ute-frontend:local' },
+    { file: 'docker-compose.e2e.yml', service: 'restful-api', reference: '${E2E_CORE_API_IMAGE:-student-management-ute-restful-api:e2e-local}' },
+    { file: 'database/Dockerfile', reference: 'scratch' },
+  ]);
+
+  assert.equal(result.ok, true, JSON.stringify(result.issues));
+});
+
+test('real repository image inventory is fully immutable without baseline grants', () => {
   const references = scanRepository(repoRoot);
   const result = evaluateReferences(references);
   const messages = result.issues.map((issue) => JSON.stringify(issue)).join('\n');
@@ -215,4 +262,23 @@ test('real repository image inventory passes with the explicit mutable baseline'
   assert.ok(references.some(({ file }) => file.endsWith('Dockerfile')), 'Dockerfile inventory is present');
   assert.ok(references.some(({ file }) => file === 'scripts/caddy-validate.mjs'), 'Caddy default is inventoried');
   assert.equal(result.ok, true, messages);
+  assert.ok(
+    result.references.every(({ classification }) => classification !== 'MUTABLE'),
+    'no mutable reference may survive evaluation',
+  );
+
+  for (const [file, service] of [
+    ['docker-compose.yml', 'mailpit'],
+    ['docker-compose.yml', 'assistant-db-provisioner'],
+    ['docker-compose.e2e.yml', 'postgres'],
+    ['docker-compose.e2e.yml', 'assistant-db-provisioner'],
+    ['scripts/caddy-validate.mjs', 'DEFAULT_CADDY_IMAGE'],
+  ]) {
+    const entry = result.references.find((candidate) => (
+      candidate.file === file && candidate.service === service
+    ));
+    assert.ok(entry, `${file} ${service} is inventoried`);
+    assert.equal(entry.classification, 'digest-pinned', `${file} ${service} must be digest-pinned`);
+    assert.match(entry.reference, /@sha256:[0-9a-f]{64}$/);
+  }
 });
