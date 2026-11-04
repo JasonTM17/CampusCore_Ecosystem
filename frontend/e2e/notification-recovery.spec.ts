@@ -48,10 +48,38 @@ test('failed mark-read restores the preview row and unread badge without duplica
   releaseWrite();
   const updateFailed = page.getByText('Không thể cập nhật thông báo này. Hãy thử lại.', { exact: true });
   await expect(updateFailed).toBeVisible();
+  const toast = page.locator('[data-sonner-toast][data-type="error"]').filter({
+    hasText: 'Không thể cập nhật thông báo này. Hãy thử lại.',
+  });
+  await toast.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+  });
+  const toastBox = await toast.boundingBox();
+  expect(toastBox, 'the error toast has a visible rectangle').not.toBeNull();
+  if (!toastBox) throw new Error('The visible error toast has no bounding box.');
+  const mobileNavBox = await page.locator('nav.fixed.bottom-0').boundingBox();
+  expect(mobileNavBox, 'the mobile navigation has a visible rectangle').not.toBeNull();
+  if (!mobileNavBox) throw new Error('The mobile navigation has no bounding box.');
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(mobileNavBox.y);
+  const controls = page.getByRole('banner').locator('a, button, [role="button"]');
+  const overlaps: string[] = [];
+  for (let index = 0; index < await controls.count(); index += 1) {
+    const control = controls.nth(index);
+    const controlBox = await control.boundingBox();
+    if (!controlBox) continue;
+    if (
+      toastBox.x < controlBox.x + controlBox.width &&
+      toastBox.x + toastBox.width > controlBox.x &&
+      toastBox.y < controlBox.y + controlBox.height &&
+      toastBox.y + toastBox.height > controlBox.y
+    ) {
+      const name = await control.getAttribute('aria-label') ?? await control.textContent() ?? 'unnamed control';
+      overlaps.push(`${name.trim()} toast=${JSON.stringify(toastBox)} control=${JSON.stringify(controlBox)}`);
+    }
+  }
+  expect(overlaps, 'the error toast must not overlap any dashboard header control').toEqual([]);
   await expect(menu).toContainText('1');
-  // At 390px the error toast spans the header and covers the bell, so it must
-  // clear before the panel can be reopened; park the pointer off it first so
-  // its auto-dismiss timer is not paused by hover.
+  // Keep the pointer off the toast so hover cannot pause its dismissal timer.
   await page.mouse.move(8, 400);
   await expect(updateFailed).toBeHidden({ timeout: 15_000 });
   await bell.click();
