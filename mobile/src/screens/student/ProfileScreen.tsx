@@ -188,7 +188,6 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     ? 'Nguyen Duc Minh'
     : [account?.firstName, account?.lastName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
-  const idLabel = role === 'lecturer' ? copy.profile.lecturerId : copy.profile.studentId;
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
 
   if (isLoading || error) {
@@ -221,11 +220,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       </Card>
       <ScreenSpacer />
       <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
-        <ListRow icon="account-outline" title={copy.profile.fullName} subtitle={displayName} />
-        <Divider />
         <ListRow icon="email-outline" title={copy.profile.email} subtitle={displayEmail} />
-        <Divider />
-        <ListRow icon="card-account-details-outline" title={idLabel} subtitle={displayId} />
         {isLive ? (
           <>
             <Divider />

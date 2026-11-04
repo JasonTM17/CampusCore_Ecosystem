@@ -175,7 +175,6 @@ return (
       {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
       <HeroCard
         icon="clipboard-list-outline"
-        eyebrow={copy.registrationTitle}
         title={fillCopy(copy.basketTitle, { n: selectedCount })}
         detail={eligibility?.creditLimit != null
           ? fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })

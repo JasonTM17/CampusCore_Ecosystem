@@ -210,8 +210,6 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   return (
     <OpsShell
       title={copy.attendanceTitle}
-      eyebrow={section ? `${section.courseCode ?? ''} · ${date}` : undefined}
-      subtitle={section ? courseTitle(section, locale) : undefined}
       loading={loading}
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
