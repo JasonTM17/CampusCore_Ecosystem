@@ -17,7 +17,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const DEFAULT_CADDY_IMAGE = 'caddy:2.10.2-alpine';
+export const DEFAULT_CADDY_IMAGE = 'caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d';
 export const DEFAULT_CONTAINER_NAME = 'campuscore-caddy-validate';
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_PLACEHOLDERS = Object.freeze({
