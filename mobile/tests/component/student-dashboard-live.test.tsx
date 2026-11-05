@@ -91,6 +91,23 @@ afterEach(() => {
 });
 
 describe('student dashboard live mode', () => {
+  test('an unreachable dashboard read shows retry and recovers without a blank shell', async () => {
+    mockQueries['academic.enrollments'] = { error: 'Không có kết nối.' };
+    mockQueries.announcements = { data: { data: [] } };
+    const view = await renderScreen();
+
+    expect(screen.getByText('Không có kết nối.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toBeOnTheScreen();
+    expect(screen.queryByText('0 lớp đang học')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledWith('academic.enrollments');
+
+    mockQueries['academic.enrollments'] = { data: [] };
+    await view.rerender(screenElement());
+    expect(screen.queryByText('Không có kết nối.')).toBeNull();
+    expect(screen.getByText('0 lớp đang học')).toBeOnTheScreen();
+  });
+
   test('the enrollment read shares the academic cache entry the dashboard prefetch fills', async () => {
     mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { data: { data: [] } };
@@ -127,11 +144,16 @@ describe('student dashboard live mode', () => {
   test('a failed announcements fetch shows the neutral error copy, not a fabricated zero (ux-m1-06)', async () => {
     mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { error: 'Không tải được thông báo.' };
-    await renderScreen();
+    const view = await renderScreen();
     expect(screen.getAllByText('Không tải được thông báo.')).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
     expect(mockReload).toHaveBeenCalledWith('announcements');
     expect(screen.queryByText('0 thông báo của trường')).toBeNull();
+
+    mockQueries.announcements = { data: { data: [{ id: 'recovered' }], meta: { total: 1 } } };
+    await view.rerender(screenElement());
+    expect(screen.getByText('1 thông báo của trường')).toBeOnTheScreen();
+    expect(screen.queryByText('Không tải được thông báo.')).toBeNull();
   });
 
   test('a widget-level 401 shows retry copy instead of session-expired copy', async () => {

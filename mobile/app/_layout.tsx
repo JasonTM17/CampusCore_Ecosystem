@@ -1,5 +1,5 @@
 import { Redirect, SplashScreen, Stack, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StatusBar, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
@@ -12,7 +12,7 @@ import { ThemeProvider, useTheme } from '../src/design/theme';
 import { LocaleProvider, useLocale } from '../src/i18n/locale-provider';
 import { NO_CAPABILITIES } from '../src/auth/capabilities';
 import { LANE_FLAGS } from '../src/config/lane-flags';
-import { pathFor, resolveGuard } from '../src/navigation/route-map';
+import { laneScreenForPath, pathFor, resolveGuard, screenForPath } from '../src/navigation/route-map';
 import { consumePendingCheckinPath, rememberCheckinPath } from '../src/navigation/pending-checkin';
 import { SessionProvider, useSession } from '../src/session/SessionContext';
 
@@ -73,6 +73,7 @@ function RootNavigator() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
   const [resumePath, setResumePath] = useState<string | null>(null);
+  const returnTarget = useRef<string | null>(null);
   // Preserve a lecturer check-in link through the sign-in detour (G3B); the
   // store validates the session-id shape and only holds memory.
   if (session.kind === 'signedOut') {
@@ -83,9 +84,17 @@ function RootNavigator() {
   // plain replace races (and loses to) the /sign-in → role-home Redirect that
   // fires in the same commit as the session flip.
   const { kind, role, capabilities } = session;
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
+  const knownRoute = screenForPath(pathname) !== null || laneScreenForPath(pathname) !== null;
+  // A terminal refresh can clear the session mid-route; resume only a known local route after sign-in.
+  if (kind === 'signedOut' && session.bootStatus === 'reauthRequired'
+    && decision.action === 'redirect' && decision.to === 'auth.signIn' && knownRoute) {
+    returnTarget.current = pathname;
+  }
   useEffect(() => {
     if (kind === 'signedOut') return;
-    const pending = consumePendingCheckinPath();
+    const pending = consumePendingCheckinPath() ?? returnTarget.current;
+    returnTarget.current = null;
     if (pending === null) return;
     if (resolveGuard(kind, role, pending, capabilities ?? NO_CAPABILITIES, LANE_FLAGS).action === 'allow') {
       setResumePath(pending);
@@ -94,7 +103,6 @@ function RootNavigator() {
   useEffect(() => {
     if (resumePath !== null && pathname === resumePath) setResumePath(null);
   }, [resumePath, pathname]);
-  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
   let redirectHref: string | null = null;
   if (resumePath !== null && pathname !== resumePath) {
     redirectHref = resumePath;

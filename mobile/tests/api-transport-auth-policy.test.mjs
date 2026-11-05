@@ -490,6 +490,31 @@ test('an ambiguous refresh ends one session without replaying protected requests
   }
 });
 
+test('five expired requests share one failed refresh and clear the session once', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      state.token = null;
+      return 'signedOut';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    const paths = ['/dashboard', '/notifications', '/registration', '/profile', '/assistant'];
+    const results = await Promise.allSettled(paths.map((path) => client.get(path)));
+
+    assert.ok(results.every((result) => result.status === 'rejected'));
+    assert.equal(state.refreshCalls, 1, 'all five requests share one refresh');
+    assert.equal(state.expired, 1, 'the shared terminal refresh clears the session once');
+    assert.equal(state.token, null);
+    assert.equal(net.calls.length, 5, 'none of the protected requests is replayed');
+  } finally {
+    net.restore();
+  }
+});
+
 test('a recovered issuer is retried by the next request after a transient refresh failure', async () => {
   const { state, options } = makeSession();
   let recovered = false;

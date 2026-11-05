@@ -205,3 +205,22 @@ test('a second select during the post-register refresh cannot send another enrol
   await act(async () => { reload.resolve(); await reload.promise; });
   expect(mockPost).toHaveBeenCalledTimes(1);
 });
+
+test('two rapid registration submissions send one enrollment request', async () => {
+  mockQueries['academic.registration'] = {
+    data: { ...workspace, sections: [selectable], enrollments: [] },
+  };
+  let resolvePost!: (value: unknown) => void;
+  mockPost.mockImplementationOnce(() => new Promise((resolve) => { resolvePost = resolve; }));
+  await render(screenElement(<RegistrationScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
+  const submit = screen.getByRole('button', { name: copy.registerSelected });
+  await act(async () => {
+    await fireEvent.press(submit);
+    await fireEvent.press(submit);
+  });
+
+  expect(mockPost).toHaveBeenCalledTimes(1);
+  await act(async () => { resolvePost({ id: 'enr-new' }); });
+});

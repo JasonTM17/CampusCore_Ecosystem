@@ -22,6 +22,7 @@ const mockUnreadQuery = {
   data: 1 as number | undefined,
   error: null as string | null,
 };
+const mockReload = jest.fn(async () => {});
 
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live', baseUrl: 'http://localhost' },
@@ -68,7 +69,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
         errorStatus: null,
         isLoading: false,
         isStale: false,
-        reload: jest.fn(async () => {}),
+        reload: mockReload,
         setData: jest.fn(),
       };
     }
@@ -79,7 +80,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
       errorStatus: mockQuery.value.errorStatus,
       isLoading: false,
       isStale: false,
-      reload: jest.fn(async () => {}),
+      reload: mockReload,
       setData: jest.fn(),
     };
   },
@@ -129,6 +130,7 @@ afterEach(() => {
   mockPushPermission.value = { granted: false, canAskAgain: true };
   mockUnreadQuery.data = 1;
   mockUnreadQuery.error = null;
+  mockReload.mockClear();
 });
 
 /** The row's own button, not its delete button (whose label repeats the title). */
@@ -147,6 +149,25 @@ const vi = {
 };
 
 describe('notifications centre opens only allowlisted routes', () => {
+  test('an unreachable notification list shows retry and renders after a successful read', async () => {
+    mockQuery.value = {
+      data: undefined,
+      warning: null,
+      error: contentMessages.vi.generic,
+      errorStatus: 0,
+    };
+    const view = await renderThemed(<NotificationsScreen {...props} />);
+
+    expect(screen.getByText(contentMessages.vi.generic)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: uiMessages.vi.retry }));
+    expect(mockReload).toHaveBeenCalledTimes(1);
+
+    showRows([row('recovered-notification', 'Recovered notification', null)]);
+    await view.rerender(<ThemeProvider forcedScheme="light"><NotificationsScreen {...props} /></ThemeProvider>);
+    expect(screen.getByText('Recovered notification')).toBeOnTheScreen();
+    expect(screen.queryByText(contentMessages.vi.generic)).toBeNull();
+  });
+
   test('notification titles strip only leading transport tags in content and accessibility labels', async () => {
     const cases = [
       ['[Announcement] Cập nhật quy định', 'Cập nhật quy định'],
@@ -189,6 +210,23 @@ describe('notifications centre opens only allowlisted routes', () => {
     expect(rowButton('Rollback read').props.accessibilityLabel).not.toContain(recordsMessages.vi.unread);
     await act(async () => reject(new Error('write rejected')));
     expect(rowButton('Rollback read').props.accessibilityLabel).toContain(recordsMessages.vi.unread);
+  });
+
+  test('two rapid mark-read actions send one request', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof contentApi.markNotificationRead>>) => void;
+    jest.mocked(contentApi.markNotificationRead).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    showRows([row('single-read', 'Read once', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    const action = rowButton('Read once');
+    await act(async () => {
+      await fireEvent.press(action);
+      await fireEvent.press(action);
+    });
+
+    expect(contentApi.markNotificationRead).toHaveBeenCalledTimes(1);
+    expect(contentApi.markNotificationRead).toHaveBeenCalledWith('single-read');
+    await act(async () => resolve({}));
   });
 
   test('optimistic delete restores the row on rejection', async () => {

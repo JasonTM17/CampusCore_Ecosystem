@@ -37,6 +37,22 @@ function completion(accessClaims: Record<string, unknown>) {
 }
 
 describe('OIDC surface outcome', () => {
+  test('a callback with the wrong state is rejected before token exchange', async () => {
+    const exchange = jest.fn(async () => new Response('{}', { status: 200 }));
+    const outcome = await signInWithOidc({
+      issuer: ISSUER,
+      now: () => NOW,
+      openSession: async () => ({
+        type: 'success',
+        url: `${OIDC_REDIRECT_URI}?code=stray-code&state=wrong-state`,
+      }),
+      fetchImpl: exchange as typeof fetch,
+    });
+
+    expect(outcome).toMatchObject({ kind: 'blocked', reason: expect.stringMatching(/state mismatch/i) });
+    expect(exchange).not.toHaveBeenCalled();
+  });
+
   test('a roleless account reports the missing mobile surface', async () => {
     const outcome = await signInWithOidc({
       issuer: ISSUER,
