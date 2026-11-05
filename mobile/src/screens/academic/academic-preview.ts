@@ -5,7 +5,7 @@ import type { AcademicEnrollment, AcademicSemester } from './academic-model';
 import type { AcademicGradeRecord, AttendanceSummaryRow, MyCurriculum } from './academic-api';
 import type { BrowseSection } from './registration-browse';
 
-const course = (code: string, name: string, credits: number) => ({ code, name, nameEn: name, nameVi: name, credits });
+const course = (code: string, nameEn: string, nameVi: string, credits: number) => ({ code, name: nameEn, nameEn, nameVi, credits });
 
 // The sample term is centred on today so the week and term views always show sessions.
 const isoDay = (offsetDays: number) => {
@@ -28,15 +28,15 @@ export const previewSemester: AcademicSemester = {
 export const previewEnrollments: AcademicEnrollment[] = [
   {
     id: 'preview-cs204', sectionId: 'preview-sec-cs204', semesterId: previewSemester.id, status: 'ENROLLED', gradeStatus: 'NOT_GRADED',
-    section: { sectionNumber: '01', course: course('CS204', 'Software Architecture', 3), lecturer: { fullName: 'Dr. Le Minh' }, schedules: [{ dayOfWeek: 3, startTime: '08:00', endTime: '09:30', classroom: { building: 'A2', roomNumber: '204' } }] },
+    section: { sectionNumber: '01', course: course('CS204', 'Software Architecture', 'Kiến trúc phần mềm', 3), lecturer: { fullName: 'Dr. Le Minh' }, schedules: [{ dayOfWeek: 3, startTime: '08:00', endTime: '09:30', classroom: { building: 'A2', roomNumber: '204' } }] },
   },
   {
     id: 'preview-ba312', sectionId: 'preview-sec-ba312', semesterId: previewSemester.id, status: 'ENROLLED', gradeStatus: 'NOT_GRADED',
-    section: { sectionNumber: '02', course: course('BA312', 'Business Analytics', 3), lecturer: { fullName: 'Assoc. Prof. Tran Ha' }, schedules: [{ dayOfWeek: 5, startTime: '13:30', endTime: '15:00', classroom: { building: 'B1', roomNumber: '108' } }] },
+    section: { sectionNumber: '02', course: course('BA312', 'Business Analytics', 'Phân tích kinh doanh', 3), lecturer: { fullName: 'Assoc. Prof. Tran Ha' }, schedules: [{ dayOfWeek: 5, startTime: '13:30', endTime: '15:00', classroom: { building: 'B1', roomNumber: '108' } }] },
   },
   {
     id: 'preview-en201', sectionId: 'preview-sec-en201', semesterId: 'preview-old', status: 'COMPLETED', gradeStatus: 'PUBLISHED', finalGrade: 8.8, letterGrade: 'A',
-    section: { sectionNumber: '03', course: course('EN201', 'Academic English', 2) },
+    section: { sectionNumber: '03', course: course('EN201', 'Academic English', 'Tiếng Anh học thuật', 2) },
   },
 ];
 

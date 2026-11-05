@@ -3,6 +3,9 @@
 // the output does not depend on the device time zone. Keep behavior aligned
 // with `frontend/src/lib/ical-generator.ts`; the parity test compares them.
 
+import { academicMessages } from '../../i18n/academic-messages';
+import { formatNumber } from '../../i18n/locale';
+
 export interface IcsEvent {
   uid: string;
   summary: string;
@@ -105,6 +108,7 @@ export function buildScheduleIcsEvents(
   nowMs: number = Date.now(),
 ): IcsEvent[] {
   const events: IcsEvent[] = [];
+  const calendarCopy = academicMessages[locale].calendar;
   const baseStartDate = (semester?.startDate ? parseCivilDateOnly(semester.startDate) : undefined) ?? vietnamCivilToday(nowMs);
 
   let untilUtc: string | undefined;
@@ -137,20 +141,13 @@ export function buildScheduleIcsEvents(
       const end = parseTimeString(schedule.endTime);
       const building = schedule.classroom?.building;
       const room = schedule.classroom?.roomNumber;
-      const location = [room ? (locale === 'vi' ? `Phòng ${room}` : `Room ${room}`) : '', building].filter(Boolean).join(', ');
+      const location = [room ? `${calendarCopy.room} ${room}` : '', building].filter(Boolean).join(', ');
 
       const lines: string[] = [];
-      if (locale === 'vi') {
-        lines.push(`Môn học: ${courseName} (${courseCode})`, `Lớp học phần: ${sectionNumber}`);
-        if (credits > 0) lines.push(`Số tín chỉ: ${credits}`);
-        if (lecturerName) lines.push(`Giảng viên: ${lecturerName}`);
-        if (location) lines.push(`Địa điểm: ${location}`);
-      } else {
-        lines.push(`Course: ${courseName} (${courseCode})`, `Section: ${sectionNumber}`);
-        if (credits > 0) lines.push(`Credits: ${credits}`);
-        if (lecturerName) lines.push(`Lecturer: ${lecturerName}`);
-        if (location) lines.push(`Location: ${location}`);
-      }
+      lines.push(`${calendarCopy.course}: ${courseName} (${courseCode})`, `${calendarCopy.section}: ${sectionNumber}`);
+      if (credits > 0) lines.push(`${calendarCopy.credits}: ${formatNumber(credits, locale)}`);
+      if (lecturerName) lines.push(`${calendarCopy.lecturer}: ${lecturerName}`);
+      if (location) lines.push(`${calendarCopy.location}: ${location}`);
 
       events.push({
         uid: `schedule-${enrollment.id}-${schedule.id || i}@campuscore.edu`,

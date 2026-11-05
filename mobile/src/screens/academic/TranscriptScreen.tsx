@@ -57,7 +57,7 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
               <View style={academicStyles.rowCopy}>
                 <StatusPill label={record.courseCode} tone="primary" />
                 <UiText variant="bodyMedium">{record.courseName}</UiText>
-                <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: record.credits })}</UiText>
+                <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) })}</UiText>
               </View>
               {published && record.finalGrade != null ? (
                 <View style={styles.gradeResult}>
@@ -87,7 +87,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
   const model = useMemo(() => (query.data === undefined ? null : parseTranscript(query.data, locale)), [query.data, locale]);
   const malformed = !preview && query.data !== undefined && model === null;
   const visibleTerms = model ? model.terms.filter((entry) => !term || entry.semesterId === term) : [];
-  const trend = model ? cumulativeTrend(model.terms, model.cumulativeGpa, locale === 'vi' ? 'HK' : 'T') : [];
+  const trend = model ? cumulativeTrend(model.terms, model.cumulativeGpa, copy.trendTermPrefix) : [];
 
   return (
     <AcademicShell

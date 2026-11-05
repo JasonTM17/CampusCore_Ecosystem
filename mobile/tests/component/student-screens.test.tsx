@@ -95,7 +95,7 @@ describe('student screens (preview mode)', () => {
     setWidth(360);
     await renderThemed(<CoursesScreen {...props} />);
     expect(screen.getByRole('header', { name: 'Học phần' })).toBeOnTheScreen();
-    expect(screen.getByText('Software Architecture')).toBeOnTheScreen();
+    expect(screen.getByText('Kiến trúc phần mềm')).toBeOnTheScreen();
     const compact = screen.getByTestId('course-grid');
     expect(StyleSheet.flatten(compact.props.style)?.flexDirection).not.toBe('row');
 
