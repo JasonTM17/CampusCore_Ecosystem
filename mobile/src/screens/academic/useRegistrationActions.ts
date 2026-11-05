@@ -48,6 +48,7 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
     // Take the lock before the offline probe: a second tap inside that await
     // window must not start a parallel mutation loop.
     inFlight.current = true;
+    setBusy(true);
     let offline = false;
     try {
       offline = knownOffline || (await isDeviceOffline());
@@ -57,12 +58,12 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
     if (!offline) return false;
     setNoticeState({ tone: 'error', key: 'offline' });
     inFlight.current = false;
+    setBusy(false);
     return true;
   }, [copy, knownOffline, preview]);
 
   const registerSelected = useCallback(async () => {
     if (roundOpen === false || await blocked()) return;
-    setBusy(true);
     setNoticeState(null);
     try {
       let registered = 0;
@@ -98,7 +99,6 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
 
   const drop = useCallback(async (enrollmentId: string) => {
     if (await blocked()) return;
-    setBusy(true);
     setNoticeState(null);
     try {
       try {

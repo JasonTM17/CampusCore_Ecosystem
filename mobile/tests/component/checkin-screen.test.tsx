@@ -86,6 +86,7 @@ const show = (machine: ReturnType<typeof setup>['machine']) =>
 
 /** Buttons expose their label as the accessible name. */
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
+const sessionActionName = (session = SESSION) => `${copy.entryAction}: ${session.sectionLabel}, ${session.geofenceName}`;
 const byRole = (name: string) => waitFor(() => expect(screen.getByRole('button', { name })).toBeOnTheScreen());
 const byTestId = (id: string) => waitFor(() => expect(screen.getByTestId(id)).toBeTruthy());
 
@@ -101,8 +102,8 @@ async function submitCode(code: string) {
 
 /** Drive to readyForCode: card → (consent already accepted) → permission → fix. */
 async function reachReady() {
-  await byRole(copy.entryAction);
-  press(copy.entryAction);
+  await byRole(sessionActionName());
+  press(sessionActionName());
   await byRole(copy.permissionAction);
   press(copy.permissionAction);
   await byTestId('checkin-ready');
@@ -124,6 +125,24 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); });
 
 describe('check-in screen states', () => {
+  test('session choice actions identify their session to screen readers', async () => {
+    const otherSession: OpenAttendanceSession = {
+      ...SESSION,
+      id: '22345678-1234-4abc-8def-123456789abc',
+      sectionLabel: 'CT102 · Class',
+      geofenceName: 'Campus B',
+    };
+    const fixture = setup({ sessions: [SESSION, otherSession] });
+    await show(fixture.machine);
+
+    expect(await screen.findByRole('button', {
+      name: `${copy.entryAction}: ${SESSION.sectionLabel}, ${SESSION.geofenceName}`,
+    })).toBeOnTheScreen();
+    expect(screen.getByRole('button', {
+      name: `${copy.entryAction}: ${otherSession.sectionLabel}, ${otherSession.geofenceName}`,
+    })).toBeOnTheScreen();
+  });
+
   test.each([[360, 640, 1], [393, 360, 2], [839, 393, 1.3], [1000, 600, 2]])(
     'gives the session action its own line at %s x %s and font %s',
     async (width, height, fontScale) => {
@@ -146,7 +165,7 @@ describe('check-in screen states', () => {
     await byTestId('checkin-state-authRecovery');
     expect(screen.getByText('Cần xác thực lại phiên đăng nhập')).toBeTruthy();
     press(copy.retry);
-    await byRole(copy.entryAction);
+    await byRole(sessionActionName());
     expect(fixture.api.checkin).toHaveBeenCalledTimes(1);
   });
 
@@ -154,7 +173,7 @@ describe('check-in screen states', () => {
     const fixture = setup({ consent: false });
     fixture.api.acceptConsent.mockRejectedValueOnce({ status: 400, code: 'INVALID_CONSENT_VERSION' });
     await show(fixture.machine);
-    await byRole(copy.entryAction); press(copy.entryAction);
+    await byRole(sessionActionName()); press(sessionActionName());
     await byTestId('checkin-consent');
     fixture.api.getConsent.mockResolvedValue({ accepted: false, version: 'v2', acceptedAt: null });
     press(copy.consentAccept);
@@ -169,7 +188,7 @@ describe('check-in screen states', () => {
     await show(fixture.machine);
     await waitFor(() => expect(screen.getByText('CT101 · Class')).toBeTruthy());
     expect(screen.getByText('Campus A')).toBeTruthy();
-    press(copy.entryAction);
+    press(sessionActionName());
     await byTestId('checkin-consent');
     press(copy.consentAccept);
     await byTestId('checkin-state-needsPermission');
@@ -189,8 +208,8 @@ describe('check-in screen states', () => {
   test('permission denied re-shows the ask', async () => {
     const fixture = setup({ permission: 'denied-can-ask' });
     await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byTestId('checkin-state-needsPermission');
     press(copy.permissionAction);
     await byTestId('checkin-state-needsPermission');
@@ -199,8 +218,8 @@ describe('check-in screen states', () => {
   test('permission blocked shows the settings action', async () => {
     const fixture = setup({ permission: 'denied-blocked' });
     await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byRole(copy.permissionAction);
     press(copy.permissionAction);
     await byTestId('checkin-state-permissionBlocked');
@@ -210,8 +229,8 @@ describe('check-in screen states', () => {
   test('services off shows the location-settings state', async () => {
     const fixture = setup({ services: false });
     await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byRole(copy.permissionAction);
     press(copy.permissionAction);
     await byTestId('checkin-state-servicesOff');
@@ -221,8 +240,8 @@ describe('check-in screen states', () => {
   test('returning from settings re-checks a blocked permission', async () => {
     const fixture = setup({ permission: 'denied-blocked' });
     const view = await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byRole(copy.permissionAction);
     press(copy.permissionAction);
     await byTestId('checkin-state-permissionBlocked');
@@ -239,8 +258,8 @@ describe('check-in screen states', () => {
   test('returning from settings re-checks location services', async () => {
     const fixture = setup({ services: false });
     await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byRole(copy.permissionAction);
     press(copy.permissionAction);
     await byTestId('checkin-state-servicesOff');
@@ -255,8 +274,8 @@ describe('check-in screen states', () => {
   test('low accuracy shows tips and retry', async () => {
     const fixture = setup({ accuracy: 250 });
     await show(fixture.machine);
-    await byRole(copy.entryAction);
-    press(copy.entryAction);
+    await byRole(sessionActionName());
+    press(sessionActionName());
     await byRole(copy.permissionAction);
     press(copy.permissionAction);
     await byTestId('checkin-state-lowAccuracy');

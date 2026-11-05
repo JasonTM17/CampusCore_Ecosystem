@@ -67,22 +67,28 @@ if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "s
               </View>
               </GroupCard>;
 const course = entry.item;
+const courseName = localizedName(course, locale, course.code);
+const creditsLabel = fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: formatNumber(course.credits) });
+const prerequisiteLabel = course.prerequisites && course.prerequisites.length > 0
+  ? fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })
+  : null;
+const requirementLabel = course.isMandatory ? copy.mandatory : copy.elective;
 return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
-                <View key={course.courseId} accessible accessibilityLabel={`${course.code} ${localizedName(course, locale, course.code)}, ${statusLabel(course.status)}`}>
+                <View key={course.courseId} accessible accessibilityLabel={`${course.code} ${courseName}, ${statusLabel(course.status)}, ${creditsLabel}, ${requirementLabel}${prerequisiteLabel ? `, ${prerequisiteLabel}` : ''}`}>
                   <Divider />
                   <View style={styles.courseRow}>
                     <IconChip icon="book-open-variant" size={32} tone="neutral" />
                     <View style={academicStyles.rowCopy}>
                       <StatusPill label={course.code} tone="primary" />
-                      <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
-                      <UiText variant="meta" tone="muted">{fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: formatNumber(course.credits) })}</UiText>
-                      {course.prerequisites && course.prerequisites.length > 0 ? (
-                        <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
+                      <UiText variant="bodyMedium">{courseName}</UiText>
+                      <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
+                      {prerequisiteLabel ? (
+                        <UiText variant="meta" tone="muted">{prerequisiteLabel}</UiText>
                       ) : null}
                     </View>
                     <View style={styles.coursePills}>
                       <StatusPill label={statusLabel(course.status)} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : 'neutral'} />
-                      <StatusPill label={course.isMandatory ? copy.mandatory : copy.elective} tone="neutral" />
+                      <StatusPill label={requirementLabel} tone="neutral" />
                     </View>
                   </View>
                 </View>

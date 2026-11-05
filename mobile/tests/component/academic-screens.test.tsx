@@ -5,9 +5,11 @@ import type { ReactElement } from 'react';
 
 import { apiClient, ApiClientError } from '../../src/api/client';
 import { ThemeProvider } from '../../src/design/theme';
+import { setFileAdapter } from '../../src/files/file-adapter';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { academicMessages } from '../../src/i18n/academic-messages';
 import { auditTree } from '../a11y/audit';
+import { shareTimetable } from '../../src/screens/academic/academic-api';
 
 type QueryState = { data?: unknown; error?: string | null; errorInput?: unknown; warning?: string | null; errorStatus?: number | null; isLoading?: boolean; isStale?: boolean };
 
@@ -172,6 +174,24 @@ describe('transcript', () => {
     expect(mockReload).toHaveBeenCalledTimes(1);
   });
 
+  test('accessible transcript rows announce credits and appealed grade status', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 3.42, totalCreditsEarned: 3, totalCreditsAttempted: 3 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 3.42, creditsEarned: 3, creditsAttempted: 3,
+          records: [{ id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'APPEALED' }],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    const row = screen.getByLabelText(/CS101 Nhập môn lập trình/);
+    const label = row.props.accessibilityLabel as string;
+    expect(label).toContain('3 tín chỉ');
+    expect(label).toContain('Đang phúc khảo');
+  });
+
   test('a payload that is not a transcript is not rendered', async () => {
     mockQueries['academic.transcript'] = { data: { unexpected: true } };
     await render(wrap(<TranscriptScreen {...props} />));
@@ -257,6 +277,17 @@ describe('enrollments and courses', () => {
     await fireEvent.press(screen.getByRole('button', { name: /CS101/ }));
     expect(screen.getByText('3,5')).toBeOnTheScreen();
     await view.unmount();
+  });
+
+  test('accessible enrollment rows announce credits and section number', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { data: semesters };
+    await render(wrap(<EnrollmentsScreen {...props} />));
+
+    const row = screen.getByRole('button', { name: /CS101 Nhập môn lập trình/ });
+    const label = row.props.accessibilityLabel as string;
+    expect(label).toContain('3 tín chỉ');
+    expect(label).toContain(`${academicMessages.vi.sectionLabel}: 01`);
   });
 
   test('preview enrollment names follow the active locale', async () => {
@@ -387,6 +418,21 @@ describe('grades', () => {
 });
 
 describe('schedule and attendance', () => {
+  test('timetable share turns an adapter rejection into a failed outcome', async () => {
+    setFileAdapter({
+      capability: () => ({ available: true }),
+      pick: async () => ({ status: 'cancelled' }),
+      share: async () => { throw Object.assign(new Error('native failure'), { code: 'SHARE_FAILED' }); },
+      save: async () => ({ status: 'cancelled' }),
+    });
+    try {
+      await expect(shareTimetable('data:text/calendar,', 'campusute-timetable.ics'))
+        .resolves.toEqual({ status: 'failed', reason: 'SHARE_FAILED' });
+    } finally {
+      setFileAdapter();
+    }
+  });
+
   test('renders seven accessible week day buttons with one selected day', async () => {
     await render(wrap(<ScheduleScreen {...props} />));
     const dayCells = screen.getAllByTestId(/^day-/);
@@ -477,6 +523,44 @@ describe('curriculum', () => {
     expect(screen.getByText('1.234,5 tín chỉ')).toBeOnTheScreen();
     expect(screen.getByLabelText('Tích lũy 1.234,5/2.345,5 tín chỉ')).toBeOnTheScreen();
     await view.unmount();
+  });
+
+  test('accessible curriculum rows announce credits and course requirements', async () => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [
+          { courseId: 'b', code: 'CS201', name: 'Cấu trúc dữ liệu', credits: 3, year: 1, semester: 2, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['MA101'] },
+        ],
+      },
+    };
+    await render(wrap(<CurriculumScreen {...props} />));
+
+    const row = screen.getByLabelText(/CS201 Cấu trúc dữ liệu/);
+    const label = row.props.accessibilityLabel as string;
+    expect(label).toContain('3 tín chỉ');
+    expect(label).toContain('Bắt buộc');
+    expect(label).toContain('Tiên quyết: MA101');
+  });
+
+  test.skip.each<['vi' | 'en', string, string, string]>([
+    ['vi', 'Trạng thái: Tất cả', 'Chưa học', 'Không có học phần nào phù hợp với trạng thái đã chọn.'],
+    ['en', 'Status: All', 'Not started', 'No courses match the selected status.'],
+  ])('shows filter-specific empty copy in %s', async (locale, filterLabel, optionLabel, expected) => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+        ],
+      },
+    };
+    await render(wrap(<CurriculumScreen {...props} />, locale));
+    await fireEvent.press(screen.getByRole('button', { name: filterLabel }));
+    await fireEvent.press(screen.getByRole('radio', { name: optionLabel }));
+
+    expect(screen.getByText(expected)).toBeOnTheScreen();
+    expect(screen.queryByText(academicMessages[locale].emptyCurriculum)).toBeNull();
   });
 });
 
