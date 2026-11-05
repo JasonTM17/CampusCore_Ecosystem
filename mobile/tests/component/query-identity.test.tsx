@@ -129,6 +129,20 @@ describe('mounted query identity isolation', () => {
     expect(result.current.error).toBeNull();
   });
 
+  test('classifies an untyped offline failure before mapping the warning copy', async () => {
+    const pending = deferred<string>();
+    let calls = 0;
+    const fetcher = jest.fn(() => ++calls === 1 ? Promise.resolve('cached') : pending.promise);
+    const mapError = (error: unknown) => (error as { status?: number }).status === 0 ? 'offline warning' : 'generic warning';
+    const { result } = await renderHook(() => useScreenQuery('offline-map', fetcher, { mapError }));
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = result.current.reload(); });
+    jest.mocked(getNetworkStateAsync).mockResolvedValueOnce({ isConnected: false });
+    await act(async () => { pending.reject(new Error('socket unavailable')); await refresh; });
+    expect(result.current.warning).toBe('offline warning');
+    expect(result.current.errorStatus).toBe(0);
+  });
+
   test('a read dispatched before a local mutation cannot overwrite the mutation', async () => {
     const pending = deferred<string>();
     let calls = 0;

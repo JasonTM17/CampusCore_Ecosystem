@@ -41,6 +41,7 @@ export function DateField({ label, value, onChange, min, max, required = false, 
   };
 
   const commit = () => {
+    if (disabled) return;
     if (draft.trim() === '') {
       if (required) return setProblem(t('dateRequired'));
       onChange('');
@@ -81,6 +82,7 @@ export function DateField({ label, value, onChange, min, max, required = false, 
           label={t('selectDate')}
           value={draft}
           onChangeText={(text) => { setDraft(text); setProblem(undefined); }}
+          editable={!disabled}
           hint={t('dateFormatHint')}
           error={problem}
           keyboardType="numbers-and-punctuation"
@@ -90,7 +92,7 @@ export function DateField({ label, value, onChange, min, max, required = false, 
         />
         <View style={[styles.actions, { gap: spacing.sm }]}>
           <Button label={t('cancel')} onPress={() => setOpen(false)} variant="secondary" />
-          <Button label={t('apply')} onPress={commit} />
+          <Button label={t('apply')} onPress={commit} disabled={disabled} />
         </View>
       </Sheet>
     </View>
