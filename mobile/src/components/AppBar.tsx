@@ -20,6 +20,8 @@ const AppBarInsetsContext = SafeAreaInsetsContext ?? createContext<{ top: number
 export interface AppBarProps {
   /** Signed-in view: role and a profile shortcut. */
   role?: UserRole;
+  /** Signed-in admissions-only view for an account without an academic role. */
+  applicant?: boolean;
   onProfile?: () => void;
   /** Signed-in view without a profile screen: the session-ending control. */
   onSignOut?: () => void;
@@ -31,12 +33,12 @@ export interface AppBarProps {
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
-export function AppBar({ role, onProfile, onSignOut, onSignIn }: AppBarProps) {
+export function AppBar({ role, applicant = false, onProfile, onSignOut, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
   const { copy } = useShellCopy();
-  const roleLabel = role ? copy.roles[role] : null;
+  const roleLabel = applicant ? copy.roles.applicant : role ? copy.roles[role] : null;
   const preview = apiClient.mode === 'preview';
   const brandVariant = window.fontScale >= 1.3 ? 'meta' : 'headlineSmall';
 

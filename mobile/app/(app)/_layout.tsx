@@ -69,6 +69,7 @@ export default function AppGroupLayout() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['bottom']}>
       <AppBar
         role={session.role}
+        applicant={applicant}
         onProfile={applicant ? undefined : () => navigate('profile')}
         onSignOut={applicant ? () => {
           setMenuOpen(false);
@@ -81,7 +82,7 @@ export default function AppGroupLayout() {
           importantForAccessibility={menuOpen ? 'no-hide-descendants' : 'auto'}
           style={[styles.content, expanded ? styles.expanded : undefined]}
         >
-          {expanded ? (
+          {expanded && !applicant ? (
             <NavigationRail
               activeRoute={activeRoute}
               role={session.role}
@@ -99,7 +100,7 @@ export default function AppGroupLayout() {
               onPress={() => navigate('assistant.chat')}
             />
           </View>
-          {!expanded ? (
+          {!expanded && !applicant ? (
             <BottomNavigation
               activeRoute={activeRoute}
               role={session.role}
@@ -108,7 +109,7 @@ export default function AppGroupLayout() {
             />
           ) : null}
         </View>
-        {menuOpen ? (
+        {menuOpen && !applicant ? (
           <MenuPanel
             activeRoute={activeRoute}
             role={session.role}
