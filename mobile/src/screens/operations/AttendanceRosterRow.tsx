@@ -35,7 +35,7 @@ export interface AttendanceRosterRowProps {
   disabled?: boolean;
 }
 
-/** One student: avatar initials, name, code and four status choices with >=44dp targets that wrap cleanly. */
+/** One student: avatar initials, name, code and four status choices with >=48dp targets that wrap cleanly. */
 function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps) {
   const styles = useOpsStyles();
   const { colors } = useTheme();

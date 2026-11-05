@@ -185,7 +185,11 @@ export type FailureKind = 'offline' | 'unauthorized' | 'denied' | 'conflict' | '
 /** Failure class a screen reacts to: conflicts reload the list, denial is a full state. */
 export function failureKind(error: unknown): FailureKind {
   const status = (error as { status?: number } | null)?.status;
-  if (status === 0 || error instanceof TypeError) return 'offline';
+  const code = (error as { code?: string } | null)?.code;
+  if (error instanceof TypeError) return 'offline';
+  // Status 0 is the API client's transport lane; only a network code is an
+  // offline state, a configuration or preview failure is a different error.
+  if (status === 0) return code === undefined || code === 'NETWORK_ERROR' ? 'offline' : 'other';
   if (isResourceUnauthorizedError(error)) return 'unauthorized';
   if (status === 403) return 'denied';
   if (status === 409 || status === 412) return 'conflict';

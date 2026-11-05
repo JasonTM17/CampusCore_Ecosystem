@@ -1,7 +1,7 @@
 // Report file pick and download through the injected file adapter. With the
 // default adapter every step reports `unavailable`; nothing is fabricated.
 
-import type { FileAdapter, PickedFile } from '../../files/file-adapter';
+import type { FileAdapter, FilePickResult, PickedFile } from '../../files/file-adapter';
 import {
   THESIS_REPORT_FILE_MAX_BYTES,
   THESIS_REPORT_MIME_TYPES,
@@ -20,9 +20,15 @@ export type ReportPickOutcome =
 
 /** The server checks type, size and signature again; this only avoids a doomed upload. */
 export async function pickReportFile(adapter: FileAdapter): Promise<ReportPickOutcome> {
-  const capability = adapter.capability('pick');
-  if (!capability.available) return { status: 'unavailable', reason: capability.reason };
-  const picked = await adapter.pick({ mimeTypes: THESIS_REPORT_MIME_TYPES, maxBytes: THESIS_REPORT_FILE_MAX_BYTES });
+  let picked: FilePickResult;
+  try {
+    const capability = adapter.capability('pick');
+    if (!capability.available) return { status: 'unavailable', reason: capability.reason };
+    picked = await adapter.pick({ mimeTypes: THESIS_REPORT_MIME_TYPES, maxBytes: THESIS_REPORT_FILE_MAX_BYTES });
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    return { status: 'failed', reason: typeof code === 'string' ? code : 'ERROR' };
+  }
   if (picked.status !== 'picked') return picked;
   const issue = validateReportFile(picked.file);
   // A rejected pick returns ownership at once; only a kept file is the caller's.

@@ -5,6 +5,7 @@ import type { AssistantConversation } from '../../src/api/client';
 
 const mockChat = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockMessages = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockDeleteConversation = jest.fn<(conversationId: string) => Promise<void>>(async () => undefined);
 
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live', baseUrl: 'http://localhost' },
@@ -21,7 +22,7 @@ jest.mock('../../src/api/assistant-api', () => {
       cancel: jest.fn(async () => undefined),
       conversationsPage: jest.fn(async () => ({ data: [], nextCursor: null })),
       messagesPage: (...args: unknown[]) => mockMessages(...args),
-      deleteConversation: jest.fn(async () => undefined),
+      deleteConversation: (conversationId: string) => mockDeleteConversation(conversationId),
       putFeedback: jest.fn(async () => undefined),
       deleteFeedback: jest.fn(async () => undefined),
     },
@@ -54,6 +55,7 @@ const texts = (chat: { messages: Array<{ text: string }> }) => chat.messages.map
 beforeEach(() => {
   mockChat.mockReset();
   mockMessages.mockReset();
+  mockDeleteConversation.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => { jest.restoreAllMocks(); jest.clearAllMocks(); });
 
@@ -126,6 +128,60 @@ describe('assistant conversation selection', () => {
     expect(result.current.conversationId).toBe('conv-a');
     expect(texts(result.current)).toEqual(['answer-a']);
     expect(result.current.failure).toBeNull();
+  });
+
+  test('same-frame taps on load earlier append the page only once', async () => {
+    const older = deferred<unknown>();
+    mockMessages.mockImplementation((...args: unknown[]) => {
+      const options = args[1] as { cursor?: string } | undefined;
+      return options?.cursor ? older.promise : Promise.resolve(page('newer', 'cursor-older'));
+    });
+    const { result } = await renderHook(() => useAssistantChat());
+    await act(async () => { await result.current.selectConversation(conv('conv-a')); });
+
+    await act(async () => {
+      void result.current.loadEarlier();
+      void result.current.loadEarlier();
+    });
+    await act(async () => { older.resolve(page('older')); });
+
+    expect(texts(result.current)).toEqual(['answer-older', 'answer-newer']);
+  });
+
+  test('a thread switch during an earlier-page load does not block the next load', async () => {
+    const earlierA = deferred<unknown>();
+    const earlierB = deferred<unknown>();
+    mockMessages.mockImplementation((...args: unknown[]) => {
+      const options = args[1] as { cursor?: string } | undefined;
+      if (args[0] === 'conv-a') return options?.cursor ? earlierA.promise : Promise.resolve(page('a', 'cursor-a'));
+      return options?.cursor ? earlierB.promise : Promise.resolve(page('b', 'cursor-b'));
+    });
+    const { result } = await renderHook(() => useAssistantChat());
+    await act(async () => { await result.current.selectConversation(conv('conv-a')); });
+    await act(async () => { void result.current.loadEarlier(); });
+    await act(async () => { await result.current.selectConversation(conv('conv-b')); });
+    await act(async () => { void result.current.loadEarlier(); });
+    await act(async () => { earlierB.resolve(page('b-older')); });
+    await act(async () => { earlierA.resolve(page('a-older')); });
+
+    expect(texts(result.current)).toEqual(['answer-b-older', 'answer-b']);
+  });
+
+  test('same-frame delete taps do not turn one successful delete into a history error', async () => {
+    mockDeleteConversation
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce({ status: 404, code: 'CONVERSATION_NOT_FOUND' });
+    const { result } = await renderHook(() => useAssistantChat());
+
+    await act(async () => {
+      await Promise.all([
+        result.current.deleteConversation(conv('conv-a')),
+        result.current.deleteConversation(conv('conv-a')),
+      ]);
+    });
+
+    expect(mockDeleteConversation).toHaveBeenCalledTimes(1);
+    expect(result.current.history.error).toBe(false);
   });
 
   test('clearing the thread does not let a pending selection revive the old thread', async () => {

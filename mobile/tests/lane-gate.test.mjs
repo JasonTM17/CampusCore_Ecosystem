@@ -266,3 +266,9 @@ test('failures map to the state a lane screen reacts to', () => {
   assert.equal(lane.failureKind({ status: 500 }), 'other');
   assert.equal(lane.failureKind(null), 'other');
 });
+
+test('only a network failure is offline; a configuration or preview failure is not', () => {
+  assert.equal(lane.failureKind({ status: 0, code: 'NETWORK_ERROR' }), 'offline');
+  assert.equal(lane.failureKind({ status: 0, code: 'API_NOT_CONFIGURED' }), 'other');
+  assert.equal(lane.failureKind({ status: 0, code: 'MOBILE_API_PREVIEW' }), 'other');
+});

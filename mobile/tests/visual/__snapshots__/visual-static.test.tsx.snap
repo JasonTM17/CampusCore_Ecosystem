@@ -5271,7 +5271,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Kiến trúc phần mềm, Đang học",
+                  "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5431,7 +5431,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Phân tích kinh doanh, Đang học",
+                  "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5845,7 +5845,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Kiến trúc phần mềm, Đang học",
+                      "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -6000,7 +6000,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Phân tích kinh doanh, Đang học",
+                      "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -6425,7 +6425,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Kiến trúc phần mềm, Đang học",
+                  "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6585,7 +6585,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Phân tích kinh doanh, Đang học",
+                  "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6999,7 +6999,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Kiến trúc phần mềm, Đang học",
+                      "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -7154,7 +7154,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Phân tích kinh doanh, Đang học",
+                      "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
                       "role": "button",
                       "s": {
                         "width": "48.5%",

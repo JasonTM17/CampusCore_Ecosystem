@@ -65,6 +65,7 @@ const essayField = () => screen.getByLabelText(admissionsMessages.vi.essay);
 describe('admission draft preservation', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    jest.useRealTimers();
   });
 
   test('an attachment version bump keeps the typed draft', async () => {
@@ -83,5 +84,18 @@ describe('admission draft preservation', () => {
     await view.rerender(element(4, 'Bản nháp sau khi tải lại', 1));
 
     expect(essayField().props.value).toBe('Bản nháp sau khi tải lại');
+  });
+
+  test('the date field accepts the current campus date before UTC midnight', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-11-05T18:00:00.000Z'));
+    await render(element(3, 'Bản nháp trên máy chủ'));
+
+    await fireEvent.press(screen.getByRole('button', { name: /Ngày sinh/ }));
+    await fireEvent.changeText(screen.getByLabelText('Chọn ngày'), '06/11/2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Áp dụng' }));
+
+    expect(screen.queryByText(/Ngày không được muộn hơn/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Ngày sinh: 06\/11\/2026/ })).toBeOnTheScreen();
   });
 });

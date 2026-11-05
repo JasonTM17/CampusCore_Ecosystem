@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { Button, Notice, SectionHeading, StatePanel, UiText } from '../../components/Ui';
@@ -47,6 +47,23 @@ import {
 import { HandoffLink } from './HandoffLink';
 
 const todayIso = () => campusIsoDate();
+
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+function useEventStartClock(events: readonly StaffEvent[]): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const nextStart = events
+      .map((event) => event.startsAt ? Date.parse(event.startsAt) : Number.NaN)
+      .filter((start) => Number.isFinite(start) && start > now)
+      .sort((left, right) => left - right)[0];
+    if (nextStart === undefined) return undefined;
+    // Timers past 2^31-1 ms fire at once, so a far start is reached in capped hops.
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(MAX_TIMER_MS, Math.max(0, nextStart - Date.now()) + 1));
+    return () => clearTimeout(timer);
+  }, [events, now]);
+  return now;
+}
 
 const personName = (user?: { firstName?: string; lastName?: string }) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(' ');
@@ -337,7 +354,9 @@ const EVENT_PATH: Record<Exclude<EventAction, 'cancel'>, 'publish' | 'close-regi
 function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCopy; onBack: () => void }) {
   const roster = useLaneRequest(() => laneApi.eventRoster(event.id), `admin:roster:${event.id}`);
   const runner = useActionRunner(copy, () => void roster.reload());
-  const markable = canMarkAttendance(event.status, event.startsAt);
+  const eventList = useMemo(() => [event], [event]);
+  const now = useEventStartClock(eventList);
+  const markable = canMarkAttendance(event.status, event.startsAt, now);
   const rows: RosterRow[] = roster.data ?? [];
 
   const mark = (row: RosterRow, status: 'ATTENDED' | 'ABSENT'): PendingAction | null => {
@@ -396,6 +415,7 @@ export function AdminEventsScreen() {
   const request = useLaneRequest(() => laneApi.staffEvents(), 'admin:events', selected === null);
   const runner = useActionRunner(copy, () => void request.reload());
   const items = request.data ?? [];
+  const now = useEventStartClock(items);
 
   if (selected) return <EventRoster event={selected} copy={copy} onBack={() => setSelected(null)} />;
 
@@ -424,7 +444,7 @@ export function AdminEventsScreen() {
               ]}
               actions={[
                 { key: 'detail', label: copy.eventDetail, variant: 'secondary', onPress: () => setSelected(event) },
-                ...eventActions(event.status, event.startsAt).map((action) => ({
+                ...eventActions(event.status, event.startsAt, now).map((action) => ({
                   key: action,
                   label: EVENT_LABEL(copy, action),
                   variant: action === 'cancel' ? ('destructive' as const) : action === 'publish' ? ('primary' as const) : ('secondary' as const),
