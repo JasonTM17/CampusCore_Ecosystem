@@ -32,7 +32,7 @@ export function LearningScreen(_props: MobileScreenProps) {
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
   const sectionsQuery = useContentQuery<MobileLearningSection[]>('content.learning.sections', () => contentApi.learningSections());
-  const sections = live ? sectionsQuery.data ?? [] : previewLearningSections;
+  const sections = live ? sectionsQuery.data ?? [] : previewLearningSections(locale);
   const sectionId = picked && sections.some((entry) => entry.sectionId === picked) ? picked : sections[0]?.sectionId ?? null;
 
   const previewMats = useMemo(() => previewMaterials(locale), [locale]);
@@ -137,7 +137,7 @@ export function LearningScreen(_props: MobileScreenProps) {
               <UiText variant="label">{item.title}</UiText>
               {item.description ? <UiText variant="bodySmall" tone="muted">{item.description}</UiText> : null}
               {item.fileName ? (
-                <AttachmentRow name={item.fileName} sizeBytes={item.sizeBytes} fetchBytes={() => contentApi.learningDownloadMaterial(item.id)} />
+                <AttachmentRow name={item.fileName} sizeBytes={item.sizeBytes} fetchBytes={(signal) => contentApi.learningDownloadMaterial(item.id, signal)} />
               ) : null}
             </View>
           </View>

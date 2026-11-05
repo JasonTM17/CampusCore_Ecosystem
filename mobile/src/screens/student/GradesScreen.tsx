@@ -12,6 +12,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AcademicGradeRecord } from '../academic/academic-api';
 import { previewGrades } from '../academic/academic-preview';
 import { publishedOnly, summarizeBestAttempts } from '../academic/gpa';
+import { localizedName } from '../academic/academic-model';
 import {
   AcademicShell,
   GradeScale,
@@ -86,17 +87,18 @@ if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "s
             <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>{group.label}</UiText>
             </GroupCard>;
 const record = entry.item; const index = entry.index;
+const courseName = localizedName({ name: record.courseName, nameEn: record.courseNameEn, nameVi: record.courseNameVi }, locale) || record.courseName;
 return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
               <View
                 key={record.id}
                 accessible
-                accessibilityLabel={`${record.courseCode} ${record.courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}`}
+                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}`}
               >
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.gradeRow}>
                   <View style={styles.gradeCopy}>
                     <StatusPill label={record.courseCode} tone="primary" />
-                    <UiText variant="bodyMedium">{record.courseName}</UiText>
+                    <UiText variant="bodyMedium">{courseName}</UiText>
                     <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits ?? 0, copy.creditsOne, copy.credits), { n: record.credits ?? 0 })}</UiText>
                     {record.processScore != null || record.finalExamScore != null ? (
                       <UiText variant="meta" tone="muted">

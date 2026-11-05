@@ -106,6 +106,13 @@ test('AccountFrame accessibility name comes from its catalogue', () => {
   assert.doesNotMatch(frame, /accessibilityLabel="HCMUTE"/);
 });
 
+test('SignInScreen brand logo accessibility name comes from its catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const screen = read('src/screens/auth/SignInScreen.tsx');
+  assert.match(screen, /accessibilityLabel=\{copy\.signIn\.institutionName\}/);
+  assert.doesNotMatch(screen, /accessibilityLabel="HCMUTE"/);
+});
+
 test('language names come from the shell catalogue', () => {
   const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
   const language = read('src/screens/account/LanguageSetting.tsx');

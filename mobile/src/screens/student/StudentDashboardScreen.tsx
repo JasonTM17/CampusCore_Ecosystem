@@ -72,7 +72,10 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       semesterId: item.semesterId,
     }));
   const dashboardClasses: Array<{ semesterId?: string; code: string; name: string; time: string; room: string }> = apiClient.mode === 'preview'
-    ? upcomingClasses
+    ? upcomingClasses.map((item) => ({
+        ...item,
+        name: localizedName(item, locale) || item.name,
+      }))
     : [
         ...upcoming.map((item) => ({
           code: item.courseCode || item.sectionNumber || c.course,
