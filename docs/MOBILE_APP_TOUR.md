@@ -198,6 +198,6 @@ sau sẽ tự vào lại tài khoản cũ. Xoá dữ liệu Chrome của emulato
 - Chỉ kiểm thử trên emulator x86_64; **chưa có thiết bị thật** (cần địa chỉ LAN riêng, profile `local` không cung cấp).
 - Cổng web chưa được cấu hình trong bản `local`, nên các nút "Mở trên web" bị tắt.
 - Một số lĩnh vực (tuyển sinh, thư viện, việc làm) dùng dữ liệu mô phỏng ở phía sinh viên.
-- Tài khoản demo `applicant@campuscore.edu` được seed (V140) kèm vai trò `STUDENT` nhưng không có hồ sơ sinh viên, nên trên app nó hiện vỏ sinh viên và màn Tổng quan báo "không có quyền". Ảnh thí sinh ở trên chụp bằng một tài khoản không có vai trò (gỡ vai trò `STUDENT` của `applicant2@campuscore.edu` trong cơ sở dữ liệu local).
+- Tài khoản demo `applicant@campuscore.edu` được seed (V140) kèm vai trò `STUDENT` nhưng không có hồ sơ sinh viên, nên trên app nó hiện vỏ sinh viên và màn Tổng quan báo "không có quyền". Ảnh thí sinh ở trên chụp bằng một tài khoản không có vai trò (gỡ vai trò `STUDENT` của `applicant2@campuscore.edu` trong cơ sở dữ liệu local). Vai trò `STUDENT` được giữ có chủ đích: khi `DEMO_ACCOUNTS_ROLES` giới hạn phạm vi vai trò, `DemoAccountGate` khoá mọi tài khoản demo không có dòng vai trò nào, nên gỡ vai trò khỏi seed sẽ khoá luôn hai tài khoản thí sinh demo.
 - Migration V14, V53, V116 là rủi ro đã ghi nhận ở phía cơ sở dữ liệu.
 - Ảnh/GIF là bằng chứng trực quan tại một thời điểm; nguồn chuẩn về hành vi là các test và CI.
