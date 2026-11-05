@@ -74,6 +74,7 @@ describe('adaptive app navigation', () => {
           expect(screen.getByTestId('bottom-navigation')).toBeOnTheScreen();
           expect(screen.queryByTestId('navigation-rail')).toBeNull();
         }
+        expect(screen.getByText(shellMessages.vi.roles.student)).toBeOnTheScreen();
         expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
         expect(screen.getAllByRole('button', { name: 'Mở danh mục' })).toHaveLength(1);
         expect(screen.toJSON()?.props.edges).toEqual(['bottom']);
@@ -162,8 +163,17 @@ describe('adaptive app navigation', () => {
     expect(screen.queryByRole('button', { name: 'Giảng viên' })).toBeNull();
   });
 
-  test('an applicant session can end its session from its only screen', async () => {
+  test('an authenticated student keeps the student chip and mobile tabs', async () => {
     setWindow(360);
+    setSession('student', 'authenticated');
+    await renderLayout();
+    expect(screen.getByText(shellMessages.vi.roles.student)).toBeOnTheScreen();
+    expect(screen.getByTestId('bottom-navigation')).toBeOnTheScreen();
+    expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
+  });
+
+  test.each([360, 1000])('an applicant session has no student navigation and can sign out at w%s', async (width) => {
+    setWindow(width);
     const signOut = jest.fn(async () => {});
     jest.mocked(useSession).mockReturnValue({
       kind: 'authenticated', role: 'student', switchRole, epoch: 0, booted: true,
@@ -178,6 +188,17 @@ describe('adaptive app navigation', () => {
     jest.mocked(usePathname).mockReturnValue('/apply');
 
     await renderLayout();
+
+    expect(screen.getByText('Thí sinh')).toBeOnTheScreen();
+    expect(screen.queryByText(shellMessages.vi.roles.student)).toBeNull();
+    expect(screen.queryByTestId('bottom-navigation')).toBeNull();
+    expect(screen.queryByTestId('navigation-rail')).toBeNull();
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: shellMessages.vi.openMenu })).toBeNull();
+    expect(screen.queryByTestId('menu-panel-role-row')).toBeNull();
+    expect(screen.queryByTestId('assistant-fab')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByTestId('app-route-content').props.style)).toMatchObject({ flex: 1 });
+    expect(screen.toJSON()?.props.edges).toEqual(['bottom']);
 
     const signOutControl = screen.getByRole('button', { name: shellMessages.vi.signOut });
     expect(screen.queryByRole('button', { name: shellMessages.vi.screens.profile })).toBeNull();
