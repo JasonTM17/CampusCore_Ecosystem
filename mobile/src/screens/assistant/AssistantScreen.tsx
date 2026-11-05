@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 
 import { Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
 import { FilterChip, Notice } from '../../components/ui/index';
+import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
 import { PerformanceList } from '../../components/perf/performance-list';
 import { useStableCallback } from '../../hooks/use-stable-callback';
 import { tokens } from '../../design/tokens';
@@ -47,19 +48,20 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <KeyboardSafeView>
-        <PerformanceList
-          listRef={scroll}
-          data={messages}
-          keyExtractor={messageKey}
-          renderItem={renderMessage}
-          gutters={false}
-          removeClippedSubviews={false}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-          onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
-          showsVerticalScrollIndicator={false}
-          header={<>
+        <ResponsiveContent style={styles.contentWrap}>
+          <PerformanceList
+            listRef={scroll}
+            data={messages}
+            keyExtractor={messageKey}
+            renderItem={renderMessage}
+            gutters={false}
+            removeClippedSubviews={false}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
+            showsVerticalScrollIndicator={false}
+            header={<>
           <View style={styles.titleRow}>
             <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{copy.title}</UiText>
           </View>
@@ -146,7 +148,8 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             <Button label={copy.openThesis} onPress={() => navigation.navigate('thesis.progress')} variant="text" style={styles.gap} />
           ) : null}
           </>}
-        />
+          />
+        </ResponsiveContent>
         <AssistantComposer chat={chat} />
       </KeyboardSafeView>
       <AssistantHistorySheet chat={chat} copy={copy} />
@@ -158,6 +161,7 @@ const messageKey = (message: ChatMessage) => message.id;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  contentWrap: { flex: 1 },
   content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md, paddingBottom: tokens.spacing.md },
   titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
   title: { flexShrink: 1 },

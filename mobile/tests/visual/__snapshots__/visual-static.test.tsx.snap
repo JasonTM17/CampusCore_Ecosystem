@@ -1791,26 +1791,26 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                           "c": [
                             {
                               "c": [
-                                "Trợ lý CampusUTE",
+                                {
+                                  "c": [
+                                    "Trợ lý CampusUTE",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 26,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
-                                "fontSize": 26,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                                "marginBottom": 8,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
                             {
                               "c": [
                                 {
@@ -1819,7 +1819,77 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Học vụ",
+                                            {
+                                              "c": [
+                                                "Học vụ",
+                                              ],
+                                              "s": {
+                                                "color": "#98BDD7",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Học vụ",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "backgroundColor": "#1E2229",
+                                            "borderColor": "#98BDD7",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Chuyên sâu",
+                                              ],
+                                              "s": {
+                                                "color": "#A9B1BC",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Chuyên sâu",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Phạm vi trả lời",
+                                      "s": {
+                                        "backgroundColor": "#15181E",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "flexDirection": "row",
+                                        "padding": 2,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Cuộc trò chuyện mới",
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
@@ -1828,197 +1898,101 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "t": "Text",
                                         },
                                       ],
-                                      "label": "Học vụ",
-                                      "role": "tab",
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#1E2229",
-                                        "borderColor": "#98BDD7",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
-                                      },
-                                      "t": "View",
-                                    },
-                                    {
-                                      "c": [
-                                        {
-                                          "c": [
-                                            "Chuyên sâu",
-                                          ],
-                                          "s": {
-                                            "color": "#A9B1BC",
-                                            "fontSize": 13,
-                                          },
-                                          "t": "Text",
-                                        },
-                                      ],
-                                      "label": "Chuyên sâu",
-                                      "role": "tab",
-                                      "s": {
-                                        "alignItems": "center",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
+                                        "flexDirection": "row",
+                                        "gap": 8,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Phạm vi trả lời",
+                                  "label": "Cuộc trò chuyện mới",
+                                  "role": "button",
                                   "s": {
-                                    "backgroundColor": "#15181E",
-                                    "borderColor": "#33363D",
+                                    "alignItems": "center",
+                                    "backgroundColor": "transparent",
                                     "borderRadius": 8,
-                                    "flexDirection": "row",
-                                    "padding": 2,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 8,
+                                    "paddingVertical": 8,
                                   },
                                   "t": "View",
                                 },
                               ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 4,
+                                "marginBottom": 8,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 14,
+                                "marginBottom": 8,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "flex": 1,
+                                    "fontSize": 14,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#1C314A",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "flexDirection": "row",
+                                "padding": 16,
+                              },
                               "t": "View",
                             },
                             {
                               "c": [
                                 {
                                   "c": [
+                                    "󱉴",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 24,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     {
                                       "c": [
-                                        "Cuộc trò chuyện mới",
+                                        "Hỏi về học vụ",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#EDF0F2",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "alignItems": "center",
-                                    "flexDirection": "row",
-                                    "gap": 8,
+                                    "flex": 1,
                                   },
                                   "t": "View",
                                 },
                               ],
-                              "label": "Cuộc trò chuyện mới",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "transparent",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 4,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 14,
-                            "marginBottom": 8,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "flex": 1,
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#1C314A",
-                            "borderColor": "#33363D",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "󱉴",
-                              ],
-                              "s": {
-                                "color": "#A9B1BC",
-                                "fontSize": 24,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Hỏi về học vụ",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#1E2229",
-                            "borderColor": "#33363D",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Đăng ký học phần",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "label": "Đăng ký học phần",
-                              "role": "button",
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#1E2229",
@@ -2026,9 +2000,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 "borderRadius": 8,
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "padding": 16,
                               },
                               "t": "View",
                             },
@@ -2036,113 +2008,149 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "lịch học",
+                                    {
+                                      "c": [
+                                        "Đăng ký học phần",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "Đăng ký học phần",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "lịch học",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "thông báo",
+                                    {
+                                      "c": [
+                                        "lịch học",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "lịch học",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "thông báo",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "chương trình đào tạo",
+                                    {
+                                      "c": [
+                                        "thông báo",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "thông báo",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "chương trình đào tạo",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "label": "chương trình đào tạo",
+                                  "role": "button",
+                                  "s": {
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
+                                  },
+                                  "t": "View",
                                 },
                               ],
-                              "label": "chương trình đào tạo",
-                              "role": "button",
                               "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
+                                "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "marginBottom": 16,
+                                "marginTop": 8,
                               },
                               "t": "View",
                             },
                           ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 16,
-                            "marginTop": 8,
-                          },
                           "t": "View",
                         },
-                      ],
-                      "t": "View",
-                    },
-                    {
-                      "c": [
                         {
-                          "c": [],
+                          "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
+                          ],
                           "t": "View",
                         },
                       ],
                       "t": "View",
                     },
                   ],
-                  "t": "View",
+                  "t": "RCTScrollView",
                 },
               ],
-              "t": "RCTScrollView",
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
             },
             {
               "c": [
@@ -2293,26 +2301,26 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                           "c": [
                             {
                               "c": [
-                                "Trợ lý CampusUTE",
+                                {
+                                  "c": [
+                                    "Trợ lý CampusUTE",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 26,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
-                                "fontSize": 26,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                                "marginBottom": 8,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
                             {
                               "c": [
                                 {
@@ -2321,7 +2329,77 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Học vụ",
+                                            {
+                                              "c": [
+                                                "Học vụ",
+                                              ],
+                                              "s": {
+                                                "color": "#98BDD7",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Học vụ",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "backgroundColor": "#1E2229",
+                                            "borderColor": "#98BDD7",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Chuyên sâu",
+                                              ],
+                                              "s": {
+                                                "color": "#A9B1BC",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Chuyên sâu",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Phạm vi trả lời",
+                                      "s": {
+                                        "backgroundColor": "#15181E",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "flexDirection": "row",
+                                        "padding": 2,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Cuộc trò chuyện mới",
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
@@ -2330,197 +2408,101 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "t": "Text",
                                         },
                                       ],
-                                      "label": "Học vụ",
-                                      "role": "tab",
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#1E2229",
-                                        "borderColor": "#98BDD7",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
-                                      },
-                                      "t": "View",
-                                    },
-                                    {
-                                      "c": [
-                                        {
-                                          "c": [
-                                            "Chuyên sâu",
-                                          ],
-                                          "s": {
-                                            "color": "#A9B1BC",
-                                            "fontSize": 13,
-                                          },
-                                          "t": "Text",
-                                        },
-                                      ],
-                                      "label": "Chuyên sâu",
-                                      "role": "tab",
-                                      "s": {
-                                        "alignItems": "center",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
+                                        "flexDirection": "row",
+                                        "gap": 8,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Phạm vi trả lời",
+                                  "label": "Cuộc trò chuyện mới",
+                                  "role": "button",
                                   "s": {
-                                    "backgroundColor": "#15181E",
-                                    "borderColor": "#33363D",
+                                    "alignItems": "center",
+                                    "backgroundColor": "transparent",
                                     "borderRadius": 8,
-                                    "flexDirection": "row",
-                                    "padding": 2,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 8,
+                                    "paddingVertical": 8,
                                   },
                                   "t": "View",
                                 },
                               ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 4,
+                                "marginBottom": 8,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 14,
+                                "marginBottom": 8,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "flex": 1,
+                                    "fontSize": 14,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#1C314A",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "flexDirection": "row",
+                                "padding": 16,
+                              },
                               "t": "View",
                             },
                             {
                               "c": [
                                 {
                                   "c": [
+                                    "󱉴",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 24,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     {
                                       "c": [
-                                        "Cuộc trò chuyện mới",
+                                        "Hỏi về học vụ",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#EDF0F2",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "alignItems": "center",
-                                    "flexDirection": "row",
-                                    "gap": 8,
+                                    "flex": 1,
                                   },
                                   "t": "View",
                                 },
                               ],
-                              "label": "Cuộc trò chuyện mới",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "transparent",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 4,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 14,
-                            "marginBottom": 8,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "flex": 1,
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#1C314A",
-                            "borderColor": "#33363D",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "󱉴",
-                              ],
-                              "s": {
-                                "color": "#A9B1BC",
-                                "fontSize": 24,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Hỏi về học vụ",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#1E2229",
-                            "borderColor": "#33363D",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Đăng ký học phần",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "label": "Đăng ký học phần",
-                              "role": "button",
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#1E2229",
@@ -2528,9 +2510,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 "borderRadius": 8,
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "padding": 16,
                               },
                               "t": "View",
                             },
@@ -2538,113 +2518,151 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "lịch học",
+                                    {
+                                      "c": [
+                                        "Đăng ký học phần",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "Đăng ký học phần",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "lịch học",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "thông báo",
+                                    {
+                                      "c": [
+                                        "lịch học",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "lịch học",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "thông báo",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "chương trình đào tạo",
+                                    {
+                                      "c": [
+                                        "thông báo",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "thông báo",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "chương trình đào tạo",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "label": "chương trình đào tạo",
+                                  "role": "button",
+                                  "s": {
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1E2229",
+                                    "borderColor": "#33363D",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
+                                  },
+                                  "t": "View",
                                 },
                               ],
-                              "label": "chương trình đào tạo",
-                              "role": "button",
                               "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#1E2229",
-                                "borderColor": "#33363D",
-                                "borderRadius": 8,
+                                "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "marginBottom": 16,
+                                "marginTop": 8,
                               },
                               "t": "View",
                             },
                           ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 16,
-                            "marginTop": 8,
-                          },
                           "t": "View",
                         },
-                      ],
-                      "t": "View",
-                    },
-                    {
-                      "c": [
                         {
-                          "c": [],
+                          "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
+                          ],
                           "t": "View",
                         },
                       ],
                       "t": "View",
                     },
                   ],
-                  "t": "View",
+                  "t": "RCTScrollView",
                 },
               ],
-              "t": "RCTScrollView",
+              "s": {
+                "flex": 1,
+                "maxWidth": 960,
+                "width": "100%",
+              },
+              "t": "View",
             },
             {
               "c": [
@@ -2795,26 +2813,26 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                           "c": [
                             {
                               "c": [
-                                "Trợ lý CampusUTE",
+                                {
+                                  "c": [
+                                    "Trợ lý CampusUTE",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 26,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
-                                "fontSize": 26,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                                "marginBottom": 8,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
                             {
                               "c": [
                                 {
@@ -2823,7 +2841,77 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Học vụ",
+                                            {
+                                              "c": [
+                                                "Học vụ",
+                                              ],
+                                              "s": {
+                                                "color": "#003F87",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Học vụ",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "backgroundColor": "#FFFFFF",
+                                            "borderColor": "#003F87",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Chuyên sâu",
+                                              ],
+                                              "s": {
+                                                "color": "#526174",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Chuyên sâu",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Phạm vi trả lời",
+                                      "s": {
+                                        "backgroundColor": "#F1F5FB",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "flexDirection": "row",
+                                        "padding": 2,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Cuộc trò chuyện mới",
                                           ],
                                           "s": {
                                             "color": "#003F87",
@@ -2832,197 +2920,101 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "t": "Text",
                                         },
                                       ],
-                                      "label": "Học vụ",
-                                      "role": "tab",
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#FFFFFF",
-                                        "borderColor": "#003F87",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
-                                      },
-                                      "t": "View",
-                                    },
-                                    {
-                                      "c": [
-                                        {
-                                          "c": [
-                                            "Chuyên sâu",
-                                          ],
-                                          "s": {
-                                            "color": "#526174",
-                                            "fontSize": 13,
-                                          },
-                                          "t": "Text",
-                                        },
-                                      ],
-                                      "label": "Chuyên sâu",
-                                      "role": "tab",
-                                      "s": {
-                                        "alignItems": "center",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
+                                        "flexDirection": "row",
+                                        "gap": 8,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Phạm vi trả lời",
+                                  "label": "Cuộc trò chuyện mới",
+                                  "role": "button",
                                   "s": {
-                                    "backgroundColor": "#F1F5FB",
-                                    "borderColor": "#C9D5E4",
+                                    "alignItems": "center",
+                                    "backgroundColor": "transparent",
                                     "borderRadius": 8,
-                                    "flexDirection": "row",
-                                    "padding": 2,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 8,
+                                    "paddingVertical": 8,
                                   },
                                   "t": "View",
                                 },
                               ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 4,
+                                "marginBottom": 8,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 14,
+                                "marginBottom": 8,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "flex": 1,
+                                    "fontSize": 14,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#E6F0FF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "flexDirection": "row",
+                                "padding": 16,
+                              },
                               "t": "View",
                             },
                             {
                               "c": [
                                 {
                                   "c": [
+                                    "󱉴",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 24,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     {
                                       "c": [
-                                        "Cuộc trò chuyện mới",
+                                        "Hỏi về học vụ",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#17243A",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "alignItems": "center",
-                                    "flexDirection": "row",
-                                    "gap": 8,
+                                    "flex": 1,
                                   },
                                   "t": "View",
                                 },
                               ],
-                              "label": "Cuộc trò chuyện mới",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "transparent",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 4,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 14,
-                            "marginBottom": 8,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "flex": 1,
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#E6F0FF",
-                            "borderColor": "#C9D5E4",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "󱉴",
-                              ],
-                              "s": {
-                                "color": "#526174",
-                                "fontSize": 24,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Hỏi về học vụ",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#FFFFFF",
-                            "borderColor": "#C9D5E4",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Đăng ký học phần",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "label": "Đăng ký học phần",
-                              "role": "button",
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#FFFFFF",
@@ -3030,9 +3022,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 "borderRadius": 8,
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "padding": 16,
                               },
                               "t": "View",
                             },
@@ -3040,113 +3030,149 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "lịch học",
+                                    {
+                                      "c": [
+                                        "Đăng ký học phần",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "Đăng ký học phần",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "lịch học",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "thông báo",
+                                    {
+                                      "c": [
+                                        "lịch học",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "lịch học",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "thông báo",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "chương trình đào tạo",
+                                    {
+                                      "c": [
+                                        "thông báo",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "thông báo",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "chương trình đào tạo",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "label": "chương trình đào tạo",
+                                  "role": "button",
+                                  "s": {
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
+                                  },
+                                  "t": "View",
                                 },
                               ],
-                              "label": "chương trình đào tạo",
-                              "role": "button",
                               "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
+                                "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "marginBottom": 16,
+                                "marginTop": 8,
                               },
                               "t": "View",
                             },
                           ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 16,
-                            "marginTop": 8,
-                          },
                           "t": "View",
                         },
-                      ],
-                      "t": "View",
-                    },
-                    {
-                      "c": [
                         {
-                          "c": [],
+                          "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
+                          ],
                           "t": "View",
                         },
                       ],
                       "t": "View",
                     },
                   ],
-                  "t": "View",
+                  "t": "RCTScrollView",
                 },
               ],
-              "t": "RCTScrollView",
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
             },
             {
               "c": [
@@ -3297,26 +3323,26 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                           "c": [
                             {
                               "c": [
-                                "Trợ lý CampusUTE",
+                                {
+                                  "c": [
+                                    "Trợ lý CampusUTE",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 26,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
-                                "fontSize": 26,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                                "marginBottom": 8,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
                             {
                               "c": [
                                 {
@@ -3325,7 +3351,77 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Học vụ",
+                                            {
+                                              "c": [
+                                                "Học vụ",
+                                              ],
+                                              "s": {
+                                                "color": "#003F87",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Học vụ",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "backgroundColor": "#FFFFFF",
+                                            "borderColor": "#003F87",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Chuyên sâu",
+                                              ],
+                                              "s": {
+                                                "color": "#526174",
+                                                "fontSize": 13,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "label": "Chuyên sâu",
+                                          "role": "tab",
+                                          "s": {
+                                            "alignItems": "center",
+                                            "borderRadius": 6,
+                                            "flex": 1,
+                                            "justifyContent": "center",
+                                            "paddingHorizontal": 8,
+                                            "paddingVertical": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Phạm vi trả lời",
+                                      "s": {
+                                        "backgroundColor": "#F1F5FB",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "flexDirection": "row",
+                                        "padding": 2,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Cuộc trò chuyện mới",
                                           ],
                                           "s": {
                                             "color": "#003F87",
@@ -3334,197 +3430,101 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "t": "Text",
                                         },
                                       ],
-                                      "label": "Học vụ",
-                                      "role": "tab",
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#FFFFFF",
-                                        "borderColor": "#003F87",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
-                                      },
-                                      "t": "View",
-                                    },
-                                    {
-                                      "c": [
-                                        {
-                                          "c": [
-                                            "Chuyên sâu",
-                                          ],
-                                          "s": {
-                                            "color": "#526174",
-                                            "fontSize": 13,
-                                          },
-                                          "t": "Text",
-                                        },
-                                      ],
-                                      "label": "Chuyên sâu",
-                                      "role": "tab",
-                                      "s": {
-                                        "alignItems": "center",
-                                        "borderRadius": 6,
-                                        "flex": 1,
-                                        "justifyContent": "center",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 8,
+                                        "flexDirection": "row",
+                                        "gap": 8,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Phạm vi trả lời",
+                                  "label": "Cuộc trò chuyện mới",
+                                  "role": "button",
                                   "s": {
-                                    "backgroundColor": "#F1F5FB",
-                                    "borderColor": "#C9D5E4",
+                                    "alignItems": "center",
+                                    "backgroundColor": "transparent",
                                     "borderRadius": 8,
-                                    "flexDirection": "row",
-                                    "padding": 2,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 8,
+                                    "paddingVertical": 8,
                                   },
                                   "t": "View",
                                 },
                               ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 4,
+                                "marginBottom": 8,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 14,
+                                "marginBottom": 8,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "flex": 1,
+                                    "fontSize": 14,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#E6F0FF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "flexDirection": "row",
+                                "padding": 16,
+                              },
                               "t": "View",
                             },
                             {
                               "c": [
                                 {
                                   "c": [
+                                    "󱉴",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 24,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     {
                                       "c": [
-                                        "Cuộc trò chuyện mới",
+                                        "Hỏi về học vụ",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#17243A",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "alignItems": "center",
-                                    "flexDirection": "row",
-                                    "gap": 8,
+                                    "flex": 1,
                                   },
                                   "t": "View",
                                 },
                               ],
-                              "label": "Cuộc trò chuyện mới",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "transparent",
-                                "borderRadius": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 4,
-                            "marginBottom": 8,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Bản xem trước chỉ ghi nhận câu hỏi cục bộ.",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 14,
-                            "marginBottom": 8,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Trợ lý chỉ hỗ trợ thông tin học vụ, không hỗ trợ lệnh hay cấu hình hệ thống.",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "flex": 1,
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#E6F0FF",
-                            "borderColor": "#C9D5E4",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "󱉴",
-                              ],
-                              "s": {
-                                "color": "#526174",
-                                "fontSize": 24,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Hỏi về học vụ",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "backgroundColor": "#FFFFFF",
-                            "borderColor": "#C9D5E4",
-                            "borderRadius": 8,
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "padding": 16,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Đăng ký học phần",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "label": "Đăng ký học phần",
-                              "role": "button",
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#FFFFFF",
@@ -3532,9 +3532,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 "borderRadius": 8,
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "padding": 16,
                               },
                               "t": "View",
                             },
@@ -3542,113 +3540,151 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "lịch học",
+                                    {
+                                      "c": [
+                                        "Đăng ký học phần",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "Đăng ký học phần",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "lịch học",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "thông báo",
+                                    {
+                                      "c": [
+                                        "lịch học",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "lịch học",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
-                              ],
-                              "label": "thông báo",
-                              "role": "button",
-                              "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
                                 {
                                   "c": [
-                                    "chương trình đào tạo",
+                                    {
+                                      "c": [
+                                        "thông báo",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
+                                  "label": "thông báo",
+                                  "role": "button",
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 13,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
+                                },
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "chương trình đào tạo",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "label": "chương trình đào tạo",
+                                  "role": "button",
+                                  "s": {
+                                    "alignItems": "center",
+                                    "backgroundColor": "#FFFFFF",
+                                    "borderColor": "#C9D5E4",
+                                    "borderRadius": 8,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "center",
+                                    "paddingHorizontal": 12,
+                                    "paddingVertical": 8,
+                                  },
+                                  "t": "View",
                                 },
                               ],
-                              "label": "chương trình đào tạo",
-                              "role": "button",
                               "s": {
-                                "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
-                                "borderColor": "#C9D5E4",
-                                "borderRadius": 8,
+                                "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 8,
-                                "justifyContent": "center",
-                                "paddingHorizontal": 12,
-                                "paddingVertical": 8,
+                                "marginBottom": 16,
+                                "marginTop": 8,
                               },
                               "t": "View",
                             },
                           ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "gap": 8,
-                            "marginBottom": 16,
-                            "marginTop": 8,
-                          },
                           "t": "View",
                         },
-                      ],
-                      "t": "View",
-                    },
-                    {
-                      "c": [
                         {
-                          "c": [],
+                          "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
+                          ],
                           "t": "View",
                         },
                       ],
                       "t": "View",
                     },
                   ],
-                  "t": "View",
+                  "t": "RCTScrollView",
                 },
               ],
-              "t": "RCTScrollView",
+              "s": {
+                "flex": 1,
+                "maxWidth": 960,
+                "width": "100%",
+              },
+              "t": "View",
             },
             {
               "c": [
