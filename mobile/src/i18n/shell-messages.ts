@@ -3,15 +3,16 @@ import type { AppLocale } from './locale';
 import type { LaneScreenId, ScreenName } from '../navigation/routes';
 
 const vi = {
-  menu: 'Menu',
+  menu: 'Danh mục',
   menuTitle: 'Tất cả chức năng',
-  openMenu: 'Mở menu',
-  closeMenu: 'Đóng menu',
+  openMenu: 'Mở danh mục',
+  closeMenu: 'Đóng danh mục',
   close: 'Đóng',
   guestSignIn: 'Đăng nhập',
   signOut: 'Đăng xuất',
   unread: 'Chưa đọc',
   language: 'Ngôn ngữ',
+  languageOptions: { vi: 'Tiếng Việt', en: 'English' },
   previewRole: 'Vai trò xem thử',
   previewLabel: 'Bản xem thử',
   assistantFabLabel: 'Trợ lý CampusUTE',
@@ -124,6 +125,7 @@ const en: ShellCopy = {
   signOut: 'Sign out',
   unread: 'Unread',
   language: 'Language',
+  languageOptions: { vi: 'Tiếng Việt', en: 'English' },
   previewRole: 'Preview role',
   previewLabel: 'Preview',
   assistantFabLabel: 'CampusUTE Assistant',

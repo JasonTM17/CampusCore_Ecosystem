@@ -1,6 +1,8 @@
 // Pure grade-scale and transcript helpers. No React or native imports so they
 // run unchanged under `node --test`. The conversion table mirrors the web
 // grade scale (10-point score -> letter -> 4.0 point).
+import { formatNumber } from '../../i18n/locale';
+import type { AppLocale } from '../../i18n/locale';
 
 export interface GradeRecordLike {
   courseCode?: string | null;
@@ -52,8 +54,8 @@ export function pointFromScore(score: number): number {
 }
 
 /** Highest one-decimal score inside a `[min, max)` band, floored onto the 0.1 grid. */
-export function bandUpperDisplay(maxExclusive: number): string {
-  return (Math.floor((maxExclusive - 0.005) * 10) / 10).toFixed(1);
+export function bandUpperDisplay(maxExclusive: number, locale: AppLocale = 'en'): string {
+  return formatNumber(Math.floor((maxExclusive - 0.005) * 10) / 10, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 export interface GradeScaleRow {
@@ -63,11 +65,11 @@ export interface GradeScaleRow {
 }
 
 /** Rows for the scale explanation, for example `A+`, `9.0 - 10.0`, `4.0`. */
-export function gradeScaleRows(): GradeScaleRow[] {
+export function gradeScaleRows(locale: AppLocale = 'en'): GradeScaleRow[] {
   return CONVERSION_TABLE.map((row) => ({
     letter: row.letter,
-    range: `${row.min.toFixed(1)} - ${bandUpperDisplay(row.max)}`,
-    point: row.point.toFixed(1),
+    range: `${formatNumber(row.min, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} - ${bandUpperDisplay(row.max, locale)}`,
+    point: formatNumber(row.point, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
   }));
 }
 

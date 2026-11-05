@@ -391,7 +391,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                         },
                         {
                           "c": [
-                            "Menu",
+                            "Danh mục",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -400,7 +400,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                           "t": "Text",
                         },
                       ],
-                      "label": "Mở menu",
+                      "label": "Mở danh mục",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -798,7 +798,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                         },
                         {
                           "c": [
-                            "Menu",
+                            "Danh mục",
                           ],
                           "s": {
                             "color": "#A9B8CE",
@@ -807,7 +807,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                           "t": "Text",
                         },
                       ],
-                      "label": "Mở menu",
+                      "label": "Mở danh mục",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -1278,7 +1278,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                         },
                         {
                           "c": [
-                            "Menu",
+                            "Danh mục",
                           ],
                           "s": {
                             "color": "#526174",
@@ -1287,7 +1287,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                           "t": "Text",
                         },
                       ],
-                      "label": "Mở menu",
+                      "label": "Mở danh mục",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -1685,7 +1685,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                         },
                         {
                           "c": [
-                            "Menu",
+                            "Danh mục",
                           ],
                           "s": {
                             "color": "#C9D8F0",
@@ -1694,7 +1694,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                           "t": "Text",
                         },
                       ],
-                      "label": "Mở menu",
+                      "label": "Mở danh mục",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -4045,7 +4045,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Menu",
+                "Danh mục",
               ],
               "s": {
                 "color": "#A9B1BC",
@@ -4054,7 +4054,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Mở menu",
+          "label": "Mở danh mục",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -4308,7 +4308,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Menu",
+                "Danh mục",
               ],
               "s": {
                 "color": "#A9B1BC",
@@ -4317,7 +4317,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Mở menu",
+          "label": "Mở danh mục",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -4571,7 +4571,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Menu",
+                "Danh mục",
               ],
               "s": {
                 "color": "#526174",
@@ -4580,7 +4580,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Mở menu",
+          "label": "Mở danh mục",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -4834,7 +4834,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Menu",
+                "Danh mục",
               ],
               "s": {
                 "color": "#526174",
@@ -4843,7 +4843,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Mở menu",
+          "label": "Mở danh mục",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -5155,7 +5155,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture",
+                                    "Kiến trúc phần mềm",
                                   ],
                                   "s": {
                                     "color": "#EDF0F2",
@@ -5211,7 +5211,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Software Architecture, Đang học",
+                  "label": "CS204 Kiến trúc phần mềm, Đang học",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5315,7 +5315,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics",
+                                    "Phân tích kinh doanh",
                                   ],
                                   "s": {
                                     "color": "#EDF0F2",
@@ -5371,7 +5371,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Business Analytics, Đang học",
+                  "label": "BA312 Phân tích kinh doanh, Đang học",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5730,7 +5730,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture",
+                                        "Kiến trúc phần mềm",
                                       ],
                                       "s": {
                                         "color": "#EDF0F2",
@@ -5786,7 +5786,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Software Architecture, Đang học",
+                      "label": "CS204 Kiến trúc phần mềm, Đang học",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -5885,7 +5885,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics",
+                                        "Phân tích kinh doanh",
                                       ],
                                       "s": {
                                         "color": "#EDF0F2",
@@ -5941,7 +5941,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Business Analytics, Đang học",
+                      "label": "BA312 Phân tích kinh doanh, Đang học",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -6311,7 +6311,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture",
+                                    "Kiến trúc phần mềm",
                                   ],
                                   "s": {
                                     "color": "#17243A",
@@ -6367,7 +6367,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Software Architecture, Đang học",
+                  "label": "CS204 Kiến trúc phần mềm, Đang học",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6471,7 +6471,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics",
+                                    "Phân tích kinh doanh",
                                   ],
                                   "s": {
                                     "color": "#17243A",
@@ -6527,7 +6527,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Business Analytics, Đang học",
+                  "label": "BA312 Phân tích kinh doanh, Đang học",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6886,7 +6886,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture",
+                                        "Kiến trúc phần mềm",
                                       ],
                                       "s": {
                                         "color": "#17243A",
@@ -6942,7 +6942,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Software Architecture, Đang học",
+                      "label": "CS204 Kiến trúc phần mềm, Đang học",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -7041,7 +7041,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics",
+                                        "Phân tích kinh doanh",
                                       ],
                                       "s": {
                                         "color": "#17243A",
@@ -7097,7 +7097,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Business Analytics, Đang học",
+                      "label": "BA312 Phân tích kinh doanh, Đang học",
                       "role": "button",
                       "s": {
                         "width": "48.5%",

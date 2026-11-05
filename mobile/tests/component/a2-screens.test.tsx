@@ -93,7 +93,7 @@ describe('assistant + chrome', () => {
     const tabs = screen.getAllByRole('tab');
     expect(tabs.length).toBeGreaterThan(1);
     expect(tabs.some((t) => t.props.accessibilityState?.selected)).toBe(true);
-    expect(screen.getByRole('button', { name: 'Mở menu' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Mở danh mục' })).toBeOnTheScreen();
   });
   test('menu panel lists navigation and close', async () => {
     setWidth(360);

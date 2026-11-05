@@ -59,7 +59,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
         ]}
       >
         <Image
-          accessibilityLabel="HCMUTE"
+          accessibilityLabel={accountMessages[locale].signIn.institutionName}
           accessibilityRole="image"
           source={require('../../../assets/hcmute-logo.png')}
           resizeMode="contain"

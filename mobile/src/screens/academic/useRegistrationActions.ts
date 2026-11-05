@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import { fillCopy, type AcademicCopy } from '../../i18n/academic-messages';
-import { countForm } from '../../i18n/locale';
+import { countForm, formatNumber } from '../../i18n/locale';
 import { dropEnrollmentById, enrollInSection, isDeviceOffline, isOfflineError } from './academic-api';
 import { basketReducer, emptyBasket } from './registration-basket';
 import { registrationErrorKey } from './registration-browse';
@@ -10,6 +10,12 @@ export interface RegistrationNotice {
   tone: 'success' | 'error';
   text: string;
 }
+
+type RegistrationNoticeState =
+  | { tone: 'error'; key: 'offline' }
+  | { tone: 'error'; key: 'registration-error'; errorKey: string }
+  | { tone: 'success'; key: 'registered'; count: number }
+  | { tone: 'success'; key: 'dropped' };
 
 export interface RegistrationActionsInput {
   copy: AcademicCopy;
@@ -29,7 +35,7 @@ export interface RegistrationActionsInput {
 export function useRegistrationActions({ copy, locale, preview, knownOffline, reload, catalogIds, roundOpen }: RegistrationActionsInput) {
   const [basket, dispatch] = useReducer(basketReducer, emptyBasket);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<RegistrationNotice | null>(null);
+  const [noticeState, setNoticeState] = useState<RegistrationNoticeState | null>(null);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
       offline = true;
     }
     if (!offline) return false;
-    setNotice({ tone: 'error', text: copy.offlineNoMutation });
+    setNoticeState({ tone: 'error', key: 'offline' });
     inFlight.current = false;
     return true;
   }, [copy, knownOffline, preview]);
@@ -57,7 +63,7 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
   const registerSelected = useCallback(async () => {
     if (roundOpen === false || await blocked()) return;
     setBusy(true);
-    setNotice(null);
+    setNoticeState(null);
     try {
       let registered = 0;
       let offline = false;
@@ -79,9 +85,9 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
           if (!catalogIds.includes(sectionId)) hiddenFailure = messageKey;
         }
       }
-      if (offline) setNotice({ tone: 'error', text: copy.offlineNoMutation });
-      else if (hiddenFailure) setNotice({ tone: 'error', text: copy.errors[hiddenFailure] ?? copy.errors.generic });
-      else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(countForm(registered, copy.registeredOne, copy.registered), { n: registered }) });
+      if (offline) setNoticeState({ tone: 'error', key: 'offline' });
+      else if (hiddenFailure) setNoticeState({ tone: 'error', key: 'registration-error', errorKey: hiddenFailure });
+      else if (registered > 0) setNoticeState({ tone: 'success', key: 'registered', count: registered });
       // The lock covers the refresh that withdraws the just-enrolled Select.
       await reload();
     } finally {
@@ -93,14 +99,16 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
   const drop = useCallback(async (enrollmentId: string) => {
     if (await blocked()) return;
     setBusy(true);
-    setNotice(null);
+    setNoticeState(null);
     try {
       try {
         await dropEnrollmentById(enrollmentId);
-        setNotice({ tone: 'success', text: copy.dropped });
+        setNoticeState({ tone: 'success', key: 'dropped' });
       } catch (error) {
         const code = (error as { code?: string } | null)?.code ?? null;
-        setNotice({ tone: 'error', text: isOfflineError(error) ? copy.offlineNoMutation : copy.errors[registrationErrorKey(code) ?? 'generic'] });
+        setNoticeState(isOfflineError(error)
+          ? { tone: 'error', key: 'offline' }
+          : { tone: 'error', key: 'registration-error', errorKey: registrationErrorKey(code) ?? 'generic' });
       }
       // The row leaves the screen only when the workspace read returns; the lock
       // must cover that read or a second tap drops an enrollment already gone.
@@ -110,6 +118,14 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
       setBusy(false);
     }
   }, [blocked, copy, reload]);
+
+  const notice: RegistrationNotice | null = noticeState === null ? null : noticeState.key === 'offline'
+    ? { tone: noticeState.tone, text: copy.offlineNoMutation }
+    : noticeState.key === 'registration-error'
+      ? { tone: noticeState.tone, text: copy.errors[noticeState.errorKey] ?? copy.errors.generic }
+      : noticeState.key === 'registered'
+        ? { tone: noticeState.tone, text: fillCopy(countForm(noticeState.count, copy.registeredOne, copy.registered), { n: formatNumber(noticeState.count, locale) }) }
+        : { tone: noticeState.tone, text: copy.dropped };
 
   return { basket, dispatch, busy, notice, registerSelected, drop };
 }

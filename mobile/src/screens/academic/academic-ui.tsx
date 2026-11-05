@@ -102,12 +102,12 @@ export function TermField({ options, value, onChange, allowAll = true }: TermFie
 
 /** Letter, 10-point range and 4.0 point for every band. */
 export function GradeScale() {
-  const { copy } = useAcademicCopy();
+  const { copy, locale } = useAcademicCopy();
   return (
     <Card>
       <UiText accessibilityRole="header" variant="headlineSmall">{copy.scaleTitle}</UiText>
       <UiText variant="meta" tone="muted" style={styles.scaleHeader}>{copy.scaleHeader}</UiText>
-      {gradeScaleRows().map((row) => (
+      {gradeScaleRows(locale).map((row) => (
         <View key={row.letter} accessible accessibilityLabel={`${row.letter}, ${row.range}, ${row.point}`} style={styles.scaleRow}>
           <UiText variant="label" style={styles.scaleLetter}>{row.letter}</UiText>
           <UiText variant="bodySmall" tone="muted" style={styles.scaleRange}>{row.range}</UiText>

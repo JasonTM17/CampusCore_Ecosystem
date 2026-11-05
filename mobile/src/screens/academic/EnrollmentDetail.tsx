@@ -46,7 +46,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
           <View style={styles.detailCopy}>
             <StatusPill label={enrollmentCourseCode(enrollment)} tone="primary" />
             <UiText accessibilityRole="header" variant="headlineSmall">{enrollmentCourseName(enrollment, locale)}</UiText>
-            <StatusPill label={copy.status[enrollment.status] ?? enrollment.status} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
+            <StatusPill label={copy.status[enrollment.status] ?? copy.status.UNKNOWN} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
             {enrollment.gradeStatus === 'APPEALED' ? (
               <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
             ) : null}
@@ -54,7 +54,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
         </View>
         <ScreenSpacer size={8} />
         {section?.sectionNumber ? <Field label={copy.sectionLabel} value={section.sectionNumber} /> : null}
-        {section?.course?.credits ? <Field label={copy.creditsLabel} value={String(section.course.credits)} /> : null}
+        {section?.course?.credits ? <Field label={copy.creditsLabel} value={formatNumber(section.course.credits)} /> : null}
         {lecturer ? <Field label={copy.lecturer} value={lecturer} /> : null}
         {enrollment.enrolledAt ? <Field label={copy.enrolledAt} value={formatDate(enrollment.enrolledAt)} /> : null}
         {enrollment.droppedAt ? <Field label={copy.droppedAt} value={formatDate(enrollment.droppedAt)} /> : null}
