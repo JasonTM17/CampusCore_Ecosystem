@@ -1,8 +1,9 @@
 import { memo } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, useWindowDimensions, View } from 'react-native';
 
 import { Card, StatusPill, UiText } from '../../components/Ui';
 import { Avatar } from '../../components/ui/avatar';
+import { chromeFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -23,6 +24,9 @@ const statusToneMap: Record<MarkStatus, 'success' | 'error' | 'warning' | 'prima
   EXCUSED: 'primary',
 };
 
+const largeTextChipLayout = { flexGrow: 0, flexShrink: 1, maxWidth: '100%' as const };
+const largeTextChipLabel = { flexShrink: 1, minWidth: 0 };
+
 export interface AttendanceRosterRowProps {
   row: RosterRow;
   copy: OperationsCopy;
@@ -35,6 +39,8 @@ export interface AttendanceRosterRowProps {
 function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps) {
   const styles = useOpsStyles();
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= chromeFontScaleCap;
   const current = row.status ? statusLabel(copy, row.status) : copy.unmarked;
 
   return (
@@ -76,13 +82,19 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
               onPress={() => onChange(row.studentId, selected ? null : status)}
               style={[
                 styles.chip,
+                ...(largeText ? [largeTextChipLayout] : []),
                 {
                   borderColor: selected ? activeInk : colors.outlineVariant,
                   backgroundColor: selected ? activeBg : colors.card,
                 },
               ]}
             >
-              <UiText variant="label" style={{ color: selected ? activeInk : colors.textMuted }}>
+              <UiText
+                variant="label"
+                style={largeText
+                  ? [{ color: selected ? activeInk : colors.textMuted }, largeTextChipLabel]
+                  : { color: selected ? activeInk : colors.textMuted }}
+              >
                 {label}
               </UiText>
             </Pressable>
