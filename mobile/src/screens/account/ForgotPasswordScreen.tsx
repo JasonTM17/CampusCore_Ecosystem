@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react';
+import { useReducer, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, UiText } from '../../components/Ui';
@@ -23,22 +23,26 @@ export function ForgotPasswordScreen({ navigation }: MobileScreenProps) {
   const [state, dispatch] = useReducer(forgotReducer, initialForgotState);
   const [email, setEmail] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const submitFlight = useRef(false);
   const sending = state.phase === 'sending';
 
   const submit = async () => {
-    if (sending) return;
+    if (sending || submitFlight.current) return;
     const issue = validateEmail(email);
     if (issue) {
       setFieldError(issue === 'required' ? copy.forgot.emailRequired : copy.forgot.emailInvalid);
       return;
     }
     setFieldError(null);
+    submitFlight.current = true;
     dispatch({ type: 'submit', email });
     try {
       await accountApi.forgotPassword(email.trim());
       dispatch({ type: 'accepted' });
     } catch (error) {
       dispatch({ type: 'rejected', failure: classifyError(error) });
+    } finally {
+      submitFlight.current = false;
     }
   };
 

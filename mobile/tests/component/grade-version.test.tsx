@@ -184,6 +184,19 @@ beforeEach(() => {
 });
 
 describe('grade row versions on the lecturer grade sheet', () => {
+  test('grade search finds Vietnamese names without diacritics', async () => {
+    mockRuntime.queries['lecturer:grades:section-a'] = {
+      data: {
+        sectionId: 'section-a',
+        rows: [{ ...versionedSheet.rows[0], studentName: 'Nguyễn Đức Minh' }],
+      },
+    };
+    await render(themed(<LecturerGradingScreen {...props} />));
+    await fireEvent.changeText(screen.getByLabelText(operationsMessages.en.searchStudents), 'nguyen');
+
+    expect(screen.getByText('Nguyễn Đức Minh')).toBeOnTheScreen();
+  });
+
   test('a save sends the version each row was loaded with', async () => {
     await render(themed(<LecturerGradingScreen {...props} />));
     await fireEvent.changeText(await screen.findByLabelText(processLabel), '7');

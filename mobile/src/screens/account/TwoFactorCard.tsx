@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Dialog, IconChip, StatusPill, UiText } from '../../components/Ui';
@@ -34,6 +34,7 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   const [state, dispatch] = useReducer(twoFactorReducer, initialTwoFactorState);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const requestFlight = useRef(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -59,11 +60,12 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   };
 
   const submitPassword = async () => {
-    if (state.busy) return;
+    if (state.busy || requestFlight.current) return;
     if (!password) {
       dispatch({ type: 'failed', error: 'passwordRequired' });
       return;
     }
+    requestFlight.current = true;
     dispatch({ type: 'requestStarted' });
     try {
       const start = state.action === 'disable'
@@ -75,16 +77,18 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
     } catch (error) {
       dispatch({ type: 'failed', error: twoFactorErrorKey(classifyError(error), 'password') });
     } finally {
+      requestFlight.current = false;
       setPassword('');
     }
   };
 
   const submitCode = async () => {
-    if (state.busy || !state.challengeId) return;
+    if (state.busy || requestFlight.current || !state.challengeId) return;
     if (!isCompleteOtp(code)) {
       dispatch({ type: 'failed', error: 'invalidFormat' });
       return;
     }
+    requestFlight.current = true;
     dispatch({ type: 'requestStarted' });
     try {
       const confirm = state.action === 'disable'
@@ -95,6 +99,7 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
     } catch (error) {
       dispatch({ type: 'failed', error: twoFactorErrorKey(classifyError(error), 'code') });
     } finally {
+      requestFlight.current = false;
       setCode('');
     }
   };

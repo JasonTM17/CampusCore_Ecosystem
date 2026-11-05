@@ -82,11 +82,14 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
               const code = enrollmentCourseCode(item);
               const name = enrollmentCourseName(item, locale);
               const statusLabel = copy.status[item.status] ?? copy.status.UNKNOWN;
+              const credits = item.section?.course?.credits ?? 0;
+              const creditsLabel = fillCopy(countForm(credits, copy.creditsOne, copy.credits), { n: formatNumber(credits) });
+              const sectionLabel = item.section?.sectionNumber ? `${copy.sectionLabel}: ${item.section.sectionNumber}` : '';
               return (
                 <Pressable
                   key={`${item.semesterId}-${item.id}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${code} ${name}, ${statusLabel}`}
+                  accessibilityLabel={`${code} ${name}, ${statusLabel}, ${creditsLabel}${sectionLabel ? `, ${sectionLabel}` : ''}`}
                   onPress={() => setSelectedId(item.id)}
                   style={{ minHeight: tokens.layout.touchTarget, width: windowClass === 'compact' || largeText ? '100%' : '48.5%' }}
                 >
@@ -99,7 +102,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                           <StatusPill label={statusLabel} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
                         </View>
                         <UiText variant="headlineSmall">{name}</UiText>
-                        <UiText variant="meta" tone="muted">{fillCopy(countForm(item.section?.course?.credits ?? 0, copy.creditsOne, copy.credits), { n: formatNumber(item.section?.course?.credits ?? 0) })}</UiText>
+                        <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
                         {item.section?.sectionNumber ? (
                           <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
                         ) : null}

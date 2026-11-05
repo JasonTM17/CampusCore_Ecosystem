@@ -51,6 +51,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
   // The typed answer survives a failed save or submit, and a trip back to the list.
   const [text, setText] = useState(() => readQueryCache<string>(draftKey(assignment.id)) ?? '');
   const [file, setFile] = useState<PickedFile | null>(null);
+  const selectedFile = useRef<PickedFile | null>(null);
   const activeAction = useRef<AbortController | null>(null);
   const mounted = useRef(true);
 
@@ -60,6 +61,8 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
       mounted.current = false;
       activeAction.current?.abort();
       activeAction.current = null;
+      selectedFile.current?.release?.();
+      selectedFile.current = null;
     };
   }, []);
 
@@ -108,7 +111,13 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
     setText(value);
     writeQueryCache(draftKey(assignment.id), value);
   };
+  const changeFile = (next: PickedFile | null) => {
+    selectedFile.current = next;
+    setFile(next);
+  };
   const forgetDraft = () => {
+    selectedFile.current?.release?.();
+    selectedFile.current = null;
     setFile(null);
     writeQueryCache(draftKey(assignment.id), '');
   };
@@ -279,7 +288,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
               maxLength={TEXT_MAX}
               editable={!busy}
             />
-            <FilePicker policy={COURSEWORK_POLICY} file={file} onChange={setFile} disabled={busy} />
+            <FilePicker policy={COURSEWORK_POLICY} file={file} onChange={changeFile} disabled={busy} />
             {file === null && serverDraftFileName ? <MetaRow label={copy.answerFile} value={serverDraftFileName} /> : null}
             <View style={{ gap: 8, marginTop: 8 }}>
               {phase === 'draft' ? <Button label={copy.saveDraft} variant="secondary" disabled={busy} onPress={saveDraft} /> : null}

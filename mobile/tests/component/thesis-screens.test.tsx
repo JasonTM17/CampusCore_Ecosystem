@@ -285,6 +285,36 @@ describe('topics, round and advisors', () => {
     expect(screen.getByText('2 đề tài')).toBeOnTheScreen();
   });
 
+  test('a forbidden supervisor read shows access denied instead of an empty directory', async () => {
+    setWidth(360);
+    mockApi.supervisors.mockRejectedValue(Object.assign(new Error('denied'), { status: 403 }));
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+
+    expect(await screen.findByText(copy.errors.forbidden)).toBeOnTheScreen();
+    expect(screen.queryByText(copy.advisorsEmpty)).toBeNull();
+  });
+
+  test('a partially failed advisor directory can retry its missing topics', async () => {
+    setWidth(360);
+    let firstRead = true;
+    mockApi.supervisors.mockImplementation(async (topicId: string) => {
+      if (topicId === 't1' && firstRead) {
+        firstRead = false;
+        throw Object.assign(new Error('offline'), { status: 503 });
+      }
+      return topicId === 't1'
+        ? SUPERVISORS
+        : [{ lecturerId: 'l2', supervisorOrder: 1, firstName: 'Lan', lastName: 'Võ', email: null }];
+    });
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+
+    expect(await screen.findByText(copy.advisorsLoadFailed)).toBeOnTheScreen();
+    expect(screen.getByText('Võ Lan')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
+    expect(screen.queryByText(copy.advisorsLoadFailed)).toBeNull();
+  });
+
   test('a single topic and its group cap keep the singular English noun', async () => {
     setWidth(360);
     seed({ topics: [topic('t1', 'Solo topic', { maxGroups: 1 })] });
@@ -400,6 +430,16 @@ describe('registration', () => {
     expect(await screen.findByText(/1\/5/)).toBeOnTheScreen();
   });
 
+  test('a cancelled group leaves registration available in an open round', async () => {
+    setWidth(360);
+    seed({ group: group({ status: 'CANCELLED' }), progress: progress({ groupStatus: 'CANCELLED' }) });
+
+    await renderThemed(screenUnderTest());
+
+    expect(await screen.findByRole('button', { name: copy.groupCreate })).toBeOnTheScreen();
+    expect(mockApi.createGroup).not.toHaveBeenCalled();
+  });
+
   test('a closed round disables creation and says why', async () => {
     setWidth(360);
     seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')] });
@@ -409,6 +449,39 @@ describe('registration', () => {
     expect(create.props.accessibilityState?.disabled).toBe(true);
     await fireEvent.press(create);
     expect(mockApi.createGroup).not.toHaveBeenCalled();
+  });
+
+  test('waits for the selected topic round before enabling group creation', async () => {
+    setWidth(360);
+    selectThesisRound('r2');
+    seed({ rounds: [round('r1', 'Đợt 1', 'REGISTRATION_OPEN'), round('r2', 'Đợt 2', 'REGISTRATION_OPEN')] });
+    const pendingTopic = deferred<unknown>();
+    mockApi.topic.mockReturnValueOnce(pendingTopic.promise);
+    mockApi.createGroup.mockResolvedValue(group({ roundId: 'r1' }));
+
+    await renderThemed(screenUnderTest('t-old'));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(screen.queryByRole('button', { name: copy.groupCreate })).toBeNull();
+
+    await act(async () => {
+      pendingTopic.resolve(topic('t-old', 'Đề tài đợt 1', { roundId: 'r1' }));
+      await pendingTopic.promise;
+    });
+    await fireEvent.press(await screen.findByRole('button', { name: copy.groupCreate }));
+    await waitFor(() => expect(mockApi.createGroup).toHaveBeenCalledWith('r1'));
+  });
+
+  test('does not use the active round when the selected topic id is empty', async () => {
+    setWidth(360);
+    selectThesisRound('r2');
+    seed({ rounds: [round('r1', 'Đợt 1', 'REGISTRATION_OPEN'), round('r2', 'Đợt 2', 'REGISTRATION_OPEN')] });
+
+    await renderThemed(screenUnderTest(''));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(screen.getByText(copy.topicNotFound)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.groupCreate })).toBeNull();
   });
 
   test('an open-status round past its window disables writes and says why', async () => {
@@ -443,6 +516,41 @@ describe('registration', () => {
     expect(mockApi.removeMember).not.toHaveBeenCalled();
     await fireEvent.press(await screen.findByRole('button', { name: copy.remove }));
     await waitFor(() => expect(mockApi.removeMember).toHaveBeenCalledWith('g1', 's3'));
+  });
+
+  test('clears old student suggestions as soon as the search query changes', async () => {
+    setWidth(360);
+    seed({ group: group({ memberStudentIds: ['s1', 's2', 's3'] }), progress: progress() });
+    const pendingSearch = deferred<unknown[]>();
+    mockApi.searchStudents
+      .mockResolvedValueOnce([{ studentId: 's4', studentNumber: '214', firstName: 'Dũng', lastName: 'Phạm' }])
+      .mockReturnValueOnce(pendingSearch.promise);
+    await renderThemed(screenUnderTest());
+
+    const field = await screen.findByLabelText(copy.memberSearch);
+    await fireEvent.changeText(field, 'du');
+    const oldSuggestion = `${copy.memberAdd}: Phạm Dũng`;
+    expect(await screen.findByRole('button', { name: oldSuggestion }, { timeout: 2000 })).toBeOnTheScreen();
+
+    await fireEvent.changeText(field, 'ba');
+    expect(screen.queryByRole('button', { name: oldSuggestion })).toBeNull();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+    expect(mockApi.searchStudents).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      pendingSearch.resolve([]);
+      await pendingSearch.promise;
+    });
+  });
+
+  test('keeps a failed student search distinct from an empty result', async () => {
+    setWidth(360);
+    seed({ group: group({ memberStudentIds: ['s1', 's2', 's3'] }), progress: progress() });
+    mockApi.searchStudents.mockRejectedValueOnce(Object.assign(new Error('offline'), { status: 503 }));
+    await renderThemed(screenUnderTest());
+
+    await fireEvent.changeText(await screen.findByLabelText(copy.memberSearch), 'du');
+    expect(await screen.findByText(copy.errors.unavailable, {}, { timeout: 2000 })).toBeOnTheScreen();
+    expect(screen.queryByText(copy.memberSearchEmpty)).toBeNull();
   });
 
   test('member and search result actions take their own full-width line at large text', async () => {
@@ -723,6 +831,30 @@ describe('progress and report', () => {
     expect(screen.getByLabelText(copy.reportUrl)).toBeOnTheScreen();
   });
 
+  test('does not start a second report picker while the first one is pending', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const pendingPick = deferred<{ status: 'cancelled' }>();
+    const pick = jest.fn(() => pendingPick.promise);
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: () => ({ available: true }),
+      pick,
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportPick }));
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportPick }));
+    expect(pick).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pendingPick.resolve({ status: 'cancelled' });
+      await pendingPick.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.getByRole('button', { name: copy.reportPick }).props.accessibilityState?.busy).toBe(false);
+  });
+
   test('a picked file uploads as a multipart part and can be cancelled', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
@@ -878,4 +1010,31 @@ describe('preview mode', () => {
     expect(screen.queryByLabelText(copy.memberSearch)).toBeNull();
     for (const fn of Object.values(mockApi)) expect(fn).not.toHaveBeenCalled();
   });
+});
+
+test('a picked file that resolves after unmount releases its cache copy', async () => {
+  setWidth(360);
+  seed({ group: group({ topicId: 't1', status: 'APPROVED', approvalStatus: 'APPROVED' }), progress: progress() });
+  const pending = deferred<{ status: 'picked'; file: { uri: string; name: string; sizeBytes: number; release: () => void } }>();
+  const release = jest.fn();
+  const adapter: FileAdapter = {
+    ...createUnavailableFileAdapter(),
+    capability: () => ({ available: true }),
+    pick: () => pending.promise,
+  };
+  setFileAdapter(adapter);
+  const utils = await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: copy.reportPick }));
+  utils.unmount();
+  await act(async () => {
+    pending.resolve({
+      status: 'picked',
+      file: { uri: 'file:///a/report.pdf', name: 'report.pdf', sizeBytes: 2048, release },
+    });
+    await pending.promise;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  expect(release).toHaveBeenCalledTimes(1);
 });

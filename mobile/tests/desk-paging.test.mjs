@@ -55,6 +55,7 @@ transpile('src/screens/lanes/lane-api.ts', 'lane-api.ts');
 
 const load = (name) => import(pathToFileURL(path.join(tempRoot, `${name}.mjs`)).href);
 const { laneApi } = await load('lane-api');
+const { failureKind } = await load('lane-model');
 const { createRequestGate } = await load('lane-request');
 const {
   LANE_PAGE_SIZE,
@@ -172,6 +173,18 @@ test('an empty page past the end is corrected exactly once', () => {
   // Without a total the previous page is the only target, and it becomes the known last page.
   assert.equal(correctionTarget({ items: [], hasMore: false }, 1), 0);
   assert.deepEqual(deskPageView({ items: rows(20), hasMore: true }, 0, 0), { page: 1, hasMore: false });
+});
+
+test('a malformed queue body is reported as a response error, not an offline failure', async () => {
+  wire({ body: { data: [] } });
+
+  await assert.rejects(
+    laneApi.admissionsQueuePaged(undefined, deskWindow(0)),
+    (error) => {
+      assert.equal(failureKind(error), 'other');
+      return true;
+    },
+  );
 });
 
 test('a late read for an older page or focus never wins over the newest one', () => {

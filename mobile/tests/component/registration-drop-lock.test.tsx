@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -13,6 +13,7 @@ type QueryState = { data?: unknown; error?: string | null; warning?: string | nu
 const mockQueries: Record<string, QueryState> = {};
 const mockReload = jest.fn<() => Promise<void>>();
 const mockPost = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockNetworkProbe = jest.fn<() => Promise<{ isConnected: boolean | null }>>();
 
 jest.mock('../../src/api/client', () => ({
   apiClient: {
@@ -55,9 +56,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
   },
 }));
 
-jest.mock('expo-network', () => ({
-  getNetworkStateAsync: async () => ({ isConnected: true }),
-}));
+jest.mock('expo-network', () => ({ getNetworkStateAsync: () => mockNetworkProbe() }));
 
 import { RegistrationScreen } from '../../src/screens/student/RegistrationScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
@@ -102,6 +101,7 @@ beforeEach(() => {
   mockReload.mockResolvedValue(undefined);
   mockPost.mockReset();
   mockPost.mockResolvedValue({ message: 'ok' });
+  mockNetworkProbe.mockReset().mockResolvedValue({ isConnected: true });
   navigation.navigate = jest.fn();
 });
 
@@ -140,6 +140,16 @@ test('registration search stays on one line with a short placeholder and a compl
   expect(input.props.accessibilityLabel).toBe(copy.searchLabel);
   expect(input.props.multiline).toBe(false);
   expect(academicMessages.en.searchPlaceholder).toBe('Search courses');
+});
+
+test('search matches the localized course name shown to the student', async () => {
+  mockQueries['academic.registration'] = {
+    data: { ...workspace, sections: [{ ...selectable, courseName: 'Cloud Computing', courseNameEn: 'Cloud Computing', courseNameVi: 'Điện toán đám mây' }], enrollments: [] },
+  };
+  await render(screenElement(<RegistrationScreen {...props} />));
+
+  await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'dien toan');
+  expect(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` })).toBeOnTheScreen();
 });
 
 test('a second drop press during the post-drop reload is ignored', async () => {
@@ -204,6 +214,24 @@ test('a second select during the post-register refresh cannot send another enrol
 
   await act(async () => { reload.resolve(); await reload.promise; });
   expect(mockPost).toHaveBeenCalledTimes(1);
+});
+
+test('selection controls stay disabled while registration checks connectivity', async () => {
+  const network = deferred<{ isConnected: boolean | null }>();
+  mockNetworkProbe.mockReturnValue(network.promise);
+  mockQueries['academic.registration'] = { data: { ...workspace, sections: [selectable], enrollments: [] } };
+  await render(screenElement(<RegistrationScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.registerSelected }));
+  await act(async () => { await Promise.resolve(); });
+
+  const unselect = screen.getByRole('button', { name: `${copy.unselect}: CS201 Lớp 01` });
+  const disabledDuringProbe = (unselect.props.accessibilityState as { disabled?: boolean } | undefined)?.disabled;
+  await act(async () => { network.resolve({ isConnected: true }); await network.promise; });
+  await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
+
+  expect(disabledDuringProbe).toBe(true);
 });
 
 test('two rapid registration submissions send one enrollment request', async () => {

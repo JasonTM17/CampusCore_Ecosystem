@@ -131,7 +131,12 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
                 <UiText variant="meta" tone="muted">{fillCopy(copy.closesAt, { time: formatDateTime(session.closesAt) })}</UiText>
               </View>
               <View style={stackSessionAction ? styles.sessionActionStacked : undefined} testID={`checkin-select-${session.id}`}>
-                <Button label={copy.entryAction} onPress={() => { void machine.selectSession(session.id); }} variant="secondary" />
+                <Button
+                  label={copy.entryAction}
+                  accessibilityLabel={`${copy.entryAction}: ${session.sectionLabel}, ${session.geofenceName}`}
+                  onPress={() => { void machine.selectSession(session.id); }}
+                  variant="secondary"
+                />
               </View>
             </View>
           </Card>
