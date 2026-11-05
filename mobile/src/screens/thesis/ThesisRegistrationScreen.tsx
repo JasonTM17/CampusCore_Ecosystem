@@ -42,7 +42,10 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
   const active = useActiveThesisRound();
   const candidateState = useThesisTopic(selectedThesisTopicId ?? undefined);
   const candidate = candidateState.topic;
-  const round = (candidate ? active.rounds.find((item) => item.id === candidate.roundId) : null) ?? active.round;
+  const hasSelectedTopic = selectedThesisTopicId !== null && selectedThesisTopicId !== undefined;
+  const round = hasSelectedTopic
+    ? candidate ? active.rounds.find((item) => item.id === candidate.roundId) ?? null : null
+    : active.round;
   const roundId = round?.id ?? null;
   const state = useThesisGroup(roundId);
   const { group, progress, preview } = state;
@@ -52,6 +55,7 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<StudentSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<ThesisMember | null>(null);
 
   const open = isRegistrationOpen(round);
@@ -70,17 +74,20 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
     if (term.length < THESIS_STUDENT_SEARCH_MIN || !canAdd) {
       setHits(null);
       setSearching(false);
+      setSearchError(null);
       return undefined;
     }
     const controller = new AbortController();
+    setHits(null);
     setSearching(true);
+    setSearchError(null);
     const timer = setTimeout(() => {
       thesisApi.searchStudents(term, { signal: controller.signal })
         .then((result) => { if (!controller.signal.aborted) setHits(result); })
         .catch((error: unknown) => {
           if (isAbortLike(error) || controller.signal.aborted) return;
-          setHits([]);
-          setNotice({ tone: 'error', text: thesisErrorMessage(copy, error) });
+          setHits(null);
+          setSearchError(thesisErrorMessage(copy, error));
         })
         .finally(() => { if (!controller.signal.aborted) setSearching(false); });
     }, SEARCH_DEBOUNCE_MS);
@@ -95,6 +102,8 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
     () => (hits ?? []).filter((hit) => !memberIds?.includes(hit.studentId)).slice(0, SEARCH_RESULT_CAP),
     [hits, memberIds],
   );
+  const selectedTopicUnavailable = hasSelectedTopic && !candidateState.loading && !candidateState.error
+    && (!candidate || (!active.loading && !active.error && !round));
 
   const run = async (action: () => Promise<ThesisGroup>, success?: string) => {
     setWorking(true);
@@ -115,8 +124,17 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
   return (
     <ScreenShell title={copy.registrationTitle}>
       <QueryNotices state={active} copy={copy} />
+      {hasSelectedTopic ? <QueryNotices state={candidateState} copy={copy} /> : null}
       {!active.loading && !active.error && !active.round ? (
         <StatePanel kind="empty" title={copy.noRounds} description={copy.noRoundsBody} />
+      ) : null}
+      {selectedTopicUnavailable ? (
+        <StatePanel
+          kind="empty"
+          title={copy.topicNotFound}
+          actionLabel={copy.back}
+          onAction={() => navigation.navigate('thesis.topics')}
+        />
       ) : null}
       {round ? (
         <>
@@ -208,8 +226,11 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
                           helperText={copy.memberSearchHint}
                         />
                         {searching ? <UiText variant="meta" tone="muted">{copy.memberSearching}</UiText> : null}
-                        {!searching && hits !== null && candidates.length === 0 ? (
+                        {!searching && !searchError && hits !== null && candidates.length === 0 ? (
                           <UiText variant="bodySmall" tone="muted">{copy.memberSearchEmpty}</UiText>
+                        ) : null}
+                        {searchError ? (
+                          <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={styles.gap}>{searchError}</UiText>
                         ) : null}
                         {candidates.map((hit) => {
                           const add = (
