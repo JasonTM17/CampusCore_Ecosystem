@@ -382,7 +382,7 @@ export function LecturerAnnouncementCreateModal({
               <GraduationCap className="h-4 w-4 shrink-0 text-primary" />
               <span className="min-w-0 font-medium">{copy.students}</span>
               <span className="ml-auto shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                STUDENT
+                {workspaceCopy.presentation.role.STUDENT}
               </span>
             </div>
           </div>

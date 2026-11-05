@@ -177,7 +177,7 @@ export const studentPagesEn = {
       shortDayLabels: { 1: 'Sun', 2: 'Mon', 3: 'Tue', 4: 'Wed', 5: 'Thu', 6: 'Fri', 7: 'Sat' } as Record<number, string>,
       unknownDay: 'Unknown day',
       hourLabel: 'Hour',
-      morningLabel: 'Morning',
+      morningLabel: 'AM',
       afternoonLabel: 'PM',
       eveningLabel: 'Eve',
     },
