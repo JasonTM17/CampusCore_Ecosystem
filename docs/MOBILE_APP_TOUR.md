@@ -191,5 +191,6 @@ sau sẽ tự vào lại tài khoản cũ. Xoá dữ liệu Chrome của emulato
 - Chỉ kiểm thử trên emulator x86_64; **chưa có thiết bị thật** (cần địa chỉ LAN riêng, profile `local` không cung cấp).
 - Cổng web chưa được cấu hình trong bản `local`, nên các nút "Mở trên web" bị tắt.
 - Một số lĩnh vực (tuyển sinh, thư viện, việc làm) dùng dữ liệu mô phỏng ở phía sinh viên.
+- Tài khoản demo `applicant@campuscore.edu` được seed (V140) kèm vai trò `STUDENT` nhưng không có hồ sơ sinh viên, nên trên app nó hiện vỏ sinh viên và màn Tổng quan báo "không có quyền". Màn tuyển sinh dành riêng cho thí sinh không có vai trò học vụ chỉ được kiểm bằng test, chưa chạy trên emulator.
 - Migration V14, V53, V116 là rủi ro đã ghi nhận ở phía cơ sở dữ liệu.
 - Ảnh/GIF là bằng chứng trực quan tại một thời điểm; nguồn chuẩn về hành vi là các test và CI.
