@@ -57,6 +57,28 @@ const FAKE_TOKEN = 'fake-reset-token_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const FAKE_PASSWORD = 'Fake-pass-1234';
 const mocked = <T,>(fn: unknown) => fn as jest.Mock<(...args: unknown[]) => Promise<T>>;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function pressTwiceBeforeCommit(button: unknown): Promise<void> {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 const navigation = {
   navigate: jest.fn(),
   signOut: jest.fn(),
@@ -110,6 +132,20 @@ describe('forgot password', () => {
     expectAccessible();
   });
 
+  test('a same-frame repeat tap sends only one recovery request', async () => {
+    const request = deferred<{ message: string }>();
+    mocked(accountApi.forgotPassword).mockReturnValue(request.promise);
+    await renderApp(<ForgotPasswordScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Email'), 'student@example.edu');
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
+
+    expect(accountApi.forgotPassword).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      request.resolve({ message: 'ok' });
+      await request.promise;
+    });
+  });
+
   test('maps 429 and offline failures to localized messages', async () => {
     mocked(accountApi.forgotPassword).mockRejectedValueOnce({ status: 429, code: 'RATE_LIMIT_EXCEEDED' });
     await renderApp(<ForgotPasswordScreen {...props} />);
@@ -133,6 +169,30 @@ describe('reset password', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Yêu cầu liên kết mới' }));
     expect(navigation.navigate).toHaveBeenCalledWith('auth.forgotPassword');
     expectAccessible();
+  });
+
+  test('a same-frame repeat tap cannot let a duplicate stale-token error win', async () => {
+    const accepted = deferred<{ message: string }>();
+    let calls = 0;
+    mocked(accountApi.resetPassword).mockImplementation(() => {
+      calls += 1;
+      return calls === 1
+        ? accepted.promise
+        : Promise.reject({ status: 400, code: 'RESET_TOKEN_INVALID' });
+    });
+    await renderApp(<ResetPasswordScreen {...props} initialToken={FAKE_TOKEN} />);
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
+    await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu'), FAKE_PASSWORD);
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.queryByRole('header', { name: 'Liên kết không còn hợp lệ' })).toBeNull();
+    expect(accountApi.resetPassword).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      accepted.resolve({ message: 'ok' });
+      await accepted.promise;
+    });
+    await waitFor(() => expect(screen.getByRole('header', { name: 'Đã đặt lại mật khẩu' })).toBeOnTheScreen());
   });
 
   test('validates locally, toggles visibility and never renders the token', async () => {
@@ -209,6 +269,22 @@ describe('two-factor card', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
     await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('enable'));
     expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalledWith('fake-challenge', '123456');
+  });
+
+  test('a same-frame repeat tap requests only one two-factor challenge', async () => {
+    mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
+    const request = deferred<{ challengeId: string }>();
+    mocked(accountApi.beginTwoFactorEnable).mockReturnValue(request.promise);
+    await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={jest.fn()} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Gửi mã' }));
+
+    expect(accountApi.beginTwoFactorEnable).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      request.resolve({ challengeId: 'fake-challenge' });
+      await request.promise;
+    });
   });
 
   test('a wrong password and a locked code show distinct, localized errors', async () => {

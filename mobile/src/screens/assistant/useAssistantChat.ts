@@ -107,6 +107,7 @@ export function useAssistantChat() {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const loadingEarlierFlight = useRef(false);
   const [notice, setNotice] = useState<GuardNoticeKey | null>(null);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
   const [quotaResetAt, setQuotaResetAt] = useState<{ at: string | null } | null>(null);
@@ -132,6 +133,7 @@ export function useAssistantChat() {
   const historySeq = useRef(0);
   const selectionSeq = useRef(0);
   const localCounter = useRef(0);
+  const deletingConversationIds = useRef(new Set<string>());
 
   const runtime = useMemo(
     () => (isPreview
@@ -314,6 +316,7 @@ export function useAssistantChat() {
     setMessages([]);
     setConversationId(undefined);
     setEarlierCursor(null);
+    loadingEarlierFlight.current = false;
     setLoadingEarlier(false);
     setFailure(null);
     setNotice(null);
@@ -362,9 +365,10 @@ export function useAssistantChat() {
 
   const loadEarlier = useCallback(async () => {
     const id = conversationIdRef.current;
-    if (!id || !earlierCursor || loadingEarlier) return;
+    if (!id || !earlierCursor || loadingEarlier || loadingEarlierFlight.current) return;
     const seq = selectionSeq.current;
     const selected = () => seq === selectionSeq.current && conversationIdRef.current === id;
+    loadingEarlierFlight.current = true;
     setLoadingEarlier(true);
     try {
       const page = await assistantApi.messagesPage(id, { cursor: earlierCursor });
@@ -377,17 +381,24 @@ export function useAssistantChat() {
     } catch {
       if (selected()) setFailure({ kind: 'generic', resubmittable: false });
     } finally {
-      if (selected()) setLoadingEarlier(false);
+      if (selected()) {
+        loadingEarlierFlight.current = false;
+        setLoadingEarlier(false);
+      }
     }
   }, [earlierCursor, loadingEarlier]);
 
   const deleteConversation = useCallback(async (conversation: AssistantConversation) => {
+    if (deletingConversationIds.current.has(conversation.id)) return;
+    deletingConversationIds.current.add(conversation.id);
     try {
       await assistantApi.deleteConversation(conversation.id);
       setHistory((current) => ({ ...current, items: current.items.filter((item) => item.id !== conversation.id) }));
       if (conversation.id === conversationIdRef.current) clearThread();
     } catch {
       setHistory((current) => ({ ...current, error: true }));
+    } finally {
+      deletingConversationIds.current.delete(conversation.id);
     }
   }, [clearThread]);
 
