@@ -1,6 +1,6 @@
 export const upcomingClasses = [
-  { code: 'CS204', name: 'Software Architecture', time: '08:00 – 09:30', room: 'A2.204' },
-  { code: 'BA312', name: 'Business Analytics', time: '13:30 – 15:00', room: 'B1.108' },
+  { code: 'CS204', name: 'Software Architecture', nameEn: 'Software Architecture', nameVi: 'Kiến trúc phần mềm', time: '08:00 – 09:30', room: 'A2.204' },
+  { code: 'BA312', name: 'Business Analytics', nameEn: 'Business Analytics', nameVi: 'Phân tích kinh doanh', time: '13:30 – 15:00', room: 'B1.108' },
 ];
 
 export const courses = [

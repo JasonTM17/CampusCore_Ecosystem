@@ -13323,7 +13323,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture · Phòng A2.204",
+                                        "Kiến trúc phần mềm · Phòng A2.204",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -13349,7 +13349,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
+                              "label": "CS204. Kiến trúc phần mềm · Phòng A2.204. 08:00 – 09:30",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -13419,7 +13419,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics · Phòng B1.108",
+                                        "Phân tích kinh doanh · Phòng B1.108",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -13445,7 +13445,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
+                              "label": "BA312. Phân tích kinh doanh · Phòng B1.108. 13:30 – 15:00",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -14080,7 +14080,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture · Phòng A2.204",
+                                        "Kiến trúc phần mềm · Phòng A2.204",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -14106,7 +14106,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
+                              "label": "CS204. Kiến trúc phần mềm · Phòng A2.204. 08:00 – 09:30",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -14176,7 +14176,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics · Phòng B1.108",
+                                        "Phân tích kinh doanh · Phòng B1.108",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -14202,7 +14202,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
+                              "label": "BA312. Phân tích kinh doanh · Phòng B1.108. 13:30 – 15:00",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -14841,7 +14841,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture · Phòng A2.204",
+                                        "Kiến trúc phần mềm · Phòng A2.204",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -14867,7 +14867,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
+                              "label": "CS204. Kiến trúc phần mềm · Phòng A2.204. 08:00 – 09:30",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -14937,7 +14937,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics · Phòng B1.108",
+                                        "Phân tích kinh doanh · Phòng B1.108",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -14963,7 +14963,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
+                              "label": "BA312. Phân tích kinh doanh · Phòng B1.108. 13:30 – 15:00",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -15598,7 +15598,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Software Architecture · Phòng A2.204",
+                                        "Kiến trúc phần mềm · Phòng A2.204",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -15624,7 +15624,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
+                              "label": "CS204. Kiến trúc phần mềm · Phòng A2.204. 08:00 – 09:30",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
@@ -15694,7 +15694,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                     },
                                     {
                                       "c": [
-                                        "Business Analytics · Phòng B1.108",
+                                        "Phân tích kinh doanh · Phòng B1.108",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -15720,7 +15720,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
+                              "label": "BA312. Phân tích kinh doanh · Phòng B1.108. 13:30 – 15:00",
                               "s": {
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
