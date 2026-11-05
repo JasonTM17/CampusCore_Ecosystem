@@ -128,6 +128,14 @@ npm start
 Trên Windows, nếu cổng cơ sở dữ liệu `5432` bị dịch vụ hệ thống chiếm dụng, đặt `POSTGRES_HOST_PORT` trong `.env` (ví dụ `55432`).
 Yêu cầu môi trường và build release signing: [mobile/README.md](mobile/README.md).
 
+Ảnh và GIF thật từ Android emulator (dữ liệu thật của cụm local, đăng nhập OIDC):
+
+| Sinh viên | Giảng viên | Quản trị |
+| :---: | :---: | :---: |
+| <img src="docs/assets/mobile/student-tour.gif" width="200" alt="Tour sinh viên"> | <img src="docs/assets/mobile/lecturer-tour.gif" width="200" alt="Tour giảng viên"> | <img src="docs/assets/mobile/admin-tour.gif" width="200" alt="Tour quản trị"> |
+
+Tour đầy đủ từng vai trò, hành vi khi mất mạng và cách quay lại ảnh/GIF: [docs/MOBILE_APP_TOUR.md](docs/MOBILE_APP_TOUR.md).
+
 ## Kiểm thử
 
 Các lệnh frontend/mobile cần cài dependency một lần (`npm ci`) trong thư mục tương ứng.
