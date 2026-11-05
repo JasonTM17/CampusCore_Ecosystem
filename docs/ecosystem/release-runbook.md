@@ -98,7 +98,7 @@ Các migration V14, V53 và V116 đã được áp dụng vào chuỗi Flyway ca
 | --- | --- | --- | --- |
 | **V14** | `< V14` (V1..V13) có dữ liệu `Enrollment` | Giữ khóa `ACCESS EXCLUSIVE` trên `academic."Enrollment"` trong suốt quá trình backfill (`courseId`, `creditsSnapshot`), chặn toàn bộ đọc/ghi; fail deploy nếu có dòng mồ côi | Backfill phân lô trước deploy, chạy V14 trong cửa sổ bảo trì (FK và `SET NOT NULL` vẫn validate dưới khóa) |
 | **V53** | `< V53` (V1..V52) có dữ liệu điểm | Correlated subquery `DELETE` không có index chạy quét tuần tự $O(n^2)$ làm treo deploy/boot loop; xóa nhầm điểm sửa mới nhất do giữ `min(ctid)` | Chạy preflight audit trùng lặp; tạo `CREATE UNIQUE INDEX CONCURRENTLY` trước deploy |
-| **V116** | `< V116` (đặc biệt V115) | Khóa `SHARE ROW EXCLUSIVE` trên 7 bảng bao gồm `campuscore_auth."User"`, chặn toàn bộ đăng nhập người dùng; fail deploy nếu chạm `lock_timeout='10s'` | Lên lịch trong cửa sổ bảo trì, chờ/ngắt transaction dài trên auth; migration mới chỉ lock theo dòng `FOR UPDATE` |
+| **V116** | `< V116` (đặc biệt V115) | Khóa `SHARE ROW EXCLUSIVE` trên 7 bảng bao gồm `campuscore_auth."User"`, chặn các thao tác ghi `User` của luồng đăng nhập (`SELECT` thông thường vẫn chạy được); fail deploy nếu chờ khóa quá `lock_timeout='10s'` | Lên lịch trong cửa sổ bảo trì, chờ/ngắt transaction dài trên auth; migration mới chỉ lock theo dòng `FOR UPDATE` |
 
 #### Quy trình chi tiết từng migration
 
@@ -168,6 +168,7 @@ Các migration V14, V53 và V116 đã được áp dụng vào chuỗi Flyway ca
       ON academic."StudentGrade" ("enrollmentId", "gradeItemId");
   ```
   Sau khi index đã tồn tại, câu lệnh tạo index trong V53 trở thành no-op và câu lệnh deduplicate không bị quét tuần tự $O(n^2)$.
+  Đo trên PostgreSQL 15 với 35.359 dòng điểm: V53 mặc định 67,8 giây và giữ lại bản điểm cũ (5,00) thay vì bản sửa mới (8,00); sau khi xử lý trùng lặp và tạo index trước chỉ còn 0,56 giây. Số liệu của một lần chạy trên dữ liệu mô phỏng, không phải mốc cho production.
 
 ##### 3. Migration V116 (`campuscore_auth."User"`)
 
@@ -187,7 +188,7 @@ Các migration V14, V53 và V116 đã được áp dụng vào chuỗi Flyway ca
      OR "userId" IN ('student-user', 'student-user-2', 'student-user-3', 'student-user-4')
      OR "studentId" IN ('24110054', '24110345', '24110051', '24162050');
 
-  -- 2. Kiểm tra transaction đang mở trên bảng User
+  -- 2. Các session khác không idle (gồm idle in transaction); danh sách chung, không riêng bảng User
   SELECT pid, usename, state, age(clock_timestamp(), query_start), query
   FROM pg_stat_activity
   WHERE state != 'idle'
