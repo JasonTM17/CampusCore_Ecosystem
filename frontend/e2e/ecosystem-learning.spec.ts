@@ -139,10 +139,18 @@ test.beforeAll(async () => {
   expect(submitted.status).toBe('SUBMITTED');
 
   // Roster read-through: the enrolled seat now carries a submission row.
-  const roster = await ok(lecturer, 'GET', `/api/v1/learning/staff/assignments/${assignment.id}/roster`);
+  // The API caps unpaged reads at 100 seats; the journey student may be later.
+  const roster: { studentId: string; submissionId: string; submissionStatus: string }[] = [];
+  for (let page = 0; ; page += 1) {
+    const rows = await ok(lecturer, 'GET',
+      `/api/v1/learning/staff/assignments/${assignment.id}/roster?page=${page}&limit=100`);
+    roster.push(...rows);
+    if (rows.length < 100) break;
+  }
   const mine = roster.find((row: { studentId: string }) => row.studentId === 'student-profile');
-  expect(mine.submissionId).toBe(submitted.id);
-  expect(mine.submissionStatus).toBe('SUBMITTED');
+  expect(mine).toBeDefined();
+  expect(mine!.submissionId).toBe(submitted.id);
+  expect(mine!.submissionStatus).toBe('SUBMITTED');
 
   // LMS-T04: return carries feedback and bumps the cycle.
   const returned = await ok(lecturer, 'POST', `/api/v1/learning/staff/submissions/${submitted.id}/return`, {
