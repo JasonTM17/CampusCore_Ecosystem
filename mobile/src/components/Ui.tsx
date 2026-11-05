@@ -26,7 +26,7 @@ import { Button } from './ui/Button';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
 import { IconChip } from './ui/institutional';
-import { ASSISTANT_FAB_CONTENT_END_INSET } from './assistant-fab-insets';
+import { ASSISTANT_FAB_CLEARANCE } from './assistant-fab-insets';
 
 export { UiText } from './ui/UiText';
 export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
@@ -51,9 +51,8 @@ function buildStyles(colors: ThemeColors) {
     screen: { flex: 1, backgroundColor: colors.background },
     scrollContent: {
       paddingHorizontal: tokens.layout.mobileGutter,
-      paddingEnd: ASSISTANT_FAB_CONTENT_END_INSET,
       paddingTop: tokens.spacing.md,
-      paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
+      paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_CLEARANCE),
     },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
     headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
