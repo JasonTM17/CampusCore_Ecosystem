@@ -36,6 +36,25 @@ test('a token exchange that never answers aborts at the app deadline', async () 
   await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
 });
 
+test('the token exchange deadline settles when fetch ignores abort', async () => {
+  const pending = signInWithOidc({
+    issuer: 'https://issuer.test',
+    fetchImpl: (() => new Promise<Response>(() => {})) as typeof fetch,
+    timeoutMs: 20,
+    openSession: async () => ({
+      type: 'success',
+      url: 'campuscore://auth/callback?code=abc&state=state',
+    }) as never,
+  });
+  const outcome = await Promise.race([
+    pending.then(() => 'resolved', () => 'rejected'),
+    new Promise((resolve) => setTimeout(() => resolve('pending'), 500)),
+  ]);
+
+  expect(outcome).toBe('rejected');
+  await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+});
+
 test('an empty issuer returns the typed configuration outcome before opening native auth', async () => {
   await expect(signInWithOidc({ issuer: '' })).resolves.toEqual({
     kind: 'unavailable',

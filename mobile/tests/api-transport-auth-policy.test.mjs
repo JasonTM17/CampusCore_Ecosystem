@@ -214,6 +214,23 @@ test('the base URL collapses duplicate path slashes and keeps one boundary', asy
   }
 });
 
+test('API base URLs with credentials, query or fragment fail closed before dispatch', async () => {
+  for (const baseUrl of [
+    'https://user:secret@api.test/api/v1',
+    'https://api.test/api/v1?access_token=secret',
+    'https://api.test/api/v1#ignored',
+  ]) {
+    const client = createApiClient({ baseUrl, mode: 'live' });
+    const net = installFetch(() => json(200, { unexpected: true }));
+    try {
+      await assert.rejects(client.get('/me'), (error) => error.code === 'API_NOT_CONFIGURED', baseUrl);
+      assert.equal(net.calls.length, 0, baseUrl);
+    } finally {
+      net.restore();
+    }
+  }
+});
+
 test('a JSON request that never answers fails at its deadline instead of hanging', async () => {
   const { options } = makeSession();
   const client = createApiClient({ ...options, timeoutMs: 20, epochPollMs: 60_000 });
@@ -1000,6 +1017,24 @@ test('failures normalise to one shape: conflict, denied, validation, server, net
     { kind: 'network', retryable: true },
   );
   assert.equal(normalizeApiError(new DOMException('x', 'AbortError')).kind, 'aborted');
+});
+
+test('JSON error media types are recognized without regard to letter case', async () => {
+  const { options } = makeSession();
+  const client = createApiClient(options);
+  const net = installFetch(() => new Response(
+    JSON.stringify({ message: 'Validation failed', code: 'INVALID_INPUT' }),
+    { status: 422, headers: { 'content-type': 'Application/JSON' } },
+  ));
+  try {
+    await assert.rejects(client.get('/resource'), (error) =>
+      error.status === 422
+        && error.code === 'INVALID_INPUT'
+        && error.message === 'Validation failed',
+    );
+  } finally {
+    net.restore();
+  }
 });
 
 test('preview mode refuses every lane before any network call', async () => {
