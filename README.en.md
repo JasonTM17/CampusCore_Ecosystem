@@ -130,6 +130,14 @@ npm start
 On Windows, if database host port `5432` is reserved, override it with `POSTGRES_HOST_PORT` in `.env` (e.g. `55432`).
 Prerequisites and release signing: [mobile/README.md](mobile/README.md).
 
+Real screens and GIFs from the Android emulator (live data from the local stack, OIDC sign-in):
+
+| Student | Lecturer | Admin |
+| :---: | :---: | :---: |
+| <img src="docs/assets/mobile/student-tour.gif" width="200" alt="Student tour"> | <img src="docs/assets/mobile/lecturer-tour.gif" width="200" alt="Lecturer tour"> | <img src="docs/assets/mobile/admin-tour.gif" width="200" alt="Admin tour"> |
+
+Full per-role tour, offline behaviour and how the media were captured: [docs/MOBILE_APP_TOUR.md](docs/MOBILE_APP_TOUR.md) (Vietnamese).
+
 ## Testing
 
 Frontend/mobile commands need dependencies installed once (`npm ci`) in the matching directory.
