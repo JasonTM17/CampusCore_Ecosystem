@@ -357,6 +357,7 @@ export function AdmissionsApplyPage() {
                 onChange={(event) => setCycle(event.target.value)}
                 placeholder={copy.cyclePlaceholder}
                 className="mt-1"
+                required
               />
               <Button
                 data-testid="admissions-create"
@@ -396,6 +397,7 @@ export function AdmissionsApplyPage() {
                       value={form.fullName}
                       disabled={!isEditable(selected)}
                       onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
+                      required
                     />
                   </div>
                   <div>
@@ -407,6 +409,7 @@ export function AdmissionsApplyPage() {
                       value={form.dateOfBirth}
                       disabled={!isEditable(selected)}
                       onChange={(event) => setForm((current) => ({ ...current, dateOfBirth: event.target.value }))}
+                      required
                     />
                   </div>
                   <div>
@@ -417,6 +420,7 @@ export function AdmissionsApplyPage() {
                       value={form.schoolName}
                       disabled={!isEditable(selected)}
                       onChange={(event) => setForm((current) => ({ ...current, schoolName: event.target.value }))}
+                      required
                     />
                   </div>
                   <div>
@@ -427,6 +431,7 @@ export function AdmissionsApplyPage() {
                       value={form.intendedMajor}
                       disabled={!isEditable(selected)}
                       onChange={(event) => setForm((current) => ({ ...current, intendedMajor: event.target.value }))}
+                      required
                     />
                   </div>
                   <div>

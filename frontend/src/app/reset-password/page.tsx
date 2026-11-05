@@ -127,15 +127,14 @@ export default function ResetPasswordPage() {
     }
   };
 
-  const passwordToggle = (visible: boolean, toggle: () => void, described: string) => (
+  const passwordToggle = (visible: boolean, toggle: () => void, fieldLabel: string) => (
     <button
       type="button"
       onClick={toggle}
       className="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      aria-label={visible ? messages.login.hidePassword : messages.login.showPassword}
-      title={visible ? messages.login.hidePassword : messages.login.showPassword}
+      aria-label={`${visible ? messages.login.hidePassword : messages.login.showPassword} ${fieldLabel}`}
+      title={`${visible ? messages.login.hidePassword : messages.login.showPassword} ${fieldLabel}`}
       aria-pressed={visible}
-      aria-describedby={described}
     >
       {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
     </button>
@@ -248,7 +247,11 @@ export default function ResetPasswordPage() {
                 icon={<Lock className="h-4 w-4" />}
                 required
                 autoFocus
-                endAction={passwordToggle(showNew, () => setShowNew((v) => !v), 'new-password')}
+                aria-invalid={formError ? true : undefined}
+                aria-describedby={formError
+                  ? 'reset-password-policy reset-error'
+                  : 'reset-password-policy'}
+                endAction={passwordToggle(showNew, () => setShowNew((v) => !v), copy.newPassword)}
               />
             </div>
 
@@ -265,13 +268,17 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
                 icon={<Lock className="h-4 w-4" />}
                 required
-                endAction={passwordToggle(showConfirm, () => setShowConfirm((v) => !v), 'confirm-password')}
+                aria-invalid={formError ? true : undefined}
+                aria-describedby={formError
+                  ? 'reset-password-policy reset-error'
+                  : 'reset-password-policy'}
+                endAction={passwordToggle(showConfirm, () => setShowConfirm((v) => !v), copy.confirmPassword)}
               />
             </div>
 
             <div className="rounded-xl border border-border/70 bg-secondary/35 p-4">
               <p className="text-xs leading-5 text-muted-foreground">{copy.policyHint}</p>
-              <ul className="mt-2.5 space-y-1.5" aria-live="off">
+              <ul id="reset-password-policy" className="mt-2.5 space-y-1.5" aria-live="off">
                 {checklist.map((item) => (
                   <li
                     key={item.key}

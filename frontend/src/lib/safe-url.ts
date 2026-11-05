@@ -1,6 +1,19 @@
 const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 
 /**
+ * Decode one dynamic route segment. A malformed percent escape (a pasted URL
+ * with a stray `%`) must keep the literal value instead of throwing during
+ * render and replacing the page with the error boundary.
+ */
+export function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
  * Accept only a path that stays inside this portal: one leading slash, no
  * protocol-relative or backslash forms, no whitespace/control characters, and
  * no encoded slash/backslash escape at the start. Returns the trimmed path or

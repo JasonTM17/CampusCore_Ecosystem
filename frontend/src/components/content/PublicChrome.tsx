@@ -25,6 +25,9 @@ export function PublicChrome({ children }: { children: ReactNode }) {
       : '/dashboard';
   return (
     <div className="marketing-shell min-h-dvh bg-background">
+      <a href="#main-content" className="portal-skip-link">
+        {messages.home.skipToContent}
+      </a>
       <header className="bg-portal-sidebar text-portal-sidebar-text">
         <nav className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-2 px-4 sm:px-6 lg:px-12">
           <BrandMark

@@ -271,6 +271,7 @@ export function CareersBoardPage() {
 
       {!isLoading && !error && !denied && opportunities.length > 0 ? (
         <section className="space-y-4" data-testid="careers-board">
+          <h2 className="sr-only">{copy.board}</h2>
           {opportunities.map((opportunity) => (
             <article key={opportunity.id} className="rounded-lg border p-4"
               data-testid={`careers-opp-${opportunity.id}`}>
@@ -336,77 +337,79 @@ export function CareersBoardPage() {
         </div>
       ) : null}
 
-      <section className="space-y-3" data-testid="careers-applications">
-        <h2 className="text-lg font-semibold">{copy.myApplications}</h2>
-        {applications.length === 0 ? (
-          <EmptyState title={copy.emptyApplications} description="" />
-        ) : null}
-        {applications.map((application) => (
-          <article key={application.id} className="rounded-lg border p-4"
-            data-testid={`careers-app-${application.id}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-medium">
-                  {application.opportunityTitle ?? application.opportunityId}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {application.organizationName}
-                  {application.submittedAt
-                    ? ` • ${copy.submittedAt}: ${formatDateTime(application.submittedAt)}`
-                    : ''}
-                </p>
-                {application.moderationReason ? (
-                  <p className="mt-1 text-sm text-red-600"
-                    data-testid={`careers-app-reason-${application.id}`}>
-                    {copy.moderationReason}: {application.moderationReason}
+      {!error && !denied ? (
+        <section className="space-y-3" data-testid="careers-applications">
+          <h2 className="text-lg font-semibold">{copy.myApplications}</h2>
+          {!isLoading && applications.length === 0 ? (
+            <EmptyState title={copy.emptyApplications} description="" />
+          ) : null}
+          {applications.map((application) => (
+            <article key={application.id} className="rounded-lg border p-4"
+              data-testid={`careers-app-${application.id}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-medium">
+                    {application.opportunityTitle ?? application.opportunityId}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {application.organizationName}
+                    {application.submittedAt
+                      ? ` • ${copy.submittedAt}: ${formatDateTime(application.submittedAt)}`
+                      : ''}
                   </p>
-                ) : null}
-                {application.attachments.length > 0 ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {copy.attachments}: {application.attachments
-                      .map((attachment) => attachment.fileName).join(', ')}
-                  </p>
-                ) : null}
+                  {application.moderationReason ? (
+                    <p className="mt-1 text-sm text-red-600"
+                      data-testid={`careers-app-reason-${application.id}`}>
+                      {copy.moderationReason}: {application.moderationReason}
+                    </p>
+                  ) : null}
+                  {application.attachments.length > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {copy.attachments}: {application.attachments
+                        .map((attachment) => attachment.fileName).join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn('rounded px-2 py-0.5 text-xs',
+                    statusToneClass(APPLICATION_TONE[application.status] ?? 'neutral'))}
+                    data-testid={`careers-app-status-${application.id}`}>
+                    {copy.applicationStatusLabels[application.status] ?? application.status}
+                  </span>
+                  {isWithdrawable(application) ? (
+                    <>
+                      <input type="file" hidden accept={UPLOAD_ACCEPT_DOCUMENTS}
+                        ref={(element) => { fileInputs.current[application.id] = element; }}
+                        onChange={(event) => {
+                          // Do not clear the input here: upload() owns the
+                          // clearing so a failed request keeps the picked file.
+                          void upload(application, event.target.files?.[0], event.target);
+                        }} />
+                      <Button size="sm" variant="outline" disabled={isBusy}
+                        data-testid={`careers-upload-${application.id}`}
+                        onClick={() => {
+                          const input = fileInputs.current[application.id];
+                          if (!input) return;
+                          // Reset before opening the picker so choosing the same
+                          // file again still fires onChange (retry path).
+                          input.value = '';
+                          input.click();
+                        }}>
+                        {copy.uploadAttachment}
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={isBusy}
+                        data-testid={`careers-withdraw-${application.id}`}
+                        onClick={() => void withdraw(application)}>
+                        {copy.withdraw}
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={cn('rounded px-2 py-0.5 text-xs',
-                  statusToneClass(APPLICATION_TONE[application.status] ?? 'neutral'))}
-                  data-testid={`careers-app-status-${application.id}`}>
-                  {copy.applicationStatusLabels[application.status] ?? application.status}
-                </span>
-                {isWithdrawable(application) ? (
-                  <>
-                    <input type="file" hidden accept={UPLOAD_ACCEPT_DOCUMENTS}
-                      ref={(element) => { fileInputs.current[application.id] = element; }}
-                      onChange={(event) => {
-                        // Do not clear the input here: upload() owns the
-                        // clearing so a failed request keeps the picked file.
-                        void upload(application, event.target.files?.[0], event.target);
-                      }} />
-                    <Button size="sm" variant="outline" disabled={isBusy}
-                      data-testid={`careers-upload-${application.id}`}
-                      onClick={() => {
-                        const input = fileInputs.current[application.id];
-                        if (!input) return;
-                        // Reset before opening the picker so choosing the same
-                        // file again still fires onChange (retry path).
-                        input.value = '';
-                        input.click();
-                      }}>
-                      {copy.uploadAttachment}
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={isBusy}
-                      data-testid={`careers-withdraw-${application.id}`}
-                      onClick={() => void withdraw(application)}>
-                      {copy.withdraw}
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
+            </article>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -300,38 +300,40 @@ export function LibraryCataloguePage() {
         </div>
       ) : null}
 
-      <section className="space-y-3" data-testid="library-loans">
-        <h2 className="text-lg font-semibold">{copy.myLoans}</h2>
-        {loans.length === 0 ? <EmptyState title={copy.emptyLoans} description="" /> : null}
-        {loans.map((loan) => (
-          <article key={loan.id} className="rounded-lg border p-4" data-testid={`library-loan-${loan.id}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-medium">{loan.title ?? loan.barcode ?? loan.copyId}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {loan.barcode}
-                  {loan.expiresAt ? ` • ${copy.expiresAt}: ${formatDateTime(loan.expiresAt)}` : ''}
-                  {loan.dueAt ? ` • ${copy.dueAt}: ${formatDateTime(loan.dueAt)}` : ''}
-                  {loan.cancelReason ? ` • ${loan.cancelReason}` : ''}
-                </p>
+      {!error && !denied ? (
+        <section className="space-y-3" data-testid="library-loans">
+          <h2 className="text-lg font-semibold">{copy.myLoans}</h2>
+          {!isLoading && loans.length === 0 ? <EmptyState title={copy.emptyLoans} description="" /> : null}
+          {loans.map((loan) => (
+            <article key={loan.id} className="rounded-lg border p-4" data-testid={`library-loan-${loan.id}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-medium">{loan.title ?? loan.barcode ?? loan.copyId}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {loan.barcode}
+                    {loan.expiresAt ? ` • ${copy.expiresAt}: ${formatDateTime(loan.expiresAt)}` : ''}
+                    {loan.dueAt ? ` • ${copy.dueAt}: ${formatDateTime(loan.dueAt)}` : ''}
+                    {loan.cancelReason ? ` • ${loan.cancelReason}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn('rounded px-2 py-0.5 text-xs', statusToneClass(LOAN_TONE[loan.status] ?? 'neutral'))}
+                    data-testid={`library-loan-status-${loan.id}`}>
+                    {copy.statusLabels[loan.status] ?? loan.status}
+                  </span>
+                  {isCancellable(loan) ? (
+                    <Button size="sm" variant="outline" disabled={isBusy}
+                      data-testid={`library-cancel-${loan.id}`}
+                      onClick={() => void cancel(loan)}>
+                      {copy.cancel}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={cn('rounded px-2 py-0.5 text-xs', statusToneClass(LOAN_TONE[loan.status] ?? 'neutral'))}
-                  data-testid={`library-loan-status-${loan.id}`}>
-                  {copy.statusLabels[loan.status] ?? loan.status}
-                </span>
-                {isCancellable(loan) ? (
-                  <Button size="sm" variant="outline" disabled={isBusy}
-                    data-testid={`library-cancel-${loan.id}`}
-                    onClick={() => void cancel(loan)}>
-                    {copy.cancel}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
+            </article>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { SectionEyebrow } from '@/components/ui/page-header';
 import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/state-block';
 import { campusErrorKind } from '@/lib/campus-error';
+import { safeDecodeURIComponent } from '@/lib/safe-url';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
@@ -21,7 +22,7 @@ import {
  */
 export default function NewsDetailPage() {
   const params = useParams<{ id: string }>();
-  const idOrSlug = decodeURIComponent(params.id ?? '');
+  const idOrSlug = safeDecodeURIComponent(params.id ?? '');
   const { locale, messages } = useI18n();
   const copy = messages.content.news;
 
