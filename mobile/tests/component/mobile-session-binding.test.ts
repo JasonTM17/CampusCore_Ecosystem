@@ -2,6 +2,12 @@ import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
 
 const mockSecure = new Map<string, string>();
 const mockSandbox = new Map<string, string>();
+let mockNetworkState: { isConnected?: boolean } = {};
+let mockProbeCalls = 0;
+jest.mock('expo-network', () => ({ getNetworkStateAsync: async () => {
+  mockProbeCalls += 1;
+  return mockNetworkState;
+} }));
 jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'device-only',
   getItemAsync: jest.fn(async (key: string) => mockSecure.get(key) ?? null),
@@ -46,6 +52,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockSecure.clear();
   mockSandbox.clear();
+  mockNetworkState = {};
+  mockProbeCalls = 0;
   (globalThis as unknown as { __DEV__: boolean }).__DEV__ = false;
   delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
   global.fetch = jest.fn(async () => new Response('{}', { status: 400 })) as typeof fetch;
@@ -97,6 +105,18 @@ test('native binding clears refresh and memory on a rejected rotation without pe
   expect(mockSecure.has('cu.refresh')).toBe(false);
   expect(store.getAccessToken()).toBeNull();
   expect(mockSandbox.size).toBe(0);
+});
+
+test('native binding uses the default connectivity probe before consuming a saved credential', async () => {
+  const store = binding('https://issuer.test');
+  mockNetworkState = { isConnected: false };
+  await store.saveRefresh('existing-refresh');
+  store.setAccessToken('memory-access');
+  await expect(store.refreshAccessToken()).resolves.toEqual({ kind: 'unavailable', reason: 'offline', accessToken: null });
+  expect(mockProbeCalls).toBe(1);
+  expect(global.fetch).not.toHaveBeenCalled();
+  expect(mockSecure.get('cu.refresh')).toBe('existing-refresh');
+  expect(store.getAccessToken()).toBe('memory-access');
 });
 
 test('code, verifier and ID token stay inside the exchange while only refresh survives restart', async () => {

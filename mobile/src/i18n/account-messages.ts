@@ -154,6 +154,7 @@ const vi = {
     invalid: 'Không thể xác thực phản hồi đăng nhập.',
     noMobileSurface: 'Tài khoản này không có quyền dùng ứng dụng. Hãy đăng nhập trên cổng thông tin.',
     unavailable: 'Phiên đã lưu tạm thời không khả dụng.',
+    offline: 'Không có kết nối mạng.',
     retry: 'Thử lại phiên',
   },
   blocked: {
@@ -321,6 +322,7 @@ const en: Messages = {
     invalid: 'The sign-in response could not be validated.',
     noMobileSurface: 'This account has no mobile access. Sign in on the web portal.',
     unavailable: 'The saved session is temporarily unavailable.',
+    offline: 'You are offline.',
     retry: 'Retry session',
   },
   blocked: {

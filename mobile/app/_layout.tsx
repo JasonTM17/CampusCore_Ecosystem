@@ -8,8 +8,11 @@ import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600S
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { Button, UiText } from '../src/components/Ui';
 import { ThemeProvider, useTheme } from '../src/design/theme';
+import { tokens } from '../src/design/tokens';
 import { LocaleProvider, useLocale } from '../src/i18n/locale-provider';
+import { accountMessages } from '../src/i18n/account-messages';
 import { NO_CAPABILITIES } from '../src/auth/capabilities';
 import { LANE_FLAGS } from '../src/config/lane-flags';
 import { laneScreenForPath, pathFor, resolveGuard, screenForPath } from '../src/navigation/route-map';
@@ -41,8 +44,10 @@ export default function RootLayout() {
 }
 
 function BootReady({ fontsReady }: { fontsReady: boolean }) {
-  const { booted } = useSession();
-  const { ready: localeReady } = useLocale();
+  const session = useSession();
+  const { booted, bootStatus, bootUnavailableReason } = session;
+  const { ready: localeReady, locale } = useLocale();
+  const { colors } = useTheme();
   const pathname = usePathname() ?? '/';
   const ready = fontsReady && booted && localeReady;
   useEffect(() => {
@@ -50,7 +55,20 @@ function BootReady({ fontsReady }: { fontsReady: boolean }) {
     const frame = requestAnimationFrame(() => { void SplashScreen.hideAsync().catch(() => undefined); });
     return () => cancelAnimationFrame(frame);
   }, [ready]);
-  return ready ? <ErrorBoundary resetKey={pathname}><RootNavigator /></ErrorBoundary> : <View />;
+  if (!ready) return <View />;
+  const offlineBoot = bootUnavailableReason === 'offline'
+    && (bootStatus === 'unavailable' || bootStatus === 'checking');
+  const copy = accountMessages[locale].signIn;
+  return (
+    <ErrorBoundary resetKey={pathname}>
+      {offlineBoot ? (
+        <View accessibilityLiveRegion="polite" style={{ flex: 1, justifyContent: 'center', padding: tokens.spacing.md, gap: tokens.spacing.sm, backgroundColor: colors.background }}>
+          <UiText tone="error">{copy.offline}</UiText>
+          <Button label={copy.retry} loading={bootStatus === 'checking'} onPress={() => void session.retryBoot?.()} />
+        </View>
+      ) : <RootNavigator />}
+    </ErrorBoundary>
+  );
 }
 
 /** Status bar follows the active scheme (light content on dark surfaces). */
