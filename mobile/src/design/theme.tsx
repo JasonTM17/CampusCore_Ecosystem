@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { AccessibilityInfo, useColorScheme, useWindowDimensions } from 'react-native';
 
@@ -90,7 +90,7 @@ export function ThemeProvider({ children, forcedScheme }: ThemeProviderProps) {
 export function useTheme(): Theme {
   const provided = useContext(ThemeContext);
   const systemScheme = useColorScheme();
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotion(provided === undefined);
   const window = useWindowClass();
   return useMemo(
     () => provided ?? buildTheme(systemScheme === 'dark' ? 'dark' : 'light', reducedMotion, window),
@@ -109,22 +109,45 @@ export function useWindowClass(): WindowInfo {
   return { class: cls, width, height, landscape: width > height, fontScale };
 }
 
-export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let mounted = true;
+let reducedMotionValue = false;
+let reducedMotionGeneration = 0;
+let reducedMotionSubscription: { remove(): void } | undefined;
+const reducedMotionListeners = new Set<() => void>();
+const noReducedMotionSubscription = () => () => {};
+
+function updateReducedMotion(value: boolean) {
+  if (reducedMotionValue === value) return;
+  reducedMotionValue = value;
+  for (const listener of reducedMotionListeners) listener();
+}
+
+function subscribeToReducedMotion(listener: () => void) {
+  reducedMotionListeners.add(listener);
+  if (!reducedMotionSubscription) {
+    const queryGeneration = ++reducedMotionGeneration;
+    reducedMotionSubscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => {
+      reducedMotionGeneration += 1;
+      updateReducedMotion(value);
+    });
     AccessibilityInfo.isReduceMotionEnabled()
       .then((value) => {
-        if (mounted) setReduced(value);
+        if (queryGeneration === reducedMotionGeneration) updateReducedMotion(value);
       })
       .catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
+  }
+  return () => {
+    reducedMotionListeners.delete(listener);
+    if (reducedMotionListeners.size === 0) {
+      reducedMotionGeneration += 1;
+      reducedMotionSubscription?.remove();
+      reducedMotionSubscription = undefined;
+      reducedMotionValue = false;
+    }
+  };
+}
+
+export function useReducedMotion(enabled = true): boolean {
+  return useSyncExternalStore(enabled ? subscribeToReducedMotion : noReducedMotionSubscription, () => reducedMotionValue, () => false);
 }
 
 export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
