@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
 
 const mockChat = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCancel = jest.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
@@ -52,6 +53,28 @@ const props = { navigation, role: 'student' } as MobileScreenProps;
 const renderThemed = (el: ReactElement) => render(<ThemeProvider forcedScheme="light">{el}</ThemeProvider>);
 function setWidth(w: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
+}
+function setMatrix(width: number, fontScale: number) {
+  jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
+}
+
+type TestNode = { parent?: TestNode | null; type?: string; props?: Record<string, unknown> };
+function ancestorWithStyle(node: TestNode, match: (style: ViewStyle) => boolean): TestNode | null {
+  let current = node.parent;
+  while (current) {
+    const flat = StyleSheet.flatten(current.props?.style as StyleProp<ViewStyle>);
+    if (flat && match(flat)) return current;
+    current = current.parent ?? null;
+  }
+  return null;
+}
+function scrollAncestor(node: TestNode): TestNode | null {
+  let current = node.parent;
+  while (current) {
+    if (String(current.type ?? '').includes('ScrollView')) return current;
+    current = current.parent ?? null;
+  }
+  return null;
 }
 afterEach(() => { jest.restoreAllMocks(); jest.clearAllMocks(); });
 
@@ -173,5 +196,56 @@ describe('assistant citations, feedback and history', () => {
     expect(mockDelete).not.toHaveBeenCalled();
     await fireEvent.press(await screen.findByRole('button', { name: copy.delete }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('c9'));
+  });
+});
+
+describe('assistant large-font and expanded-window layout', () => {
+  test('the history list is bounded inside the sheet so a long history stays scrollable', async () => {
+    setMatrix(360, 2);
+    const items = Array.from({ length: 12 }, (_, i) => ({
+      id: `c${i}`, title: `Cuộc trò chuyện ${i}`, locale: 'vi',
+      createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z',
+    }));
+    mockConversations.mockResolvedValue({ data: items, nextCursor: null });
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: copy.history }));
+    const row = (await screen.findByText('Cuộc trò chuyện 0')) as unknown as TestNode;
+    const list = scrollAncestor(row);
+    expect(list).not.toBeNull();
+    expect(StyleSheet.flatten(list?.props?.style as StyleProp<ViewStyle>)?.flexShrink).toBe(1);
+  });
+
+  test('the message column keeps the shared content width on expanded windows', async () => {
+    setMatrix(1080, 1);
+    mockChat.mockResolvedValue(reply());
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Câu hỏi?');
+    const answer = (await screen.findByText('Trả lời mẫu.')) as unknown as TestNode;
+    const cap = tokens.windowClasses.contentMaxWidth.expanded;
+    expect(ancestorWithStyle(answer, (style) => style.maxWidth === cap)).not.toBeNull();
+  });
+
+  test('the message column stays full width on compact windows', async () => {
+    setMatrix(360, 1);
+    mockChat.mockResolvedValue(reply());
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Câu hỏi?');
+    const answer = (await screen.findByText('Trả lời mẫu.')) as unknown as TestNode;
+    const cap = tokens.windowClasses.contentMaxWidth.expanded;
+    expect(ancestorWithStyle(answer, (style) => style.maxWidth === cap)).toBeNull();
+  });
+
+  test('a long conversation title is ellipsised visually but kept whole for screen readers', async () => {
+    setMatrix(360, 2);
+    const longTitle = 'A'.repeat(120);
+    mockConversations.mockResolvedValue({
+      data: [{ id: 'c-long', title: longTitle, locale: 'vi', createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' }],
+      nextCursor: null,
+    });
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: copy.history }));
+    const select = await screen.findByRole('button', { name: /^A+, / });
+    expect(select.props.accessibilityLabel).toContain(longTitle);
+    expect(screen.getByText(`${longTitle.slice(0, 80)}…`)).toBeOnTheScreen();
   });
 });

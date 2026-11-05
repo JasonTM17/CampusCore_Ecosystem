@@ -21,25 +21,29 @@ export function AssistantHistorySheet({ chat, copy }: AssistantHistorySheetProps
   const { formatDateTime } = useLocale();
   const { history } = chat;
   const [pendingDelete, setPendingDelete] = useState<AssistantConversation | null>(null);
-  const title = (conversation: AssistantConversation) => safeText(conversation.title, 80) || copy.conversationFallback;
+  const fullTitle = (conversation: AssistantConversation) => safeText(conversation.title) || copy.conversationFallback;
+  const listTitle = (conversation: AssistantConversation) => {
+    const raw = safeText(conversation.title);
+    return raw ? (raw.length > 80 ? `${raw.slice(0, 80)}…` : raw) : copy.conversationFallback;
+  };
 
   return (
     <>
       <Sheet visible={history.open} onClose={() => chat.setHistoryOpen(false)} title={copy.historyTitle}>
         <ListPanel
-      list={{ data: history.items, keyExtractor: (item, index) => String(item.id),
+      list={{ data: history.items, keyExtractor: (item, index) => String(item.id), style: styles.historyList,
         renderItem: ({ item: conversation }) => (
             <View key={conversation.id} style={styles.row}>
               <Button
-                label={title(conversation)}
-                accessibilityLabel={`${title(conversation)}, ${formatDateTime(conversation.updatedAt)}`}
+                label={listTitle(conversation)}
+                accessibilityLabel={`${fullTitle(conversation)}, ${formatDateTime(conversation.updatedAt)}`}
                 onPress={() => void chat.selectConversation(conversation)}
                 variant={conversation.id === chat.conversationId ? 'primary' : 'secondary'}
                 style={styles.select}
               />
               <Button
                 label={copy.delete}
-                accessibilityLabel={`${copy.delete}: ${title(conversation)}`}
+                accessibilityLabel={`${copy.delete}: ${fullTitle(conversation)}`}
                 onPress={() => setPendingDelete(conversation)}
                 variant="text"
               />
@@ -82,6 +86,7 @@ export function AssistantHistorySheet({ chat, copy }: AssistantHistorySheetProps
 }
 
 const styles = StyleSheet.create({
+  historyList: { flexShrink: 1 },
   row: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, marginBottom: tokens.spacing.xs },
   select: { flex: 1, minWidth: 0 },
   more: { alignItems: 'center', marginTop: tokens.spacing.sm },
