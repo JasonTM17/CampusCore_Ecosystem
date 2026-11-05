@@ -16,7 +16,7 @@ const vi = {
   previewRole: 'Vai trò xem thử',
   previewLabel: 'Bản xem thử',
   assistantFabLabel: 'Trợ lý CampusUTE',
-  roles: { student: 'Sinh viên', lecturer: 'Giảng viên', admin: 'Quản trị' },
+  roles: { student: 'Sinh viên', applicant: 'Thí sinh', lecturer: 'Giảng viên', admin: 'Quản trị' },
   sections: { student: 'Sinh viên', assistant: 'Trợ lý', staff: 'Nghiệp vụ', lanes: 'Nghiệp vụ mở rộng' },
   nav: { home: 'Trang chủ', schedule: 'Lịch học', register: 'Đăng ký', alerts: 'Thông báo', gradebook: 'Sổ điểm', students: 'Sinh viên', lecturers: 'Giảng viên' },
   screens: {
@@ -129,7 +129,7 @@ const en: ShellCopy = {
   previewRole: 'Preview role',
   previewLabel: 'Preview',
   assistantFabLabel: 'CampusUTE Assistant',
-  roles: { student: 'Student', lecturer: 'Lecturer', admin: 'Admin' },
+  roles: { student: 'Student', applicant: 'Applicant', lecturer: 'Lecturer', admin: 'Admin' },
   sections: { student: 'Student', assistant: 'Assistant', staff: 'Staff', lanes: 'Extended desks' },
   nav: { home: 'Home', schedule: 'Schedule', register: 'Register', alerts: 'Alerts', gradebook: 'Gradebook', students: 'Students', lecturers: 'Lecturers' },
   screens: {
