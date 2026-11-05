@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
@@ -43,7 +43,7 @@ export function toggleFilterValue(current: FilterValue, group: FilterGroup, opti
 }
 
 export function FilterSheet({ visible, onClose, groups, value, onApply, title }: FilterSheetProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t } = useLocale();
   const [draft, setDraft] = useState<FilterValue>(value);
 
@@ -68,7 +68,7 @@ export function FilterSheet({ visible, onClose, groups, value, onApply, title }:
                   onPress={() => setDraft((current) => toggleFilterValue(current, group, option.value))}
                   style={[
                     styles.option,
-                    { borderColor: selected ? colors.primary : colors.outlineVariant, borderRadius: radii.control, minHeight: layout.touchTarget, paddingHorizontal: spacing.md },
+                    { borderColor: selected ? colors.primary : colors.outlineVariant, borderRadius: radii.control, minHeight: minTapTarget, paddingHorizontal: spacing.md },
                     selected ? { backgroundColor: colors.primaryFixed } : undefined,
                   ]}
                 >

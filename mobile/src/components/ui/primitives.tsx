@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
 import { chromeFontScaleCap } from '../../design/font-scale';
@@ -285,7 +285,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
           accessibilityRole="button"
           accessibilityLabel={t('clearSearch')}
           onPress={clear}
-          style={{ alignItems: 'center', justifyContent: 'center', minHeight: layout.touchTarget, minWidth: layout.touchTarget }}
+          style={{ alignItems: 'center', justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget }}
         >
           <UiText variant="label" tone="muted">✕</UiText>
         </Pressable>
@@ -327,7 +327,7 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
             disabled={disabled}
             onPress={() => onChange(opt.value)}
             style={({ pressed }) => [
-              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: layout.touchTarget, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
+              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
               selected ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1 } : undefined,
               pressed && !disabled ? { opacity: 0.85 } : undefined,
               disabled ? { opacity: 0.5 } : undefined,

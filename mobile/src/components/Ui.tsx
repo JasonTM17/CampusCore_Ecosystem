@@ -14,7 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../design/chrome';
 import { chromeFontScaleCap, compactFontScaleCap } from '../design/font-scale';
-import { tokens } from '../design/tokens';
+import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { useLocale } from '../i18n/locale-provider';
@@ -74,7 +74,7 @@ function buildStyles(colors: ThemeColors) {
     heroActions: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
     metricHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     metricIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 32, justifyContent: 'center', width: 32 },
-    actionTile: { alignItems: 'center', flex: 1, gap: tokens.spacing.sm, justifyContent: 'center', minHeight: 92, minWidth: tokens.layout.touchTarget, padding: tokens.spacing.sm + tokens.spacing.xs },
+    actionTile: { alignItems: 'center', flex: 1, gap: tokens.spacing.sm, justifyContent: 'center', minHeight: 92, minWidth: minTapTarget, padding: tokens.spacing.sm + tokens.spacing.xs },
     actionIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
     chevron: { marginLeft: tokens.spacing.xs },
     fieldGroup: { marginBottom: tokens.spacing.md },
