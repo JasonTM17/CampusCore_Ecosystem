@@ -59,6 +59,18 @@ eas build --profile production --platform ios
 Record `eas build:inspect --id <buildId>` output (fingerprint,
 runtime version, git SHA) into the evidence file per build.
 
+Android release signing must use the operator keystore: before the documented
+local `assembleRelease` command (or EAS release build), regenerate an existing
+native tree once from `mobile/` with `npx expo prebuild --platform android --no-install`
+so the committed `with-release-signing` plugin is applied. Do not use `--clean`.
+Supply `CAMPUSCORE_RELEASE_STORE_PASSWORD`, `CAMPUSCORE_RELEASE_KEY_PASSWORD`, and
+`CAMPUSCORE_RELEASE_KEY_ALIAS` through the build environment; optionally set
+`CAMPUSCORE_RELEASE_STORE_FILE` (absolute, or relative to `mobile/android`),
+otherwise the operator file is `mobile/android/campusute-release.keystore`.
+Release tasks fail before execution if the file or credentials are missing,
+or the debug identity is selected; debug tasks need no release credentials.
+Keep all signing secrets out of source control and `EXPO_PUBLIC_*` variables.
+
 Deep-link/association verification (Android):
 
 ```bash

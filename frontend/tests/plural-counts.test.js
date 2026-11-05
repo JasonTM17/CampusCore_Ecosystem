@@ -62,6 +62,7 @@ const EN = {
   adminAcademics: adminAcademics.adminAcademicsEn,
   homeMarketing: homeMarketing.homeMarketingEn,
   editorSurfaces: editorSurfaces.editorSurfacesEn,
+  admin: messages.getMessages('en').admin,
 };
 
 const VI = {
@@ -75,6 +76,7 @@ const VI = {
   adminAcademics: adminAcademics.adminAcademicsVi,
   homeMarketing: homeMarketing.homeMarketingVi,
   editorSurfaces: editorSurfaces.editorSurfacesVi,
+  admin: messages.getMessages('vi').admin,
 };
 
 const CASES = [
@@ -308,6 +310,59 @@ const CASES = [
     singular: 'Applied 1 structured block into document!',
     plural: 'Applied 2 structured blocks into document!',
     files: ['src/app/dashboard/editor/page.tsx'],
+  },
+  {
+    id: 'mailCompose.coursesSummary',
+    group: 'mailCompose',
+    singularKey: 'coursesSummaryOne',
+    pluralKey: 'coursesSummary',
+    placeholder: '{count}',
+    singular: '1 course',
+    plural: '2 courses',
+    files: ['src/app/dashboard/lecturer/mail/page.tsx'],
+  },
+  {
+    id: 'mailCompose.gradesSummary',
+    group: 'mailCompose',
+    singularKey: 'gradesSummaryOne',
+    pluralKey: 'gradesSummary',
+    placeholder: '{count}',
+    singular: '1 graded course',
+    plural: '2 graded courses',
+    files: ['src/app/dashboard/lecturer/mail/page.tsx'],
+  },
+  {
+    id: 'admin.creditLimitApplications.pageSummary',
+    group: 'admin',
+    path: 'creditLimitApplications',
+    singularKey: 'pageSummaryOne',
+    pluralKey: 'pageSummary',
+    placeholder: '{count}',
+    singular: '1 request',
+    plural: '2 requests',
+    files: ['src/app/admin/credit-limit-applications/page.tsx'],
+  },
+  {
+    id: 'admin.auditTrail.pageSummary',
+    group: 'admin',
+    path: 'auditTrail',
+    singularKey: 'pageSummaryOne',
+    pluralKey: 'pageSummary',
+    placeholder: '{count}',
+    singular: '1 record',
+    plural: '2 records',
+    files: ['src/app/admin/audit/page.tsx'],
+  },
+  {
+    id: 'admin.notifications.sentPageSummary',
+    group: 'admin',
+    path: 'notifications',
+    singularKey: 'sentPageSummaryOne',
+    pluralKey: 'sentPageSummary',
+    placeholder: '{count}',
+    singular: '1 notification',
+    plural: '2 notifications',
+    files: ['src/app/admin/notifications/page.tsx'],
   },
 ];
 

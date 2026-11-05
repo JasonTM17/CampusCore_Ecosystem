@@ -151,7 +151,15 @@ function createSharedIndexedDb() {
   const stores = new Set();
   let initialized = false;
   let transactionQueue = Promise.resolve();
+  let readCount = 0;
+  const readWaiters = [];
   const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  const noteRead = () => {
+    readCount += 1;
+    while (readWaiters.length > 0 && readWaiters[0].count <= readCount) {
+      readWaiters.shift().resolve();
+    }
+  };
   const database = {
     objectStoreNames: { contains: (name) => stores.has(name) },
     createObjectStore(name) { stores.add(name); },
@@ -162,6 +170,7 @@ function createSharedIndexedDb() {
       const transaction = { oncomplete: null, onabort: null };
       const objectStore = {
         get(key) {
+          noteRead();
           const request = { result: undefined, onsuccess: null, onerror: null };
           requests.push({ key, request });
           return request;
@@ -217,7 +226,14 @@ function createSharedIndexedDb() {
       return request;
     },
   };
-  return { factory, values };
+  return {
+    factory,
+    values,
+    waitForSessionStateReads(count) {
+      if (readCount >= count) return Promise.resolve();
+      return new Promise((resolve) => { readWaiters.push({ count, resolve }); });
+    },
+  };
 }
 
 async function waitFor(predicate) {
@@ -313,7 +329,9 @@ test('concurrent tab refreshes share one cookie rotation and both retry with the
 
   try {
     await waitFor(() => refreshRequests.length > 0);
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    // Two state reads per tab (generation probe, then lease claim) prove both
+    // tabs reached the shared lease before the first refresh is released.
+    await indexedDB.waitForSessionStateReads(4);
     assert.equal(
       refreshRequests.length,
       1,

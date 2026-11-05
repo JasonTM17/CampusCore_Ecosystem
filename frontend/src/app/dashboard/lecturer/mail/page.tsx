@@ -914,7 +914,7 @@ export default function LecturerMailComposePage() {
                         ) : null}
                         <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/40 px-3 py-2 text-sm">
                           <span className="font-medium text-muted-foreground">
-                            {copy.coursesSummary.replace('{count}', formatNumber(courses.length))}
+                            {countLabel(courses.length, copy.coursesSummaryOne, copy.coursesSummary).replace('{count}', formatNumber(courses.length))}
                           </span>
                           <span className="font-semibold text-foreground">
                             {copy.fields.credits}: {formatNumber(totalCredits)}
@@ -1124,7 +1124,7 @@ export default function LecturerMailComposePage() {
               {template === 'registration' && courses.length > 0 ? (
                 <>
                   <RailRow label={copy.fields.courses}>
-                    {copy.coursesSummary.replace('{count}', formatNumber(courses.length))}
+                    {countLabel(courses.length, copy.coursesSummaryOne, copy.coursesSummary).replace('{count}', formatNumber(courses.length))}
                   </RailRow>
                   <RailRow label={copy.fields.credits}>{formatNumber(totalCredits)}</RailRow>
                 </>
@@ -1132,7 +1132,7 @@ export default function LecturerMailComposePage() {
               {template === 'grade-alert' && grades.length > 0 ? (
                 <>
                   <RailRow label={copy.fields.grades}>
-                    {copy.gradesSummary.replace('{count}', formatNumber(grades.length))}
+                    {countLabel(grades.length, copy.gradesSummaryOne, copy.gradesSummary).replace('{count}', formatNumber(grades.length))}
                   </RailRow>
                   <RailRow label={copy.averageLabel}>
                     {weightedAverage !== null ? formatNumber(weightedAverage) : copy.averageEmpty}

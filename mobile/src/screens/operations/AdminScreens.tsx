@@ -23,6 +23,7 @@ import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
+import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { HandoffButton, isOpsPreview } from './lecturer-ui';
@@ -226,6 +227,8 @@ export function AdminStudentsScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
   const { formatNumber } = useLocale();
+  const { window } = useTheme();
+  const numColumns = window.class === 'compact' || window.fontScale >= 1.3 ? 1 : 2;
   const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -245,10 +248,14 @@ export function AdminStudentsScreen() {
 
   return (
     <WebOnlyPanel title={copy.adminStudentsTitle} path="/admin/users"
-      list={preview ? { data: filtered, keyExtractor: (item, index) => String(item.id),
+      list={preview ? {
+        data: filtered,
+        keyExtractor: (item, index) => String(item.id),
+        numColumns,
+        columnWrapperStyle: numColumns > 1 ? styles.columns : undefined,
         empty: <StatePanel kind="empty" title={copy.noMatch} />,
         renderItem: ({ item: student }) => (
-          <Card key={student.id} style={styles.rosterCard}>
+          <Card key={student.id} style={[styles.rosterCard, numColumns > 1 ? { width: '48.5%' } : undefined]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${student.name}, ${student.studentCode}`}
@@ -258,7 +265,7 @@ export function AdminStudentsScreen() {
               <Avatar decorative name={student.name} size="sm" />
               <View style={styles.directoryCopy}>
                 <View style={styles.directoryTop}>
-                  <UiText variant="label">{student.name}</UiText>
+                  <UiText variant="label" style={styles.directoryTopTitle}>{student.name}</UiText>
                   <StatusPill
                     label={
                       student.status === 'ACTIVE'
@@ -350,7 +357,7 @@ export function AdminStudentsScreen() {
     >
       {preview ? (
         <View>
-          <DataNotice message={copy.previewNotice} />
+          <View style={styles.previewNotice}><DataNotice message={copy.previewNotice} /></View>
           <SearchBar
             value={search}
             onChangeText={setSearch}
@@ -390,6 +397,8 @@ export function AdminStudentsScreen() {
 export function AdminLecturersScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const { window } = useTheme();
+  const numColumns = window.class === 'compact' || window.fontScale >= 1.3 ? 1 : 2;
   const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'AVAILABLE'>('ALL');
@@ -408,10 +417,14 @@ export function AdminLecturersScreen() {
 
   return (
     <WebOnlyPanel title={copy.adminLecturersTitle} path="/admin/lecturers"
-      list={preview ? { data: filtered, keyExtractor: (item, index) => String(item.id),
+      list={preview ? {
+        data: filtered,
+        keyExtractor: (item, index) => String(item.id),
+        numColumns,
+        columnWrapperStyle: numColumns > 1 ? styles.columns : undefined,
         empty: <StatePanel kind="empty" title={copy.noMatch} />,
         renderItem: ({ item: lecturer }) => (
-          <Card key={lecturer.id} style={styles.scheduleCard}>
+          <Card key={lecturer.id} style={[styles.scheduleCard, numColumns > 1 ? { width: '48.5%' } : undefined]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${lecturer.title} ${lecturer.name}, ${lecturer.department}`}
@@ -421,7 +434,7 @@ export function AdminLecturersScreen() {
               <Avatar decorative name={lecturer.name} size="sm" />
               <View style={styles.directoryCopy}>
                 <View style={styles.directoryTop}>
-                  <UiText variant="label">{`${lecturer.title} ${lecturer.name}`}</UiText>
+                  <UiText variant="label" style={styles.directoryTopTitle}>{`${lecturer.title} ${lecturer.name}`}</UiText>
                   <StatusPill
                     label={lecturer.status === 'AVAILABLE' ? copy.filterAvailable : copy.statusFull}
                     tone={lecturer.status === 'AVAILABLE' ? 'success' : 'warning'}
@@ -494,7 +507,7 @@ export function AdminLecturersScreen() {
     >
       {preview ? (
         <View>
-          <DataNotice message={copy.previewNotice} />
+          <View style={styles.previewNotice}><DataNotice message={copy.previewNotice} /></View>
           <SearchBar
             value={search}
             onChangeText={setSearch}

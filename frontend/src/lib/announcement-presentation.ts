@@ -760,6 +760,7 @@ export function formatRelativeTime(
 ): string {
   if (!dateString) return '';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
@@ -784,10 +785,10 @@ export function formatRelativeTime(
   if (diffDays < 7) {
     return fillCopy(copy.daysAgo, { days: diffDays });
   }
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  return new Intl.DateTimeFormat(
+    locale === 'vi' ? 'vi-VN' : 'en-US',
+    { day: '2-digit', month: '2-digit', year: 'numeric' },
+  ).format(date);
 }
 
 /**

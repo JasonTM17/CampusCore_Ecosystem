@@ -6,20 +6,27 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockRelease = jest.fn();
 const mockPick = jest.fn();
+const mockSave = jest.fn(async (..._args: unknown[]) => ({ status: 'done' as const }));
+const mockDownloadToDevice = jest.fn();
 const mockAdapter = {
   capability: () => ({ available: true }),
   pick: (...args: unknown[]) => mockPick(...args),
   share: async () => ({ status: 'done' }),
-  save: async () => ({ status: 'done' }),
+  save: (...args: unknown[]) => mockSave(...args),
 };
 
 jest.mock('../../src/files/file-adapter', () => ({ getFileAdapter: () => mockAdapter }));
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' }, campusApi: {} }));
+jest.mock('../../src/auth/mobile-session-store', () => ({ sessionStore: { sessionEpoch: () => 0 } }));
 jest.mock('../../src/screens/content/content-api', () => ({
   contentApi: { attempts: { keyFor: () => 'upload-key', settle: () => undefined } },
 }));
+jest.mock('../../src/screens/content/attachment-transfer', () => {
+  const actual = jest.requireActual('../../src/screens/content/attachment-transfer') as object;
+  return { ...actual, downloadToDevice: (...args: unknown[]) => mockDownloadToDevice(...args) };
+});
 
-import { UploadPicker } from '../../src/screens/content/content-ui';
+import { AttachmentRow, UploadPicker } from '../../src/screens/content/content-ui';
 import { DOCUMENT_POLICY } from '../../src/screens/content/attachment-transfer';
 
 const pickedFile = () => ({
@@ -38,9 +45,17 @@ const renderPicker = (upload: jest.Mock<(...args: unknown[]) => Promise<unknown>
   </ThemeProvider>,
 );
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   mockRelease.mockReset();
   mockPick.mockReset();
+  mockSave.mockReset();
+  mockSave.mockResolvedValue({ status: 'done' });
   mockPick.mockImplementation(async () => ({ status: 'picked', file: pickedFile() }));
 });
 afterEach(() => {
@@ -73,6 +88,49 @@ describe('picked attachment lifecycle', () => {
     await waitFor(() => expect(upload).toHaveBeenCalled());
     expect(mockRelease).not.toHaveBeenCalled();
     expect(screen.getByText('a.pdf')).toBeOnTheScreen();
+  });
+
+  test('a pending upload is aborted and its result is ignored after the picker unmounts', async () => {
+    const pending = deferred<unknown>();
+    const upload = jest.fn<(...args: unknown[]) => Promise<unknown>>(() => pending.promise);
+    const onUploaded = jest.fn();
+    const view = await renderPicker(upload, onUploaded);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Chọn tệp' }));
+    await waitFor(() => expect(screen.getByText('a.pdf')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Tải tệp lên: a.pdf' }));
+    await waitFor(() => expect(upload).toHaveBeenCalled());
+
+    const signal = upload.mock.calls[0][2] as AbortSignal | undefined;
+    await view.unmount();
+    pending.resolve({ id: 'attachment-1' });
+    await pending.promise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(onUploaded).not.toHaveBeenCalled();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  test('a pending download is aborted and never opens save after its row unmounts', async () => {
+    const pending = deferred<{ status: 'done' }>();
+    mockDownloadToDevice.mockImplementationOnce(() => pending.promise);
+    const view = await render(
+      <ThemeProvider forcedScheme="light">
+        <LocaleProvider initialLocale="vi">
+          <AttachmentRow name="a.pdf" fetchBytes={async () => ({ data: new ArrayBuffer(0), contentType: null, fileName: null })} />
+        </LocaleProvider>
+      </ThemeProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tải xuống: a.pdf' }));
+    await waitFor(() => expect(mockDownloadToDevice).toHaveBeenCalled());
+    const signal = mockDownloadToDevice.mock.calls[0][3] as AbortSignal | undefined;
+    await view.unmount();
+    pending.resolve({ status: 'done' });
+    await pending.promise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(signal?.aborted).toBe(true);
   });
 
   test('an explicit discard releases the picked cache copy', async () => {

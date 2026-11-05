@@ -146,10 +146,10 @@ export const contentApi = {
   careersWithdraw: (applicationId: string, expectedVersion: number) =>
     keyed('careers-withdraw', `${applicationId}:${expectedVersion}`, (key) =>
       apiClient.post<unknown>(`/careers/applications/${enc(applicationId)}/withdraw`, { expectedVersion }, idempotent(key))),
-  careersUpload: (applicationId: string, file: UploadFilePart, idempotencyKey: string) =>
-    parityApi.careersUploadAttachment(applicationId, file, { idempotencyKey }),
-  careersDownload: (applicationId: string, attachmentId: string) =>
-    parityApi.careersDownloadAttachment(applicationId, attachmentId),
+  careersUpload: (applicationId: string, file: UploadFilePart, idempotencyKey: string, signal?: AbortSignal) =>
+    parityApi.careersUploadAttachment(applicationId, file, { idempotencyKey, signal }),
+  careersDownload: (applicationId: string, attachmentId: string, signal?: AbortSignal) =>
+    parityApi.careersDownloadAttachment(applicationId, attachmentId, { signal }),
 
   /* ----- admissions ----- */
   admissionsApplications: () => apiClient.get<AdmissionApplicationView[]>('/admissions/applications/my'),
@@ -164,38 +164,38 @@ export const contentApi = {
   admissionsWithdraw: (applicationId: string, expectedVersion: number) =>
     keyed('admissions-withdraw', `${applicationId}:${expectedVersion}`, (key) =>
       apiClient.post<AdmissionApplicationView>(`/admissions/applications/${enc(applicationId)}/withdraw`, { expectedVersion }, idempotent(key))),
-  admissionsUpload: (applicationId: string, file: UploadFilePart, idempotencyKey: string) =>
-    parityApi.admissionsUploadAttachment(applicationId, file, { idempotencyKey }),
+  admissionsUpload: (applicationId: string, file: UploadFilePart, idempotencyKey: string, signal?: AbortSignal) =>
+    parityApi.admissionsUploadAttachment(applicationId, file, { idempotencyKey, signal }),
   admissionsDeleteAttachment: (applicationId: string, attachmentId: string) =>
     keyed('admissions-delete-file', `${applicationId}:${attachmentId}`, (key) =>
       apiClient.delete<unknown>(
         `/admissions/applications/${enc(applicationId)}/attachments/${enc(attachmentId)}`,
         idempotent(key),
       )),
-  admissionsDownload: (applicationId: string, attachmentId: string) =>
-    parityApi.admissionsDownloadAttachment(applicationId, attachmentId),
+  admissionsDownload: (applicationId: string, attachmentId: string, signal?: AbortSignal) =>
+    parityApi.admissionsDownloadAttachment(applicationId, attachmentId, { signal }),
 
   /* ----- learning ----- */
   learningSections: () => campusApi.learningSections(),
   learningMaterials: (sectionId: string) => campusApi.learningMaterials(sectionId),
   learningAssignments: (sectionId: string) => campusApi.learningAssignments(sectionId),
-  learningSubmission: (submissionId: string) =>
-    apiClient.get<MobileLearningSubmission>(`/learning/submissions/${enc(submissionId)}`),
+  learningSubmission: (submissionId: string, signal?: AbortSignal) =>
+    apiClient.get<MobileLearningSubmission>(`/learning/submissions/${enc(submissionId)}`, { signal }),
   learningRevisions: (submissionId: string) => campusApi.learningRevisions(submissionId),
   learningFeedback: (submissionId: string) => campusApi.learningFeedback(submissionId),
   learningOpenDraft: (assignment: Pick<MobileLearningAssignment, 'id'>) =>
     keyed('learning-draft', assignment.id, (key) =>
       apiClient.post<MobileLearningSubmission>(`/learning/assignments/${enc(assignment.id)}/draft`, {}, idempotent(key))),
-  learningSaveDraft: (submissionId: string, input: SubmissionFormInput) =>
+  learningSaveDraft: (submissionId: string, input: SubmissionFormInput, signal?: AbortSignal) =>
     input.file
-      ? parityApi.learningSaveDraftMultipart(submissionId, input)
+      ? parityApi.learningSaveDraftMultipart(submissionId, input, { signal })
       : campusApi.learningSaveDraft(submissionId, input.textBody ?? ''),
-  learningSubmit: (assignmentId: string, submissionVersion: number) =>
+  learningSubmit: (assignmentId: string, submissionVersion: number, signal?: AbortSignal) =>
     keyed('learning-submit', `${assignmentId}:${submissionVersion}`, (key) =>
-      apiClient.post<MobileLearningSubmission>(`/learning/assignments/${enc(assignmentId)}/submit`, {}, idempotent(key))),
-  learningResubmit: (assignmentId: string, input: SubmissionFormInput, scope: string) =>
+      apiClient.post<MobileLearningSubmission>(`/learning/assignments/${enc(assignmentId)}/submit`, {}, { ...idempotent(key), signal })),
+  learningResubmit: (assignmentId: string, input: SubmissionFormInput, scope: string, signal?: AbortSignal) =>
     keyed('learning-resubmit', `${assignmentId}:${scope}`, (key) =>
-      parityApi.learningResubmitMultipart(assignmentId, input, { idempotencyKey: key })),
-  learningDownloadMaterial: (materialId: string) => parityApi.learningDownloadMaterial(materialId),
-  learningDownloadRevision: (revisionId: string) => parityApi.learningDownloadRevision(revisionId),
+      parityApi.learningResubmitMultipart(assignmentId, input, { idempotencyKey: key, signal })),
+  learningDownloadMaterial: (materialId: string, signal?: AbortSignal) => parityApi.learningDownloadMaterial(materialId, { signal }),
+  learningDownloadRevision: (revisionId: string, signal?: AbortSignal) => parityApi.learningDownloadRevision(revisionId, { signal }),
 };

@@ -202,7 +202,8 @@ class AnnouncementStudentFanoutPersistenceTest {
 
     @Test
     void creatingAnnouncementNotifiesExactlyTheActiveStudentsWithPrefixTitleAndCappedMessage() throws Exception {
-        // 200 code points of "á": code-point truncation must not split a glyph.
+        // 200 code points of "á": code-point truncation must not split a glyph,
+        // and the shortened preview must advertise that it was cut.
         String content = "á".repeat(200);
 
         mvc.perform(post("/api/v1/announcements")
@@ -233,7 +234,9 @@ class AnnouncementStudentFanoutPersistenceTest {
         Set<String> messages = new HashSet<>(jdbc.queryForList(
                 "SELECT message FROM notifications.notification WHERE title = ?", String.class, TITLE));
         assertEquals(1, messages.size());
-        assertEquals("á".repeat(160), messages.iterator().next());
+        // A wordless body has no boundary to fall back to, so the preview keeps
+        // cap - 1 code points and spends the last slot on the ellipsis.
+        assertEquals("á".repeat(159) + "…", messages.iterator().next());
     }
 
     @Test

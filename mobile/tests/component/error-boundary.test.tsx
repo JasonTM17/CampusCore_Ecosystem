@@ -114,7 +114,7 @@ describe('screen render boundary', () => {
     mockRoute.value = <HealthyScreen />;
     // Opening the menu re-renders the layout, so the new route identity
     // reaches the boundary; closing it un-hides the content for the query.
-    await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
     expect(screen.getByTestId('healthy-screen', { includeHiddenElements: true })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Đóng' }));
 

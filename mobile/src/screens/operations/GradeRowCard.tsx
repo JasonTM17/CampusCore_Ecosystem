@@ -1,8 +1,10 @@
 import { memo } from 'react';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 import { Card, Field, StatusPill, UiText } from '../../components/Ui';
 import { Avatar } from '../../components/ui/avatar';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -28,6 +30,8 @@ const problemText = (copy: OperationsCopy, problem: ScoreProblem | undefined) =>
 function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = false }: GradeRowCardProps) {
   const styles = useOpsStyles();
   const { formatNumber } = useLocale();
+  const { fontScale, width } = useWindowDimensions();
+  const largeText = fontScale >= chromeFontScaleCap && width < tokens.windowClasses.compactMax;
   const name = row.studentName ?? row.studentCode ?? row.enrollmentId;
   const locked = isLockedGrade(row);
   const processText = edit?.processScore ?? scoreText(row.processScore);
@@ -63,14 +67,16 @@ function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = fa
           </UiText>
         </View>
       ) : (
-        <View style={styles.scoreFields}>
+        <View style={largeText ? [styles.scoreFields, { flexWrap: 'wrap' }] : styles.scoreFields}>
           <Field
             label={copy.process}
             accessibilityLabel={`${fillCopy(copy.gradeRowLabel, { name })}, ${copy.process}`}
             keyboardType="decimal-pad"
             onChangeText={(text) => onEdit(row.enrollmentId, 'processScore', text)}
             placeholder={copy.scorePlaceholder}
-            style={styles.scoreField}
+            style={largeText
+              ? [styles.scoreField, { flexBasis: '100%', flexShrink: 1, minWidth: 0 }]
+              : styles.scoreField}
             value={processText}
             editable={!disabled}
             error={problemText(copy, problems?.processScore)}
@@ -81,7 +87,9 @@ function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = fa
             keyboardType="decimal-pad"
             onChangeText={(text) => onEdit(row.enrollmentId, 'finalExamScore', text)}
             placeholder={copy.scorePlaceholder}
-            style={styles.scoreField}
+            style={largeText
+              ? [styles.scoreField, { flexBasis: '100%', flexShrink: 1, minWidth: 0 }]
+              : styles.scoreField}
             value={finalText}
             editable={!disabled}
             error={problemText(copy, problems?.finalExamScore)}

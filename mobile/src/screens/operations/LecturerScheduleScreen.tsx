@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { SearchBar } from '../../components/ui/primitives';
+import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -21,6 +22,8 @@ const PAGE_SIZE = 10;
 export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
+  const { window } = useTheme();
+  const numColumns = window.class === 'compact' || window.fontScale >= 1.3 ? 1 : 2;
   const preview = isOpsPreview();
   const query = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const pull = usePullToRefresh(() => query.reload());
@@ -43,9 +46,13 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
       onRefresh={preview ? undefined : pull.onRefresh}
       refreshing={!preview && pull.refreshing}
 
-      list={{ data: rows, keyExtractor: (item, index) => String(item.sectionId),
+      list={{
+        data: rows,
+        keyExtractor: (item, index) => String(item.sectionId),
+        numColumns,
+        columnWrapperStyle: numColumns > 1 ? styles.columns : undefined,
         renderItem: ({ item: section }) => (
-            <Card key={section.sectionId} style={styles.scheduleCard}>
+            <Card key={section.sectionId} style={[styles.scheduleCard, numColumns > 1 ? { width: '48.5%' } : undefined]}>
               <View style={styles.scheduleHeader}>
                 <View style={styles.topicCopy}>
                   <StatusPill label={section.courseCode ?? section.sectionId} tone="primary" />
@@ -82,14 +89,14 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
                   label={copy.takeAttendance}
                   variant="secondary"
                   onPress={() => navigation.navigate('lecturer.attendance', { sectionId: section.sectionId })}
-                  style={styles.topButton}
+                  style={[styles.topButton, styles.scheduleButton]}
                 />
                 <Button
                   icon="file-document-edit-outline"
                   label={copy.openGrades}
                   variant="secondary"
                   onPress={() => navigation.navigate('lecturer.grading', { sectionId: section.sectionId })}
-                  style={styles.topButton}
+                  style={[styles.topButton, styles.scheduleButton]}
                 />
               </View>
             </Card>

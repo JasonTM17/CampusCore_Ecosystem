@@ -9,7 +9,7 @@ import { countForm } from '../../i18n/locale';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type RegistrationWorkspace } from '../academic/academic-api';
-import { isActiveEnrollment, isDroppableEnrollment } from '../academic/academic-model';
+import { isActiveEnrollment, isDroppableEnrollment, localizedName } from '../academic/academic-model';
 import { previewEnrollments, previewSections } from '../academic/academic-preview';
 import {
   browseSections,
@@ -86,7 +86,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
     return {
       id: section.id,
       code: section.courseCode,
-      name: section.courseName,
+      name: localizedName({ name: section.courseName, nameEn: section.courseNameEn, nameVi: section.courseNameVi }, locale) || section.courseName,
       number: section.sectionNumber,
       credits: section.credits ?? 0,
       seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(countForm(section.remainingSeats, copy.seatsLeftOne, copy.seatsLeft), { n: section.remainingSeats }),
@@ -117,7 +117,7 @@ if (entry.kind === "header") return <>
           <View style={styles.courseHeading}>
             <IconChip icon="book-open-variant" size={32} />
             <UiText accessibilityRole="header" variant="label" tone="primary" style={styles.courseHeadingText}>
-              {group.courseCode} · {group.courseName} · {fillCopy(countForm(group.credits, copy.creditsOne, copy.credits), { n: group.credits })}
+              {group.courseCode} · {localizedName({ name: group.courseName, nameEn: group.courseNameEn, nameVi: group.courseNameVi }, locale) || group.courseName} · {fillCopy(countForm(group.credits, copy.creditsOne, copy.credits), { n: group.credits })}
             </UiText>
           </View>
           </>;
@@ -172,10 +172,9 @@ return (
     </>,
       }}
     >
-      {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
+      {actions.notice ? <View style={academicStyles.card}><Notice message={actions.notice.text} tone={actions.notice.tone} /></View> : null}
       <HeroCard
         icon="clipboard-list-outline"
-        eyebrow={copy.registrationTitle}
         title={fillCopy(copy.basketTitle, { n: selectedCount })}
         detail={eligibility?.creditLimit != null
           ? fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })
@@ -191,10 +190,13 @@ return (
           <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
         ) : null}
       </HeroCard>
+      <ScreenSpacer />
       {workspace?.eligibilityError ? (
-        <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+        <View style={academicStyles.card}>
+          <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+        </View>
       ) : null}
-      {!roundOpen ? <StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /> : null}
+      {!roundOpen ? <View style={academicStyles.card}><StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /></View> : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
       <ScreenSpacer />
       {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}

@@ -72,6 +72,27 @@ const flush = async (rounds = 12) => {
   for (let i = 0; i < rounds; i += 1) await new Promise((resolve) => setImmediate(resolve));
 };
 
+// The search effect takes its timer API from its dependencies, so tests run the
+// debounce callback explicitly instead of racing a wall-clock delay.
+function manualTimers() {
+  const pending = [];
+  return {
+    pending,
+    window: {
+      setTimeout: (callback) => {
+        pending.push(callback);
+        return pending.length;
+      },
+      clearTimeout: (handle) => {
+        if (handle) pending[handle - 1] = null;
+      },
+    },
+    runAll() {
+      for (const callback of pending.splice(0)) callback?.();
+    },
+  };
+}
+
 // Extract the search effect so a test can hold its page read open and inspect
 // what the component has committed before the response lands.
 function searchEffect(deps) {
@@ -379,6 +400,7 @@ test('committing a search hides Load more until the new first page arrives', asy
   const pageRead = new Promise((resolve) => { resolvePage = resolve; });
   const writes = [];
   const record = (name) => (value) => writes.push([name, value]);
+  const timers = manualTimers();
   const effect = searchEffect({
     postSearch: 'exam',
     catalogSearchRef: { current: '' },
@@ -387,11 +409,13 @@ test('committing a search hides Load more until the new first page arrives', asy
     setPostsPage: record('setPostsPage'),
     setPostsTotalPages: record('setPostsTotalPages'),
     setPostsLoadFailed: record('setPostsLoadFailed'),
-    window: { setTimeout, clearTimeout },
+    window: timers.window,
   });
 
   effect();
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(timers.pending.length, 1, 'the search effect owns one debounce timer');
+  timers.runAll();
+  await flush();
   assert.deepEqual(
     writes,
     [['setPostsPage', 1], ['setPostsTotalPages', 0]],
@@ -413,6 +437,7 @@ test('a search term reaches the server instead of filtering loaded rows', async 
   const catalogModule = loadTs(CATALOG, { '@/lib/api': { announcementsApi } });
   const writes = [];
   const record = (name) => (value) => writes.push([name, value]);
+  const timers = manualTimers();
   const effect = searchEffect({
     postSearch: 'exam',
     catalogSearchRef: { current: '' },
@@ -421,10 +446,11 @@ test('a search term reaches the server instead of filtering loaded rows', async 
     setPostsPage: record('setPostsPage'),
     setPostsTotalPages: record('setPostsTotalPages'),
     setPostsLoadFailed: record('setPostsLoadFailed'),
-    window: { setTimeout, clearTimeout },
+    window: timers.window,
   });
   const cleanup = effect();
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  timers.runAll();
+  await flush();
   if (typeof cleanup === 'function') cleanup();
 
   const catalogReads = calls.pinOptions.filter((params) => params.ids === undefined);

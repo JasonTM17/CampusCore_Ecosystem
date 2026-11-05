@@ -51,25 +51,27 @@ test('Enter in the password field submits the form', async ({ page }) => {
  * the admin chrome (heading, no forgot-password link) with no tab selected.
  */
 
-test('the login tab strip renders student, lecturer, and dean tabs — never admin', async ({ page }) => {
+test('the login portal strip links student, lecturer, and dean — never admin', async ({ page }) => {
   await page.goto('/login');
-  const tabs = page.getByRole('tab');
-  await expect(tabs).toHaveCount(3);
-  await expect(page.getByRole('tab', { name: /trưởng khoa/i })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /quản trị|admin/i })).toHaveCount(0);
+  const portals = page.getByRole('navigation', { name: /khu vực học vụ/i });
+  await expect(portals.getByRole('link')).toHaveCount(3);
+  await expect(portals.getByRole('link', { name: /trưởng khoa/i })).toBeVisible();
+  await expect(portals.getByRole('link', { name: /quản trị|admin/i })).toHaveCount(0);
 
   await page.goto('/en/login');
-  await expect(page.getByRole('tab')).toHaveCount(3);
-  await expect(page.getByRole('tab', { name: /^dean$/i })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /quản trị|admin/i })).toHaveCount(0);
+  const portalsEn = page.getByRole('navigation', { name: /campus portal/i });
+  await expect(portalsEn.getByRole('link')).toHaveCount(3);
+  await expect(portalsEn.getByRole('link', { name: /^dean$/i })).toBeVisible();
+  await expect(portalsEn.getByRole('link', { name: /quản trị|admin/i })).toHaveCount(0);
 });
 
-test('a portal=admin deep link keeps the admin chrome with no tab selected', async ({ page }) => {
+test('a portal=admin deep link keeps the admin chrome with no portal link current', async ({ page }) => {
   await page.goto('/en/login?portal=admin');
   await expect(page.locator('[data-login-portal="admin"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: /operations sign-in/i })).toBeVisible();
-  await expect(page.getByRole('tab')).toHaveCount(3);
-  await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveCount(0);
+  const portals = page.getByRole('navigation', { name: /campus portal/i });
+  await expect(portals.getByRole('link')).toHaveCount(3);
+  await expect(portals.locator('[aria-current="page"]')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /forgot password|quên mật khẩu/i })).toHaveCount(0);
 });
 

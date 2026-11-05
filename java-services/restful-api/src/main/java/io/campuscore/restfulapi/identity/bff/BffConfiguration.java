@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 import io.campuscore.restfulapi.identity.IdentityProperties;
+import io.campuscore.restfulapi.security.ratelimit.RateLimitProperties;
 
 /**
  * Startup invariants for the BFF lane (host-policy §8 flag matrix). A
@@ -32,6 +33,9 @@ public class BffConfiguration {
     public BffConfiguration(IdentityProperties properties, Environment environment,
             @org.springframework.beans.factory.annotation.Value(
                     "${app.rate-limit.proxy-token:}") String proxyToken) {
+        if ("true".equals(environment.getProperty("CAMPUSCORE_TRUST_EDGE_HEADERS"))) {
+            RateLimitProperties.requireStrongEdgeProxyToken(proxyToken);
+        }
         IdentityProperties.Bff bff = properties.getBff();
         if (!properties.getOidc().isEnabled()) {
             throw new IllegalStateException(

@@ -62,8 +62,10 @@ function Desk<T extends { id: string }>({ title, copy, statuses, items, loading,
         renderItem: ({ item }) => <>{renderItem(item)}</>,
         footer: <><View><View style={laneStyles.stack}></View>
         {pager}
-        <UiText variant="bodySmall" tone="muted">{copy.webForAttachments}</UiText>
-        <HandoffLink label={copy.openOnWeb} path={webPath} />
+        <View style={laneStyles.stack}>
+          <UiText variant="bodySmall" tone="muted">{copy.webForAttachments}</UiText>
+          <HandoffLink label={copy.openOnWeb} path={webPath} />
+        </View>
       </View>
       <ConfirmSheet runner={runner} copy={copy} />
     </>,

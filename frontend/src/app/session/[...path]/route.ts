@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 
 import { resolveJavaApiOrigin } from '@/lib/proxy-url';
+import { buildProxyRequestHeaders } from '@/lib/proxy-request-headers';
 import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
@@ -39,27 +40,14 @@ async function handle(request: NextRequest, context: RouteContext) {
     });
   }
 
-  const headers = new Headers(request.headers);
-  headers.delete('host');
-  headers.set('accept-encoding', 'identity');
-  // Edge-owns-routing: strip every caller-stamped campuscore header, then
-  // stamp the resolved surface pair plus the shared proxy token.
-  for (const name of [...headers.keys()]) {
-    if (name.toLowerCase().startsWith('x-campuscore-')) {
-      headers.delete(name);
-    }
-  }
+  const headers = buildProxyRequestHeaders(request);
+  // The shared helper strips caller routing metadata before we stamp the surface.
   headers.set('x-campuscore-surface', surface.id);
   headers.set(
     'x-campuscore-scheme',
     request.nextUrl.protocol.replace(':', ''),
   );
   headers.set('x-campuscore-host', request.headers.get('host') ?? '');
-  const proxyToken = process.env.CAMPUSCORE_PROXY_TOKEN;
-  if (proxyToken) {
-    headers.set('x-campuscore-proxy-token', proxyToken);
-  }
-
   const url = `${upstreamOrigin()}/session/${joined}${request.nextUrl.search}`;
   const response = await fetch(url, {
     method: request.method,

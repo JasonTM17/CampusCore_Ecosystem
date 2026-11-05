@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
@@ -32,7 +33,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 }));
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
-import { Pager } from '../../src/screens/lanes/lane-ui';
+import { Pager, QueueCard } from '../../src/screens/lanes/lane-ui';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
 import { lanesMessages } from '../../src/i18n/lanes-messages';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -46,6 +47,10 @@ const renderEnglish = async (element: ReactElement) =>
     </LocaleProvider>,
   );
 
+function setViewport(width: number, fontScale: number) {
+  jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
+}
+
 beforeEach(() => {
   mockFlags.dean = false;
   mockFlags.staff = false;
@@ -57,6 +62,7 @@ beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset();
 });
 afterEach(() => {
+  jest.restoreAllMocks();
   jest.clearAllMocks();
 });
 
@@ -285,5 +291,45 @@ describe('lane literals follow the locale', () => {
     await renderEnglish(<Pager copy={lanesMessages.en} page={1} totalPages={1} total={1} onPage={() => {}} />);
     expect(screen.getByText('Page 1/1 · 1 item')).toBeTruthy();
     expect(screen.queryByText('Page 1/1 · 1 items')).toBeNull();
+  });
+});
+
+describe('queue card head', () => {
+  test('a long unbreakable title stays inside the card at large text', async () => {
+    setViewport(360, 2);
+    const title = 'nguyenvan.a@ute.edu.vn';
+    await renderThemed(<QueueCard title={title} lines={[]} status="SUBMITTED" copy={lanesMessages.vi} />);
+    const heading = screen.getByRole('header', { name: title });
+    expect(heading.props.numberOfLines).toBe(1);
+    expect(heading.props.ellipsizeMode).toBe('tail');
+    expect(heading.props.accessibilityLabel).toBe(title);
+    expect(StyleSheet.flatten(heading.props.style).flexGrow).toBe(0);
+    expect(StyleSheet.flatten(heading.parent?.props.style).flexDirection).toBe('column');
+  });
+
+  test('a missing title falls back to the first content line instead of an empty heading', async () => {
+    setViewport(360, 2);
+    const email = 'nguyenvan.a@ute.edu.vn';
+    await renderThemed(<QueueCard title="" lines={[email]} status="SUBMITTED" copy={lanesMessages.vi} />);
+    const heading = screen.getByRole('header');
+    expect(heading).toHaveTextContent(email);
+    expect(heading.props.accessibilityLabel).toBe(email);
+  });
+
+  test('an absent title never renders undefined', async () => {
+    setViewport(360, 2);
+    const email = 'nguyenvan.a@ute.edu.vn';
+    await renderThemed(<QueueCard lines={[email]} status="SUBMITTED" copy={lanesMessages.vi} />);
+    expect(screen.getByRole('header')).toHaveTextContent(email);
+    expect(screen.queryByText('undefined')).toBeNull();
+  });
+
+  test('the queue head keeps the row layout at the default text scale', async () => {
+    setViewport(390, 1);
+    const title = 'Nguyễn Văn A';
+    await renderThemed(<QueueCard title={title} lines={[]} status="SUBMITTED" copy={lanesMessages.vi} />);
+    const heading = screen.getByRole('header', { name: title });
+    expect(heading.props.numberOfLines).toBeUndefined();
+    expect(StyleSheet.flatten(heading.parent?.props.style).flexDirection).toBe('row');
   });
 });

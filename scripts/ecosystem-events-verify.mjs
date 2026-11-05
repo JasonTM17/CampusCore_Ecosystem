@@ -12,13 +12,13 @@
 //
 // Everything it starts is torn down in `finally`.
 
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installKillGuard, preflightProjectVolumes, stopChildrenTree } from './ecosystem-verify-shared.mjs';
 import { ensureComposeSecrets } from './compose-secrets.mjs';
+import { spawnPortable, spawnSyncPortable } from './portable-spawn.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -37,34 +37,30 @@ installKillGuard(children, { teardown: () => signalTeardown?.() });
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
-  console.error('Usage: ecosystem-events-verify.mjs preview --project <campuscore-*> [--evidence dir]');
+  console.error('Usage: ecosystem-events-verify.mjs preview --project <campuscore-*> [--web-port 3102] [--evidence dir]');
   process.exit(2);
 }
 
 function parseArgs(argv) {
-  const args = { evidence: 'artifacts/verification/events' };
+  const args = { evidence: 'artifacts/verification/events', webPort: String(WEB_PORT) };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--project') args.project = argv[++i];
+    else if (a === '--web-port') args.webPort = argv[++i];
     else if (a === '--evidence') args.evidence = argv[++i];
     else usage(`unknown arg ${a}`);
+  }
+  if (!/^\d+$/.test(args.webPort) || Number(args.webPort) < 1 || Number(args.webPort) > 65535) {
+    usage('--web-port must be an integer between 1 and 65535');
   }
   return args;
 }
 
 function tryRun(cmd, argv, opts = {}) {
-  let res = spawnSync(cmd, argv, {
+  const res = spawnSyncPortable(cmd, argv, {
     cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, ...(opts.env || {}) }, timeout: opts.timeoutMs || 120000,
-    shell: opts.shell ?? false,
   });
-  if (res.error && res.error.code === 'ENOENT' && process.platform === 'win32') {
-    res = spawnSync(cmd, argv, {
-      cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-      env: { ...process.env, ...(opts.env || {}) }, shell: true,
-      timeout: opts.timeoutMs || 120000,
-    });
-  }
   if (res.error) return { ok: false, out: `${res.stdout || ''}${res.stderr || ''}${res.error.message || ''}`, code: -1 };
   return { ok: res.status === 0, out: `${res.stdout || ''}${res.stderr || ''}`, code: res.status };
 }
@@ -75,11 +71,10 @@ function composeArgs(args, argv) {
 
 function spawnLog(cmd, argv, opts, logFile) {
   const out = fs.openSync(logFile, 'a');
-  const child = spawn(cmd, argv, {
+  const child = spawnPortable(cmd, argv, {
     cwd: opts.cwd || REPO,
     env: { ...process.env, ...(opts.env || {}) },
     stdio: ['ignore', out, out],
-    shell: opts.shell ?? false,
   });
   children.push(child);
   return child;
@@ -180,7 +175,7 @@ async function casePreview(args) {
   try {
     const which = tryRun('openssl', ['version']);
     if (!which.ok) throw new Error('openssl unavailable — HTTPS preview cannot build certs (BLOCKED_CAPABILITY)');
-    await assertPortFree(WEB_PORT, 'next-dev');
+    await assertPortFree(args.webPort, 'next-dev');
     await assertPortFree(ID_TLS_PORT, 'id-tls');
     const existing = tryRun('docker', ['ps', '-aq', '--filter',
       `label=com.docker.compose.project=${args.project}`]);
@@ -223,7 +218,7 @@ async function casePreview(args) {
       '--experimental-https-key', key,
       '--experimental-https-cert', cert,
       '--hostname', '127.0.0.1',
-      '--port', String(WEB_PORT),
+      '--port', String(args.webPort),
     ], {
       cwd: FRONTEND,
       env: {
@@ -235,19 +230,18 @@ async function casePreview(args) {
         // headroom that earlier preview runs needed under memory pressure.
         NODE_OPTIONS: '--max-old-space-size=6144',
       },
-      shell: process.platform === 'win32',
     }, path.join(dir, 'next-dev.log'));
-    await waitFor(`https://portal.localhost:${WEB_PORT}/`, { insecure: true });
+    await waitFor(`https://portal.localhost:${args.webPort}/`, { insecure: true });
     result.nextUp = true;
 
     const pw = tryRun(process.execPath, [
       PLAYWRIGHT_CLI, 'test', 'e2e/ecosystem-events.spec.ts',
-      '--project', 'chromium', '--reporter', 'list',
+      '--project', 'chromium', '--reporter', 'list', '--max-failures', '1',
     ], {
       cwd: FRONTEND, timeoutMs: 900000,
       env: {
-        E2E_BASE_URL: `https://portal.localhost:${WEB_PORT}`,
-        SSO_PORTAL_BASE: `https://portal.localhost:${WEB_PORT}`,
+        E2E_BASE_URL: `https://portal.localhost:${args.webPort}`,
+        SSO_PORTAL_BASE: `https://portal.localhost:${args.webPort}`,
         SSO_ID_BASE: `https://id.localhost:${ID_TLS_PORT}`,
         EVENTS_API_BASE: `http://127.0.0.1:${API_PORT}`,
         E2E_ADMIN_PASSCODE: 'password123',

@@ -90,3 +90,46 @@ test('AccountFrame reads portal subtitle from accountMessages catalogue', () => 
     'AccountFrame must read portal subtitle from accountMessages',
   );
 });
+
+const shellCopy = (await loadTs('src/i18n/shell-messages.ts')).shellMessages;
+
+test('Vietnamese shell menu labels are localized', () => {
+  assert.notEqual(shellCopy.vi.menu, shellCopy.en.menu, 'the Vietnamese bottom navigation label must be translated');
+  assert.doesNotMatch(shellCopy.vi.openMenu, /\bmenu\b/i, 'the Vietnamese open-menu accessibility name must be translated');
+  assert.doesNotMatch(shellCopy.vi.closeMenu, /\bmenu\b/i, 'the Vietnamese close-menu accessibility name must be translated');
+});
+
+test('AccountFrame accessibility name comes from its catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const frame = read('src/screens/account/AccountFrame.tsx');
+  assert.match(frame, /accessibilityLabel=\{accountMessages\[locale\]\.signIn\.institutionName\}/);
+  assert.doesNotMatch(frame, /accessibilityLabel="HCMUTE"/);
+});
+
+test('SignInScreen brand logo accessibility name comes from its catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const screen = read('src/screens/auth/SignInScreen.tsx');
+  assert.match(screen, /accessibilityLabel=\{copy\.signIn\.institutionName\}/);
+  assert.doesNotMatch(screen, /accessibilityLabel="HCMUTE"/);
+});
+
+test('language names come from the shell catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const language = read('src/screens/account/LanguageSetting.tsx');
+  assert.match(language, /shellMessages\[locale\]\.languageOptions/);
+  assert.doesNotMatch(language, /label:\s*'(?:Tiếng Việt|English)'/);
+});
+
+test('transcript chart term prefix comes from the academic catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const transcript = read('src/screens/academic/TranscriptScreen.tsx');
+  assert.match(transcript, /copy\.trendTermPrefix/);
+  assert.doesNotMatch(transcript, /locale === 'vi' \? 'HK' : 'T'/);
+});
+
+test('calendar export field labels come from the academic catalogue', () => {
+  const read = (file) => fs.readFileSync(path.join(mobileRoot, file), 'utf8');
+  const calendar = read('src/screens/academic/ical-export.ts');
+  assert.match(calendar, /academicMessages\[locale\]\.calendar/);
+  assert.doesNotMatch(calendar, /Môn học:|Course:|Lớp học phần:|Section:|Số tín chỉ:|Credits:|Giảng viên:|Lecturer:|Địa điểm:|Location:|Phòng \$\{room\}|Room \$\{room\}/);
+});

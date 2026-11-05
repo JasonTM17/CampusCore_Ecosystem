@@ -72,7 +72,10 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       semesterId: item.semesterId,
     }));
   const dashboardClasses: Array<{ semesterId?: string; code: string; name: string; time: string; room: string }> = apiClient.mode === 'preview'
-    ? upcomingClasses
+    ? upcomingClasses.map((item) => ({
+        ...item,
+        name: localizedName(item, locale) || item.name,
+      }))
     : [
         ...upcoming.map((item) => ({
           code: item.courseCode || item.sectionNumber || c.course,
@@ -105,7 +108,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       eyebrow={c.eyebrow}
       title={c.title}
     >
-      {warning ? <DataNotice message={warning} /> : null}
+      {warning ? <View style={styles.notice}><DataNotice message={warning} /></View> : null}
       <HeroCard
         icon="school-outline"
         eyebrow={c.currentSemester}
@@ -122,7 +125,6 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       ) : null}
 
       <StatStrip style={styles.stats} items={[
-        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? String(previewCourses.length) : String(activeEnrollments.length) },
         { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
       ]} />
 
@@ -151,7 +153,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
           </View>
         ))}
       </SectionCard>
-      {dashboardClasses.length === 0 ? <StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /> : null}
+      {dashboardClasses.length === 0 ? <View style={styles.emptyAgenda}><StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /></View> : null}
     </ScreenShell>
   );
 });
@@ -160,5 +162,7 @@ const styles = StyleSheet.create({
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
   actionGrid: { flexDirection: 'row', alignItems: 'stretch', gap: tokens.spacing.sm },
   actionStack: { flexDirection: 'column' },
-  announcementError: { gap: tokens.spacing.xs },
+  announcementError: { gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
+  notice: { marginBottom: tokens.spacing.sm },
+  emptyAgenda: { marginTop: tokens.spacing.sm },
 });

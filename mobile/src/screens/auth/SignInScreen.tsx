@@ -32,6 +32,7 @@ import {
 import { previewNews } from '../content/preview-data';
 import { summaryOrExcerpt } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
+import { summaryRowAccessibilityLabel } from '../student/summary-label';
 import type { MobileScreenProps } from '../../navigation/types';
 
 /** How far the form card rides up over the navy hero band. */
@@ -98,7 +99,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingLeft: insets?.left ?? 0, paddingRight: insets?.right ?? 0 }]}>
       <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: tokens.spacing.xl + (insets?.bottom ?? 0) }]}
@@ -107,21 +108,20 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       >
         <View style={[styles.hero, { backgroundColor: chrome.surface, paddingTop: (insets?.top ?? 0) + tokens.spacing.lg }]}>
           <View style={styles.brandRow}>
-            <Image accessibilityLabel="HCMUTE" accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
+            <Image accessibilityLabel={copy.signIn.institutionName} accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
             <View style={styles.brandCopy}>
               <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
           </View>
-          <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.signIn.title}</UiText>
           <PreviewPill style={styles.previewPill} />
         </View>
         <View style={styles.body}>
           <Card style={styles.formCard}>
             <UiText accessibilityRole="header" variant="headlineLarge">{copy.signIn.heading}</UiText>
-            <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>
-              {isPreview ? copy.signIn.preview : copy.signIn.live}
-            </UiText>
+            {isPreview ? (
+              <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>{copy.signIn.preview}</UiText>
+            ) : null}
             {isPreview ? (
               <Button icon="arrow-right" label={copy.signIn.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
             ) : (
@@ -291,7 +291,7 @@ function NewsCover({ url }: { url?: string | null }) {
       </View>
     );
   }
-  return <Image accessible={false} onError={() => setFailed(true)} resizeMode="cover" source={{ uri: url }} style={styles.cover} testID="signin-news-cover" />;
+  return <Image accessible={false} importantForAccessibility="no" onError={() => setFailed(true)} resizeMode="cover" source={{ uri: url }} style={styles.cover} testID="signin-news-cover" />;
 }
 
 function FeaturedNewsCard({
@@ -313,7 +313,12 @@ function FeaturedNewsCard({
   const styles = useThemedStyles(makeNewsStyles);
   return (
     <Pressable
-      accessibilityLabel={joinMeta([item.title, category, date])}
+      accessibilityLabel={summaryRowAccessibilityLabel({
+        title: item.title,
+        badge: category,
+        date,
+        summary,
+      })}
       accessibilityRole="link"
       onPress={onPress}
       style={({ pressed }) => [pressed ? styles.pressed : undefined]}
@@ -327,7 +332,7 @@ function FeaturedNewsCard({
             {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
           </View>
           <UiText variant="label">{item.title}</UiText>
-          {summary ? <UiText numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
+          {summary ? <UiText ellipsizeMode="tail" numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
           <View style={styles.readRow}>
             <UiText variant="label" tone="primary">{readLabel}</UiText>
             <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />
@@ -402,9 +407,8 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   brandRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.md },
   brandMark: { backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 56, width: 56 },
   brandCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
-  heroTitle: { marginTop: tokens.spacing.lg },
   previewPill: { alignSelf: 'flex-start', marginTop: tokens.spacing.sm },
-  body: { alignSelf: 'center', flex: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
+  body: { alignSelf: 'center', flexGrow: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
   formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },
   guestRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },

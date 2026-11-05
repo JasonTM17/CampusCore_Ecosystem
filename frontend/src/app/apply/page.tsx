@@ -1,6 +1,7 @@
 'use client';
 
 import { AdmissionsApplyPage } from '@/components/admissions/AdmissionsApplyPage';
+import { PublicMain } from '@/components/content/PublicMain';
 
 /**
  * /apply — applicant admissions surface (contract §7, phase-10): per-cycle
@@ -8,5 +9,9 @@ import { AdmissionsApplyPage } from '@/components/admissions/AdmissionsApplyPage
  * SIMULATED-labeled decision view.
  */
 export default function ApplyPage() {
-  return <AdmissionsApplyPage />;
+  return (
+    <PublicMain>
+      <AdmissionsApplyPage />
+    </PublicMain>
+  );
 }

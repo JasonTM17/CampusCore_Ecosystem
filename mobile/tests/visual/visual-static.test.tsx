@@ -4,6 +4,7 @@ import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { ASSISTANT_FAB_CLEARANCE } from '../../src/components/assistant-fab-insets';
 
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'preview' },
@@ -42,13 +43,14 @@ function setWidth(w: number) {
 afterEach(() => { jest.restoreAllMocks(); });
 const renderThemed = (el: ReactElement, scheme: 'light' | 'dark') => render(<ThemeProvider forcedScheme={scheme}>{el}</ThemeProvider>);
 
-const STYLE_KEYS = ['backgroundColor', 'color', 'fontSize', 'padding', 'paddingTop', 'paddingBottom', 'paddingHorizontal', 'paddingVertical', 'margin', 'marginTop', 'marginBottom', 'gap', 'rowGap', 'columnGap', 'flexDirection', 'width', 'maxWidth', 'flex', 'justifyContent', 'alignItems', 'borderRadius', 'borderColor'] as const;
+const STYLE_KEYS = ['backgroundColor', 'color', 'fontSize', 'padding', 'paddingTop', 'paddingBottom', 'paddingHorizontal', 'paddingEnd', 'paddingVertical', 'margin', 'marginTop', 'marginBottom', 'gap', 'rowGap', 'columnGap', 'flexDirection', 'width', 'maxWidth', 'flex', 'justifyContent', 'alignItems', 'borderRadius', 'borderColor'] as const;
 
 type Node = { type: string; props?: Record<string, unknown>; children?: (Node | string)[] | null };
 function normalize(node: Node | string | null | undefined): unknown {
   if (node === null || node === undefined) return null;
   if (typeof node === 'string') return node;
   const flat = (StyleSheet.flatten(node.props?.style) ?? {}) as Record<string, unknown>;
+  const contentBottomInset = (StyleSheet.flatten(node.props?.contentContainerStyle as never) as Record<string, unknown> | undefined)?.paddingBottom;
   const style: Record<string, unknown> = {};
   for (const k of STYLE_KEYS) if (flat[k] !== undefined) style[k] = flat[k];
   return {
@@ -56,6 +58,7 @@ function normalize(node: Node | string | null | undefined): unknown {
     ...(node.props?.accessibilityRole ? { role: node.props.accessibilityRole } : {}),
     ...(node.props?.accessibilityLabel ? { label: node.props.accessibilityLabel } : {}),
     ...(Object.keys(style).length ? { s: style } : {}),
+    ...(typeof contentBottomInset === 'number' && contentBottomInset >= ASSISTANT_FAB_CLEARANCE ? { contentBottomInset } : {}),
     c: (node.children ?? []).map(normalize),
   };
 }

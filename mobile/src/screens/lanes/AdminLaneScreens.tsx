@@ -379,8 +379,10 @@ function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCo
       }}
     >
       <View>
-        <Button label={copy.eventBack} variant="secondary" onPress={onBack} />
-        <SectionHeading title={copy.rosterTitle} />
+        <View style={laneStyles.stack}>
+          <Button label={copy.eventBack} variant="secondary" onPress={onBack} />
+          <SectionHeading title={copy.rosterTitle} />
+        </View>
         {rows.length === 0 ? <StatePanel kind="empty" title={copy.rosterEmpty} /> : null}
         <View style={laneStyles.stack}>
           </View></View></LaneShell>
@@ -594,11 +596,13 @@ export function AdminNotificationsScreen() {
           value={draft.type}
           onChange={(type) => setDraft((current) => ({ ...current, type: type as NotificationDraft['type'] }))}
         />
-        <Button label={copy.notifPreview} onPress={preview} disabled={busy || state === 'unknown'} />
-        <UiText variant="bodySmall" tone="muted">{copy.notifBulkWeb}</UiText>
-        <HandoffLink label={copy.openOnWeb} path="/admin/notifications" />
+        <View style={laneStyles.stack}>
+          <Button label={copy.notifPreview} onPress={preview} disabled={busy || state === 'unknown'} />
+          <UiText variant="bodySmall" tone="muted">{copy.notifBulkWeb}</UiText>
+          <HandoffLink label={copy.openOnWeb} path="/admin/notifications" />
 
-        <SectionHeading title={copy.notifHistory} />
+          <SectionHeading title={copy.notifHistory} />
+        </View>
         {rows.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
         <View style={laneStyles.stack}>
           </View></View></LaneShell>

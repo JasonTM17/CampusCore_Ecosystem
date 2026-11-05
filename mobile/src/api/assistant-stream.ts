@@ -322,6 +322,23 @@ export function decodeSseFrame(frame: SseFrame, validator: AssistantEventValidat
   return validator.accept(data, frame.event);
 }
 
+/**
+ * Decode for the live transports: an event type this client does not know is
+ * forward-compatible traffic, not a broken stream. Every other violation still
+ * fails closed.
+ */
+export function decodeSseFrameOrSkip(
+  frame: SseFrame,
+  validator: AssistantEventValidator,
+): AssistantStreamEvent | undefined {
+  try {
+    return decodeSseFrame(frame, validator);
+  } catch (error) {
+    if (error instanceof AssistantStreamError && error.code === 'STREAM_UNKNOWN_EVENT') return undefined;
+    throw error;
+  }
+}
+
 const cancelFallbackCode: Record<number, string> = {
   400: 'INVALID_REQUEST',
   401: 'UNAUTHORIZED',
@@ -402,11 +419,16 @@ export function createSseTransport(options: SseTransportOptions): AssistantTrans
       const parser = new SseFrameParser();
       const decoder = new TextDecoder();
 
-      const readFrames = (frames: SseFrame[]): AssistantStreamEvent[] => frames.map((frame) => {
-        const event = decodeSseFrame(frame, validator);
-        if (event.type === 'error' || event.type === 'done') terminal = true;
-        return event;
-      });
+      const readFrames = (frames: SseFrame[]): AssistantStreamEvent[] => {
+        const events: AssistantStreamEvent[] = [];
+        for (const frame of frames) {
+          const event = decodeSseFrameOrSkip(frame, validator);
+          if (!event) continue;
+          if (event.type === 'error' || event.type === 'done') terminal = true;
+          events.push(event);
+        }
+        return events;
+      };
 
       try {
         const token = getAccessToken();
@@ -473,6 +495,13 @@ export function createSseTransport(options: SseTransportOptions): AssistantTrans
       } finally {
         externalSignal?.removeEventListener('abort', abortFromCaller);
         if (reader) {
+          try {
+            // Cancel before release: a malformed frame or a consumer that stops
+            // at `done` must not leave the response body open.
+            await reader.cancel();
+          } catch {
+            // A finished or already cancelled reader has nothing to release.
+          }
           try {
             reader.releaseLock();
           } catch {

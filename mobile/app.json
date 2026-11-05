@@ -17,6 +17,9 @@
     },
     "android": {
       "package": "io.campuscore.mobile",
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -61,6 +64,7 @@
       ]
     },
     "plugins": [
+      "./plugins/with-release-signing",
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",

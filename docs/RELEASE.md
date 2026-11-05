@@ -80,8 +80,27 @@ npm run typecheck --prefix mobile
 
 Review web routes at 1440px, 768px and 390px. Review authenticated student,
 lecturer and admin flows, keyboard/focus behavior, loading/empty/error/
-forbidden states, console output and failed network requests. Review mobile
-login, refresh, logout and core student flows on an emulator or device.
+forbidden states, console output and failed network requests.
+
+### Mobile verification & Android emulator test path
+
+Review mobile login, refresh, logout and core student flows on an emulator or device:
+
+1. **Maestro device e2e smoke** (requires running emulator/device e.g. `emulator-5554`):
+   ```powershell
+   npm run test:device --prefix mobile -- --platform android --device <id> --flow core
+   ```
+2. **Text scaling validation**:
+   ```powershell
+   adb shell settings put system font_scale 2.0   # test 200% scaling
+   adb shell settings put system font_scale 1.0   # restore baseline
+   ```
+3. **App links & deep link verification**:
+   ```powershell
+   adb shell am start -a android.intent.action.VIEW -d "https://www.campusute.io.vn/news" io.campuscore.mobile
+   adb shell pm get-app-links io.campuscore.mobile
+   ```
+4. **Release build & signing**: Release tasks fail closed without operator keystore credentials (`CAMPUSCORE_RELEASE_STORE_FILE`, `CAMPUSCORE_RELEASE_STORE_PASSWORD`, `CAMPUSCORE_RELEASE_KEY_PASSWORD`, `CAMPUSCORE_RELEASE_KEY_ALIAS`); see [mobile/README.md](../mobile/README.md). Tests run on an emulator must be recorded as `EMULATOR_ONLY` and do not substitute for physical device acceptance.
 
 ## Git and cleanup
 

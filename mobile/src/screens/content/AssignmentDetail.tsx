@@ -1,4 +1,5 @@
-import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
+import { cardRows } from './content-card-rows';
+import { renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
@@ -50,6 +51,17 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
   // The typed answer survives a failed save or submit, and a trip back to the list.
   const [text, setText] = useState(() => readQueryCache<string>(draftKey(assignment.id)) ?? '');
   const [file, setFile] = useState<PickedFile | null>(null);
+  const activeAction = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      activeAction.current?.abort();
+      activeAction.current = null;
+    };
+  }, []);
 
   const submissionQuery = useContentQuery<MobileLearningSubmission>(
     `content.learning.submission.${submissionId}.${token}`,
@@ -110,24 +122,34 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
     );
   }, [copy, fail, shared]);
 
-  const run = useCallback(async (action: () => Promise<unknown>, ok: string, afterSuccess?: () => void) => {
-    if (busy || preview) return;
+  const run = useCallback(async (action: (signal: AbortSignal) => Promise<unknown>, ok: string, afterSuccess?: () => void) => {
+    if (busy || preview || activeAction.current) return;
+    const controller = new AbortController();
+    activeAction.current = controller;
     setBusy(true);
     clear();
     try {
-      await action();
+      await action(controller.signal);
+      if (!mounted.current || controller.signal.aborted) return;
       success(ok);
       afterSuccess?.();
       setToken((value) => value + 1);
       onChanged();
     } catch (error) {
-      failure(error);
+      if (mounted.current && !controller.signal.aborted) failure(error);
     } finally {
-      setBusy(false);
+      if (activeAction.current === controller) activeAction.current = null;
+      if (mounted.current) setBusy(false);
     }
   }, [busy, clear, failure, onChanged, preview, success]);
 
   const input = () => ({ textBody: text.trim(), ...(file ? { file: toUploadPart(file) } : {}) });
+  const saveCurrentDraft = (signal: AbortSignal) => {
+    const draft = input();
+    return draft.file
+      ? contentApi.learningSaveDraft(submissionId as string, draft, signal)
+      : contentApi.learningSaveDraft(submissionId as string, draft);
+  };
   const needsContent = () => {
     if (hasSubmissionContent(text, file !== null || serverDraftFileName != null)) return false;
     fail(copy.needContent);
@@ -159,7 +181,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
 
   const saveDraft = () => {
     if (!submissionId || needsContent()) return;
-    void run(() => contentApi.learningSaveDraft(submissionId, input()), copy.saved, forgetDraft);
+    void run((signal) => saveCurrentDraft(signal), copy.saved, forgetDraft);
   };
 
   const submit = () => {
@@ -169,10 +191,12 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
       description: copy.submitBody,
       confirmLabel: copy.submit,
       cancelLabel: shared.back,
-      onConfirm: () => void run(async () => {
-        await contentApi.learningSaveDraft(submissionId, input());
-        const fresh = await contentApi.learningSubmission(submissionId);
-        await contentApi.learningSubmit(assignment.id, fresh.version);
+      onConfirm: () => void run(async (signal) => {
+        await saveCurrentDraft(signal);
+        if (signal.aborted) return;
+        const fresh = await contentApi.learningSubmission(submissionId, signal);
+        if (signal.aborted) return;
+        await contentApi.learningSubmit(assignment.id, fresh.version, signal);
       }, copy.submitted, forgetDraft),
     });
   };
@@ -184,7 +208,9 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
       description: copy.submitBody,
       confirmLabel: copy.resubmit,
       cancelLabel: shared.back,
-      onConfirm: () => void run(() => contentApi.learningResubmit(assignment.id, input(), String(submission.version)), copy.submitted, forgetDraft),
+      onConfirm: () => void run((signal) => contentApi.learningResubmit(
+        assignment.id, input(), String(submission.version), signal,
+      ), copy.submitted, forgetDraft),
     });
   };
 
@@ -198,7 +224,7 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
                   <UiText variant="label">{joinMeta([fillCopy(copy.revision, { n: revision.revisionNo }), formatDateTime(revision.submittedAt)])}</UiText>
                   {revision.textBody ? <UiText variant="bodyMedium">{revision.textBody}</UiText> : null}
                   {revision.fileName ? (
-                    <AttachmentRow name={revision.fileName} fetchBytes={() => contentApi.learningDownloadRevision(revision.id)} />
+                    <AttachmentRow name={revision.fileName} fetchBytes={(signal) => contentApi.learningDownloadRevision(revision.id, signal)} />
                   ) : null}
                 </View>
               ), {}) : []),

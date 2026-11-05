@@ -27,6 +27,7 @@ export const previewNews = (locale: Locale): MobilePublicAnnouncement[] => [
     content: pick(locale, 'Sinh viên đăng nhập để xem lịch thi theo lớp học phần.', 'Sign in to see the exam schedule for each section.'),
     priority: 'HIGH',
     publishAt: '2026-10-20T01:00:00Z',
+    coverImageUrl: 'https://campus.ute.edu.vn/news/cover-1.jpg',
   },
   {
     id: 'preview-news-2',
@@ -171,8 +172,8 @@ export const previewAdmissions = (locale: Locale): AdmissionApplicationView[] =>
   },
 ];
 
-export const previewLearningSections: MobileLearningSection[] = [
-  { sectionId: 'preview-sec-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction to Programming', enrollmentStatus: 'ENROLLED', materialCount: 1, assignmentCount: 1 },
+export const previewLearningSections = (locale: Locale = 'vi'): MobileLearningSection[] => [
+  { sectionId: 'preview-sec-1', sectionNumber: '01', courseCode: 'CS101', courseName: pick(locale, 'Nhập môn lập trình', 'Introduction to Programming'), enrollmentStatus: 'ENROLLED', materialCount: 1, assignmentCount: 1 },
 ];
 
 export const previewMaterials = (locale: Locale): MobileLearningMaterial[] => [

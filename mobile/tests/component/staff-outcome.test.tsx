@@ -124,6 +124,18 @@ describe('resource 401 mapping', () => {
   });
 });
 
+describe('lecturer attendance header copy', () => {
+  test('the ops header keeps the title without mirroring the section and date pickers', async () => {
+    mockApi.mode = 'preview';
+    await renderThemed(
+      <LecturerAttendanceScreen navigation={nav} role="lecturer" selectedThesisTopicId={null} />,
+    );
+    expect(screen.getByRole('header', { name: 'Điểm danh' })).toBeOnTheScreen();
+    expect(screen.queryByText(/CS204 · 20\d{2}-/)).toBeNull();
+    expect(screen.queryByText('Kiến trúc phần mềm')).toBeNull();
+  });
+});
+
 describe('directory handoff', () => {
   test('detail sheet open-on-web calls the portal route and reports a failed handoff', async () => {
     mockApi.mode = 'preview';

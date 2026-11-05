@@ -15,11 +15,12 @@
 // Report: <evidence>/report.json + masked run.log per case.
 // Exit codes: 0 PASS · 1 FAIL · 2 usage · 3 NOT_RUN · 4 BLOCKED_CAPABILITY.
 
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSyncPortable } from './portable-spawn.mjs';
 import { captureSourceIdentity } from './ecosystem-source-identity.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -138,13 +139,7 @@ function runCase(kase, ctx) {
     cwd, env, encoding: 'utf8', timeout: kase.run.timeoutMs || 600000,
     maxBuffer: 64 * 1024 * 1024, shell: false,
   };
-  let proc = spawnSync(cmd, argv, spawnOpts);
-  if (proc.error && process.platform === 'win32'
-      && (proc.error.code === 'ENOENT' || proc.error.code === 'EINVAL')) {
-    // npm/mvn/npx ship as .cmd shims on Windows; execFile/spawn cannot run them
-    // without a shell (EINVAL since Node's CVE-2024-27980 hardening).
-    proc = spawnSync(cmd, argv, { ...spawnOpts, shell: true });
-  }
+  const proc = spawnSyncPortable(cmd, argv, spawnOpts);
   result.durationMs = Date.now() - started;
   result.exitCode = proc.status === null ? -1 : proc.status;
   const output = [proc.stdout || '', proc.stderr || ''].join('\n');

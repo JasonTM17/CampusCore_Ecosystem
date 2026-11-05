@@ -75,7 +75,7 @@ describe('adaptive app navigation', () => {
           expect(screen.queryByTestId('navigation-rail')).toBeNull();
         }
         expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
-        expect(screen.getAllByRole('button', { name: 'Mở menu' })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: 'Mở danh mục' })).toHaveLength(1);
         expect(screen.toJSON()?.props.edges).toEqual(['bottom']);
       });
     }
@@ -128,7 +128,7 @@ describe('adaptive app navigation', () => {
     test(`w${width} opens the menu, hides underlying chrome, and navigates through the same callback`, async () => {
       setWindow(width);
       await renderLayout();
-      await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
       expect(screen.getByRole('header', { name: shellMessages.vi.menuTitle })).toBeOnTheScreen();
       expect(screen.queryAllByRole('tab')).toHaveLength(0);
       expect(screen.getByTestId('app-chrome', { includeHiddenElements: true }).props.importantForAccessibility)
@@ -143,10 +143,10 @@ describe('adaptive app navigation', () => {
   test('expanded menu can close and retains preview role switching', async () => {
     setWindow(1000);
     await renderLayout();
-    await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Đóng' }));
     expect(screen.getByTestId('navigation-rail')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Giảng viên' }));
     expect(switchRole).toHaveBeenCalledWith('lecturer');
     expect(replace).toHaveBeenCalledWith(roleHomePath('lecturer'));
@@ -157,7 +157,7 @@ describe('adaptive app navigation', () => {
     setWindow(1000);
     setSession('student', 'authenticated');
     await renderLayout();
-    await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
     expect(screen.queryByText('Vai trò xem thử')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Giảng viên' })).toBeNull();
   });
@@ -194,7 +194,7 @@ describe('adaptive app navigation', () => {
     expect(screen.getByTestId('guard-redirect')).toHaveTextContent(kind === 'signedOut' ? '/sign-in' : '/dashboard');
     expect(screen.queryByTestId('route-content')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Mở menu' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mở danh mục' })).toBeNull();
   });
 });
 

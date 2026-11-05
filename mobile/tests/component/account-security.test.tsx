@@ -305,6 +305,12 @@ describe('profile account security', () => {
     expectAccessible();
   });
 
+  test('the profile detail card does not repeat the identity header name and ID', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getAllByText('Minh Nguyen')).toHaveLength(1);
+    expect(screen.getAllByText('2022SE0417')).toHaveLength(1);
+  });
+
   test('profile revalidation keeps an in-progress phone edit', async () => {
     const view = await renderApp(<ProfileScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Số điện thoại'), '0901234567');

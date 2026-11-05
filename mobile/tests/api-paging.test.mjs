@@ -105,6 +105,19 @@ test('without the header a short page ends the list and a full page may continue
   assert.equal(toPagedResult([], noHeader, { page: 2, limit: 2 }).hasMore, false);
 });
 
+test('an empty or short page ends the list even when X-Total-Count claims more', () => {
+  const headers = new Headers({ 'X-Total-Count': '9' });
+  assert.equal(toPagedResult([], headers, { page: 0, limit: 5 }).hasMore, false,
+    'an empty page is the end even when the total is stale');
+  assert.equal(toPagedResult([{ id: 'a' }], headers, { page: 0, limit: 5 }).hasMore, false,
+    'a short page is the end');
+  assert.equal(
+    toPagedResult(Array.from({ length: 5 }, (_, id) => ({ id })), headers, { page: 0, limit: 5 }).hasMore,
+    true,
+    'a full page inside the total may continue',
+  );
+});
+
 test('an unpaged read is the whole legacy list: no total required, nothing more to fetch', () => {
   const result = toPagedResult([{ id: 1 }, { id: 2 }, { id: 3 }], new Headers());
   assert.deepEqual(result, { items: [{ id: 1 }, { id: 2 }, { id: 3 }], hasMore: false });

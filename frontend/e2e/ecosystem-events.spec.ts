@@ -258,7 +258,7 @@ test.describe('events workspace recovery and capabilities', () => {
 
   test('initial staff failure exposes a retry that recovers the workspace', async ({ page }) => {
     let failing = true;
-    await page.route('**/events/staff', async (route) => {
+    await page.route(/\/api\/v1\/events\/staff(?:\?.*)?$/, async (route) => {
       if (route.request().method() !== 'GET') return route.continue();
       return route.fulfill({ status: failing ? 500 : 200, contentType: 'application/json',
         body: JSON.stringify(failing ? { code: 'INTERNAL_ERROR' } : []) });
@@ -278,10 +278,10 @@ test.describe('events workspace recovery and capabilities', () => {
         status: 'REGISTRATION_OPEN', capacity: 10, registeredCount: 0, seatsRemaining: 10,
         startsAt: '2099-11-05T07:30:00Z', endsAt: '2099-11-05T10:30:00Z',
         myRegistrationId: null, myRegistrationStatus: null, myAttendanceStatus: null };
-      await page.route('**/events/staff', (route) => route.fulfill({ json: [event] }));
+      await page.route(/\/api\/v1\/events\/staff(?:\?.*)?$/, (route) => route.fulfill({ json: [event] }));
       // API path only: a bare '**/events' also matches the /admin/events page
       // document, which a reload would then receive as JSON.
-      await page.route('**/api/v1/events', (route) => route.fulfill({ json: [event] }));
+      await page.route(/\/api\/v1\/events(?:\?.*)?$/, (route) => route.fulfill({ json: [event] }));
       await page.route('**/events/my/registrations', (route) => route.fulfill({ json: [{
         registrationId: 'ui-history', registrationStatus: 'CANCELLED', attendanceStatus: 'ABSENT',
         registeredAt: '2026-10-21T12:00:00Z', event: { ...event, title: 'UI retained history' },
@@ -316,7 +316,7 @@ test.describe('events workspace recovery and capabilities', () => {
   test('late roster response cannot replace a newly selected event roster', async ({ page }) => {
     const event = { status: 'REGISTRATION_CLOSED', capacity: 10, registeredCount: 1, seatsRemaining: 9,
       organizer: 'Union', startsAt: '2026-01-01T10:00:00Z', endsAt: '2026-01-01T12:00:00Z' };
-    await page.route('**/events/staff', (route) => route.fulfill({ json: [
+    await page.route(/\/api\/v1\/events\/staff(?:\?.*)?$/, (route) => route.fulfill({ json: [
       { ...event, id: 'slow-event', title: 'Slow roster event' },
       { ...event, id: 'fast-event', title: 'Fast roster event' },
     ] }));
@@ -326,18 +326,18 @@ test.describe('events workspace recovery and capabilities', () => {
     const slowRelease = new Promise<void>((resolve) => { releaseSlow = resolve; });
     const entry = (email: string) => [{ registrationId: email, studentName: email, email,
       status: 'REGISTERED', attendanceStatus: 'ABSENT' }];
-    await page.route('**/events/staff/slow-event/roster', async (route) => {
+    await page.route(/\/api\/v1\/events\/staff\/slow-event\/roster(?:\?.*)?$/, async (route) => {
       sawSlow();
       await slowRelease;
       await route.fulfill({ json: entry('slow@example.test') });
     });
-    await page.route('**/events/staff/fast-event/roster', (route) => route.fulfill({ json: entry('fast@example.test') }));
+    await page.route(/\/api\/v1\/events\/staff\/fast-event\/roster(?:\?.*)?$/, (route) => route.fulfill({ json: entry('fast@example.test') }));
     await ssoAdminLogin(page, '/admin/events');
     await page.getByRole('button', { name: 'Slow roster event', exact: true }).click();
     await slowStarted;
     await page.getByRole('button', { name: 'Fast roster event', exact: true }).click();
     await expect(page.locator('tr', { hasText: 'fast@example.test' })).toBeVisible();
-    const response = page.waitForResponse((item) => item.url().endsWith('/slow-event/roster'));
+    const response = page.waitForResponse((item) => new URL(item.url()).pathname.endsWith('/slow-event/roster'));
     releaseSlow();
     await (await response).finished();
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
@@ -346,13 +346,13 @@ test.describe('events workspace recovery and capabilities', () => {
   });
 
   test('non-student browsing exposes no participation or history requests', async ({ page }) => {
-    await page.route('**/events/staff', (route) => route.fulfill({ status: 403, json: { code: 'EVENTS_STAFF_REQUIRED' } }));
+    await page.route(/\/api\/v1\/events\/staff(?:\?.*)?$/, (route) => route.fulfill({ status: 403, json: { code: 'EVENTS_STAFF_REQUIRED' } }));
     let historyRequests = 0;
     await page.route('**/events/my/registrations', (route) => {
       historyRequests++;
       return route.fulfill({ json: [] });
     });
-    await page.route('**/events', (route) => route.fulfill({ json: [{ id: 'read-only', title: 'Campus fair',
+    await page.route(/\/api\/v1\/events(?:\?.*)?$/, (route) => route.fulfill({ json: [{ id: 'read-only', title: 'Campus fair',
       status: 'REGISTRATION_OPEN', seatsRemaining: 10, capacity: 10, startsAt: '2099-01-01T10:00:00Z', endsAt: '2099-01-01T12:00:00Z' }] }));
     await ssoAdminLogin(page, '/admin/events');
     await expect(page.getByText('Campus fair')).toBeVisible({ timeout: 30000 });

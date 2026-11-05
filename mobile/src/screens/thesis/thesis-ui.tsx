@@ -20,14 +20,15 @@ export function useThesisUi() {
 
 /** Stale-data notice, first-load spinner and blocking error with retry, in that order. */
 export function QueryNotices({ state, copy }: { state: ThesisQueryState; copy: ThesisCopy }) {
+  if (!state.warning && !state.loading && !state.error) return null;
   return (
-    <>
+    <View style={styles.notices}>
       {state.warning ? <DataNotice message={state.warning} /> : null}
       {state.loading ? <StatePanel kind="loading" title={copy.loading} /> : null}
       {state.error ? (
         <StatePanel kind="error" title={state.error} actionLabel={copy.retry} onAction={() => void state.reload()} />
       ) : null}
-    </>
+    </View>
   );
 }
 
@@ -153,6 +154,7 @@ export const thesisStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  notices: { gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
   gap: thesisStyles.gap,
   row: thesisStyles.row,
   grow: thesisStyles.grow,

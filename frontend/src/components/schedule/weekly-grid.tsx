@@ -323,11 +323,12 @@ export function WeeklyGrid({
                       const isAfternoon =
                         (item.startTime || '').localeCompare('12:00') >= 0
                         && (item.startTime || '').localeCompare('18:00') < 0;
+                      const gridCopy = (locale === 'vi' ? studentPagesVi : studentPagesEn).schedule.grid;
                       const shiftBadge = isMorning
-                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.morningLabel : 'AM')
+                        ? gridCopy.morningLabel
                         : isAfternoon
-                        ? (locale === 'vi' ? studentPagesVi.schedule.grid.afternoonLabel : 'PM')
-                        : (locale === 'vi' ? studentPagesVi.schedule.grid.eveningLabel : 'Eve');
+                        ? gridCopy.afternoonLabel
+                        : gridCopy.eveningLabel;
 
                       if (compact) {
                         const room = item.roomNumber

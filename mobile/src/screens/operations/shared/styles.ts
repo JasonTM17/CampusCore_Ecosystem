@@ -5,8 +5,9 @@ import { useThemedStyles } from '../../../design/theme';
 import type { ThemeColors } from '../../../design/theme';
 
 const opsStyles = (colors: ThemeColors) => StyleSheet.create({
-  webOnlyCard: { gap: tokens.spacing.sm, padding: tokens.spacing.lg },
+  webOnlyCard: { gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm, padding: tokens.spacing.lg },
   webOnlyCopy: { marginBottom: tokens.spacing.sm },
+  previewNotice: { marginBottom: tokens.spacing.sm },
   submit: { marginTop: tokens.spacing.sm },
   hero: { padding: tokens.spacing.lg },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
@@ -25,13 +26,15 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   scheduleCard: { marginBottom: tokens.spacing.sm, padding: tokens.spacing.md, gap: tokens.spacing.xs },
   scheduleHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.sm },
   topicCopy: { flex: 1, paddingRight: tokens.spacing.sm, gap: tokens.spacing.xs },
-  gradingHero: { padding: tokens.spacing.lg },
+  gradingHero: { marginBottom: tokens.spacing.md, padding: tokens.spacing.lg },
   courseHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   gradeRow: { marginBottom: tokens.spacing.sm, padding: tokens.spacing.md, gap: tokens.spacing.xs },
   scoreFields: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.sm },
   scoreField: { flex: 1 },
   secondaryButton: { marginTop: tokens.spacing.sm },
   topButton: { marginTop: tokens.spacing.sm },
+  scheduleButton: { flexGrow: 1, marginTop: tokens.spacing.sm },
+  columns: { justifyContent: 'space-between' },
   actionStatus: { backgroundColor: colors.successFixed, borderColor: colors.success, borderLeftColor: colors.success, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
   actionStatusError: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
   saveBar: { marginTop: tokens.spacing.md, gap: tokens.spacing.sm, padding: tokens.spacing.md, backgroundColor: colors.card, borderRadius: tokens.radii.card, borderWidth: 1, borderColor: colors.outlineVariant },
@@ -44,6 +47,7 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   directoryRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md },
   directoryCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
   directoryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  directoryTopTitle: { flex: 1, minWidth: 0 },
 });
 
 export function useOpsStyles() {

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, IconChip, InlineError, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileNavigation } from '../../navigation/types';
@@ -39,6 +40,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const windowClass = window.class;
   const largeText = window.fontScale >= 1.3;
   const { copy, locale } = useAcademicCopy();
+  const { formatNumber } = useLocale();
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
@@ -79,11 +81,12 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
         renderItem: ({ item: item }) => {
               const code = enrollmentCourseCode(item);
               const name = enrollmentCourseName(item, locale);
+              const statusLabel = copy.status[item.status] ?? copy.status.UNKNOWN;
               return (
                 <Pressable
                   key={`${item.semesterId}-${item.id}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${code} ${name}, ${copy.status[item.status] ?? item.status}`}
+                  accessibilityLabel={`${code} ${name}, ${statusLabel}`}
                   onPress={() => setSelectedId(item.id)}
                   style={{ minHeight: tokens.layout.touchTarget, width: windowClass === 'compact' || largeText ? '100%' : '48.5%' }}
                 >
@@ -93,10 +96,10 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                       <View style={styles.courseCopy}>
                         <View style={styles.courseTags}>
                           <StatusPill label={code} tone="primary" />
-                          <StatusPill label={copy.status[item.status] ?? item.status} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
+                          <StatusPill label={statusLabel} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
                         </View>
                         <UiText variant="headlineSmall">{name}</UiText>
-                        <UiText variant="meta" tone="muted">{fillCopy(countForm(item.section?.course?.credits ?? 0, copy.creditsOne, copy.credits), { n: item.section?.course?.credits ?? 0 })}</UiText>
+                        <UiText variant="meta" tone="muted">{fillCopy(countForm(item.section?.course?.credits ?? 0, copy.creditsOne, copy.credits), { n: formatNumber(item.section?.course?.credits ?? 0) })}</UiText>
                         {item.section?.sectionNumber ? (
                           <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
                         ) : null}
@@ -106,9 +109,10 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                 </Pressable>
               );
             },
-        footer: <>{selected ? null : (<View>
+        footer: <>{selected ? null : (<>
+          <ScreenSpacer />
           <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
-        </View>)}
+        </>)}
     </>,
       }}
     >
@@ -116,7 +120,9 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
         <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
       ) : (<View>
           {semestersFailed ? (
-            <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+            <View style={academicStyles.card}>
+              <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+            </View>
           ) : (
             <TermField options={options} value={term} onChange={setTerm} />
           )}

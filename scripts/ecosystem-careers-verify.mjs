@@ -12,13 +12,13 @@
 //
 // Everything it starts is torn down in `finally`.
 
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installKillGuard, preflightProjectVolumes, stopChildrenTree } from './ecosystem-verify-shared.mjs';
 import { ensureComposeSecrets } from './compose-secrets.mjs';
+import { spawnPortable, spawnSyncPortable } from './portable-spawn.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -53,18 +53,10 @@ function parseArgs(argv) {
 }
 
 function tryRun(cmd, argv, opts = {}) {
-  let res = spawnSync(cmd, argv, {
+  const res = spawnSyncPortable(cmd, argv, {
     cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, ...(opts.env || {}) }, timeout: opts.timeoutMs || 120000,
-    shell: opts.shell ?? false,
   });
-  if (res.error && res.error.code === 'ENOENT' && process.platform === 'win32') {
-    res = spawnSync(cmd, argv, {
-      cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-      env: { ...process.env, ...(opts.env || {}) }, shell: true,
-      timeout: opts.timeoutMs || 120000,
-    });
-  }
   if (res.error) return { ok: false, out: `${res.stdout || ''}${res.stderr || ''}${res.error.message || ''}`, code: -1 };
   return { ok: res.status === 0, out: `${res.stdout || ''}${res.stderr || ''}`, code: res.status };
 }
@@ -75,11 +67,10 @@ function composeArgs(args, argv) {
 
 function spawnLog(cmd, argv, opts, logFile) {
   const out = fs.openSync(logFile, 'a');
-  const child = spawn(cmd, argv, {
+  const child = spawnPortable(cmd, argv, {
     cwd: opts.cwd || REPO,
     env: { ...process.env, ...(opts.env || {}) },
     stdio: ['ignore', out, out],
-    shell: opts.shell ?? false,
   });
   children.push(child);
   return child;
@@ -209,14 +200,13 @@ async function casePreview(args) {
         // headroom that earlier preview runs needed under memory pressure.
         NODE_OPTIONS: '--max-old-space-size=6144',
       },
-      shell: process.platform === 'win32',
     }, path.join(dir, 'next-dev.log'));
     await waitFor(`https://portal.localhost:${WEB_PORT}/`, { insecure: true });
     result.nextUp = true;
 
     const pw = tryRun(process.execPath, [
       PLAYWRIGHT_CLI, 'test', 'e2e/ecosystem-careers.spec.ts',
-      '--project', 'chromium', '--reporter', 'list',
+      '--project', 'chromium', '--reporter', 'list', '--max-failures', '1',
     ], {
       cwd: FRONTEND, timeoutMs: 900000,
       env: {

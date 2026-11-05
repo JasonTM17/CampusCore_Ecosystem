@@ -1196,9 +1196,8 @@ class AcademicEnrollmentMutationPersistenceTest {
     @Test
     void adminApplicationListingPagesPastTheFiveHundredRowCap() throws Exception {
         // The feed cap drops the oldest rows out of reach once the queue
-        // grows past it. page/limit opt into the shared X-Total-Count window
-        // so the console can walk the whole backlog; without them the legacy
-        // bare-array-of-500 contract is unchanged.
+        // grows past it. Both the default cap and the page/limit window report
+        // the pre-cap total so the console can detect and walk the backlog.
         String oldestId = "cl-page-0";
         for (int index = 0; index < 501; index++) {
             jdbc.update(
@@ -1225,7 +1224,7 @@ class AcademicEnrollmentMutationPersistenceTest {
                         .queryParam("status", "PENDING")
                         .with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andExpect(header().string("X-Total-Count", "501"))
                 .andExpect(jsonPath("$.length()").value(500));
     }
 

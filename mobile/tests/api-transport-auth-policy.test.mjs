@@ -5,6 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadTs } from './helpers/load-ts.mjs';
+
+const { createSessionStore } = await loadTs('src/auth/session-store.ts');
 
 /**
  * Transport authority: explicit auth policy per call, one refresh single-flight
@@ -94,6 +97,63 @@ function makeSession(initialToken = 'old-token') {
 
 const authorizedWith = (token) => (call) => call.headers.get('authorization') === `Bearer ${token}`;
 
+test('an expired live session retains its credential offline and refreshes on the next online request', async () => {
+  const secure = new Map([['cu.refresh', 'rt-existing']]);
+  let online = false;
+  let tokenRequests = 0;
+  let expired = 0;
+  const store = createSessionStore({
+    issuer: 'https://issuer.test',
+    getNetworkState: async () => ({ isConnected: online }),
+    secure: {
+      getItemAsync: async (key) => secure.get(key) ?? null,
+      setItemAsync: async (key, value) => { secure.set(key, value); },
+      deleteItemAsync: async (key) => { secure.delete(key); },
+    },
+    sandbox: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
+    fetchImpl: async () => {
+      tokenRequests += 1;
+      if (!online) throw new TypeError('offline');
+      return json(200, { access_token: 'new-token', refresh_token: 'rt-rotated' });
+    },
+  });
+  store.setAccessToken('expired-token');
+  const client = createApiClient({
+    baseUrl: BASE, mode: 'live',
+    getAccessToken: () => store.getAccessToken(),
+    sessionEpoch: () => store.sessionEpoch(),
+    onSessionExpired: () => { expired += 1; },
+    refreshSession: async () => (await store.refreshAccessToken()).kind,
+  });
+  let transportOffline = true;
+  const net = installFetch((call) => {
+    if (transportOffline) throw new TypeError('Network request failed');
+    return authorizedWith('new-token')(call) ? json(200, { ok: true }) : json(401, {});
+  });
+  try {
+    await assert.rejects(client.get('/me'), (error) => {
+      const normalized = normalizeApiError(error);
+      return normalized.kind === 'network' && normalized.retryable === true;
+    });
+    assert.equal(tokenRequests, 0);
+    assert.equal(expired, 0);
+    assert.equal(secure.get('cu.refresh'), 'rt-existing');
+    transportOffline = false;
+    await assert.rejects(client.get('/me'), (error) => error.kind === 'network' && error.retryable === true);
+    assert.equal(tokenRequests, 0);
+    assert.equal(expired, 0);
+    assert.equal(store.getAccessToken(), 'expired-token');
+    assert.equal(secure.get('cu.refresh'), 'rt-existing');
+    online = true;
+    assert.deepEqual(await client.get('/me'), { ok: true });
+    assert.equal(tokenRequests, 1);
+    assert.equal(expired, 0);
+    assert.equal(secure.get('cu.refresh'), 'rt-rotated');
+  } finally {
+    net.restore();
+  }
+});
+
 test('base URL fallback is development-only and release config must use HTTPS', () => {
   const previousDev = globalThis.__DEV__;
   const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
@@ -139,6 +199,48 @@ test('release HTTP bases need the explicit local-only opt-in; HTTPS stays accept
     globalThis.__DEV__ = previousDev;
     if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
     else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('the base URL collapses duplicate path slashes and keeps one boundary', async () => {
+  const client = createApiClient({ baseUrl: 'https://api.test//api//v1/', mode: 'live' });
+  assert.equal(client.baseUrl, 'https://api.test/api/v1');
+  const net = installFetch(() => json(200, { ok: true }));
+  try {
+    assert.deepEqual(await client.get('/me'), { ok: true });
+    assert.equal(net.calls[0].url, 'https://api.test/api/v1/me');
+  } finally {
+    net.restore();
+  }
+});
+
+test('a JSON request that never answers fails at its deadline instead of hanging', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 20, epochPollMs: 60_000 });
+  let seenSignal;
+  const net = installFetch((call) => {
+    seenSignal = call.signal;
+    return new Promise((_resolve, reject) => {
+      const abort = () => reject(new DOMException('aborted', 'AbortError'));
+      // No client deadline => no signal, so the request never settles.
+      if (!call.signal) return;
+      if (call.signal.aborted) abort();
+      else call.signal.addEventListener('abort', abort, { once: true });
+    });
+  });
+  try {
+    let outcome = 'watchdog';
+    await Promise.race([
+      client.get('/slow').then(() => { outcome = 'resolved'; }, (error) => { outcome = error; }),
+      new Promise((resolve) => setTimeout(() => resolve('watchdog'), 1_000)),
+    ]);
+    assert.notEqual(outcome, 'watchdog', 'the client must not wait forever');
+    assert.ok(outcome instanceof ApiClientError, String(outcome));
+    assert.equal(outcome.code, 'NETWORK_ERROR');
+    assert.equal(outcome.retryable, true);
+    assert.equal(seenSignal.aborted, true, 'the stalled fetch is aborted');
+  } finally {
+    net.restore();
   }
 });
 
@@ -381,7 +483,8 @@ test('JSON path is unchanged: headers, bodies, 204, text and failed refresh brid
     assert.equal(sent.headers.get('idempotency-key'), 'abc');
     assert.equal(sent.headers.get('authorization'), 'Bearer old-token');
     assert.match(sent.headers.get('x-request-id'), /^mobile-/);
-    assert.equal(sent.signal, undefined, 'JSON calls keep the caller signal untouched');
+    assert.ok(sent.signal instanceof AbortSignal, 'JSON calls carry their own deadline signal');
+    assert.equal(sent.signal.aborted, false);
 
     assert.equal(await client.get('/empty'), undefined);
     assert.equal(await client.get('/text'), 'plain');
@@ -442,6 +545,31 @@ test('an ambiguous refresh ends one session without replaying protected requests
     assert.equal(state.expired, 1, 'the shared terminal refresh notifies once');
     assert.equal(net.calls.length, 3, 'no protected request is replayed');
     assert.equal(state.token, null);
+  } finally {
+    net.restore();
+  }
+});
+
+test('five expired requests share one failed refresh and clear the session once', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      state.token = null;
+      return 'signedOut';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    const paths = ['/dashboard', '/notifications', '/registration', '/profile', '/assistant'];
+    const results = await Promise.allSettled(paths.map((path) => client.get(path)));
+
+    assert.ok(results.every((result) => result.status === 'rejected'));
+    assert.equal(state.refreshCalls, 1, 'all five requests share one refresh');
+    assert.equal(state.expired, 1, 'the shared terminal refresh clears the session once');
+    assert.equal(state.token, null);
+    assert.equal(net.calls.length, 5, 'none of the protected requests is replayed');
   } finally {
     net.restore();
   }
@@ -511,13 +639,18 @@ test('logout during a download aborts the transfer and clears its timer', async 
   const { state, options } = makeSession();
   const client = createApiClient(options);
   let seenSignal;
+  let entered;
+  const fetchEntered = new Promise((resolve) => { entered = resolve; });
   const net = installFetch((call) => new Promise((_resolve, reject) => {
     seenSignal = call.signal;
     call.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    entered();
   }));
   try {
     const pending = client.download('/doc/file');
-    setTimeout(() => { state.epoch += 1; state.token = null; }, 10);
+    await fetchEntered;
+    state.epoch += 1;
+    state.token = null;
     await assert.rejects(
       pending,
       (error) => error instanceof ApiClientError && error.code === 'SESSION_CHANGED' && error.kind === 'aborted',
@@ -563,15 +696,19 @@ test('a transfer 401 from a stale lane never evicts or reuses the replacing sess
 test('the caller signal aborts a transfer', async () => {
   const { options } = makeSession();
   const client = createApiClient(options);
+  let entered;
+  const fetchEntered = new Promise((resolve) => { entered = resolve; });
   const net = installFetch((call) => new Promise((_resolve, reject) => {
     const abort = () => reject(new DOMException('aborted', 'AbortError'));
     if (call.signal.aborted) abort();
     else call.signal.addEventListener('abort', abort);
+    entered();
   }));
   try {
     const controller = new AbortController();
     const pending = client.download('/doc/file', { signal: controller.signal });
-    setTimeout(() => controller.abort(), 5);
+    await fetchEntered;
+    controller.abort();
     await assert.rejects(pending, (error) => error.code === 'REQUEST_ABORTED' && error.kind === 'aborted');
 
     const already = new AbortController();
@@ -992,4 +1129,61 @@ test('native multipart is prepared once and replays the prepared body/key after 
   assert.equal(preparedCount, 1);
   assert.equal(state.refreshCalls, 1);
   assert.ok(sent.every(init => init.body === prepared && init.headers.get('Idempotency-Key') === 'native-intent'));
+});
+
+test('stalled uploads and downloads fail retryably at the configured request deadline', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 20, epochPollMs: 60_000 });
+  const controllers = [new AbortController(), new AbortController()];
+  const net = installFetch(call => new Promise((_resolve, reject) => {
+    const abort = () => reject(new DOMException('aborted', 'AbortError'));
+    if (call.signal.aborted) abort();
+    else call.signal.addEventListener('abort', abort, { once: true });
+  }));
+  let watchdogTimer;
+  try {
+    const pending = Promise.allSettled([
+      client.download('/learning/materials/slow/file', { signal: controllers[0].signal }),
+      client.upload('/admissions/applications/slow/attachments', new FormData(), {
+        idempotencyKey: 'same-intent', signal: controllers[1].signal,
+      }),
+    ]);
+    const result = await Promise.race([
+      pending,
+      new Promise(resolve => { watchdogTimer = setTimeout(() => resolve('watchdog'), 500); }),
+    ]);
+    assert.notEqual(result, 'watchdog', 'the transfer deadline must release both stalled requests');
+    assert.ok(Array.isArray(result));
+    assert.ok(result.every(item => item.status === 'rejected'
+      && item.reason instanceof ApiClientError
+      && item.reason.code === 'NETWORK_ERROR'
+      && item.reason.retryable === true));
+    assert.ok(net.calls.every(call => call.signal.aborted), 'the stalled sockets are aborted');
+  } finally {
+    clearTimeout(watchdogTimer);
+    controllers.forEach(controller => controller.abort());
+    net.restore();
+  }
+});
+
+test('a transfer cannot return a response after its caller has aborted', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 60_000, epochPollMs: 60_000 });
+  const controller = new AbortController();
+  let resolveFetch;
+  const net = installFetch(() => new Promise(resolve => { resolveFetch = resolve; }));
+  try {
+    const pending = client.download('/learning/materials/late/file', { signal: controller.signal })
+      .then(value => ({ value }), error => ({ error }));
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort();
+    resolveFetch(new Response(new Uint8Array([1])));
+
+    const outcome = await pending;
+    assert.ok(outcome.error instanceof ApiClientError, 'a late success must be discarded');
+    assert.equal(outcome.error.code, 'REQUEST_ABORTED');
+  } finally {
+    controller.abort();
+    net.restore();
+  }
 });

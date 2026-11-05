@@ -173,9 +173,13 @@ export default function ForgotPasswordPage() {
               placeholder={copy.emailPlaceholder}
               autoComplete="email"
               icon={<Mail className="h-4 w-4" />}
+              aria-invalid={formError ? true : undefined}
+              aria-describedby={formError
+                ? 'forgot-email-hint forgot-error'
+                : 'forgot-email-hint'}
               required
             />
-            <p className="text-xs leading-5 text-muted-foreground">{copy.emailHint}</p>
+            <p id="forgot-email-hint" className="text-xs leading-5 text-muted-foreground">{copy.emailHint}</p>
           </div>
 
           <Button type="submit" className="w-full" disabled={isSending}>

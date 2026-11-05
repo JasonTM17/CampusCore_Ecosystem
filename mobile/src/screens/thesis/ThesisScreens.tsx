@@ -5,6 +5,7 @@ import { Button, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { SearchBar, SegmentedControl } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
+import { useWindowClass } from '../../design/theme';
 import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -43,6 +44,8 @@ function useSearchTerm(query: string): string {
 /** Published topics of the selected round, with the round and advisor views one tap away. */
 export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useThesisUi();
+  const window = useWindowClass();
+  const twoColumns = window.class === 'expanded' && window.fontScale < 1.3;
   const active = useActiveThesisRound();
   const roundId = active.round?.id ?? null;
   const [view, setView] = useState<ThesisView>('topics');
@@ -59,14 +62,16 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
       title={copy.topicsTitle}
       headerAction={<Button label={copy.myGroup} onPress={() => navigation.navigate('thesis.progress')} variant="text" />}
 
-      list={{ data: active.round && view === "topics" ? visible : [], keyExtractor: (item, index) => String(item.id),
+      list={{ numColumns: twoColumns ? 2 : 1, columnWrapperStyle: twoColumns ? styles.columns : undefined, data: active.round && view === "topics" ? visible : [], keyExtractor: (item, index) => String(item.id),
         renderItem: ({ item: topic }) => (
+                <View style={twoColumns ? styles.topicHalf : styles.topicFull}>
                 <TopicCard
                   key={topic.id}
                   topic={topic}
                   copy={copy}
                   onOpen={() => navigation.navigate('thesis.detail', { thesisTopicId: topic.id })}
                 />
+                </View>
               ),
         footer: <>{active.round ? (<>{view === 'topics' ? (<>{null}
               {topics.loadMoreError ? (
@@ -163,6 +168,9 @@ export function ThesisAdvisorsScreen(_props: MobileScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  columns: { justifyContent: 'space-between' },
+  topicHalf: { width: '48.5%' },
+  topicFull: { width: '100%' },
   segment: { marginBottom: tokens.spacing.md },
   search: { marginBottom: tokens.spacing.sm },
   count: { marginBottom: tokens.spacing.sm },

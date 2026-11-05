@@ -55,7 +55,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
       <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={[styles.backdrop, { backgroundColor: chrome.scrim }]} />
       <View accessibilityViewIsModal importantForAccessibility="yes" style={styles.panel}>
         <View style={[styles.panelHeader, { backgroundColor: chrome.surface }]}>
-          <Image accessible={false} source={require('../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.logo} />
+          <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no" source={require('../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.logo} />
           <View style={styles.headerCopy}>
             <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>
               CampusUTE

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +13,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
@@ -22,6 +23,8 @@ import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
 import { UiText } from './UiText';
 import type { TextTone } from './UiText';
+
+const ModalInsetsContext = SafeAreaInsetsContext ?? createContext<{ top: number; bottom: number; left: number; right: number } | null>(null);
 
 /* ---------- Sheet: bottom sheet on RN Modal ---------- */
 export interface SheetProps {
@@ -40,6 +43,7 @@ export interface SheetProps {
 
 export function Sheet({ visible, onClose, title, children, scroll = false, footer, accessibilityLabel, closeLabel, closeAccessibilityLabel }: SheetProps) {
   const { colors, spacing, radii, scheme, reducedMotion } = useTheme();
+  const insets = useContext(ModalInsetsContext);
   const { t } = useLocale();
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose}>
@@ -47,7 +51,18 @@ export function Sheet({ visible, onClose, title, children, scroll = false, foote
         <View
           accessibilityViewIsModal
           accessibilityLabel={accessibilityLabel ?? title}
-          style={[sheetStyles.panel, { backgroundColor: colors.card, borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card, padding: spacing.md }]}
+          style={[
+            sheetStyles.panel,
+            {
+              backgroundColor: colors.card,
+              borderTopLeftRadius: radii.card,
+              borderTopRightRadius: radii.card,
+              padding: spacing.md,
+              paddingBottom: (insets?.bottom ?? 0) + spacing.md,
+              paddingLeft: (insets?.left ?? 0) + spacing.md,
+              paddingRight: (insets?.right ?? 0) + spacing.md,
+            },
+          ]}
         >
           <View style={[sheetStyles.header, { borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, paddingBottom: spacing.sm }]}>
             {title ? (
@@ -94,17 +109,27 @@ export interface DialogProps {
 
 export function Dialog({ visible, title, description, confirmLabel, cancelLabel, onConfirm, onCancel, destructive = false }: DialogProps) {
   const { colors, spacing, radii, reducedMotion } = useTheme();
+  const insets = useContext(ModalInsetsContext);
   const close = onCancel ?? onConfirm;
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={close}>
-      <View style={dialogStyles.backdrop}>
+      <View style={[dialogStyles.backdrop, {
+        paddingTop: Math.max(tokens.spacing.lg, insets?.top ?? 0),
+        paddingBottom: Math.max(tokens.spacing.lg, insets?.bottom ?? 0),
+        paddingLeft: Math.max(tokens.spacing.lg, insets?.left ?? 0),
+        paddingRight: Math.max(tokens.spacing.lg, insets?.right ?? 0),
+      }]}>
         <View
           accessibilityRole="alert"
           accessibilityViewIsModal
           style={[dialogStyles.panel, { backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, padding: spacing.lg }]}
         >
           <UiText accessibilityRole="header" variant="headlineSmall">{title}</UiText>
-          {description ? <UiText variant="bodySmall" tone="muted" style={dialogStyles.desc}>{description}</UiText> : null}
+          {description ? (
+            <ScrollView style={dialogStyles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <UiText variant="bodySmall" tone="muted" style={dialogStyles.desc}>{description}</UiText>
+            </ScrollView>
+          ) : null}
           <View style={dialogStyles.actions}>
             {cancelLabel ? <Button label={cancelLabel} onPress={close} variant="secondary" /> : null}
             <Button label={confirmLabel} onPress={onConfirm} variant={destructive ? 'destructive' : 'primary'} accessibilityLabel={confirmLabel} />
@@ -117,7 +142,8 @@ export function Dialog({ visible, title, description, confirmLabel, cancelLabel,
 
 const dialogStyles = StyleSheet.create({
   backdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: tokens.spacing.lg },
-  panel: { borderWidth: 1, maxWidth: 420, width: '100%' },
+  panel: { borderWidth: 1, maxWidth: 420, maxHeight: '90%', width: '100%' },
+  scroll: { flexShrink: 1 },
   desc: { marginTop: tokens.spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.lg },
 });
@@ -246,6 +272,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
     <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, paddingLeft: spacing.md }, style]}>
       <TextInput
         {...input}
+        multiline={false}
         value={value}
         onChangeText={onChangeText}
         accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
