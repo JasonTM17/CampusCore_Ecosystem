@@ -317,7 +317,9 @@ class EventCapacityPostgresIT {
             anchor.commit();
             List<Outcome> outcomes = new ArrayList<>();
             for (Future<Outcome> future : futures) outcomes.add(future.get(30, TimeUnit.SECONDS));
-            assertThat(outcomes).allMatch(outcome -> outcome.registered() || outcome.status() == 409);
+            // A cancelled event that was never published to students answers 404 once the cancellation wins the lock.
+            assertThat(outcomes).allMatch(outcome -> outcome.registered() || outcome.status() == 409
+                    || (outcome.status() == 404 && "EVENT_NOT_FOUND".equals(outcome.code())));
             return outcomes;
         } finally {
             pool.shutdownNow();
