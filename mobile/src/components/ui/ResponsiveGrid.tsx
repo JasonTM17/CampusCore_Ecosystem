@@ -8,7 +8,9 @@ import { tokens } from '../../design/tokens';
 /** Wraps each child in a ~48% cell on medium/expanded; compact keeps stacking. */
 export function ResponsiveGrid({ children }: { children: ReactNode }) {
   const { class: windowClass } = useWindowClass();
-  if (windowClass === 'compact') return <>{children}</>;
+  if (windowClass === 'compact') {
+    return <>{Children.map(children, (child, index) => <View key={index} style={{ marginBottom: tokens.spacing.sm }}>{child}</View>)}</>;
+  }
   return (
     <View style={{
       alignSelf: 'center',
@@ -19,7 +21,7 @@ export function ResponsiveGrid({ children }: { children: ReactNode }) {
       justifyContent: 'space-between',
     }}>
       {Children.map(children, (child, index) => (
-        <View key={index} style={{ width: '48%' }}>{child}</View>
+        <View key={index} style={{ width: '48%', marginBottom: tokens.spacing.sm }}>{child}</View>
       ))}
     </View>
   );

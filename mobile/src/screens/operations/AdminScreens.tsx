@@ -357,7 +357,7 @@ export function AdminStudentsScreen() {
     >
       {preview ? (
         <View>
-          <DataNotice message={copy.previewNotice} />
+          <View style={styles.previewNotice}><DataNotice message={copy.previewNotice} /></View>
           <SearchBar
             value={search}
             onChangeText={setSearch}
@@ -507,7 +507,7 @@ export function AdminLecturersScreen() {
     >
       {preview ? (
         <View>
-          <DataNotice message={copy.previewNotice} />
+          <View style={styles.previewNotice}><DataNotice message={copy.previewNotice} /></View>
           <SearchBar
             value={search}
             onChangeText={setSearch}
