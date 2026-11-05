@@ -113,6 +113,13 @@ nặng được chuyển sang cổng web (nút **Mở trên web**). Trong bản 
 "Bản dựng này chưa cấu hình cổng web", vì địa chỉ cổng web `https://portal.localhost:3102` là địa chỉ phía máy chủ
 mà emulator không phân giải được.
 
+### Thí sinh
+
+Tài khoản không có vai trò học vụ nhưng có quyền `admissions:self` chỉ thấy khu vực tuyển sinh: chip **Thí sinh**,
+nút đăng xuất, không có thanh tab hay menu sinh viên (các route sinh viên vẫn bị guard chặn).
+
+<img src="assets/mobile/applicant-surface.png" width="220" alt="Màn tuyển sinh của thí sinh không có vai trò học vụ">
+
 ## 6. Mất mạng khi mở app
 
 Trước đây, mở app khi **không có mạng** với phiên đã lưu sẽ đẩy người dùng về màn hình đăng xuất và làm mất
@@ -191,6 +198,6 @@ sau sẽ tự vào lại tài khoản cũ. Xoá dữ liệu Chrome của emulato
 - Chỉ kiểm thử trên emulator x86_64; **chưa có thiết bị thật** (cần địa chỉ LAN riêng, profile `local` không cung cấp).
 - Cổng web chưa được cấu hình trong bản `local`, nên các nút "Mở trên web" bị tắt.
 - Một số lĩnh vực (tuyển sinh, thư viện, việc làm) dùng dữ liệu mô phỏng ở phía sinh viên.
-- Tài khoản demo `applicant@campuscore.edu` được seed (V140) kèm vai trò `STUDENT` nhưng không có hồ sơ sinh viên, nên trên app nó hiện vỏ sinh viên và màn Tổng quan báo "không có quyền". Màn tuyển sinh dành riêng cho thí sinh không có vai trò học vụ chỉ được kiểm bằng test, chưa chạy trên emulator.
+- Tài khoản demo `applicant@campuscore.edu` được seed (V140) kèm vai trò `STUDENT` nhưng không có hồ sơ sinh viên, nên trên app nó hiện vỏ sinh viên và màn Tổng quan báo "không có quyền". Ảnh thí sinh ở trên chụp bằng một tài khoản không có vai trò (gỡ vai trò `STUDENT` của `applicant2@campuscore.edu` trong cơ sở dữ liệu local).
 - Migration V14, V53, V116 là rủi ro đã ghi nhận ở phía cơ sở dữ liệu.
 - Ảnh/GIF là bằng chứng trực quan tại một thời điểm; nguồn chuẩn về hành vi là các test và CI.
