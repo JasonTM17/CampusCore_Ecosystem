@@ -3,6 +3,25 @@
 Expo + React Native + TypeScript mobile client for the Java REST API course
 project.
 
+## App tour
+
+Real screens from the Android emulator against the local Docker stack (live data, OIDC sign-in). Full
+walk-through with every role, the offline behaviour and how the media were captured:
+[docs/MOBILE_APP_TOUR.md](../docs/MOBILE_APP_TOUR.md) (Vietnamese).
+
+| Student | Lecturer | Admin |
+| :---: | :---: | :---: |
+| <img src="../docs/assets/mobile/student-tour.gif" width="220" alt="Student tour"> | <img src="../docs/assets/mobile/lecturer-tour.gif" width="220" alt="Lecturer tour"> | <img src="../docs/assets/mobile/admin-tour.gif" width="220" alt="Admin tour"> |
+| <img src="../docs/assets/mobile/student-dashboard.png" width="220" alt="Student dashboard"> | <img src="../docs/assets/mobile/lecturer-grading.png" width="220" alt="Lecturer grading"> | <img src="../docs/assets/mobile/admin-dashboard.png" width="220" alt="Admin dashboard"> |
+
+Opening the app offline with a stored session keeps the credential and shows a retry state instead of signing the user out:
+
+| Offline cold start | After reconnecting and tapping retry |
+| :---: | :---: |
+| <img src="../docs/assets/mobile/offline-cold-start.png" width="220" alt="Offline retry state"> | <img src="../docs/assets/mobile/offline-recovered.png" width="220" alt="Session restored"> |
+
+Verified on an x86_64 Android emulator only (no physical device yet).
+
 ## Design contract
 
 The UI follows the canonical `Academic Continuity` evidence in
