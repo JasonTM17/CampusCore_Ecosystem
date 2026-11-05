@@ -16,8 +16,11 @@ import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.MediaGalleryD
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.MediaGalleryListResponse;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.PageMeta;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.TagDto;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -33,6 +36,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -170,11 +174,13 @@ public class ArticleTaxonomyController {
      */
     @Operation(summary = "Lấy thư viện ảnh & media bài viết", description = "Truy xuất danh sách ảnh/video đa phương tiện minh họa, có thể lọc theo mã thông báo/bài viết cụ thể")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công")
+        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer")))
     })
     @GetMapping("/article-media-galleries")
     @PreAuthorize("isAuthenticated()")
-    public List<ArticleMediaGallery> getMediaGalleries(
+    public ResponseEntity<List<ArticleMediaGallery>> getMediaGalleries(
             @Parameter(description = "Mã bài viết/thông báo để lọc gallery tương ứng (tùy chọn)")
             @RequestParam(required = false) String announcementId,
             @AuthenticationPrincipal Jwt jwt) {
@@ -185,7 +191,9 @@ public class ArticleTaxonomyController {
         }
         // Legacy feed stays list-shaped but bounded by the same cap the v2
         // route uses, now additionally gated by the parent's visibility tier.
-        return assetReads.findGalleries(parent, visibility, 0, MAX_PAGE_SIZE);
+        List<ArticleMediaGallery> items = assetReads.findGalleries(parent, visibility, 0, MAX_PAGE_SIZE);
+        long total = assetReads.countGalleries(parent, visibility);
+        return ListPaging.respond(new ListPaging.Result<>(items, total));
     }
 
     /**
@@ -197,11 +205,13 @@ public class ArticleTaxonomyController {
      */
     @Operation(summary = "Lấy danh mục tệp đính kèm văn bản", description = "Truy xuất danh sách tài liệu, quyết định, biểu mẫu công khai đính kèm bài viết")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công")
+        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer")))
     })
     @GetMapping("/article-attachments")
     @PreAuthorize("isAuthenticated()")
-    public List<ArticleTaxonomyDtos.AttachmentDto> getAttachments(
+    public ResponseEntity<List<ArticleTaxonomyDtos.AttachmentDto>> getAttachments(
             @Parameter(description = "Mã bài viết/thông báo để lọc tệp đính kèm (tùy chọn)")
             @RequestParam(required = false) String announcementId,
             @AuthenticationPrincipal Jwt jwt) {
@@ -211,9 +221,12 @@ public class ArticleTaxonomyController {
             requireVisibleParent(parent, visibility);
         }
         // Same projection as v2: checksum, access flag, and audit columns stay server-side.
-        return assetReads.findAttachments(parent, visibility, 0, MAX_PAGE_SIZE).stream()
+        List<ArticleTaxonomyDtos.AttachmentDto> items = assetReads.findAttachments(
+                        parent, visibility, 0, MAX_PAGE_SIZE).stream()
                 .map(ArticleTaxonomyDtos.AttachmentDto::from)
                 .toList();
+        long total = assetReads.countAttachments(parent, visibility);
+        return ListPaging.respond(new ListPaging.Result<>(items, total));
     }
 
     /**

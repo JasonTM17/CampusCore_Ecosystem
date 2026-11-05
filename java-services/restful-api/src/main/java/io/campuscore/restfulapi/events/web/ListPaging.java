@@ -21,7 +21,7 @@ import org.springframework.http.ResponseEntity;
 public final class ListPaging {
 
     public static final String TOTAL_COUNT_HEADER = "X-Total-Count";
-    public static final String TOTAL_COUNT_DOC = "Số bản ghi trước khi phân trang (chỉ khi có page/limit)";
+    public static final String TOTAL_COUNT_DOC = "Số bản ghi phù hợp trước khi giới hạn hoặc phân trang (nếu có)";
     public static final String PAGE_DOC = "Trang bắt đầu từ 0; cần đi cùng limit";
     public static final String LIMIT_DOC = "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ";
     public static final int MAX_LIMIT = 100;

@@ -22,12 +22,14 @@ import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.AttachmentLis
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.CategoryDto;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.MediaGalleryListResponse;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.TagDto;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -113,13 +115,15 @@ class ArticleTaxonomyControllerTest {
                 .thenReturn(List.of(gallery));
         when(assetReads.findGalleries(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
                 .thenReturn(List.of(gallery));
+        when(assetReads.countGalleries(eq("ann-1"), any(AssetVisibility.class))).thenReturn(1L);
+        when(assetReads.countGalleries(eq(null), any(AssetVisibility.class))).thenReturn(1L);
 
-        List<ArticleMediaGallery> filtered = controller.getMediaGalleries("ann-1", adminJwt());
-        assertEquals(1, filtered.size());
-        assertEquals("ann-1", filtered.get(0).getAnnouncementId());
+        ResponseEntity<List<ArticleMediaGallery>> filtered = controller.getMediaGalleries("ann-1", adminJwt());
+        assertEquals(1, filtered.getBody().size());
+        assertEquals("ann-1", filtered.getBody().get(0).getAnnouncementId());
 
-        List<ArticleMediaGallery> all = controller.getMediaGalleries(null, adminJwt());
-        assertEquals(1, all.size());
+        ResponseEntity<List<ArticleMediaGallery>> all = controller.getMediaGalleries(null, adminJwt());
+        assertEquals(1, all.getBody().size());
     }
 
     @Test
@@ -146,13 +150,55 @@ class ArticleTaxonomyControllerTest {
                 .thenReturn(List.of(attachment));
         when(assetReads.findAttachments(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
                 .thenReturn(List.of(attachment));
+        when(assetReads.countAttachments(eq("ann-1"), any(AssetVisibility.class))).thenReturn(1L);
+        when(assetReads.countAttachments(eq(null), any(AssetVisibility.class))).thenReturn(1L);
 
-        List<AttachmentDto> filtered = controller.getAttachments("ann-1", adminJwt());
-        assertEquals(1, filtered.size());
-        assertEquals("thong_bao.pdf", filtered.get(0).fileName());
+        ResponseEntity<List<AttachmentDto>> filtered = controller.getAttachments("ann-1", adminJwt());
+        assertEquals(1, filtered.getBody().size());
+        assertEquals("thong_bao.pdf", filtered.getBody().get(0).fileName());
 
-        List<AttachmentDto> allPublic = controller.getAttachments(null, adminJwt());
-        assertEquals(1, allPublic.size());
+        ResponseEntity<List<AttachmentDto>> allPublic = controller.getAttachments(null, adminJwt());
+        assertEquals(1, allPublic.getBody().size());
+    }
+
+    @Test
+    @DisplayName("legacy media feed reports the total beyond its fixed row cap")
+    void getMediaGalleriesReportsTotalCountWhenCapped() {
+        List<ArticleMediaGallery> rows = java.util.stream.IntStream.range(0, 200)
+                .mapToObj(index -> {
+                    ArticleMediaGallery gallery = new ArticleMediaGallery();
+                    gallery.setId("gal-" + index);
+                    return gallery;
+                })
+                .toList();
+        when(assetReads.findGalleries(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
+                .thenReturn(rows);
+        when(assetReads.countGalleries(eq(null), any(AssetVisibility.class))).thenReturn(201L);
+
+        ResponseEntity<List<ArticleMediaGallery>> response = controller.getMediaGalleries(null, adminJwt());
+
+        assertEquals("201", response.getHeaders().getFirst(ListPaging.TOTAL_COUNT_HEADER));
+        assertEquals(200, response.getBody().size());
+    }
+
+    @Test
+    @DisplayName("legacy attachment feed reports the total beyond its fixed row cap")
+    void getAttachmentsReportsTotalCountWhenCapped() {
+        List<ArticleAttachment> rows = java.util.stream.IntStream.range(0, 200)
+                .mapToObj(index -> {
+                    ArticleAttachment attachment = new ArticleAttachment();
+                    attachment.setId("att-" + index);
+                    return attachment;
+                })
+                .toList();
+        when(assetReads.findAttachments(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
+                .thenReturn(rows);
+        when(assetReads.countAttachments(eq(null), any(AssetVisibility.class))).thenReturn(201L);
+
+        ResponseEntity<List<AttachmentDto>> response = controller.getAttachments(null, adminJwt());
+
+        assertEquals("201", response.getHeaders().getFirst(ListPaging.TOTAL_COUNT_HEADER));
+        assertEquals(200, response.getBody().size());
     }
 
     @Test
