@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -24,6 +24,9 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
     libraryRequests: jest.fn(),
     libraryApprove: jest.fn(),
     libraryCancel: jest.fn(),
+    staffEvents: jest.fn(),
+    eventRoster: jest.fn(),
+    eventMark: jest.fn(),
     sendNotification: jest.fn(),
     notificationHistory: jest.fn(),
     creditApplications: jest.fn(),
@@ -33,6 +36,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 }));
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
+import { AdminEventsScreen } from '../../src/screens/lanes/AdminLaneScreens';
 import { Pager, QueueCard } from '../../src/screens/lanes/lane-ui';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
 import { lanesMessages } from '../../src/i18n/lanes-messages';
@@ -225,6 +229,69 @@ describe('admin notifications', () => {
     expect(bodyScroll).toBeTruthy();
     expect(actionsScroll).toBeTruthy();
     expect(bodyScroll).not.toBe(actionsScroll);
+  });
+});
+
+describe('event time boundaries', () => {
+  test('event actions and attendance controls update when an event starts', async () => {
+    const base = Date.parse('2026-11-05T00:00:00.000Z');
+    jest.useFakeTimers();
+    jest.setSystemTime(base);
+    api.staffEvents.mockResolvedValue([
+      { id: 'draft-1', title: 'Draft briefing', status: 'DRAFT', startsAt: new Date(base + 1000).toISOString() },
+      { id: 'event-1', title: 'Closed briefing', status: 'REGISTRATION_CLOSED', startsAt: new Date(base + 2000).toISOString() },
+    ]);
+    api.eventRoster.mockResolvedValue([
+      { registrationId: 'registration-1', studentName: 'Lê Văn A', email: 'a@example.edu', attendanceStatus: 'ABSENT', version: 1 },
+    ]);
+
+    let unmount: (() => void) | undefined;
+    try {
+      const view = await renderThemed(<AdminEventsScreen />);
+      unmount = view.unmount;
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByText('Draft briefing')).toBeTruthy();
+      expect(screen.getByRole('button', { name: lanesMessages.vi.publish })).toBeTruthy();
+
+      await act(async () => { jest.advanceTimersByTime(1001); });
+      expect(screen.queryByRole('button', { name: lanesMessages.vi.publish })).toBeNull();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: lanesMessages.vi.eventDetail })[1]);
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByText('Lê Văn A')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: lanesMessages.vi.markAttended })).toBeNull();
+
+      await act(async () => { jest.advanceTimersByTime(1000); });
+      expect(screen.getByRole('button', { name: lanesMessages.vi.markAttended })).toBeTruthy();
+    } finally {
+      if (unmount) await act(() => { unmount?.(); });
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test('an event far in the future never schedules an oversized timer', async () => {
+    const base = Date.parse('2026-11-05T00:00:00.000Z');
+    jest.useFakeTimers();
+    jest.setSystemTime(base);
+    const timeout = jest.spyOn(global, 'setTimeout');
+    api.staffEvents.mockResolvedValue([
+      { id: 'draft-far', title: 'Far briefing', status: 'DRAFT', startsAt: new Date(base + 60 * 24 * 3600 * 1000).toISOString() },
+    ]);
+    let unmount: (() => void) | undefined;
+    try {
+      const view = await renderThemed(<AdminEventsScreen />);
+      unmount = view.unmount;
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByText('Far briefing')).toBeTruthy();
+      const delays = timeout.mock.calls.map((call) => Number(call[1] ?? 0));
+      expect(Math.max(0, ...delays)).toBeLessThanOrEqual(2 ** 31 - 1);
+    } finally {
+      timeout.mockRestore();
+      if (unmount) await act(() => { unmount?.(); });
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
   });
 });
 

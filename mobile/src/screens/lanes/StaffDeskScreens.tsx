@@ -159,7 +159,7 @@ export function ApplyReviewScreen() {
     const subject = row.fullName ?? row.applicantEmail ?? row.id;
     if (kind === 'claim') return action(copy, kind, subject, () => laneApi.admissionsClaim(row));
     if (kind === 'return') return action(copy, kind, subject, (text) => laneApi.admissionsReturn(row, text));
-    return action(copy, kind, subject, () => laneApi.admissionsDecide(row, kind === 'accept' ? 'ACCEPTED' : 'REJECTED'));
+    return action(copy, kind, subject, (text) => laneApi.admissionsDecide(row, kind === 'accept' ? 'ACCEPTED' : 'REJECTED', text));
   };
 
   return (

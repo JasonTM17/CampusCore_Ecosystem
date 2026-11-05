@@ -104,6 +104,7 @@ async function metaPage<T>(path: string, filters: Record<string, string | undefi
 async function pagedList<T>(path: string, filters: Record<string, string | undefined>, paging: Page): Promise<PagedResult<T>> {
   const query = buildQuery({ ...filters, page: paging.page, limit: paging.limit });
   const { data, headers } = await apiClient.requestWithMeta<unknown>(`${path}${query}`, { method: 'GET' });
+  if (!Array.isArray(data)) throw new Error('The staff queue response was not an array');
   return toPagedResult<T>(data, headers, paging);
 }
 

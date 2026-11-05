@@ -100,6 +100,28 @@ describe('staff desk paging', () => {
     expect(pages).toEqual([0, 1, 2, 3, 2]);
   });
 
+  test('an admissions rejection sends the written reason', async () => {
+    api.admissionsQueuePaged.mockResolvedValue({
+      items: [{ id: 'a1', fullName: 'An', status: 'IN_REVIEW', version: 4 }],
+      total: 1,
+      hasMore: false,
+    });
+    api.admissionsDecide.mockResolvedValue({});
+    await renderEnglish(<ApplyReviewScreen />);
+
+    await waitFor(() => expect(screen.getByText('An')).toBeTruthy());
+    await fireEvent.press(screen.getByText('Reject'));
+    await fireEvent.changeText(screen.getByLabelText('Reason'), 'Thiếu hồ sơ');
+    await fireEvent.press(screen.getByText('Confirm'));
+
+    await waitFor(() => expect(api.admissionsDecide).toHaveBeenCalledTimes(1));
+    expect(api.admissionsDecide).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a1', version: 4 }),
+      'REJECTED',
+      'Thiếu hồ sơ',
+    );
+  });
+
   test('the library desk keeps its single unpaged read and shows no pager', async () => {
     api.libraryRequests.mockResolvedValue([{ id: 'loan-1', title: 'Calculus', status: 'REQUESTED', version: 4 }]);
     await renderEnglish(<LibraryDeskScreen />);
