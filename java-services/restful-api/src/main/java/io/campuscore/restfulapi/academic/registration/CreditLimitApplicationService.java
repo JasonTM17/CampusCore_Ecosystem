@@ -135,8 +135,9 @@ public class CreditLimitApplicationService {
     /**
      * Admin queue read with an optional {@link ListPaging.Window}. A {@code null}
      * window keeps the legacy contract: the newest {@link #MAX_LIST_RESULTS}
-     * rows and no total. A window answers the pre-page total plus a LIMIT/OFFSET
-     * slice ordered by ({@code createdAt}, {@code id}) so consecutive pages
+     * rows and returns the matching total for the response header. A window
+     * answers the pre-page total plus a LIMIT/OFFSET slice ordered by
+     * ({@code createdAt}, {@code id}) so consecutive pages
      * cannot overlap a queue that keeps growing.
      */
     @Transactional(readOnly = true)
@@ -153,11 +154,14 @@ public class CreditLimitApplicationService {
             parameters.addValue("status", filter);
         }
         if (window == null) {
+            Long total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + APPLICATION + " application" + where,
+                    parameters, Long.class);
             List<Response> items = jdbc.queryForList(
                     applicationSelect() + where
                             + " ORDER BY application.\"createdAt\" DESC LIMIT " + MAX_LIST_RESULTS,
                     parameters).stream().map(this::map).toList();
-            return new ListPaging.Result<>(items, null);
+            return new ListPaging.Result<>(items, total);
         }
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM " + APPLICATION + " application" + where,
