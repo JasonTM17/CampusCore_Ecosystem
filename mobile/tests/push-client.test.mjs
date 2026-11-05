@@ -114,6 +114,49 @@ test('a rotated-token rebind response is a successful registration', async () =>
   );
 });
 
+test('a transient registration failure retries once with the same installation id', async () => {
+  const { platform } = makePlatform();
+  let attempts = 0;
+  const { api, calls } = makeApi({
+    registerPushDevice: async (installationId, body) => {
+      calls.push({ kind: 'register', installationId, body });
+      attempts += 1;
+      if (attempts === 1) throw Object.assign(new TypeError('network down'), { retryable: true });
+      return { installationId, provider: body.provider, platform: body.platform, status: 'ACTIVE' };
+    },
+  });
+  const client = createPushNotificationClient(platform, api);
+  assert.deepEqual(await client.register(true), { status: 'registered', installationId: INSTALLATION_ID });
+  assert.equal(calls.length, 2, 'one retry for the same intent');
+  assert.equal(calls[1].installationId, calls[0].installationId, 'a retry must not create a second device row');
+  assert.deepEqual(calls[1].body, calls[0].body);
+});
+
+test('registration stops after the retry and never retries a definitive rejection', async () => {
+  const { platform } = makePlatform();
+  const { api, calls } = makeApi({
+    registerPushDevice: async (installationId, body) => {
+      calls.push({ kind: 'register', installationId, body });
+      throw Object.assign(new TypeError('network down'), { retryable: true });
+    },
+  });
+  const client = createPushNotificationClient(platform, api);
+  assert.deepEqual(await client.register(true), { status: 'registration-failed' });
+  assert.equal(calls.length, 2, 'a failed retry ends the attempt');
+
+  let definitiveCalls = 0;
+  const definitive = makeApi({
+    registerPushDevice: async () => {
+      definitiveCalls += 1;
+      throw Object.assign(new Error('invalid token'), { status: 400, retryable: false });
+    },
+  });
+  assert.deepEqual(await createPushNotificationClient(platform, definitive.api).register(true), {
+    status: 'registration-failed',
+  });
+  assert.equal(definitiveCalls, 1, 'a 400 is not retried');
+});
+
 test('notification route is fetched from the inbox and exact allowlist matching fails closed', async () => {
   const calls = [];
   const fetchNotification = async (id) => {

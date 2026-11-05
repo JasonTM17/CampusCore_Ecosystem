@@ -82,11 +82,11 @@ test('the loans facade reads /library/requests/my through the shared window and 
   const api = createParityApi({
     requestWithMeta: async (requestPath, init) => {
       calls.push({ path: requestPath, init });
-      return { data: [{ id: 'loan-0' }], headers: new Headers({ 'X-Total-Count': '7' }), requestId: 'r-1' };
+      return { data: rowsFrom(0, 5), headers: new Headers({ 'X-Total-Count': '7' }), requestId: 'r-1' };
     },
   });
-  const page = await api.libraryLoans({ page: 1, limit: 5 });
-  assert.equal(calls[0].path, '/library/requests/my?page=1&limit=5');
+  const page = await api.libraryLoans({ page: 0, limit: 5 });
+  assert.equal(calls[0].path, '/library/requests/my?page=0&limit=5');
   assert.equal(page.total, 7);
   assert.equal(page.hasMore, true);
   const whole = await api.libraryLoans();
