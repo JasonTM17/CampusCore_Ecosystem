@@ -99,7 +99,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingLeft: insets?.left ?? 0, paddingRight: insets?.right ?? 0 }]}>
       <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: tokens.spacing.xl + (insets?.bottom ?? 0) }]}
@@ -408,7 +408,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   brandMark: { backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 56, width: 56 },
   brandCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
   previewPill: { alignSelf: 'flex-start', marginTop: tokens.spacing.sm },
-  body: { alignSelf: 'center', flex: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
+  body: { alignSelf: 'center', flexGrow: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
   formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },
   guestRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
