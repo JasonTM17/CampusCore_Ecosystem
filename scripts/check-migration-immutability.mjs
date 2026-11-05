@@ -52,8 +52,22 @@ export async function readMigrationTree(ref, git = execFileAsync) {
   return parseMigrationTree(stdout);
 }
 
-export async function checkMigrationImmutability({ baseRef, headRef = 'HEAD', readTree = readMigrationTree } = {}) {
+async function resolveCommit(ref) {
+  const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', `${ref}^{commit}`], {
+    encoding: 'utf8', maxBuffer: MAX_BUFFER,
+  });
+  return stdout.trim();
+}
+
+export async function checkMigrationImmutability({
+  baseRef, headRef = 'HEAD', previousRef, readTree = readMigrationTree,
+  resolveRef = readTree === readMigrationTree ? resolveCommit : async (ref) => ref,
+} = {}) {
   if (!baseRef) throw new TypeError('baseRef is required');
+  const [baseCommit, headCommit] = await Promise.all([resolveRef(baseRef), resolveRef(headRef)]);
+  if (baseCommit === headCommit) {
+    baseRef = previousRef && !/^0+$/.test(previousRef) ? previousRef : `${headRef}^`;
+  }
   const [baselineTree, headTree] = await Promise.all([
     readTree(baseRef),
     readTree(headRef),
@@ -75,12 +89,12 @@ export async function checkMigrationImmutability({ baseRef, headRef = 'HEAD', re
 }
 
 async function main(argv = process.argv.slice(2)) {
-  if (argv.length !== 1) {
-    console.error('Usage: node scripts/check-migration-immutability.mjs <base-ref>');
+  if (argv.length < 1 || argv.length > 2) {
+    console.error('Usage: node scripts/check-migration-immutability.mjs <base-ref> [previous-ref]');
     process.exitCode = 2;
     return;
   }
-  const result = await checkMigrationImmutability({ baseRef: argv[0] });
+  const result = await checkMigrationImmutability({ baseRef: argv[0], previousRef: argv[1] });
   if (!result.ok) {
     for (const migration of result.failures) {
       console.error(`IMMUTABLE migration content changed or removed: ${migration.path}`);

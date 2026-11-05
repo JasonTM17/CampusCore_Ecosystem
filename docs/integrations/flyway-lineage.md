@@ -178,6 +178,8 @@ Migration checksum mismatch for migration version X:
 
 ### 4.4 Pre-Deployment Procedure for Populated Databases (Lock-Heavy Migrations: V146–V150)
 
+For populated databases replaying from earlier migration versions (below V14, V53, or V116), consult the preflight queries and out-of-band mitigation procedures in [Populated environments below V14 / V53 / V116](../ecosystem/release-runbook.md#populated-environments-below-v14--v53--v116).
+
 When deploying to a populated database, five migrations in the forward sequence introduce heavy table locks if executed inside the default startup Flyway transaction:
 
 - **`V146__w14_hot_read_indexes.sql`**: Contains 6 `CREATE INDEX IF NOT EXISTS` statements without `CONCURRENTLY`. Standard `CREATE INDEX` takes a `SHARE` lock on each target table (`academic."Enrollment"`, `academic."Attendance"`, `academic."AttendanceCheckin"`, `thesis.thesis_topic_supervisor`, `thesis.thesis_group_member`, `notifications.notification`). This blocks concurrent write operations (`INSERT`, `UPDATE`, `DELETE`) for the duration of the migration.
