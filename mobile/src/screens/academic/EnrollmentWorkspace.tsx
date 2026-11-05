@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, IconChip, InlineError, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -109,9 +109,10 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                 </Pressable>
               );
             },
-        footer: <>{selected ? null : (<View>
+        footer: <>{selected ? null : (<>
+          <ScreenSpacer />
           <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
-        </View>)}
+        </>)}
     </>,
       }}
     >
@@ -119,7 +120,9 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
         <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
       ) : (<View>
           {semestersFailed ? (
-            <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+            <View style={academicStyles.card}>
+              <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+            </View>
           ) : (
             <TermField options={options} value={term} onChange={setTerm} />
           )}

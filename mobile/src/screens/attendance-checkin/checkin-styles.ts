@@ -8,6 +8,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   sessionRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.md, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
   sessionActionStacked: { width: '100%' },
   sessionCopy: { flex: 1, minWidth: 0 },
+  entry: { marginBottom: tokens.spacing.sm },
   entryRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.md },
   entryCopy: { flex: 1, minWidth: 160 },
   consentList: { gap: tokens.spacing.xs, paddingVertical: tokens.spacing.xs },
