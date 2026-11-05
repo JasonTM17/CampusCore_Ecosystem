@@ -2,7 +2,7 @@ import {
   AssistantEventValidator,
   AssistantStreamError,
   SseFrameParser,
-  decodeSseFrame,
+  decodeSseFrameOrSkip,
   requestId,
   responseErrorCode,
   streamRequestBody,
@@ -181,7 +181,10 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
         const events: AssistantStreamEvent[] = [];
         let failure: Error | undefined;
         try {
-          for (const frame of frames) events.push(decodeSseFrame(frame, validator));
+          for (const frame of frames) {
+            const event = decodeSseFrameOrSkip(frame, validator);
+            if (event) events.push(event);
+          }
         } catch (error) {
           failure = error instanceof Error ? error : lost('STREAM_CONNECTION_LOST');
         }
