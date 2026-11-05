@@ -32,6 +32,8 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   scoreField: { flex: 1 },
   secondaryButton: { marginTop: tokens.spacing.sm },
   topButton: { marginTop: tokens.spacing.sm },
+  scheduleButton: { flexGrow: 1, marginTop: tokens.spacing.sm },
+  columns: { justifyContent: 'space-between' },
   actionStatus: { backgroundColor: colors.successFixed, borderColor: colors.success, borderLeftColor: colors.success, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
   actionStatusError: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
   saveBar: { marginTop: tokens.spacing.md, gap: tokens.spacing.sm, padding: tokens.spacing.md, backgroundColor: colors.card, borderRadius: tokens.radii.card, borderWidth: 1, borderColor: colors.outlineVariant },
@@ -44,6 +46,7 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   directoryRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md },
   directoryCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
   directoryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  directoryTopTitle: { flex: 1, minWidth: 0 },
 });
 
 export function useOpsStyles() {
