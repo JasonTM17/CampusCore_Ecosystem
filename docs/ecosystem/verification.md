@@ -55,6 +55,33 @@ Exit code con 4 được ánh sang `BLOCKED_CAPABILITY`; exit 3 sang `FAIL` kèm
 
 Binding R2-1 (`execution-contract.md` §Sửa đổi R2): P03 đăng ký `contract-drift` (kèm CI workflow diff), P05 đăng ký `host-registry` + `static-policy`; P14 `demo` tái chạy các gate này.
 
+## Ecosystem preview lanes
+
+Cụm kiểm thử HTTPS preview cho 7 lane domain của ecosystem được điều phối tự động qua `scripts/ecosystem-e2e-verify.mjs` hoặc chạy riêng lẻ từng lane qua 7 runner chuyên biệt:
+
+- `admissions`: `scripts/ecosystem-admissions-verify.mjs`
+- `careers`: `scripts/ecosystem-careers-verify.mjs`
+- `content`: `scripts/ecosystem-content-verify.mjs`
+- `events`: `scripts/ecosystem-events-verify.mjs`
+- `learning`: `scripts/ecosystem-learning-verify.mjs`
+- `library`: `scripts/ecosystem-library-verify.mjs`
+- `sso`: `scripts/ecosystem-sso-verify.mjs`
+
+### Chạy toàn bộ các lane
+
+```bash
+node scripts/ecosystem-e2e-verify.mjs --project-prefix campuscore-preview
+```
+
+### Chạy một lane cục bộ với cổng database riêng
+
+Mỗi runner khởi động một stack compose dùng một lần rồi dọn dẹp. Để tránh xung đột cổng `5432` (đặc biệt trên Windows hoặc khi có stack khác đang chạy), cấp một cổng trống qua `POSTGRES_HOST_PORT`:
+
+```bash
+# Ví dụ: chạy riêng lane SSO với cổng Postgres tự chọn
+POSTGRES_HOST_PORT=5433 node scripts/ecosystem-sso-verify.mjs preview --project campuscore-local-sso --evidence artifacts/verification/ecosystem-sso-ci
+```
+
 ## Contract generator (`scripts/generate-api-contract.mjs`)
 
 Oracle chính của gate `contracts`. Luồng:

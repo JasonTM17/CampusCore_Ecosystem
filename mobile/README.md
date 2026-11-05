@@ -103,7 +103,15 @@ A physical device needs `MOBILE_LOCAL_ISSUER=http://<LAN-IP>:4010` on the same
 command line, matching `EXPO_PUBLIC_API_URL`/`EXPO_PUBLIC_ISSUER_URL`.
 
 Verified release-type build (replicates the `local` EAS profile; `mobile/android`
-is the generated prebuild directory — reuse it, never commit it):
+is the generated prebuild directory — reuse it, never commit it). Release signing
+is fail closed (`mobile/plugins/with-release-signing.js`): any release task requires
+an operator keystore and valid signing credentials; debug identity is rejected:
+
+- `CAMPUSCORE_RELEASE_STORE_FILE`: optional path to operator keystore (defaults to
+  `mobile/android/campusute-release.keystore`).
+- `CAMPUSCORE_RELEASE_STORE_PASSWORD`: keystore password (required, non-empty).
+- `CAMPUSCORE_RELEASE_KEY_PASSWORD`: private key password (required, non-empty).
+- `CAMPUSCORE_RELEASE_KEY_ALIAS`: key alias (required, non-empty; cannot be `androiddebugkey`).
 
 ```powershell
 cd mobile/android
@@ -113,6 +121,11 @@ $env:EXPO_PUBLIC_API_MODE='live'
 $env:EXPO_PUBLIC_API_URL='http://10.0.2.2:4010/api/v1'
 $env:EXPO_PUBLIC_ISSUER_URL='http://10.0.2.2:4010'
 $env:EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL='1'
+# Release signing credentials (fail closed if omitted or debug key selected):
+$env:CAMPUSCORE_RELEASE_STORE_FILE='campusute-release.keystore' # relative to mobile/android
+$env:CAMPUSCORE_RELEASE_STORE_PASSWORD='<operator-store-password>'
+$env:CAMPUSCORE_RELEASE_KEY_PASSWORD='<operator-key-password>'
+$env:CAMPUSCORE_RELEASE_KEY_ALIAS='<operator-key-alias>'
 ./gradlew assembleRelease     # APK: app/build/outputs/apk/release/app-release.apk
 adb install app/build/outputs/apk/release/app-release.apk
 ```
