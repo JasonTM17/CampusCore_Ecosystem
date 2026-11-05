@@ -133,7 +133,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
               { value: 'NOT_STARTED', label: copy.notStarted },
             ]}
           />
-          {groups.length === 0 ? <StatePanel kind="empty" title={copy.emptyCurriculum} /> : null}
+          {groups.length === 0 ? <StatePanel kind="empty" title={copy.emptyCurriculumFiltered} /> : null}
           </View>)}</AcademicShell>
   );
 }

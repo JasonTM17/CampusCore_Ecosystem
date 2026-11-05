@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { tokens } from '../design/tokens';
+import { minTapTarget, tokens } from '../design/tokens';
 import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { useThemedStyles, useTheme } from '../design/theme';
@@ -157,7 +157,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   roleLabel: { marginBottom: tokens.spacing.xs },
   roleRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
   roleRowStacked: { flexDirection: 'column' },
-  roleButton: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
+  roleButton: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
   roleButtonStacked: { flexBasis: 'auto', flexGrow: 0 },
   roleButtonActive: { backgroundColor: colors.primary },
   menuContent: { paddingBottom: tokens.spacing.xl },

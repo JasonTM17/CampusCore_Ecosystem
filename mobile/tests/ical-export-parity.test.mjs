@@ -72,6 +72,9 @@ const fixtures = {
   missingTimes: [
     { id: 'e7', status: 'PENDING', section: { sectionNumber: '07', course: { code: 'YY1', credits: 0 }, schedules: [{ dayOfWeek: 4 }] } },
   ],
+  missingName: [
+    { id: 'e8', status: 'ENROLLED', section: { sectionNumber: '08', course: { code: 'CS204', nameEn: null, nameVi: 'Kiến trúc phần mềm', credits: 3 }, schedules: [{ id: 'sch-8', dayOfWeek: 2, startTime: '07:30', endTime: '09:00' }] } },
+  ],
 };
 
 for (const locale of ['vi', 'en']) {
@@ -84,6 +87,14 @@ for (const locale of ['vi', 'en']) {
     });
   }
 }
+
+test('English export keeps the localized name when nameEn and name are missing', () => {
+  const webEvents = web.buildScheduleIcsEvents(fixtures.missingName, semester, 'en');
+  const mobileEvents = mobile.buildScheduleIcsEvents(fixtures.missingName, semester, 'en', NOW);
+  assert.equal(mobileEvents[0].summary, webEvents[0].summary);
+  assert.match(mobileEvents[0].summary, /Kiến trúc phần mềm/);
+  assert.match(webEvents[0].summary, /Kiến trúc phần mềm/);
+});
 
 test('open-ended term without dates anchors on Vietnam today and has no recurrence end', () => {
   const realNow = Date.now;
