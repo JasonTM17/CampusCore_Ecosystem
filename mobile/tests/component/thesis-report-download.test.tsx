@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals';
 
 import { createThesisApi } from '../../src/screens/thesis/thesis-api';
-import { saveReportFile } from '../../src/screens/thesis/thesis-files';
+import { pickReportFile, saveReportFile } from '../../src/screens/thesis/thesis-files';
 import type { ApiClient, ApiDownload } from '../../src/api/client';
 import type { FileAdapter } from '../../src/files/file-adapter';
 
@@ -30,6 +30,18 @@ test('the report download asks the transport for the streamed file lane', async 
     '/thesis/groups/group-1/report/file',
     expect.objectContaining({ nativeFile: true }),
   );
+});
+
+test('a rejected file picker becomes a failed outcome', async () => {
+  const error = Object.assign(new Error('private picker detail'), { code: 'PICK_FAILED' });
+  const adapter: FileAdapter = {
+    capability: () => ({ available: true }),
+    pick: async () => { throw error; },
+    share: jest.fn(async () => ({ status: 'unavailable' as const, reason: 'test' })),
+    save: jest.fn(async () => ({ status: 'done' as const })),
+  };
+
+  await expect(pickReportFile(adapter)).resolves.toEqual({ status: 'failed', reason: 'PICK_FAILED' });
 });
 
 test('the saved report hands the streamed file URI to the adapter without re-encoding', async () => {
