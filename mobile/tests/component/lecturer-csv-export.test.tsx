@@ -11,6 +11,7 @@ const mockRuntime = {
   mode: 'live' as 'live' | 'preview',
   queries: {} as Record<string, unknown>,
   shared: [] as { content: string; name: string }[],
+  shareFails: false,
 };
 
 jest.mock('../../src/api/client', () => ({
@@ -43,6 +44,7 @@ jest.mock('../../src/screens/operations/lecturer-api', () => ({
   },
   csvShareAvailable: () => true,
   shareCsv: async (content: string, name: string) => {
+    if (mockRuntime.shareFails) throw new Error('native share failed');
     mockRuntime.shared.push({ content, name });
     return { status: 'done' as const };
   },
@@ -72,6 +74,7 @@ const processInput = () =>
 beforeEach(() => {
   mockRuntime.mode = 'live';
   mockRuntime.shared = [];
+  mockRuntime.shareFails = false;
   mockRuntime.queries = {
     'lecturer:grading': sections,
     'lecturer:grades:section-a': gradeSheet,
@@ -96,6 +99,15 @@ test('grade CSV keeps the loaded score when the visible text is not a valid scor
   await waitFor(() => expect(mockRuntime.shared).toHaveLength(1));
   expect(mockRuntime.shared[0].content).toContain('"5.0"');
   expect(mockRuntime.shared[0].content).not.toContain('"11.0"');
+});
+
+test('grade CSV reports a rejected share and releases the busy action', async () => {
+  mockRuntime.shareFails = true;
+  await render(screenElement(<LecturerGradingScreen {...props} />));
+  await fireEvent.press(await screen.findByRole('button', { name: /Export CSV/ }));
+
+  expect(await screen.findByText(operationsMessages.en.exportFailed)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: /Export CSV/ })).toBeEnabled();
 });
 
 test('the 50% score field is labelled Coursework', async () => {
