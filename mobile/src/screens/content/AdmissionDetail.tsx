@@ -8,6 +8,7 @@ import { DateField } from '../../components/ui/index';
 import type { MobileAdmissionForm } from '../../api/client';
 import { admissionsMessages } from '../../i18n/admissions-messages';
 import { fillCopy } from '../../i18n/academic-messages';
+import { campusIsoDate } from '../../i18n/locale';
 import { DOCUMENT_POLICY } from './attachment-transfer';
 import { contentApi, type AdmissionApplicationView, type AttachmentInfo } from './content-api';
 import { admissionPhase, canChangeAttachments, missingAdmissionFields, type AdmissionRequiredField } from './content-rules';
@@ -23,7 +24,7 @@ import {
   type Flash,
 } from './content-ui';
 
-const todayIso = (): string => new Date().toISOString().slice(0, 10);
+const todayIso = (): string => campusIsoDate();
 
 export interface AdmissionDetailProps {
   application: AdmissionApplicationView;

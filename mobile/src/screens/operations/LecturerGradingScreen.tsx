@@ -17,6 +17,7 @@ import {
   dirtyGradeCount,
   gradedPercent,
   mergeGradeEdits,
+  normalizeOperationsSearch,
   sameGradeSheet,
   windowOf,
   type GradeDraft,
@@ -152,9 +153,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     setPicked(next);
   };
   const locked = rows.length > 0 && rows.every((row) => row.gradeStatus === 'PUBLISHED' || row.gradeStatus === 'APPEALED');
-  const needle = search.trim().toLowerCase();
+  const needle = normalizeOperationsSearch(search.trim());
   const visible = needle
-    ? rows.filter((row) => `${row.studentName ?? ''} ${row.studentCode ?? ''}`.toLowerCase().includes(needle))
+    ? rows.filter((row) => normalizeOperationsSearch(`${row.studentName ?? ''} ${row.studentCode ?? ''}`).includes(needle))
     : rows;
   const { rows: shown, hasMore } = windowOf(visible, pages, PAGE_SIZE);
 

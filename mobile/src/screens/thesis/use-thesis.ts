@@ -331,7 +331,7 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
         }),
       ]);
       const inRound = groups.filter((group) => group.roundId === key);
-      const group = inRound.find((item) => item.status !== 'CANCELLED') ?? inRound[0] ?? null;
+      const group = inRound.find((item) => item.status !== 'CANCELLED') ?? null;
       return { key, studentId: me.studentId ?? null, group, progress, progressFailed };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
@@ -441,7 +441,7 @@ export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
         try {
           return { topic, supervisors: await thesisApi.supervisors(topic.id) };
         } catch (error) {
-          if (isResourceUnauthorizedError(error)) throw error;
+          if (isResourceUnauthorizedError(error) || thesisErrorInfo(error).status === 403) throw error;
           failed += 1;
           return { topic, supervisors: [] as ThesisSupervisor[] };
         }

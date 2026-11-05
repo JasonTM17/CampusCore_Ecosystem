@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { Card, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, StatePanel, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
 import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
@@ -22,7 +22,10 @@ export function ThesisAdvisorsView({ roundId, copy }: { roundId: string | null; 
         </UiText>
       ) : null}
       {idle && directory.failed > 0 ? (
-        <UiText variant="meta" tone="warning" style={styles.gap}>{copy.advisorsLoadFailed}</UiText>
+        <View style={styles.failure}>
+          <UiText variant="meta" tone="warning">{copy.advisorsLoadFailed}</UiText>
+          <Button label={copy.retry} variant="secondary" onPress={() => void directory.reload()} />
+        </View>
       ) : null}
       {idle && directory.entries.length === 0 ? <StatePanel kind="empty" title={copy.advisorsEmpty} /> : null}
       {directory.entries.map((advisor) => (
@@ -44,4 +47,5 @@ export function ThesisAdvisorsView({ roundId, copy }: { roundId: string | null; 
 const styles = StyleSheet.create({
   gap: { marginBottom: tokens.spacing.sm },
   count: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },
+  failure: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
 });

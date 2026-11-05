@@ -31,7 +31,7 @@ function renderThemed(element: ReactElement) {
 afterEach(() => { jest.restoreAllMocks(); });
 
 describe('lecturer rows at large text sizes', () => {
-  test('attendance status choices fit their labels and remain reachable at 360dp / 2x text', async () => {
+  test('attendance choices and the clear action remain reachable at 360dp / 2x text', async () => {
     setWindow(360, 2);
     const onChange = jest.fn();
     const row: RosterRow = {
@@ -47,6 +47,7 @@ describe('lecturer rows at large text sizes', () => {
 
     const choices = screen.getAllByRole('radio');
     expect(choices).toHaveLength(4);
+    const clearAction = screen.getByRole('button', { name: /An Nguyen/ });
     const rowStyle = StyleSheet.flatten(choices[0].parent?.props.style);
     expect(rowStyle.flexWrap).toBe('wrap');
     expect(rowStyle.gap).toBe(tokens.spacing.xs);
@@ -54,11 +55,15 @@ describe('lecturer rows at large text sizes', () => {
       const style = StyleSheet.flatten(choice.props.style);
       expect(style.flexGrow).toBe(0);
       expect(style.flexShrink).toBe(1);
-      expect(style.minWidth).toBe(tokens.layout.touchTarget);
+      expect(style.minWidth).toBeGreaterThanOrEqual(48);
       expect(style.maxWidth).toBe('100%');
-      expect(style.minHeight).toBeGreaterThanOrEqual(tokens.layout.touchTarget);
+      expect(style.minHeight).toBeGreaterThanOrEqual(48);
       expect(choice.props.accessibilityLabel).toContain('An Nguyen');
     }
+    const clearStyle = StyleSheet.flatten(clearAction.props.style);
+    expect(clearStyle.minWidth).toBeGreaterThanOrEqual(48);
+    expect(clearStyle.minHeight).toBeGreaterThanOrEqual(48);
+    expect(clearAction.props.accessibilityLabel).toContain('An Nguyen');
     expect(StyleSheet.flatten(screen.getByText('Present').props.style)).toMatchObject({ flexShrink: 1, minWidth: 0 });
 
     await fireEvent.press(choices[0]);

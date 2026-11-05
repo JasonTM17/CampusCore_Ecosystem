@@ -27,6 +27,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
   const copy = useAccountCopy();
   const { colors } = useTheme();
   const tokenRef = useRef<string | null>(initialToken);
+  const submitFlight = useRef(false);
   const [state, dispatch] = useReducer(resetReducer, initialToken, initialResetState);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -36,13 +37,14 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
 
   const submit = async () => {
     const token = tokenRef.current;
-    if (!token || submitting) return;
+    if (!token || submitting || submitFlight.current) return;
     const issue = checkPasswordPolicy(password, { confirmPassword: confirmation });
     if (issue) {
       setLocalError(copy.errors.codes[issue]);
       return;
     }
     setLocalError(null);
+    submitFlight.current = true;
     dispatch({ type: 'submit' });
     try {
       await accountApi.resetPassword(token, password);
@@ -54,6 +56,8 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
       const failure = classifyError(error);
       if (failure.code === 'RESET_TOKEN_INVALID') tokenRef.current = null;
       dispatch({ type: 'failed', failure });
+    } finally {
+      submitFlight.current = false;
     }
   };
 

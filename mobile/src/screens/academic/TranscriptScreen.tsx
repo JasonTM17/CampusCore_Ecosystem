@@ -49,15 +49,17 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
         const result = published && record.finalGrade != null
           ? `${formatNumber(record.finalGrade, { maximumFractionDigits: 1 })} · ${record.letterGrade ?? '—'}`
           : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
+        const creditsLabel = fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) });
+        const appealedLabel = published && record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
         return (
           <GroupCard edge={entry.last ? 'end' : 'middle'} style={academicStyles.card}>
-          <View key={record.id} accessible accessibilityLabel={`${record.courseCode} ${record.courseName}, ${result}`}>
+          <View key={record.id} accessible accessibilityLabel={`${record.courseCode} ${record.courseName}, ${creditsLabel}, ${result}${appealedLabel}`}>
             <Divider />
             <View style={academicStyles.row}>
               <View style={academicStyles.rowCopy}>
                 <StatusPill label={record.courseCode} tone="primary" />
                 <UiText variant="bodyMedium">{record.courseName}</UiText>
-                <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) })}</UiText>
+                <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
               </View>
               {published && record.finalGrade != null ? (
                 <View style={styles.gradeResult}>

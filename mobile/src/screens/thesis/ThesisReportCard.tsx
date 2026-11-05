@@ -69,9 +69,11 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   };
   const [issues, setIssues] = useState<string[]>([]);
   const [notice, setNotice] = useState<Notice>(null);
-  const [working, setWorking] = useState<'save' | 'upload' | 'download' | 'remove' | null>(null);
+  const [working, setWorking] = useState<'pick' | 'save' | 'upload' | 'download' | 'remove' | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  const picking = useRef(false);
+  const mounted = useRef(true);
 
   // Form fields mirror the stored report whenever its values change. A reload
   // that returns the same values (a failed save, a revalidation) must not
@@ -86,10 +88,14 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
     setNote(report?.note ?? '');
     setUrl(report?.url ?? '');
   }, [report]);
-  useEffect(() => () => {
-    abort.current?.abort();
-    pickedRef.current?.release?.();
-    pickedRef.current = null;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      abort.current?.abort();
+      pickedRef.current?.release?.();
+      pickedRef.current = null;
+    };
   }, []);
 
   if (!approved) {
@@ -114,17 +120,29 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   );
 
   const pick = async () => {
+    if (picking.current) return;
+    picking.current = true;
+    setWorking('pick');
     setNotice(null);
-    const outcome = await pickReportFile(adapter);
-    if (outcome.status === 'picked') {
-      setPicked(outcome.file);
-      setIssues([]);
-    } else if (outcome.status === 'unavailable') {
-      setNotice({ tone: 'error', text: copy.reportFileUnavailable });
-    } else if (outcome.status === 'invalid') {
-      setNotice({ tone: 'error', text: copy.validation[outcome.issue] });
-    } else if (outcome.status === 'failed') {
-      setNotice({ tone: 'error', text: copy.reportFileFailed });
+    try {
+      const outcome = await pickReportFile(adapter);
+      if (!mounted.current) {
+        if (outcome.status === 'picked') outcome.file.release?.();
+        return;
+      }
+      if (outcome.status === 'picked') {
+        setPicked(outcome.file);
+        setIssues([]);
+      } else if (outcome.status === 'unavailable') {
+        setNotice({ tone: 'error', text: copy.reportFileUnavailable });
+      } else if (outcome.status === 'invalid') {
+        setNotice({ tone: 'error', text: copy.validation[outcome.issue] });
+      } else if (outcome.status === 'failed') {
+        setNotice({ tone: 'error', text: copy.reportFileFailed });
+      }
+    } finally {
+      picking.current = false;
+      if (mounted.current) setWorking(null);
     }
   };
 
@@ -289,7 +307,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
             </UiText>
           ) : null}
           {canPick ? (
-            <Button label={copy.reportPick} variant="secondary" disabled={busy} onPress={() => void pick()} style={styles.gap} />
+            <Button label={copy.reportPick} variant="secondary" loading={working === 'pick'} disabled={busy} onPress={() => void pick()} style={styles.gap} />
           ) : (
             <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.reportFileUnavailable}</UiText>
           )}
