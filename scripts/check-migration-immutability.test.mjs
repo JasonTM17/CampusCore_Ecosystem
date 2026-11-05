@@ -140,3 +140,45 @@ test('adding a later supabase migration does not fail immutability checks', asyn
   assert.equal(result.ok, true);
   assert.deepEqual(result.failures, []);
 });
+
+test('a base ref equal to HEAD compares the previous revision and rejects an edited V147', async () => {
+  const original = migration('147', 'existing_index', 'blob-original');
+  const edited = { ...original, blob: 'blob-edited' };
+  const result = await checkMigrationImmutability({
+    baseRef: 'HEAD',
+    readTree: async (ref) => ref === 'HEAD^' ? [original] : [edited],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failures[0].path, original.path);
+});
+
+for (const previousRef of ['push-before', '0'.repeat(40)]) {
+  test(`equal resolved commits use the previous push revision (${previousRef})`, async () => {
+    const original = migration('147', 'existing_index', 'blob-original');
+    const reads = [];
+    const expected = previousRef.startsWith('000') ? 'HEAD^' : previousRef;
+    const result = await checkMigrationImmutability({
+      baseRef: 'origin/main', previousRef,
+      resolveRef: async () => 'same-commit',
+      readTree: async (ref) => {
+        reads.push(ref);
+        return ref === expected ? [original] : [{ ...original, blob: 'blob-edited' }];
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.failures[0].path, original.path);
+    assert.ok(reads.includes(expected));
+  });
+}
+
+test('pull request comparison retains the main baseline when revisions differ', async () => {
+  const original = migration('147', 'existing_index', 'blob-original');
+  const reads = [];
+  const result = await checkMigrationImmutability({
+    baseRef: 'origin/main', previousRef: 'push-before',
+    resolveRef: async (ref) => ref,
+    readTree: async (ref) => { reads.push(ref); return [original]; },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(reads, ['origin/main', 'HEAD']);
+});
