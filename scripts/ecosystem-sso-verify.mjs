@@ -218,7 +218,7 @@ async function casePreview(args) {
     //    self-signed surfaces are exercised with ignoreHTTPSErrors.
     const pw = tryRun(process.execPath, [
       PLAYWRIGHT_CLI, 'test', 'e2e/ecosystem-sso.spec.ts',
-      '--project', 'chromium', '--reporter', 'list',
+      '--project', 'chromium', '--reporter', 'list', '--max-failures', '1',
     ], {
       cwd: FRONTEND, timeoutMs: 900000,
       env: {
