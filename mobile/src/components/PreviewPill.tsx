@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { apiClient } from '../api/client';
 import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
-import { tokens } from '../design/tokens';
+import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { Sheet } from './ui/primitives';
@@ -53,6 +53,6 @@ export function PreviewPill({ style }: PreviewPillProps) {
 }
 
 const styles = StyleSheet.create({
-  pill: { alignItems: 'center', borderRadius: tokens.radii.pill, flexDirection: 'row', gap: tokens.spacing.xs, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
+  pill: { alignItems: 'center', borderRadius: tokens.radii.pill, flexDirection: 'row', gap: tokens.spacing.xs, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: tokens.spacing.sm },
   explanation: { paddingBottom: tokens.spacing.sm },
 });

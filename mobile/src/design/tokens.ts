@@ -201,6 +201,12 @@ export const tokens = {
   },
 } as const;
 
+/**
+ * Android minimum tap target. The design token stays at 44 so existing layouts
+ * and snapshots are untouched; interactive descendants opt into this floor.
+ */
+export const minTapTarget = Math.max(48, tokens.layout.touchTarget);
+
 export const uiMessageKeys = contract.messages;
 
 export type DesignTokens = typeof tokens;
