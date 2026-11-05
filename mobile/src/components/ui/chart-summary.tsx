@@ -29,17 +29,18 @@ export function ChartSummary({ title, series, kind = 'bars', unit }: ChartSummar
   const { colors, spacing, radii } = useTheme();
   const { t, formatNumber } = useLocale();
   const fmt = (value: number) => `${formatNumber(value)}${unit ? ` ${unit}` : ''}`;
-  const ratios = barRatios(series.map((p) => p.value));
+  const validSeries = series.filter((point) => Number.isFinite(point.value));
+  const ratios = barRatios(validSeries.map((point) => point.value));
 
   let alternative = `${title}: ${t('chartNoData')}`;
-  if (series.length > 0) {
-    const values = series.map((p) => p.value).filter(Number.isFinite);
+  if (validSeries.length > 0) {
+    const values = validSeries.map((point) => point.value);
     const detail = kind === 'bars'
-      ? series.map((p) => `${p.label} ${fmt(p.value)}`).join(', ')
-      : `${series[0].label} - ${series[series.length - 1].label}; ${t('chartRange', {
+      ? validSeries.map((point) => `${point.label} ${fmt(point.value)}`).join(', ')
+      : `${validSeries[0].label} - ${validSeries[validSeries.length - 1].label}; ${t('chartRange', {
           min: fmt(Math.min(...values)),
           max: fmt(Math.max(...values)),
-          last: fmt(series[series.length - 1].value),
+          last: fmt(validSeries[validSeries.length - 1].value),
         })}`;
     alternative = `${title}: ${detail}`;
   }
@@ -52,11 +53,11 @@ export function ChartSummary({ title, series, kind = 'bars', unit }: ChartSummar
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, padding: spacing.md }]}
     >
       <UiText variant="headlineSmall">{title}</UiText>
-      {series.length === 0 ? (
+      {validSeries.length === 0 ? (
         <UiText variant="bodySmall" tone="muted" style={{ marginTop: spacing.xs }}>{t('chartNoData')}</UiText>
       ) : kind === 'bars' ? (
         <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-          {series.map((point, i) => (
+          {validSeries.map((point, i) => (
             <View key={`${point.label}-${i}`}>
               <View style={styles.barHead}>
                 <UiText variant="bodySmall" style={styles.grow}>{point.label}</UiText>
@@ -70,10 +71,10 @@ export function ChartSummary({ title, series, kind = 'bars', unit }: ChartSummar
         </View>
       ) : (
         <View style={[styles.spark, { gap: spacing.xs, marginTop: spacing.sm }]}>
-          {series.map((point, i) => (
+          {validSeries.map((point, i) => (
             <View
               key={`${point.label}-${i}`}
-              style={{ backgroundColor: i === series.length - 1 ? colors.primary : colors.primaryContainer, borderRadius: 2, flex: 1, height: Math.max(2, Math.round(ratios[i] * 48)) }}
+              style={{ backgroundColor: i === validSeries.length - 1 ? colors.primary : colors.primaryContainer, borderRadius: 2, flex: 1, height: Math.max(2, Math.round(ratios[i] * 48)) }}
             />
           ))}
         </View>

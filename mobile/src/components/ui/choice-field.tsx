@@ -63,9 +63,10 @@ export function ChoiceField({ label, options, value, onChange, display = 'auto',
                     key={option.value}
                     accessibilityRole="radio"
                     accessibilityLabel={option.label}
-                    accessibilityState={{ checked: isSelected, selected: isSelected }}
+                    accessibilityState={{ checked: isSelected, selected: isSelected, disabled }}
+                    disabled={disabled}
                     onPress={() => { onChange(option.value); setOpen(false); }}
-                    style={[styles.option, { minHeight: minTapTarget, paddingHorizontal: spacing.sm }, isSelected ? { backgroundColor: colors.primaryFixed } : undefined]}
+                    style={[styles.option, { minHeight: minTapTarget, paddingHorizontal: spacing.sm }, isSelected ? { backgroundColor: colors.primaryFixed } : undefined, disabled ? styles.disabled : undefined]}
                   >
                     <UiText variant="bodyMedium" tone={isSelected ? 'primary' : 'default'} style={styles.grow}>{option.label}</UiText>
                     <UiText variant="label" tone="primary">{isSelected ? '✓' : ''}</UiText>

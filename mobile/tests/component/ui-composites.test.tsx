@@ -137,6 +137,15 @@ describe('ChoiceField', () => {
     expect(onChange).toHaveBeenCalledWith('d');
   });
 
+  test('does not allow a sheet selection after the field becomes disabled', async () => {
+    const onChange = jest.fn();
+    const { rerender } = await render(wrap(<ChoiceField label="Khoa" options={options} value="b" onChange={onChange} />));
+    await fireEvent.press(screen.getByRole('button', { name: 'Khoa: Khoa B' }));
+    await rerender(wrap(<ChoiceField label="Khoa" options={options} value="b" onChange={onChange} disabled />));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Khoa D' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   test('uses segments for a short option list', async () => {
     const onChange = jest.fn();
     await render(wrap(<ChoiceField label="Loại" options={options.slice(0, 2)} value="a" onChange={onChange} />));
@@ -146,6 +155,16 @@ describe('ChoiceField', () => {
 });
 
 describe('DateField', () => {
+  test('does not commit a draft after the field becomes disabled', async () => {
+    const onChange = jest.fn();
+    const { rerender } = await render(wrap(<DateField label="Ngày" value="" onChange={onChange} />));
+    await fireEvent.press(screen.getByRole('button', { name: /Ngày/ }));
+    await fireEvent.changeText(screen.getByLabelText('Chọn ngày'), '12/11/2026');
+    await rerender(wrap(<DateField label="Ngày" value="" onChange={onChange} disabled />));
+    await fireEvent.press(screen.getByRole('button', { name: 'Áp dụng' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   test('rejects impossible and out-of-range dates, then commits a valid one', async () => {
     const onChange = jest.fn();
     await render(wrap(<DateField label="Hạn nộp" value="" onChange={onChange} min="2026-01-01" />));
@@ -219,6 +238,16 @@ describe('ChartSummary', () => {
     expect(screen.getByRole('image').props.accessibilityLabel).toBe('Điểm: T1 - T2; thấp nhất 7,5, cao nhất 9, mới nhất 9');
 
     await rerender(wrap(<ChartSummary title="Điểm" series={[]} />));
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Điểm: Chưa có số liệu');
+  });
+
+  test('omits non-finite values from the sparkline alternative and empty chart', async () => {
+    const { rerender } = await render(wrap(<ChartSummary title="Điểm" kind="sparkline" series={[
+      { label: 'T1', value: 4 },
+      { label: 'T2', value: Number.NaN },
+    ]} />));
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Điểm: T1 - T1; thấp nhất 4, cao nhất 4, mới nhất 4');
+    await rerender(wrap(<ChartSummary title="Điểm" kind="sparkline" series={[{ label: 'T1', value: Number.NaN }]} />));
     expect(screen.getByRole('image').props.accessibilityLabel).toBe('Điểm: Chưa có số liệu');
   });
 });
