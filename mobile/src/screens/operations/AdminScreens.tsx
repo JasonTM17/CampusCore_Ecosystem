@@ -27,6 +27,7 @@ import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { HandoffButton, isOpsPreview } from './lecturer-ui';
+import { normalizeOperationsSearch } from './lecturer-model';
 import { useOpsCopy, WebOnlyPanel } from './shared/helpers';
 import { useOpsStyles } from './shared/styles';
 
@@ -234,14 +235,14 @@ export function AdminStudentsScreen() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedStudent, setSelectedStudent] = useState<StudentDirectoryItem | null>(null);
 
-  const needle = search.trim().toLowerCase();
+  const needle = normalizeOperationsSearch(search.trim());
   const filtered = SAMPLE_STUDENTS.filter((item) => {
     const matchesSearch =
       needle === '' ||
-      item.name.toLowerCase().includes(needle) ||
-      item.studentCode.toLowerCase().includes(needle) ||
-      item.email.toLowerCase().includes(needle) ||
-      item.department.toLowerCase().includes(needle);
+      normalizeOperationsSearch(item.name).includes(needle) ||
+      normalizeOperationsSearch(item.studentCode).includes(needle) ||
+      normalizeOperationsSearch(item.email).includes(needle) ||
+      normalizeOperationsSearch(item.department).includes(needle);
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -298,6 +299,7 @@ export function AdminStudentsScreen() {
 
       {selectedStudent ? (
         <Sheet
+          scroll
           visible={Boolean(selectedStudent)}
           onClose={() => setSelectedStudent(null)}
           title={copy.studentDetail}
@@ -404,13 +406,13 @@ export function AdminLecturersScreen() {
   const [filter, setFilter] = useState<'ALL' | 'AVAILABLE'>('ALL');
   const [selectedLecturer, setSelectedLecturer] = useState<LecturerDirectoryItem | null>(null);
 
-  const needle = search.trim().toLowerCase();
+  const needle = normalizeOperationsSearch(search.trim());
   const filtered = SAMPLE_LECTURERS.filter((item) => {
     const matchesSearch =
       needle === '' ||
-      item.name.toLowerCase().includes(needle) ||
-      item.department.toLowerCase().includes(needle) ||
-      item.email.toLowerCase().includes(needle);
+      normalizeOperationsSearch(item.name).includes(needle) ||
+      normalizeOperationsSearch(item.department).includes(needle) ||
+      normalizeOperationsSearch(item.email).includes(needle);
     const matchesFilter = filter === 'ALL' || item.status === 'AVAILABLE';
     return matchesSearch && matchesFilter;
   });
@@ -461,6 +463,7 @@ export function AdminLecturersScreen() {
 
       {selectedLecturer ? (
         <Sheet
+          scroll
           visible={Boolean(selectedLecturer)}
           onClose={() => setSelectedLecturer(null)}
           title={copy.lecturerDetail}

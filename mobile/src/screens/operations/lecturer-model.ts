@@ -32,7 +32,7 @@ export function courseTitle(section: SectionLike, locale: 'vi' | 'en'): string {
   return names.find((name) => typeof name === 'string' && name.trim() !== '')?.trim() ?? '';
 }
 
-const fold = (value: string) =>
+export const normalizeOperationsSearch = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0111/gi, 'd').toLowerCase();
 
 /** Diacritic-insensitive match on course code, name and section number. */
@@ -42,11 +42,11 @@ export function filterSections<T extends SectionLike>(
   semesterId: string,
   locale: 'vi' | 'en',
 ): T[] {
-  const needle = fold(query.trim());
+  const needle = normalizeOperationsSearch(query.trim());
   return sections.filter((section) => {
     if (semesterId && section.semesterId !== semesterId) return false;
     if (!needle) return true;
-    const haystack = fold([section.courseCode, courseTitle(section, locale), section.sectionNumber].filter(Boolean).join(' '));
+    const haystack = normalizeOperationsSearch([section.courseCode, courseTitle(section, locale), section.sectionNumber].filter(Boolean).join(' '));
     return haystack.includes(needle);
   });
 }
@@ -233,8 +233,8 @@ export function attendanceMetrics(rows: readonly RosterRow[]): AttendanceMetrics
 }
 
 export const filterRoster = (rows: readonly RosterRow[], query: string): RosterRow[] => {
-  const needle = fold(query.trim());
-  return needle ? rows.filter((row) => fold(`${row.name} ${row.studentCode}`).includes(needle)) : [...rows];
+  const needle = normalizeOperationsSearch(query.trim());
+  return needle ? rows.filter((row) => normalizeOperationsSearch(`${row.name} ${row.studentCode}`).includes(needle)) : [...rows];
 };
 
 /** Today as YYYY-MM-DD from local calendar fields. */

@@ -158,11 +158,15 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
 
   const run = async () => {
     setState({ status: 'busy' });
-    const result = await shareCsv(build(), name);
-    if (result.status === 'done') setState({ status: 'ready', label: copy.exportShared });
-    else if (result.status === 'cancelled') setState({ status: 'ready' });
-    else if (result.status === 'unavailable') setState({ status: 'unavailable', label: copy.exportUnavailable });
-    else setState({ status: 'failed', label: copy.exportFailed });
+    try {
+      const result = await shareCsv(build(), name);
+      if (result.status === 'done') setState({ status: 'ready', label: copy.exportShared });
+      else if (result.status === 'cancelled') setState({ status: 'ready' });
+      else if (result.status === 'unavailable') setState({ status: 'unavailable', label: copy.exportUnavailable });
+      else setState({ status: 'failed', label: copy.exportFailed });
+    } catch {
+      setState({ status: 'failed', label: copy.exportFailed });
+    }
   };
 
   const status: FileRowStatus = available ? state.status : 'unavailable';
