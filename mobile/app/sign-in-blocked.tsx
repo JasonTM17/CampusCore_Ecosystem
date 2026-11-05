@@ -5,6 +5,8 @@ import { Button, UiText } from '../src/components/Ui';
 import { useTheme } from '../src/design/theme';
 import { tokens } from '../src/design/tokens';
 import { useSession } from '../src/session/SessionContext';
+import { useAccountCopy } from '../src/screens/account/use-account-copy';
+import { configuredPortalUrl } from '../src/screens/operations/shared/portal-url';
 
 /**
  * Sign-in-blocked state (mobile-policy §3, KM-12): mustChangePassword,
@@ -16,23 +18,24 @@ export default function SignInBlocked() {
   const router = useRouter();
   const session = useSession();
   const { colors } = useTheme();
-  const reason = session.blockedReason
-    ?? 'Sign-in could not finish. Use the web portal if this keeps happening.';
+  const copy = useAccountCopy();
+  const reason = session.blockedReason ?? copy.blocked.fallbackReason;
+  const portal = configuredPortalUrl();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <UiText variant="headlineMedium">Sign-in blocked</UiText>
+      <UiText accessibilityRole="header" variant="headlineMedium">{copy.blocked.title}</UiText>
       <UiText style={styles.reason}>{reason}</UiText>
+      {portal ? (
+        <Button
+          label={copy.blocked.openPortal}
+          onPress={() => {
+            void Linking.openURL(portal).catch(() => undefined);
+          }}
+        />
+      ) : null}
       <Button
-        label="Open web portal"
-        onPress={() => {
-          const portal = process.env.EXPO_PUBLIC_PORTAL_URL
-            ?? 'https://portal.localhost:3102';
-          void Linking.openURL(portal).catch(() => undefined);
-        }}
-      />
-      <Button
-        label="Back to sign-in"
+        label={copy.common.backToSignIn}
         variant="secondary"
         onPress={() => {
           session.markBlocked(null);

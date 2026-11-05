@@ -31,7 +31,8 @@ export function resolveApiBaseUrl(
 
   try {
     const url = new URL(candidate);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+      || url.username || url.password || /[?#]/.test(candidate)) return undefined;
     if (!development && url.protocol !== 'https:' && !(allowCleartextLocal && isLocalCleartextUrl(candidate))) return undefined;
     // A base typed with `//api//v1` must not double the slash at every join.
     url.pathname = url.pathname.replace(/\/{2,}/g, '/').replace(/\/+$/, '');

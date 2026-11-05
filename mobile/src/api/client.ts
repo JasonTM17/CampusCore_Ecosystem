@@ -908,7 +908,7 @@ async function readResponseBody(response: Response) {
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('json')) {
+  if (contentType.toLowerCase().includes('json')) {
     return response.json();
   }
 
