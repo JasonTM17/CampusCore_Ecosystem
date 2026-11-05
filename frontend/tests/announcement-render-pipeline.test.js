@@ -710,6 +710,7 @@ function loadPublicNewsDetail(item) {
     '@/components/ui/skeleton': { HomeNewsBentoSkeleton: dummyComponent },
     '@/components/ui/state-block': { ErrorState: dummyComponent },
     '@/lib/campus-error': { campusErrorKind: () => 'unknown' },
+    '@/lib/safe-url': loadTs('src/lib/safe-url.ts'),
     '@/i18n': {
       useI18n: () => ({ locale: 'vi', messages: { content: { news: PUBLIC_NEWS_COPY } } }),
     },

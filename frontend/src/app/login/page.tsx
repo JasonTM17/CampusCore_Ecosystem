@@ -358,9 +358,8 @@ export default function LoginPage() {
           </h2>
         </div>
 
-        <div
+        <nav
           className="grid grid-cols-3 gap-1.5 rounded-xl border border-slate-300/80 dark:border-border/80 bg-slate-200/90 dark:bg-muted/90 p-1.5 shadow-inner"
-          role="tablist"
           aria-label={messages.login.portals.groupLabel}
         >
           {VISIBLE_LOGIN_PORTALS.map((item) => {
@@ -369,8 +368,7 @@ export default function LoginPage() {
               <LocalizedLink
                 key={item}
                 href={portalHref(item)}
-                role="tab"
-                aria-selected={selected}
+                aria-current={selected ? 'page' : undefined}
                 className={cn(
                   'inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-center text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
@@ -382,7 +380,7 @@ export default function LoginPage() {
               </LocalizedLink>
             );
           })}
-        </div>
+        </nav>
 
         {demoCredentials && !bffSurface ? (
         <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-xs space-y-2.5 shadow-xs">
@@ -630,6 +628,8 @@ export default function LoginPage() {
                 placeholder={messages.login.twoFactor.codePlaceholder}
                 maxLength={6}
                 icon={<ShieldCheck className="h-4 w-4" />}
+                aria-invalid={formError ? true : undefined}
+                aria-describedby={formError ? 'login-error' : undefined}
                 required
                 autoFocus
               />
@@ -693,6 +693,8 @@ export default function LoginPage() {
               placeholder={messages.login.emailPlaceholder}
               autoComplete="email"
               icon={<Mail className="h-4 w-4" />}
+              aria-invalid={formError ? true : undefined}
+              aria-describedby={formError ? 'login-error' : undefined}
               required
             />
           </div>
@@ -712,6 +714,8 @@ export default function LoginPage() {
               placeholder={messages.login.passwordPlaceholder}
               autoComplete="current-password"
               icon={<Lock className="h-4 w-4" />}
+              aria-invalid={formError ? true : undefined}
+              aria-describedby={formError ? 'login-error' : undefined}
               required
               endAction={
                 <button
