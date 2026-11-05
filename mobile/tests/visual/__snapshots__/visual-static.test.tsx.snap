@@ -2158,99 +2158,104 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                   "c": [
                     {
                       "c": [
-                        "Câu hỏi của bạn",
+                        {
+                          "c": [
+                            "Câu hỏi của bạn",
+                          ],
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [],
+                          "label": "Câu hỏi của bạn",
+                          "s": {
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "color": "#EDF0F2",
+                            "fontSize": 16,
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 8,
+                          },
+                          "t": "TextInput",
+                        },
+                        {
+                          "c": [
+                            "0/2000 ký tự",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 13,
-                        "marginBottom": 4,
+                        "marginBottom": 8,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
-                    {
-                      "c": [],
-                      "label": "Câu hỏi của bạn",
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "color": "#EDF0F2",
-                        "fontSize": 16,
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 8,
-                      },
-                      "t": "TextInput",
-                    },
-                    {
-                      "c": [
-                        "0/2000 ký tự",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "s": {
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
                     {
                       "c": [
                         {
                           "c": [
                             {
                               "c": [
-                                "󱅥",
+                                {
+                                  "c": [
+                                    "󱅥",
+                                  ],
+                                  "s": {
+                                    "color": "#12151C",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Gửi câu hỏi",
+                                  ],
+                                  "s": {
+                                    "color": "#12151C",
+                                    "fontSize": 13,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
-                                "color": "#12151C",
-                                "fontSize": 20,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
                               },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "Gửi câu hỏi",
-                              ],
-                              "s": {
-                                "color": "#12151C",
-                                "fontSize": 13,
-                              },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
+                          "label": "Gửi câu hỏi",
+                          "role": "button",
                           "s": {
                             "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
+                            "backgroundColor": "#98BDD7",
+                            "borderRadius": 8,
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 12,
                           },
                           "t": "View",
                         },
                       ],
-                      "label": "Gửi câu hỏi",
-                      "role": "button",
                       "s": {
-                        "alignItems": "center",
-                        "backgroundColor": "#98BDD7",
-                        "borderRadius": 8,
-                        "flex": 1,
-                        "justifyContent": "center",
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 12,
+                        "flexDirection": "row",
+                        "gap": 8,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flexDirection": "row",
-                    "gap": 8,
-                  },
                   "t": "View",
                 },
               ],
@@ -2670,98 +2675,107 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                   "c": [
                     {
                       "c": [
-                        "Câu hỏi của bạn",
+                        {
+                          "c": [
+                            "Câu hỏi của bạn",
+                          ],
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [],
+                          "label": "Câu hỏi của bạn",
+                          "s": {
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "color": "#EDF0F2",
+                            "fontSize": 16,
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 8,
+                          },
+                          "t": "TextInput",
+                        },
+                        {
+                          "c": [
+                            "0/2000 ký tự",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 13,
-                        "marginBottom": 4,
+                        "marginBottom": 8,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
-                    {
-                      "c": [],
-                      "label": "Câu hỏi của bạn",
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "color": "#EDF0F2",
-                        "fontSize": 16,
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 8,
-                      },
-                      "t": "TextInput",
-                    },
-                    {
-                      "c": [
-                        "0/2000 ký tự",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "s": {
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
                     {
                       "c": [
                         {
                           "c": [
                             {
                               "c": [
-                                "󱅥",
+                                {
+                                  "c": [
+                                    "󱅥",
+                                  ],
+                                  "s": {
+                                    "color": "#12151C",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Gửi câu hỏi",
+                                  ],
+                                  "s": {
+                                    "color": "#12151C",
+                                    "fontSize": 13,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
-                                "color": "#12151C",
-                                "fontSize": 20,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
                               },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "Gửi câu hỏi",
-                              ],
-                              "s": {
-                                "color": "#12151C",
-                                "fontSize": 13,
-                              },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
+                          "label": "Gửi câu hỏi",
+                          "role": "button",
                           "s": {
                             "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
+                            "backgroundColor": "#98BDD7",
+                            "borderRadius": 8,
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 12,
                           },
                           "t": "View",
                         },
                       ],
-                      "label": "Gửi câu hỏi",
-                      "role": "button",
                       "s": {
-                        "alignItems": "center",
-                        "backgroundColor": "#98BDD7",
-                        "borderRadius": 8,
-                        "flex": 1,
-                        "justifyContent": "center",
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 12,
+                        "flexDirection": "row",
+                        "gap": 8,
                       },
                       "t": "View",
                     },
                   ],
                   "s": {
-                    "flexDirection": "row",
-                    "gap": 8,
+                    "maxWidth": 960,
+                    "width": "100%",
                   },
                   "t": "View",
                 },
@@ -3180,99 +3194,104 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                   "c": [
                     {
                       "c": [
-                        "Câu hỏi của bạn",
+                        {
+                          "c": [
+                            "Câu hỏi của bạn",
+                          ],
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [],
+                          "label": "Câu hỏi của bạn",
+                          "s": {
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "color": "#17243A",
+                            "fontSize": 16,
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 8,
+                          },
+                          "t": "TextInput",
+                        },
+                        {
+                          "c": [
+                            "0/2000 ký tự",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 13,
-                        "marginBottom": 4,
+                        "marginBottom": 8,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
-                    {
-                      "c": [],
-                      "label": "Câu hỏi của bạn",
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "color": "#17243A",
-                        "fontSize": 16,
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 8,
-                      },
-                      "t": "TextInput",
-                    },
-                    {
-                      "c": [
-                        "0/2000 ký tự",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "s": {
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
                     {
                       "c": [
                         {
                           "c": [
                             {
                               "c": [
-                                "󱅥",
+                                {
+                                  "c": [
+                                    "󱅥",
+                                  ],
+                                  "s": {
+                                    "color": "#FFFFFF",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Gửi câu hỏi",
+                                  ],
+                                  "s": {
+                                    "color": "#FFFFFF",
+                                    "fontSize": 13,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
-                                "color": "#FFFFFF",
-                                "fontSize": 20,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
                               },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "Gửi câu hỏi",
-                              ],
-                              "s": {
-                                "color": "#FFFFFF",
-                                "fontSize": 13,
-                              },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
+                          "label": "Gửi câu hỏi",
+                          "role": "button",
                           "s": {
                             "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
+                            "backgroundColor": "#003F87",
+                            "borderRadius": 8,
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 12,
                           },
                           "t": "View",
                         },
                       ],
-                      "label": "Gửi câu hỏi",
-                      "role": "button",
                       "s": {
-                        "alignItems": "center",
-                        "backgroundColor": "#003F87",
-                        "borderRadius": 8,
-                        "flex": 1,
-                        "justifyContent": "center",
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 12,
+                        "flexDirection": "row",
+                        "gap": 8,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flexDirection": "row",
-                    "gap": 8,
-                  },
                   "t": "View",
                 },
               ],
@@ -3692,98 +3711,107 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                   "c": [
                     {
                       "c": [
-                        "Câu hỏi của bạn",
+                        {
+                          "c": [
+                            "Câu hỏi của bạn",
+                          ],
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [],
+                          "label": "Câu hỏi của bạn",
+                          "s": {
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "color": "#17243A",
+                            "fontSize": 16,
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 8,
+                          },
+                          "t": "TextInput",
+                        },
+                        {
+                          "c": [
+                            "0/2000 ký tự",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 13,
-                        "marginBottom": 4,
+                        "marginBottom": 8,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
-                    {
-                      "c": [],
-                      "label": "Câu hỏi của bạn",
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "color": "#17243A",
-                        "fontSize": 16,
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 8,
-                      },
-                      "t": "TextInput",
-                    },
-                    {
-                      "c": [
-                        "0/2000 ký tự",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "s": {
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
                     {
                       "c": [
                         {
                           "c": [
                             {
                               "c": [
-                                "󱅥",
+                                {
+                                  "c": [
+                                    "󱅥",
+                                  ],
+                                  "s": {
+                                    "color": "#FFFFFF",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Gửi câu hỏi",
+                                  ],
+                                  "s": {
+                                    "color": "#FFFFFF",
+                                    "fontSize": 13,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
-                                "color": "#FFFFFF",
-                                "fontSize": 20,
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
                               },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "Gửi câu hỏi",
-                              ],
-                              "s": {
-                                "color": "#FFFFFF",
-                                "fontSize": 13,
-                              },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
+                          "label": "Gửi câu hỏi",
+                          "role": "button",
                           "s": {
                             "alignItems": "center",
-                            "flexDirection": "row",
-                            "gap": 8,
+                            "backgroundColor": "#003F87",
+                            "borderRadius": 8,
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 16,
+                            "paddingVertical": 12,
                           },
                           "t": "View",
                         },
                       ],
-                      "label": "Gửi câu hỏi",
-                      "role": "button",
                       "s": {
-                        "alignItems": "center",
-                        "backgroundColor": "#003F87",
-                        "borderRadius": 8,
-                        "flex": 1,
-                        "justifyContent": "center",
-                        "paddingHorizontal": 16,
-                        "paddingVertical": 12,
+                        "flexDirection": "row",
+                        "gap": 8,
                       },
                       "t": "View",
                     },
                   ],
                   "s": {
-                    "flexDirection": "row",
-                    "gap": 8,
+                    "maxWidth": 960,
+                    "width": "100%",
                   },
                   "t": "View",
                 },
