@@ -2,7 +2,7 @@
 // pull-to-refresh and paging, detail frame, flash notices, confirmation, status
 // chips, and the file rows for download and upload.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -289,7 +289,7 @@ export interface AttachmentRowProps {
   name: string;
   sizeBytes?: number | null;
   /** Fetches the bytes through the authenticated client. */
-  fetchBytes: () => Promise<DownloadedBytes>;
+  fetchBytes: (signal?: AbortSignal) => Promise<DownloadedBytes>;
   extraActions?: readonly FileRowAction[];
 }
 
@@ -297,12 +297,24 @@ export interface AttachmentRowProps {
 export function AttachmentRow({ name, sizeBytes, fetchBytes, extraActions = [] }: AttachmentRowProps) {
   const { copy } = useContentCopy();
   const [state, setState] = useState<TransferState>({ status: 'idle' });
+  const activeDownload = useRef<AbortController | null>(null);
   const adapter = getFileAdapter();
   const canSave = adapter.capability('save').available;
 
+  useEffect(() => () => {
+    activeDownload.current?.abort();
+    activeDownload.current = null;
+  }, []);
+
   const download = useCallback(async () => {
+    activeDownload.current?.abort();
+    const controller = new AbortController();
+    activeDownload.current = controller;
     setState({ status: 'busy' });
-    setState(transferStateOf(await downloadToDevice(adapter, fetchBytes, name)));
+    const outcome = await downloadToDevice(adapter, fetchBytes, name, controller.signal);
+    if (activeDownload.current !== controller) return;
+    activeDownload.current = null;
+    setState(transferStateOf(outcome));
   }, [adapter, fetchBytes, name]);
 
   const status = !canSave ? 'unavailable'
@@ -354,10 +366,20 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
   const adapter = getFileAdapter();
   const capability = adapter.capability('pick');
   const [problem, setProblem] = useState<string | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const pick = useCallback(async () => {
     setProblem(null);
     const outcome = await pickForUpload(adapter, policy);
+    if (!mounted.current) {
+      if (outcome.status === 'picked') outcome.file.release?.();
+      return;
+    }
     if (outcome.status === 'picked') onChange(outcome.file);
     else if (outcome.status === 'invalid') setProblem(problemMessage(copy, outcome.problem));
     else if (outcome.status === 'failed') setProblem(copy.fileFailed);
@@ -400,7 +422,7 @@ export interface UploadPickerProps<T> {
   /** Names the intent so a retry of the same upload reuses one idempotency key. */
   intent: string;
   policy: AttachmentPolicy;
-  upload: (part: { uri: string; name: string; type: string }, idempotencyKey: string) => Promise<T>;
+  upload: (part: { uri: string; name: string; type: string }, idempotencyKey: string, signal?: AbortSignal) => Promise<T>;
   onUploaded: (result: T) => void;
   disabled?: boolean;
 }
@@ -411,14 +433,29 @@ export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled =
   const [file, setFile] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const activeUpload = useRef<AbortController | null>(null);
+  const currentFile = useRef<PickedFile | null>(null);
+
+  useEffect(() => () => {
+    activeUpload.current?.abort();
+    activeUpload.current = null;
+    const ownedFile = currentFile.current;
+    currentFile.current = null;
+    ownedFile?.release?.();
+  }, []);
 
   const send = useCallback(async () => {
-    if (!file) return;
+    if (!file || activeUpload.current) return;
+    const controller = new AbortController();
+    activeUpload.current = controller;
     setBusy(true);
     setFailure(null);
-    const outcome = await uploadPicked(file, { keys: contentApi.attempts, intent, upload });
+    const outcome = await uploadPicked(file, { keys: contentApi.attempts, intent, upload, signal: controller.signal });
+    if (activeUpload.current !== controller) return;
+    activeUpload.current = null;
     setBusy(false);
     if (outcome.status === 'done') {
+      if (currentFile.current === file) currentFile.current = null;
       file.release?.();
       setFile(null);
       onUploaded(outcome.result);
@@ -432,7 +469,7 @@ export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled =
       <FilePicker
         policy={policy}
         file={file}
-        onChange={(next) => { setFile(next); setFailure(null); }}
+        onChange={(next) => { currentFile.current = next; setFile(next); setFailure(null); }}
         status={busy ? 'busy' : failure ? 'failed' : 'ready'}
         statusLabel={failure ?? undefined}
         disabled={disabled || busy}

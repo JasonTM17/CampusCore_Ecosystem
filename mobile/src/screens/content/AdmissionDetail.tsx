@@ -63,7 +63,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
               key={file.id}
               name={file.fileName ?? file.id}
               sizeBytes={file.sizeBytes}
-              fetchBytes={() => contentApi.admissionsDownload(application.id, file.id)}
+              fetchBytes={(signal) => contentApi.admissionsDownload(application.id, file.id, signal)}
               extraActions={filesLocked || preview ? [] : [{ key: 'delete', label: copy.deleteFile, onPress: () => onDeleteFile(file), disabled: busy }]}
             />
           ), {footer: <>
@@ -72,7 +72,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
               intent={`admissions:${application.id}`}
               policy={DOCUMENT_POLICY}
               disabled={busy}
-              upload={(part, key) => contentApi.admissionsUpload(application.id, part, key)}
+              upload={(part, key, signal) => contentApi.admissionsUpload(application.id, part, key, signal)}
               onUploaded={onUploaded}
             />
           ) : null}
