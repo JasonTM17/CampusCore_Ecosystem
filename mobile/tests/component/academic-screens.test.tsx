@@ -485,6 +485,21 @@ describe('registration', () => {
   const pressRegister = async () => fireEvent.press(screen.getByRole('button', { name: 'Đăng ký các lớp đã chọn' }));
   const conflict = Object.assign(new Error('conflict'), { status: 409, code: 'SCHEDULE_CONFLICT' });
 
+  test('an unreachable registration read exposes retry and renders after recovery', async () => {
+    mockQueries['academic.registration'] = { error: academicMessages.vi.offline, errorStatus: 0 };
+    const view = await render(wrap(<RegistrationScreen {...props} />));
+
+    expect(screen.getByText(academicMessages.vi.offline)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Chọn lớp/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: academicMessages.vi.retry }));
+    expect(mockReload).toHaveBeenCalledTimes(1);
+
+    mockQueries['academic.registration'] = { data: registrationData([section('R1')]) };
+    await view.rerender(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getByRole('button', { name: 'Chọn lớp: CSR1 Lớp 01' })).toBeOnTheScreen();
+    expect(screen.queryByText(academicMessages.vi.offline)).toBeNull();
+  });
+
   test('a conflict keeps the selection and explains why', async () => {
     mockQueries['academic.registration'] = { data: registrationData([section('A1')]) };
     mockPost.mockRejectedValueOnce(conflict);

@@ -92,6 +92,20 @@ async function ask(text: string) {
 }
 
 describe('assistant composer and guards', () => {
+  test('a remounted assistant starts without the prior conversation', async () => {
+    setWidth(360);
+    mockChat.mockResolvedValue(reply());
+    const first = await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('First account question');
+    expect(await screen.findByText('Trả lời mẫu.')).toBeOnTheScreen();
+
+    await first.unmount();
+    await renderThemed(<AssistantChatScreen {...props} />);
+
+    expect(screen.queryByText('First account question')).toBeNull();
+    expect(screen.queryByText('Trả lời mẫu.')).toBeNull();
+  });
+
   test('the input is capped at the server message limit', async () => {
     setWidth(360);
     await renderThemed(<AssistantChatScreen {...props} />);
