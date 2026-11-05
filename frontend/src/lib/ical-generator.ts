@@ -175,7 +175,7 @@ export function buildScheduleIcsEvents(
     const courseName =
       locale === 'vi'
         ? section.course?.nameVi || section.course?.name || courseCode
-        : section.course?.nameEn || section.course?.name || courseCode;
+        : section.course?.nameEn || section.course?.name || section.course?.nameVi || courseCode;
     const sectionNumber = section.sectionNumber || '';
     const credits = section.course?.credits ?? 0;
 
