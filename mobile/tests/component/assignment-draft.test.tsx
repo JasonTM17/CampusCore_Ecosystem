@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
@@ -29,12 +29,23 @@ const mockWrites = {
   resubmit: jest.fn(async (_assignmentId: string, _input: unknown, _scope: string) => ({})),
 };
 
+const mockFileRelease = jest.fn();
+const mockFilePick = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockFileAdapter = {
+  capability: () => ({ available: true }),
+  pick: (...args: unknown[]) => mockFilePick(...args),
+  share: async () => ({ status: 'done' as const }),
+  save: async () => ({ status: 'done' as const }),
+};
+
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live', get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
   campusApi: {},
   createAssistantClientRequestId: () => 'request-id',
   ApiClientError: class ApiClientError extends Error {},
 }));
+
+jest.mock('../../src/files/file-adapter', () => ({ getFileAdapter: () => mockFileAdapter }));
 
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: (key: string) => {
@@ -118,6 +129,8 @@ afterEach(() => {
   jest.clearAllMocks();
   clearQueryCache();
   mockQuery.value = { data: undefined, error: null, warning: null, isLoading: false };
+  mockFilePick.mockReset();
+  mockFileRelease.mockReset();
 });
 
 describe('assignment server draft', () => {
@@ -196,5 +209,48 @@ describe('assignment server draft', () => {
     mockQuery.value = scriptData(submission({ draftText: 'Phiên bản hai', version: 4 }));
     await view.rerender(element());
     expect(answerField().props.value).toBe('Câu trả lời của tôi');
+  });
+
+  test('a successful save releases the picked local file copy', async () => {
+    mockQuery.value = scriptData(submission());
+    mockFilePick.mockResolvedValueOnce({
+      status: 'picked',
+      file: {
+        uri: 'file:///cache/answer.pdf',
+        name: 'answer.pdf',
+        sizeBytes: 4,
+        mimeType: 'application/pdf',
+        release: mockFileRelease,
+      },
+    });
+    await render(element());
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Chọn tệp' }));
+    await waitFor(() => expect(screen.getByText('answer.pdf')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: copy.saveDraft }));
+    await waitFor(() => expect(screen.queryByText('answer.pdf')).toBeNull());
+
+    expect(mockFileRelease).toHaveBeenCalledTimes(1);
+  });
+
+  test('leaving assignment detail releases a still-selected local file copy', async () => {
+    mockQuery.value = scriptData(submission());
+    mockFilePick.mockResolvedValueOnce({
+      status: 'picked',
+      file: {
+        uri: 'file:///cache/answer.pdf',
+        name: 'answer.pdf',
+        sizeBytes: 4,
+        mimeType: 'application/pdf',
+        release: mockFileRelease,
+      },
+    });
+    const view = await render(element());
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Chọn tệp' }));
+    await waitFor(() => expect(screen.getByText('answer.pdf')).toBeOnTheScreen());
+    await view.unmount();
+
+    expect(mockFileRelease).toHaveBeenCalledTimes(1);
   });
 });

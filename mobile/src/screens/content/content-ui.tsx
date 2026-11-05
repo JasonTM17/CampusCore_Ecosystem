@@ -228,7 +228,7 @@ export function ListFrame<T>({
   icon,
 }: ListFrameProps<T>) {
   const { colors } = useTheme();
-  const { copy } = useContentCopy();
+  const { copy, t } = useContentCopy();
   const rows = items ?? list.items;
   const shownCount = rows.length;
   const count = list.total !== undefined && !filtered
@@ -242,6 +242,9 @@ export function ListFrame<T>({
       {list.warning ? <Notice tone="warning" message={list.warning} /> : null}
       <FlashNotice flash={flash ?? null} />
       {header}
+      {filtered && shownCount === 0 && list.hasMore && !list.loadingMore && !error ? (
+        <Button label={t('loadMore')} variant="secondary" onPress={list.loadMore} />
+      ) : null}
     </View>
   );
 
