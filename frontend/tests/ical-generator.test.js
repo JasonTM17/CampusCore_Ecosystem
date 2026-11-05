@@ -245,3 +245,19 @@ test('iCalendar localized display descriptions preserve exact output and bytes',
     }
   });
 });
+
+test('English schedule export keeps the localized course name when nameEn and name are missing', () => {
+  const generator = loadGenerator();
+  const enrollments = [{
+    id: 23,
+    status: 'ENROLLED',
+    section: {
+      sectionNumber: '08',
+      course: { code: 'CS204', nameEn: null, nameVi: 'Kiến trúc phần mềm', credits: 3 },
+      schedules: [{ id: 12, dayOfWeek: 2, startTime: '07:30', endTime: '09:00' }],
+    },
+  }];
+  const [event] = generator.buildScheduleIcsEvents(enrollments, { startDate: '2026-09-01', endDate: '2026-12-31' }, 'en');
+  assert.equal(event.summary, '[CS204] Kiến trúc phần mềm - 08');
+  assert.match(event.description, /Kiến trúc phần mềm/);
+});

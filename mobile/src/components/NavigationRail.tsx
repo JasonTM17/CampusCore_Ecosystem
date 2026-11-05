@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { tokens } from '../design/tokens';
+import { minTapTarget, tokens } from '../design/tokens';
 import { chromeFor } from '../design/chrome';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
@@ -76,8 +76,8 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   item: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: tokens.layout.touchTarget,
-    minWidth: tokens.layout.touchTarget,
+    minHeight: minTapTarget,
+    minWidth: minTapTarget,
     paddingHorizontal: tokens.spacing.xs,
     paddingVertical: tokens.spacing.sm,
     borderRadius: tokens.radii.control,

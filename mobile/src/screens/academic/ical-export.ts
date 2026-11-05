@@ -127,7 +127,7 @@ export function buildScheduleIcsEvents(
     const courseCode = section.course?.code ?? 'COURSE';
     const courseName = locale === 'vi'
       ? section.course?.nameVi || section.course?.name || courseCode
-      : section.course?.nameEn || section.course?.name || courseCode;
+      : section.course?.nameEn || section.course?.name || section.course?.nameVi || courseCode;
     const sectionNumber = section.sectionNumber || '';
     const credits = section.course?.credits ?? 0;
     const lecturerName = section.lecturer?.fullName

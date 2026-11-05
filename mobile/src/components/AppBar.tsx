@@ -6,7 +6,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { apiClient } from '../api/client';
 import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
-import { tokens } from '../design/tokens';
+import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import type { UserRole } from '../navigation/routes';
@@ -113,6 +113,6 @@ const styles = StyleSheet.create({
   logo: { height: '100%', width: '100%' },
   copy: { flex: 1, minWidth: 0 },
   rolePill: { borderRadius: tokens.spacing.xs, paddingHorizontal: tokens.spacing.sm, paddingVertical: 4, flexShrink: 1 },
-  iconButton: { alignItems: 'center', borderRadius: tokens.radii.control, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
-  signIn: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.md },
+  iconButton: { alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
+  signIn: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: tokens.spacing.md },
 });

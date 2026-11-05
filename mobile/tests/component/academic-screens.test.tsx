@@ -543,7 +543,7 @@ describe('curriculum', () => {
     expect(label).toContain('Tiên quyết: MA101');
   });
 
-  test.skip.each<['vi' | 'en', string, string, string]>([
+  test.each<['vi' | 'en', string, string, string]>([
     ['vi', 'Trạng thái: Tất cả', 'Chưa học', 'Không có học phần nào phù hợp với trạng thái đã chọn.'],
     ['en', 'Status: All', 'Not started', 'No courses match the selected status.'],
   ])('shows filter-specific empty copy in %s', async (locale, filterLabel, optionLabel, expected) => {
