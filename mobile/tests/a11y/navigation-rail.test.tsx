@@ -32,7 +32,7 @@ describe('NavigationRail accessibility and theme', () => {
           const label = screen.getByText(localizedNavLabel('vi', item.label));
           expect(label).toHaveStyle({ color: index === 0 ? chrome.onSurface : chrome.onSurfaceMuted });
         }
-        const actions = [...screen.getAllByRole('tab'), screen.getByRole('button', { name: 'Mở menu' })];
+        const actions = [...screen.getAllByRole('tab'), screen.getByRole('button', { name: 'Mở danh mục' })];
         for (const action of actions) {
           const style = StyleSheet.flatten(action.props.style);
           expect(style.minHeight).toBeGreaterThanOrEqual(44);
@@ -42,7 +42,7 @@ describe('NavigationRail accessibility and theme', () => {
         }
         // Audit rule e permits a redundant visual label to truncate when an
         // accessibilityLabel exists. Rail labels must wrap visually as well.
-        for (const label of [...items.map((item) => localizedNavLabel('vi', item.label)), 'Menu']) {
+        for (const label of [...items.map((item) => localizedNavLabel('vi', item.label)), 'Danh mục']) {
           const text = screen.getByText(label);
           expect(text.props.numberOfLines).toBeUndefined();
           expect(text.props.adjustsFontSizeToFit).not.toBe(true);

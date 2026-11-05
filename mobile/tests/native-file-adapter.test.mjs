@@ -1,10 +1,26 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import ts from 'typescript';
+import { fileURLToPath } from 'node:url';
 import { loadTs } from './helpers/load-ts.mjs';
 
+const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const native = await loadTs('src/api/native-file-adapter.ts');
 const csv = await loadTs('src/screens/operations/lecturer-csv.ts');
-const ical = await loadTs('src/screens/academic/ical-export.ts');
+const moduleUrl = (file) => {
+  const source = fs.readFileSync(file, 'utf8');
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
+  return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
+};
+const localeUrl = moduleUrl(path.join(mobileRoot, 'src/i18n/locale.ts'));
+const academicMessagesUrl = moduleUrl(path.join(mobileRoot, 'src/i18n/academic-messages.ts'));
+const icalSource = fs.readFileSync(path.join(mobileRoot, 'src/screens/academic/ical-export.ts'), 'utf8')
+  .replace("'../../i18n/academic-messages'", `'${academicMessagesUrl}'`)
+  .replace("'../../i18n/locale'", `'${localeUrl}'`);
+const icalOutput = ts.transpileModule(icalSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const ical = await import(`data:text/javascript;base64,${Buffer.from(icalOutput).toString('base64')}`);
 const MB = 1024 * 1024;
 const PDF = 'application/pdf';
 

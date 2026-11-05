@@ -75,7 +75,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                     <View style={academicStyles.rowCopy}>
                       <StatusPill label={course.code} tone="primary" />
                       <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
-                      <UiText variant="meta" tone="muted">{fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: course.credits })}</UiText>
+                      <UiText variant="meta" tone="muted">{fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: formatNumber(course.credits) })}</UiText>
                       {course.prerequisites && course.prerequisites.length > 0 ? (
                         <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
                       ) : null}
@@ -109,7 +109,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
               </View>
             </View>
             <ProgressBar
-              label={fillCopy(copy.curriculumProgress, { earned, total })}
+              label={fillCopy(copy.curriculumProgress, { earned: formatNumber(earned), total: formatNumber(total) })}
               value={total > 0 ? (earned / total) * 100 : 0}
               tone="success"
             />

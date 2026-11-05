@@ -5,32 +5,39 @@ import { getFileAdapter } from '../../files/file-adapter';
 import { isDeviceOffline, saveRegistrationSlip } from './academic-api';
 import { useAcademicCopy } from './academic-ui';
 
-type SlipState = { status: FileRowStatus; label?: string };
+type SlipNotice = 'blank' | 'unavailable' | 'offline' | 'saved' | 'failed';
+type SlipState = { status: FileRowStatus; notice?: SlipNotice };
 
 /** Registration slip download. Never reports success unless the file adapter did. */
 export function SlipRow({ semesterId }: { semesterId: string | null }) {
   const { copy } = useAcademicCopy();
   const available = getFileAdapter().capability('save').available;
-  const [state, setState] = useState<SlipState>(available ? { status: 'ready', label: ' ' } : { status: 'unavailable', label: copy.slipUnavailable });
+  const [state, setState] = useState<SlipState>(available ? { status: 'ready', notice: 'blank' } : { status: 'unavailable', notice: 'unavailable' });
 
   const download = async () => {
     setState({ status: 'busy' });
     if (await isDeviceOffline()) {
-      setState({ status: 'failed', label: copy.offline });
+      setState({ status: 'failed', notice: 'offline' });
       return;
     }
     const result = await saveRegistrationSlip(semesterId);
-    if (result.status === 'done') setState({ status: 'ready', label: copy.slipSaved });
-    else if (result.status === 'cancelled') setState({ status: 'ready', label: ' ' });
-    else if (result.status === 'unavailable') setState({ status: 'unavailable', label: copy.slipUnavailable });
-    else setState({ status: 'failed', label: copy.slipFailed });
+    if (result.status === 'done') setState({ status: 'ready', notice: 'saved' });
+    else if (result.status === 'cancelled') setState({ status: 'ready', notice: 'blank' });
+    else if (result.status === 'unavailable') setState({ status: 'unavailable', notice: 'unavailable' });
+    else setState({ status: 'failed', notice: 'failed' });
   };
+
+  const statusLabel = state.notice === 'blank' ? ' '
+    : state.notice === 'unavailable' ? copy.slipUnavailable
+      : state.notice === 'offline' ? copy.offline
+        : state.notice === 'saved' ? copy.slipSaved
+          : state.notice === 'failed' ? copy.slipFailed : undefined;
 
   return (
     <FileRow
       name={copy.slipName}
       status={state.status}
-      statusLabel={state.label}
+      statusLabel={statusLabel}
       actions={[{ key: 'download', label: copy.slipDownload, onPress: () => void download(), disabled: !available }]}
     />
   );

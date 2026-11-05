@@ -143,6 +143,7 @@ const vi = {
     },
   },
   signIn: {
+    institutionName: 'HCMUTE',
     portal: 'Cổng thông tin đào tạo',
     heading: 'Đăng nhập',
     preview: 'Bản xem thử — khám phá bằng phiên cục bộ.',
@@ -309,6 +310,7 @@ const en: Messages = {
     },
   },
   signIn: {
+    institutionName: 'HCMUTE',
     portal: 'Academic information portal',
     heading: 'Sign in',
     preview: 'Preview build — explore with a local pseudo-session.',
