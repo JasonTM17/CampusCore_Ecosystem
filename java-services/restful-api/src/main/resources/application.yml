@@ -338,6 +338,7 @@ spring:
           time_zone: UTC
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
+    clean-disabled: true
     create-schemas: true
     default-schema: thesis
     schemas: thesis,academic,campuscore_auth,campuscore_identity
