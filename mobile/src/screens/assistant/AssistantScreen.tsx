@@ -78,7 +78,9 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             <Button label={copy.newChat} onPress={chat.newChat} variant="text" />
           </View>
           {chat.isPreview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
-          <Notice tone="info" message={copy.guardTechnical} />
+          <View style={styles.gap}>
+            <Notice tone="info" message={copy.guardTechnical} />
+          </View>
 
           {chat.earlierCursor ? (
             <View style={styles.gap}>
