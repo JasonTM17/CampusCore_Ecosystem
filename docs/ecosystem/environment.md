@@ -202,7 +202,7 @@ include either shared proxy secret; no mobile payload or endpoint changes.
 | `NODE_ENV`, `PORT`, `HOSTNAME` | Next runtime env (standalone server) | config | docker run | safe default |
 | `VERCEL`, `VERCEL_URL`, `VERCEL_PROJECT_PRODUCTION_URL` | Vercel-injected deployment context | public | vercel | platform-injected |
 
-## 9. Mobile (Expo)
+## 9. Mobile (Expo & Android release signing)
 
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
@@ -210,8 +210,14 @@ include either shared proxy secret; no mobile payload or endpoint changes.
 | `EXPO_PUBLIC_API_URL` | REST base (`10.0.2.2` emulator / LAN IP / prod host) | public | mobile-build live | required in live mode |
 | `EXPO_PUBLIC_ISSUER_URL` | OIDC issuer when it differs from API host | public | prod sign-in | required for prod login |
 | `EXPO_PUBLIC_PORTAL_URL` | Deep-link back to web portal | public | optional | safe default |
+| `EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL` | Opt-in cleartext HTTP for local emulator/loopback (`1`) | public | mobile local | `1` permitted only in `local` EAS profile; requires loopback/emulator host |
 | `EXPO_PUBLIC_ASSISTANT_TRANSPORT` | Assistant SSE/fetch transport selection | public | optional | safe default |
 | `EXPO_PUBLIC_LANE_DEAN`, `EXPO_PUBLIC_LANE_STAFF`, `EXPO_PUBLIC_LANE_ADMIN`, `EXPO_PUBLIC_LANE_CHECKIN` | Lane feature flags (dean, staff, admin, attendance check-in) | public | optional | safe default |
+| `CAMPUSUTE_MOBILE_PROFILE` | Build profile selector (replicates EAS `local`, `preview`, `development`, `production`) | config | mobile release | safe default |
+| `CAMPUSCORE_RELEASE_STORE_FILE` | Operator release keystore path (read by `mobile/plugins/with-release-signing.js`) | config | mobile release | safe default `mobile/android/campusute-release.keystore` |
+| `CAMPUSCORE_RELEASE_STORE_PASSWORD` | Operator keystore password | secret | mobile release | required for release tasks; fails closed if empty |
+| `CAMPUSCORE_RELEASE_KEY_PASSWORD` | Operator private key password | secret | mobile release | required for release tasks; fails closed if empty |
+| `CAMPUSCORE_RELEASE_KEY_ALIAS` | Operator key alias | config | mobile release | required for release tasks; fails closed if empty or `androiddebugkey` |
 
 ## 10. Compose / hosting only (not read by Spring)
 
