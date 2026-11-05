@@ -15,7 +15,15 @@ the next startup of that environment into a hard failure — and it silently
 diverges what production ran from what git says the version is.
 
 CI enforces this: the `compose` job fails when a diff against `origin/main`
-touches an existing file under `db/migration/` or `db/migration-h2/`.
+(on a push to `main`, against the previous revision) touches an existing file
+under `db/migration/` or `db/migration-h2/`.
+
+`scripts/check-migrations.mjs` also rejects new files that write by `ctid`,
+backfill and enforce `NOT NULL` or a validated foreign key on the same table,
+`LOCK TABLE` a `campuscore_auth` table (unless annotated
+`-- PRE-DEPLOY: <reason>`), or use statements Flyway cannot run in a
+transaction (`CONCURRENTLY`, `VACUUM`, `ALTER SYSTEM`, `CREATE DATABASE`).
+Five older files are exempt by name.
 
 ## 2. Corrections are new forward migrations
 
