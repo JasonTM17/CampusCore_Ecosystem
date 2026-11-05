@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
 import { safeInternalPath } from '@/lib/safe-url';
+import { countLabel } from '@/lib/plural';
 
 const TITLE_MAX = 120;
 const MESSAGE_MAX = 500;
@@ -335,7 +336,7 @@ export default function AdminNotificationsPage() {
     );
   };
 
-  const pageSummary = copy.sentPageSummary.replace('{count}', formatNumber(total));
+  const pageSummary = countLabel(total, copy.sentPageSummaryOne, copy.sentPageSummary).replace('{count}', formatNumber(total));
   const PreviewIcon = TYPE_ICONS[type];
 
   if (isAuthLoading || isLoggingOut || !canAccess) {

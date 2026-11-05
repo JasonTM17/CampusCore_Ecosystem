@@ -22,6 +22,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
+import { countLabel } from '@/lib/plural';
 
 const PAGE_SIZE = 20;
 
@@ -263,7 +264,7 @@ export default function AdminAuditTrailPage() {
               </table>
             </AdminTableScroll>
             <AdminPaginationFooter
-              summary={copy.pageSummary.replace('{count}', String(total))}
+              summary={countLabel(total, copy.pageSummaryOne, copy.pageSummary).replace('{count}', String(total))}
               page={page}
               totalPages={totalPages}
               onPrevious={() => setPage((current) => Math.max(1, current - 1))}
