@@ -1,6 +1,6 @@
 /**
  * Session token authority (mobile-policy §3, KM-1/KM-6/KM-7). Pure factory —
- * no react-native/expo imports so the same store logic runs against a
+ * no eager react-native/expo imports so the same store logic runs against a
  * SecureStore binding (mobile-session-store.ts) or an in-memory test mirror.
  * Owns ALL persistent session I/O and the refresh/revoke calls to the
  * issuer host — `apiClient` never sees a refresh token. Access tokens live
@@ -38,7 +38,7 @@ export type RefreshResult =
   | { kind: 'refreshed'; accessToken: string }
   | { kind: 'signedOut' | 'stale'; accessToken: null }
   | { kind: 'reauthRequired'; accessToken: null }
-  | { kind: 'unavailable'; accessToken: null; reason: 'network' | 'issuer' | 'configuration' | 'response' | 'storage' };
+  | { kind: 'unavailable'; accessToken: null; reason: 'offline' | 'network' | 'issuer' | 'configuration' | 'response' | 'storage' };
 
 export interface SessionStoreDeps {
   secure: SecureKv;
@@ -47,6 +47,8 @@ export interface SessionStoreDeps {
   issuer: string;
   clientId?: string;
   fetchImpl?: typeof fetch;
+  /** Only definitive offline results prevent dispatch; a failed probe is unknown. */
+  getNetworkState?: () => Promise<{ isConnected?: boolean | null; isInternetReachable?: boolean | null }>;
   /** Token-request deadline; a dispatched abort requires a fresh sign-in. */
   timeoutMs?: number;
   now?: () => number;
@@ -102,6 +104,10 @@ function parseJson(raw: string | null): Record<string, unknown> | null {
 
 export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   const { secure, sandbox, fetchImpl = fetch, now = () => Date.now(), newId = defaultId } = deps;
+  const getNetworkState = deps.getNetworkState ?? (async () => {
+    const network = require('expo-network') as typeof import('expo-network');
+    return network.getNetworkStateAsync();
+  });
   const issuer = deps.issuer.replace(/\/+$/, '');
   const clientId = deps.clientId ?? DEFAULT_CLIENT_ID;
   const tokenTimeoutMs = deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS;
@@ -141,6 +147,17 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   }
 
   async function refresh(epoch: number): Promise<RefreshResult> {
+    let offline = false;
+    try {
+      const network = await getNetworkState();
+      offline = network.isConnected === false || network.isInternetReachable === false;
+    } catch {
+      // Unknown connectivity must not prevent a refresh attempt.
+    }
+    if (epoch !== sessionEpoch) return stale();
+    // No dispatch means no possible rotation: retain both credential and memory.
+    if (offline) return { kind: 'unavailable', accessToken: null, reason: 'offline' };
+
     let tokenUrl: string | null = null;
     try {
       const parsedIssuer = new URL(issuer);

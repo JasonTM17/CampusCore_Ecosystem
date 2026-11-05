@@ -5,6 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadTs } from './helpers/load-ts.mjs';
+
+const { createSessionStore } = await loadTs('src/auth/session-store.ts');
 
 /**
  * Transport authority: explicit auth policy per call, one refresh single-flight
@@ -93,6 +96,63 @@ function makeSession(initialToken = 'old-token') {
 }
 
 const authorizedWith = (token) => (call) => call.headers.get('authorization') === `Bearer ${token}`;
+
+test('an expired live session retains its credential offline and refreshes on the next online request', async () => {
+  const secure = new Map([['cu.refresh', 'rt-existing']]);
+  let online = false;
+  let tokenRequests = 0;
+  let expired = 0;
+  const store = createSessionStore({
+    issuer: 'https://issuer.test',
+    getNetworkState: async () => ({ isConnected: online }),
+    secure: {
+      getItemAsync: async (key) => secure.get(key) ?? null,
+      setItemAsync: async (key, value) => { secure.set(key, value); },
+      deleteItemAsync: async (key) => { secure.delete(key); },
+    },
+    sandbox: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
+    fetchImpl: async () => {
+      tokenRequests += 1;
+      if (!online) throw new TypeError('offline');
+      return json(200, { access_token: 'new-token', refresh_token: 'rt-rotated' });
+    },
+  });
+  store.setAccessToken('expired-token');
+  const client = createApiClient({
+    baseUrl: BASE, mode: 'live',
+    getAccessToken: () => store.getAccessToken(),
+    sessionEpoch: () => store.sessionEpoch(),
+    onSessionExpired: () => { expired += 1; },
+    refreshSession: async () => (await store.refreshAccessToken()).kind,
+  });
+  let transportOffline = true;
+  const net = installFetch((call) => {
+    if (transportOffline) throw new TypeError('Network request failed');
+    return authorizedWith('new-token')(call) ? json(200, { ok: true }) : json(401, {});
+  });
+  try {
+    await assert.rejects(client.get('/me'), (error) => {
+      const normalized = normalizeApiError(error);
+      return normalized.kind === 'network' && normalized.retryable === true;
+    });
+    assert.equal(tokenRequests, 0);
+    assert.equal(expired, 0);
+    assert.equal(secure.get('cu.refresh'), 'rt-existing');
+    transportOffline = false;
+    await assert.rejects(client.get('/me'), (error) => error.kind === 'network' && error.retryable === true);
+    assert.equal(tokenRequests, 0);
+    assert.equal(expired, 0);
+    assert.equal(store.getAccessToken(), 'expired-token');
+    assert.equal(secure.get('cu.refresh'), 'rt-existing');
+    online = true;
+    assert.deepEqual(await client.get('/me'), { ok: true });
+    assert.equal(tokenRequests, 1);
+    assert.equal(expired, 0);
+    assert.equal(secure.get('cu.refresh'), 'rt-rotated');
+  } finally {
+    net.restore();
+  }
+});
 
 test('base URL fallback is development-only and release config must use HTTPS', () => {
   const previousDev = globalThis.__DEV__;

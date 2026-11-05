@@ -62,6 +62,97 @@ function makeStore(overrides = {}) {
   return { store, secure, sandbox, calls };
 }
 
+for (const connectivity of [
+  { isConnected: false },
+  { isConnected: true, isInternetReachable: false },
+  { isConnected: false, isInternetReachable: true },
+]) {
+  test(`definitive offline connectivity preserves credential and memory (${JSON.stringify(connectivity)})`, async () => {
+    const { store, secure, calls } = makeStore({ getNetworkState: async () => connectivity });
+    secure.map.set('cu.refresh', 'rt-existing');
+    store.setAccessToken('at-existing');
+    const reads = [];
+    const originalRead = secure.getItemAsync;
+    secure.getItemAsync = async (key) => { reads.push(key); return originalRead(key); };
+
+    assert.deepEqual(await store.refreshAccessToken(), { kind: 'unavailable', accessToken: null, reason: 'offline' });
+    assert.equal(calls.length, 0);
+    assert.equal(secure.map.get('cu.refresh'), 'rt-existing');
+    assert.equal(store.getAccessToken(), 'at-existing');
+    assert.deepEqual(reads, [], 'offline must be established before reading the credential');
+  });
+}
+
+for (const [name, getNetworkState] of [
+  ['online', async () => ({ isConnected: true, isInternetReachable: true })],
+  ['unknown', async () => ({})],
+  ['null fields', async () => ({ isConnected: null, isInternetReachable: null })],
+  ['probe failure', async () => { throw new Error('probe unavailable'); }],
+]) {
+  test(`${name} connectivity permits the normal refresh rotation`, async () => {
+    const { store, secure, calls } = makeStore({ getNetworkState });
+    secure.map.set('cu.refresh', 'rt-existing');
+    assert.equal((await store.refreshAccessToken()).kind, 'refreshed');
+    assert.equal(calls.length, 1);
+    assert.equal(secure.map.get('cu.refresh'), 'rt-2');
+    assert.equal(store.getAccessToken(), 'at-1');
+  });
+}
+
+test('offline refresh can retry online without replaying a dispatched credential', async () => {
+  let online = false;
+  const { store, secure, calls } = makeStore({ getNetworkState: async () => ({ isConnected: online }) });
+  secure.map.set('cu.refresh', 'rt-existing');
+  assert.equal((await store.refreshAccessToken()).kind, 'unavailable');
+  assert.equal(calls.length, 0);
+  online = true;
+  assert.equal((await store.refreshAccessToken()).kind, 'refreshed');
+  assert.equal(calls.length, 1);
+  assert.equal(secure.map.get('cu.refresh'), 'rt-2');
+});
+
+for (const isConnected of [false, true]) {
+  test(`a pending connectivity probe cannot touch a replacement session (${isConnected})`, async () => {
+    let resolve;
+    const probe = new Promise((done) => { resolve = done; });
+    const { store, secure, calls } = makeStore({ getNetworkState: () => probe });
+    secure.map.set('cu.refresh', 'rt-existing');
+    const pending = store.refreshAccessToken();
+    store.bumpEpoch();
+    await store.saveRefresh('rt-replacement');
+    store.setAccessToken('at-replacement');
+    resolve({ isConnected });
+    assert.equal((await pending).kind, 'stale');
+    assert.equal(calls.length, 0);
+    assert.equal(secure.map.get('cu.refresh'), 'rt-replacement');
+    assert.equal(store.getAccessToken(), 'at-replacement');
+  });
+}
+
+for (const failure of ['network', 'timeout', 429, 503, 400, 401]) {
+  test(`an online probe preserves dispatched quarantine semantics (${failure})`, async () => {
+    let secure;
+    const fixture = makeStore({
+      getNetworkState: async () => ({ isConnected: true }),
+      timeoutMs: 20,
+      respond: async () => {
+        assert.equal(secure.map.has('cu.refresh'), false, 'quarantine must precede dispatch');
+        if (failure === 'network') throw new TypeError('response lost');
+        if (failure === 'timeout') return new Promise(() => {});
+        return new Response('{}', { status: failure });
+      },
+    });
+    secure = fixture.secure;
+    secure.map.set('cu.refresh', 'rt-existing');
+    fixture.store.setAccessToken('at-existing');
+    const result = await fixture.store.refreshAccessToken();
+    assert.equal(result.kind, failure === 400 || failure === 401 ? 'signedOut' : 'reauthRequired');
+    assert.equal(fixture.calls.length, 1);
+    assert.equal(secure.map.has('cu.refresh'), false);
+    assert.equal(fixture.store.getAccessToken(), null);
+  });
+}
+
 test('fresh install writes both marker layers and exposes no session', async () => {
   const { store, secure, sandbox } = makeStore();
   const boot = await store.loadBootstrap();
