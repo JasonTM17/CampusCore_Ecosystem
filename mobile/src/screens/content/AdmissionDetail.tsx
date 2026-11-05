@@ -1,4 +1,5 @@
-import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
+import { cardRows } from './content-card-rows';
+import { renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useState } from 'react';
 import { View } from 'react-native';
 

@@ -105,7 +105,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       eyebrow={c.eyebrow}
       title={c.title}
     >
-      {warning ? <DataNotice message={warning} /> : null}
+      {warning ? <View style={styles.notice}><DataNotice message={warning} /></View> : null}
       <HeroCard
         icon="school-outline"
         eyebrow={c.currentSemester}
@@ -150,7 +150,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
           </View>
         ))}
       </SectionCard>
-      {dashboardClasses.length === 0 ? <StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /> : null}
+      {dashboardClasses.length === 0 ? <View style={styles.emptyAgenda}><StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /></View> : null}
     </ScreenShell>
   );
 });
@@ -159,5 +159,7 @@ const styles = StyleSheet.create({
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
   actionGrid: { flexDirection: 'row', alignItems: 'stretch', gap: tokens.spacing.sm },
   actionStack: { flexDirection: 'column' },
-  announcementError: { gap: tokens.spacing.xs },
+  announcementError: { gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
+  notice: { marginBottom: tokens.spacing.sm },
+  emptyAgenda: { marginTop: tokens.spacing.sm },
 });
