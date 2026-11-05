@@ -7,6 +7,7 @@ import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list
 import { ListGap, type PerformanceListProps } from '../../components/perf/performance-list';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
+import { chromeFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { countForm } from '../../i18n/locale';
@@ -246,7 +247,7 @@ export function ConfirmSheet({ runner, copy }: { runner: ActionRunner; copy: Lan
 }
 
 export interface QueueCardProps {
-  title: string;
+  title?: string;
   lines: ReadonlyArray<string | null | undefined>;
   status?: string;
   count?: number | string;
@@ -263,10 +264,24 @@ export interface QueueCardProps {
 
 /** One queue row: title, status pill, detail lines and clearly separated actions. */
 export function QueueCard({ title, lines, status, count, copy, actions = [], children }: QueueCardProps) {
+  const { window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
+  const heading = (title ?? '').trim() || lines.find((line): line is string => typeof line === 'string' && line.trim() !== '') || null;
   return (
     <Card style={styles.card}>
-      <View style={styles.cardHead}>
-        <UiText accessibilityRole="header" variant="label" style={styles.cardTitle}>{title}</UiText>
+      <View style={[styles.cardHead, largeText ? styles.cardHeadLargeText : undefined]}>
+        {heading ? (
+          <UiText
+            accessibilityRole="header"
+            accessibilityLabel={heading}
+            variant="label"
+            numberOfLines={largeText ? 1 : undefined}
+            ellipsizeMode={largeText ? 'tail' : undefined}
+            style={[styles.cardTitle, largeText ? styles.cardTitleLargeText : undefined]}
+          >
+            {heading}
+          </UiText>
+        ) : null}
         <View style={styles.cardHeadBadges}>
           {count !== undefined ? <StatusPill label={String(count)} tone="primary" /> : null}
           {status ? <StatusPill label={copy.notifTypes?.[status] ?? copy.statuses[status] ?? status} tone={statusTone(status)} /> : null}
@@ -378,8 +393,10 @@ export const laneStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   card: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm, padding: tokens.spacing.md },
   cardHead: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
-  cardHeadBadges: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs },
-  cardTitle: { flex: 1 },
+  cardHeadLargeText: { alignItems: 'stretch', flexDirection: 'column' },
+  cardHeadBadges: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs, flexWrap: 'wrap', minWidth: 0 },
+  cardTitle: { flex: 1, minWidth: 0 },
+  cardTitleLargeText: { flexBasis: 'auto', flexGrow: 0, flexShrink: 0 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.sm },
   sheetActions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.md },
   pager: { gap: tokens.spacing.sm, marginVertical: tokens.spacing.md },
