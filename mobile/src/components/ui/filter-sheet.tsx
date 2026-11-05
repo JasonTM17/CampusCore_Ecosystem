@@ -92,5 +92,5 @@ const styles = StyleSheet.create({
   body: { flexGrow: 0 },
   option: { alignItems: 'center', borderWidth: 1, flexDirection: 'row', marginBottom: tokens.spacing.xs },
   optionText: { flex: 1 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap' },
 });

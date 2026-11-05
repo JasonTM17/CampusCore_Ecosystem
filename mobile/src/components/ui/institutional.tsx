@@ -114,7 +114,10 @@ export interface StatStripProps {
 
 export function StatStrip({ items, style }: StatStripProps) {
   const { colors, window } = useTheme();
-  const stacked = window.fontScale >= 1.3 || window.width < 360;
+  const minTileWidth = tokens.layout.touchTarget * 2 + tokens.spacing.md;
+  const availableWidth = window.width - tokens.layout.mobileGutter * 2;
+  const perItemWidth = items.length > 0 ? availableWidth / items.length : availableWidth;
+  const stacked = window.fontScale >= 1.3 || window.width < 360 || perItemWidth < minTileWidth;
   return (
     <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.outlineVariant, flexDirection: stacked ? 'column' : 'row' }, style]}>
       {items.map((item, index) => (

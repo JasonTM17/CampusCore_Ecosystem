@@ -100,5 +100,5 @@ const styles = StyleSheet.create({
   trigger: { alignItems: 'center', borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between' },
   grow: { flex: 1 },
   disabled: { opacity: 0.5 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap' },
 });
