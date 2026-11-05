@@ -11,6 +11,7 @@ import type { UiIconName } from '../../components/ui/institutional';
 import type { MobileScreenProps } from '../../navigation/types';
 import { fillCopy } from '../../i18n/academic-messages';
 import { checkinMessages, type CheckinCopy } from '../../i18n/checkin-messages';
+import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
 import { createDemoCheckinMachine, DEMO_SCENARIOS, type DemoScenario } from './checkin-demo';
 import { useCheckinStyles } from './checkin-styles';
@@ -103,6 +104,8 @@ interface CheckinBodyProps {
 
 function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRetry }: CheckinBodyProps) {
   const styles = useCheckinStyles();
+  const { window } = useTheme();
+  const stackSessionAction = window.class === 'compact' || window.fontScale >= 1.3;
   const { formatDateTime } = useLocale();
   const router = useRouter();
   const state = snapshot.state;
@@ -127,7 +130,7 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
                 <UiText variant="bodySmall" tone="muted">{session.geofenceName}</UiText>
                 <UiText variant="meta" tone="muted">{fillCopy(copy.closesAt, { time: formatDateTime(session.closesAt) })}</UiText>
               </View>
-              <View testID={`checkin-select-${session.id}`}>
+              <View style={stackSessionAction ? styles.sessionActionStacked : undefined} testID={`checkin-select-${session.id}`}>
                 <Button label={copy.entryAction} onPress={() => { void machine.selectSession(session.id); }} variant="secondary" />
               </View>
             </View>

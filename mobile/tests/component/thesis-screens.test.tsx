@@ -152,6 +152,19 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); navigate.mockClear(); });
 
 describe('topics, round and advisors', () => {
+  test.each([[360, 1, 1], [393, 2, 1], [600, 1, 1], [839, 1.3, 1], [840, 1, 2], [1000, 1, 2], [1000, 1.3, 1], [1000, 2, 1]])(
+    'uses %s dp and font %s to choose %s topic columns',
+    async (width, fontScale, columns) => {
+      setWidth(width, fontScale);
+      await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+      await screen.findByText(TOPIC_A.title);
+      let cell = screen.getByRole('button', { name: `${copy.openTopic}: ${TOPIC_A.title}` }).parent;
+      const expectedWidth = columns === 2 ? '48.5%' : '100%';
+      while (cell && StyleSheet.flatten(cell.props.style)?.width !== expectedWidth) cell = cell.parent;
+      expect(cell).toBeTruthy();
+    },
+  );
+
   test('opens on the registration round and lists its published topics', async () => {
     setWidth(360);
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);

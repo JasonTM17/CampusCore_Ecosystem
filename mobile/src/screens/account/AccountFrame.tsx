@@ -47,33 +47,8 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
   }, [error]);
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <View style={[styles.screen, { backgroundColor: colors.background, paddingLeft: insets?.left ?? 0, paddingRight: insets?.right ?? 0 }]}>
       <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
-      <View
-        style={[
-          styles.brandRow,
-          {
-            backgroundColor: chrome.surface,
-            paddingTop: (insets?.top ?? 0) + tokens.spacing.lg,
-          },
-        ]}
-      >
-        <Image
-          accessibilityLabel={accountMessages[locale].signIn.institutionName}
-          accessibilityRole="image"
-          source={require('../../../assets/hcmute-logo.png')}
-          resizeMode="contain"
-          style={styles.brandMark}
-        />
-        <View style={styles.brandCopy}>
-          <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>
-            CampusUTE
-          </UiText>
-          <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>
-            {portalSubtitle}
-          </UiText>
-        </View>
-      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -81,7 +56,6 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={[
-            styles.content,
             {
               paddingBottom: tokens.spacing.xl + (insets?.bottom ?? 0),
             },
@@ -89,7 +63,32 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <ResponsiveContent>
+          <View
+            style={[
+              styles.brandRow,
+              {
+                backgroundColor: chrome.surface,
+                paddingTop: (insets?.top ?? 0) + tokens.spacing.lg,
+              },
+            ]}
+          >
+            <Image
+              accessibilityLabel={accountMessages[locale].signIn.institutionName}
+              accessibilityRole="image"
+              source={require('../../../assets/hcmute-logo.png')}
+              resizeMode="contain"
+              style={styles.brandMark}
+            />
+            <View style={styles.brandCopy}>
+              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>
+                CampusUTE
+              </UiText>
+              <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>
+                {portalSubtitle}
+              </UiText>
+            </View>
+          </View>
+          <ResponsiveContent style={styles.content}>
             <Card style={styles.formCard}>
               <View
                 style={[

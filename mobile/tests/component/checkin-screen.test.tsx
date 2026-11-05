@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Dimensions, StyleSheet, type AppStateStatus } from 'react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { createCheckinMachine } from '../../src/attendance-checkin/checkin-machine';
@@ -124,6 +124,22 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); });
 
 describe('check-in screen states', () => {
+  test.each([[360, 640, 1], [393, 360, 2], [839, 393, 1.3], [1000, 600, 2]])(
+    'gives the session action its own line at %s x %s and font %s',
+    async (width, height, fontScale) => {
+      jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height, scale: 2, fontScale });
+      const fixture = setup({ sessions: [{ ...SESSION, sectionLabel: 'Học phần có tên dài và nhiều thông tin', geofenceName: 'Cơ sở đào tạo chính' }] });
+      await show(fixture.machine);
+      const action = await screen.findByTestId(`checkin-select-${ID}`);
+      const rowStyle = StyleSheet.flatten(action.parent?.props.style);
+      expect(rowStyle.flexWrap).toBe('wrap');
+      expect(StyleSheet.flatten(action.props.style).width).toBe('100%');
+      let scroll = action.parent;
+      while (scroll && !scroll.props.keyboardShouldPersistTaps) scroll = scroll.parent;
+      expect(scroll).toBeTruthy();
+    },
+  );
+
   test('unauthorized submission shows explicit recovery and retry only reloads reads', async () => {
     const fixture = setup({ checkinError: new AttendanceApiError('UNKNOWN', 401) });
     await show(fixture.machine); await reachReady(); await submitCode('123456');
