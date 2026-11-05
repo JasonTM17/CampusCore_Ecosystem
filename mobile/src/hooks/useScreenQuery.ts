@@ -181,10 +181,10 @@ export function useScreenQuery<T>(
     } catch (nextError) {
       if (!isCurrent() || superseded()) return;
       const opts = optionsRef.current;
-      const message = (opts.mapError ?? defaultError)(nextError, opts.errorMessage ?? 'This data is unavailable.');
       let status = typeof (nextError as { status?: number })?.status === 'number'
         ? (nextError as { status: number }).status
         : (nextError instanceof TypeError ? 0 : null);
+      let connectivityInferredOffline = false;
       if (status === null) {
         // Connectivity signal (§5): an unclassified failure while the OS
         // reports no link is treated as offline, not an API error.
@@ -192,6 +192,7 @@ export function useScreenQuery<T>(
           const network = await getNetworkStateAsync();
           if (network.isConnected === false) {
             status = 0;
+            connectivityInferredOffline = true;
           }
         } catch {
           // expo-network unavailable (tests/preview) — classification
@@ -199,6 +200,12 @@ export function useScreenQuery<T>(
         }
       }
       if (!isCurrent() || superseded()) return;
+      const mappedError = connectivityInferredOffline
+        ? nextError instanceof Error
+          ? Object.assign(new Error(nextError.message), nextError, { name: nextError.name, status: 0 })
+          : { ...(typeof nextError === 'object' && nextError !== null ? nextError : {}), status: 0 }
+        : nextError;
+      const message = (opts.mapError ?? defaultError)(mappedError, opts.errorMessage ?? 'This data is unavailable.');
       // Denied is always a full state (§5). Other failures degrade to a
       // stale-data banner when the screen already has something to show.
       if (status === 403 || readQueryCache<T>(cacheKey, optionsRef.current.maxAge) === undefined) {
