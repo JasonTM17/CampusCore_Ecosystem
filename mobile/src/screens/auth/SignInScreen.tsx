@@ -108,7 +108,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       >
         <View style={[styles.hero, { backgroundColor: chrome.surface, paddingTop: (insets?.top ?? 0) + tokens.spacing.lg }]}>
           <View style={styles.brandRow}>
-            <Image accessibilityLabel="HCMUTE" accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
+            <Image accessibilityLabel={copy.signIn.institutionName} accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
             <View style={styles.brandCopy}>
               <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
@@ -291,7 +291,7 @@ function NewsCover({ url }: { url?: string | null }) {
       </View>
     );
   }
-  return <Image accessible={false} onError={() => setFailed(true)} resizeMode="cover" source={{ uri: url }} style={styles.cover} testID="signin-news-cover" />;
+  return <Image accessible={false} importantForAccessibility="no" onError={() => setFailed(true)} resizeMode="cover" source={{ uri: url }} style={styles.cover} testID="signin-news-cover" />;
 }
 
 function FeaturedNewsCard({
