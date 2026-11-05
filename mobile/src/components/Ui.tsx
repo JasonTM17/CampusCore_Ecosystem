@@ -13,7 +13,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../design/chrome';
-import { compactFontScaleCap } from '../design/font-scale';
+import { chromeFontScaleCap, compactFontScaleCap } from '../design/font-scale';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
@@ -86,7 +86,7 @@ function buildStyles(colors: ThemeColors) {
     leading: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
     leadingUnread: { backgroundColor: colors.primaryFixed },
     listCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
-    listTitle: { flex: 1 },
+    listTitle: { flex: 1, minWidth: 0 },
     listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
     listMeta: { flexShrink: 1, maxWidth: '36%', textAlign: 'right', fontVariant: ['tabular-nums'] },
     unreadTitle: { color: colors.primary, fontWeight: '600' },
@@ -101,7 +101,7 @@ function buildStyles(colors: ThemeColors) {
     statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
     statePanelError: { backgroundColor: colors.errorFixed },
     dataNotice: { backgroundColor: colors.warningFixed },
-    stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
+    stateCopy: { flex: 1, minWidth: 0, marginHorizontal: tokens.spacing.sm },
     stateDescription: { marginTop: tokens.spacing.xs },
   });
 }
@@ -370,7 +370,7 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
       ) : null}
       <View testID="list-row-copy" style={styles.listCopy}>
         <View style={styles.listTitleRow}>
-          <UiText variant="bodyMedium" style={unread ? styles.unreadTitle : styles.listTitle}>
+          <UiText variant="bodyMedium" style={[styles.listTitle, unread ? styles.unreadTitle : undefined]}>
             {title}
           </UiText>
           {unread ? (
@@ -483,17 +483,22 @@ export interface StatePanelProps {
 
 export function StatePanel({ kind, title, description, actionLabel, onAction }: StatePanelProps) {
   const styles = useUiStyles();
-  const { colors } = useTheme();
+  const { colors, window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   return (
     <View
       accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
       accessibilityRole={kind === 'error' ? 'alert' : undefined}
-      style={[styles.statePanel, kind === 'error' ? styles.statePanelError : undefined]}
+      style={[
+        styles.statePanel,
+        kind === 'error' ? styles.statePanelError : undefined,
+        largeText ? { flexDirection: 'column', alignItems: 'stretch' } : undefined,
+      ]}
     >
       {kind === 'loading' ? (
         <ActivityIndicator color={colors.primary} size="small" />
       ) : <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={kind === 'error' ? 'alert-circle-outline' : 'inbox-outline'} color={kind === 'error' ? colors.error : colors.textMuted} size={24} />}
-      <View style={styles.stateCopy}>
+      <View style={[styles.stateCopy, largeText ? { marginHorizontal: 0 } : undefined]}>
         <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
           {title}
         </UiText>
