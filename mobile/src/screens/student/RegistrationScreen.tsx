@@ -172,7 +172,7 @@ return (
     </>,
       }}
     >
-      {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
+      {actions.notice ? <View style={academicStyles.card}><Notice message={actions.notice.text} tone={actions.notice.tone} /></View> : null}
       <HeroCard
         icon="clipboard-list-outline"
         title={fillCopy(copy.basketTitle, { n: selectedCount })}
@@ -192,7 +192,9 @@ return (
       </HeroCard>
       <ScreenSpacer />
       {workspace?.eligibilityError ? (
-        <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+        <View style={academicStyles.card}>
+          <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
+        </View>
       ) : null}
       {!roundOpen ? <View style={academicStyles.card}><StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /></View> : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />

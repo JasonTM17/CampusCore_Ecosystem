@@ -51,12 +51,12 @@ export function CheckinEntryCard({ api, navigation }: { api?: AttendanceApi; nav
 
   if (!allowed) return null;
   if (failed) {
-    return <InlineError message={copy.entryError} onRetry={retry} retryLabel={copy.retry} />;
+    return <View style={styles.entry}><InlineError message={copy.entryError} onRetry={retry} retryLabel={copy.retry} /></View>;
   }
   if (openCount === 0) return null;
 
   return (
-    <Card>
+    <Card style={styles.entry}>
       <View style={styles.entryRow} testID="checkin-entry">
         <IconChip icon="map-marker-check-outline" size={32} />
         <View style={styles.entryCopy}>
