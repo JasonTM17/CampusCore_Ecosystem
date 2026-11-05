@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, Divider, Field, ListRow, ProgressBar, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
 import { Dialog } from '../../components/ui/primitives';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { countForm } from '../../i18n/locale';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
@@ -35,6 +37,8 @@ const SEARCH_RESULT_CAP = 10;
 /** Group, members and topic in one place; every write is leader-only and limited to the open window. */
 export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: MobileScreenProps) {
   const { copy } = useThesisUi();
+  const { window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const active = useActiveThesisRound();
   const candidateState = useThesisTopic(selectedThesisTopicId ?? undefined);
   const candidate = candidateState.topic;
@@ -166,22 +170,29 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
                     </UiText>
                     {members.map((member, index) => {
                       const leader = member.studentId === group.leaderStudentId;
+                      const removable = canWrite && !leader;
+                      const remove = removable ? (
+                        <Button
+                          label={copy.remove}
+                          accessibilityLabel={`${copy.memberRemove}: ${memberLabel(member)}`}
+                          variant="text"
+                          disabled={working}
+                          style={largeText ? styles.stackedAction : undefined}
+                          onPress={() => setPendingRemove(member)}
+                        />
+                      ) : null;
+                      // ListRow groups its texts into one accessible node when trailing is empty;
+                      // an empty slot keeps the action below separately focusable.
+                      const stacked = largeText && removable;
                       return (
                         <View key={member.studentId}>
                           <ListRow
                             leading={memberLabel(member).slice(0, 1).toUpperCase()}
                             title={memberLabel(member)}
                             subtitle={leader ? copy.groupLeader : copy.groupMember}
-                            trailing={canWrite && !leader ? (
-                              <Button
-                                label={copy.remove}
-                                accessibilityLabel={`${copy.memberRemove}: ${memberLabel(member)}`}
-                                variant="text"
-                                disabled={working}
-                                onPress={() => setPendingRemove(member)}
-                              />
-                            ) : undefined}
+                            trailing={stacked ? <View /> : remove}
                           />
+                          {stacked ? remove : null}
                           {index < members.length - 1 ? <Divider /> : null}
                         </View>
                       );
@@ -200,26 +211,32 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
                         {!searching && hits !== null && candidates.length === 0 ? (
                           <UiText variant="bodySmall" tone="muted">{copy.memberSearchEmpty}</UiText>
                         ) : null}
-                        {candidates.map((hit) => (
-                          <ListRow
-                            key={hit.studentId}
-                            leading={studentHitLabel(hit).slice(0, 1).toUpperCase()}
-                            title={studentHitLabel(hit)}
-                            subtitle={[hit.studentNumber, hit.curriculumCode].filter(Boolean).join(' · ')}
-                            trailing={(
-                              <Button
-                                label={copy.memberAdd}
-                                accessibilityLabel={`${copy.memberAdd}: ${studentHitLabel(hit)}`}
-                                variant="secondary"
-                                disabled={working}
-                                onPress={() => {
-                                  setSearch('');
-                                  void run(() => thesisApi.addMember(group.id, hit.studentId), copy.saved);
-                                }}
+                        {candidates.map((hit) => {
+                          const add = (
+                            <Button
+                              label={copy.memberAdd}
+                              accessibilityLabel={`${copy.memberAdd}: ${studentHitLabel(hit)}`}
+                              variant="secondary"
+                              disabled={working}
+                              style={largeText ? styles.stackedAction : undefined}
+                              onPress={() => {
+                                setSearch('');
+                                void run(() => thesisApi.addMember(group.id, hit.studentId), copy.saved);
+                              }}
+                            />
+                          );
+                          return (
+                            <View key={hit.studentId}>
+                              <ListRow
+                                leading={studentHitLabel(hit).slice(0, 1).toUpperCase()}
+                                title={studentHitLabel(hit)}
+                                subtitle={[hit.studentNumber, hit.curriculumCode].filter(Boolean).join(' · ')}
+                                trailing={largeText ? <View /> : add}
                               />
-                            )}
-                          />
-                        ))}
+                              {largeText ? add : null}
+                            </View>
+                          );
+                        })}
                       </View>
                     ) : null}
                   </Card>
@@ -290,4 +307,5 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   search: { marginTop: tokens.spacing.md },
   pending: { gap: tokens.spacing.sm, marginVertical: tokens.spacing.sm },
+  stackedAction: { alignSelf: 'stretch', marginTop: tokens.spacing.xs },
 });
