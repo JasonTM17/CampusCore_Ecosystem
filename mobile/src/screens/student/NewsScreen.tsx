@@ -11,12 +11,13 @@ import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { filterByPriority, joinMeta } from '../content/content-rules';
+import { filterByPriority } from '../content/content-rules';
 import { ContentChevron, ContentIconChip, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
 import { NewsDetail } from '../content/NewsDetail';
 import { previewNews } from '../content/preview-data';
 import { excerptOf } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
+import { summaryRowAccessibilityLabel } from './summary-label';
 
 const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 
@@ -74,33 +75,41 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
             </ScrollView>
           </View>
         )}
-        renderItem={(item) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={joinMeta([item.title, copy.priorityLabels[item.priority ?? ''] ?? item.priority, item.publishAt ? formatDate(item.publishAt) : null])}
-            onPress={() => setSelected(item.slug ?? item.id)}
-            style={styles.row}
-          >
-            <Card>
-              <View style={styles.rowContent}>
-                <ContentIconChip icon="newspaper-variant-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{item.title}</UiText>
-                  {item.summary || item.content ? (
-                    <UiText variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{item.summary ?? excerptOf(item.content)}</UiText>
-                  ) : null}
-                  <View style={styles.meta}>
-                    {item.categoryId && categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]
-                      ? <StatusPill label={categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]} tone="primary" />
-                      : <StatusChip code={item.priority} labels={copy.priorityLabels} />}
-                    {item.publishAt ? <UiText variant="meta" tone="muted">{formatDate(item.publishAt)}</UiText> : null}
+        renderItem={(item) => {
+          const summaryText = item.summary ?? (item.content ? excerptOf(item.content) : null);
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={summaryRowAccessibilityLabel({
+                title: item.title,
+                badge: copy.priorityLabels[item.priority ?? ''] ?? item.priority,
+                date: item.publishAt ? formatDate(item.publishAt) : null,
+                summary: summaryText,
+              })}
+              onPress={() => setSelected(item.slug ?? item.id)}
+              style={styles.row}
+            >
+              <Card>
+                <View style={styles.rowContent}>
+                  <ContentIconChip icon="newspaper-variant-outline" />
+                  <View style={styles.rowCopy}>
+                    <UiText variant="label">{item.title}</UiText>
+                    {summaryText ? (
+                      <UiText ellipsizeMode="tail" variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{summaryText}</UiText>
+                    ) : null}
+                    <View style={styles.meta}>
+                      {item.categoryId && categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]
+                        ? <StatusPill label={categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]} tone="primary" />
+                        : <StatusChip code={item.priority} labels={copy.priorityLabels} />}
+                      {item.publishAt ? <UiText variant="meta" tone="muted">{formatDate(item.publishAt)}</UiText> : null}
+                    </View>
                   </View>
+                  <ContentChevron />
                 </View>
-                <ContentChevron />
-              </View>
-            </Card>
-          </Pressable>
-        )}
+              </Card>
+            </Pressable>
+          );
+        }}
       />
     </>
   );
