@@ -243,5 +243,9 @@ export async function shareTimetable(uri: string, name: string): Promise<FileOut
   const adapter = getFileAdapter();
   const capability = adapter.capability('share');
   if (!capability.available) return { status: 'unavailable', reason: capability.reason };
-  return outcome(await adapter.share({ uri, name, mimeType: 'text/calendar' }));
+  try {
+    return outcome(await adapter.share({ uri, name, mimeType: 'text/calendar' }));
+  } catch (error) {
+    return { status: 'failed', reason: (error as { code?: string } | null)?.code ?? 'ERROR' };
+  }
 }

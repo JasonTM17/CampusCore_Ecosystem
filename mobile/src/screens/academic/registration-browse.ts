@@ -59,7 +59,7 @@ export function matchesSectionSearch(section: BrowseSection, rawQuery: string): 
   const query = normalizeVietnameseText(rawQuery.trim());
   if (!query) return true;
   const extras = (section.schedules ?? []).map((slot) => `${slot.lecturer ?? ''} ${slot.room ?? ''}`).join(' ');
-  const haystack = normalizeVietnameseText(`${section.courseCode} ${section.sectionNumber} ${section.courseName} ${extras}`);
+  const haystack = normalizeVietnameseText(`${section.courseCode} ${section.sectionNumber} ${section.courseName} ${section.courseNameVi ?? ''} ${section.courseNameEn ?? ''} ${extras}`);
   return haystack.includes(query) || query.split(/\s+/).filter(Boolean).every((token) => haystack.includes(token));
 }
 
