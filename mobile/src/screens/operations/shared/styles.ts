@@ -18,7 +18,7 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   searchBar: { marginBottom: tokens.spacing.md },
   stack: { gap: tokens.spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
-  chip: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, flexGrow: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, minWidth: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
+  chip: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, flexGrow: 1, justifyContent: 'center', minHeight: Math.max(48, tokens.layout.touchTarget), minWidth: Math.max(48, tokens.layout.touchTarget), paddingHorizontal: tokens.spacing.sm },
   rosterCard: { marginBottom: tokens.spacing.sm, padding: tokens.spacing.md },
   heroTitle: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.sm },
   metricGrid: { flexDirection: 'row' },

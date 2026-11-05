@@ -107,6 +107,20 @@ describe('admin surfaces never fabricate live records', () => {
     await fireEvent.changeText(screen.getByLabelText('Tìm sinh viên'), 'zzz-no-match');
     expect(screen.getByText('Không có kết quả phù hợp')).toBeTruthy();
   });
+
+  test('preview directory searches find Vietnamese names without diacritics', async () => {
+    mockApi.mode = 'preview';
+    const studentView = await renderThemed(<AdminStudentsScreen />);
+    await fireEvent.changeText(screen.getByLabelText(operationsMessages.vi.searchStudents), 'khanh');
+    expect(screen.getByText('Lê Khánh Vy')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText(operationsMessages.vi.searchStudents), 'do');
+    expect(screen.getByText('Đỗ Quang Huy')).toBeTruthy();
+    await studentView.unmount();
+
+    await renderThemed(<AdminLecturersScreen />);
+    await fireEvent.changeText(screen.getByLabelText(operationsMessages.vi.searchLecturers), 'nguyen');
+    expect(screen.getByText(/Nguyễn Văn A/)).toBeTruthy();
+  });
 });
 
 describe('resource 401 mapping', () => {
@@ -207,6 +221,48 @@ describe('staff literals follow the locale', () => {
     await fireEvent.press(screen.getByText(/Vũ Đình D/));
     await waitFor(() => expect(screen.getByText('Lecturer details')).toBeTruthy());
     expect(screen.getByText('1 group · 10/15 students')).toBeTruthy();
+  });
+});
+
+describe('admin detail sheet reachability', () => {
+  test('preview detail bodies scroll so their final action remains reachable', async () => {
+    mockApi.mode = 'preview';
+    type Instance = { parent: unknown; type: string };
+    const hasAncestor = (start: Instance, target: unknown) => {
+      let node: { parent: unknown; type: string } | null = start;
+      while (node) {
+        if (node === target) return true;
+        node = node.parent as typeof node;
+      }
+      return false;
+    };
+    const hasScrollableAncestorBefore = (start: Instance, boundary: unknown) => {
+      let node = start.parent as Instance | null;
+      while (node && node !== boundary) {
+        if (node.type.includes('ScrollView')) return true;
+        node = node.parent as Instance | null;
+      }
+      return false;
+    };
+
+    const studentsView = await renderThemed(<AdminStudentsScreen />);
+    await fireEvent.press(screen.getByText('Nguyễn Đức Minh'));
+    await waitFor(() => expect(screen.getByText(operationsMessages.vi.studentDetail)).toBeTruthy());
+    const studentSheet = screen.getByLabelText(operationsMessages.vi.studentDetail) as unknown as Instance;
+    const studentActions = screen.getAllByRole('button', { name: operationsMessages.vi.openOnWeb });
+    const studentSheetAction = studentActions.find((action) => hasAncestor(action as unknown as Instance, studentSheet));
+    expect(studentSheetAction).toBeDefined();
+    expect(hasScrollableAncestorBefore(studentSheetAction as unknown as Instance, studentSheet)).toBe(true);
+    await studentsView.unmount();
+
+    await renderThemed(<AdminLecturersScreen />);
+    await fireEvent.press(screen.getByText(/Lê Hoàng C/));
+    await waitFor(() => expect(screen.getByText(operationsMessages.vi.lecturerDetail)).toBeTruthy());
+    const lecturerSheet = screen.getByLabelText(operationsMessages.vi.lecturerDetail) as unknown as Instance;
+    const lecturerActions = screen.getAllByRole('button', { name: operationsMessages.vi.openOnWeb });
+    const lecturerSheetAction = lecturerActions.find((action) => hasAncestor(action as unknown as Instance, lecturerSheet));
+    expect(lecturerSheetAction).toBeDefined();
+    expect(hasScrollableAncestorBefore(lecturerSheetAction as unknown as Instance, lecturerSheet)).toBe(true);
   });
 });
 
