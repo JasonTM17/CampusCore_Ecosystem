@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../../design/chrome';
 import { compactFontScaleCap } from '../../design/font-scale';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { Button } from './Button';
 import { UiText } from './UiText';
@@ -175,7 +175,7 @@ export function SheetHeader({ title, subtitle, closeLabel, onClose }: { title: s
 const compact = tokens.spacing.sm + tokens.spacing.xs;
 const styles = StyleSheet.create({
   chip: { alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radii.control, flexShrink: 0 },
-  iconButton: { alignItems: 'center', justifyContent: 'center', minHeight: tokens.layout.touchTarget, minWidth: tokens.layout.touchTarget, borderRadius: tokens.radii.control },
+  iconButton: { alignItems: 'center', justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, borderRadius: tokens.radii.control },
   pill: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, borderRadius: tokens.radii.pill, flexShrink: 1, maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
   sectionCard: { borderWidth: 1, borderRadius: tokens.radii.card, minWidth: 0 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
@@ -186,6 +186,6 @@ const styles = StyleSheet.create({
   stat: { flex: 1, minWidth: 0, padding: compact, gap: tokens.spacing.xs },
   statTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   statValue: { fontVariant: ['tabular-nums'], flexShrink: 1 },
-  filter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget, borderRadius: tokens.radii.control, borderWidth: 1, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm },
+  filter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.sm, minHeight: minTapTarget, borderRadius: tokens.radii.control, borderWidth: 1, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, borderBottomWidth: 1, paddingBottom: compact, marginBottom: tokens.spacing.md },
 });

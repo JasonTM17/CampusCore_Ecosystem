@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { minTapTarget } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
@@ -25,7 +26,7 @@ export interface DateFieldProps {
  * text field. The value is committed only when it is a real calendar date.
  */
 export function DateField({ label, value, onChange, min, max, required = false, error, disabled = false }: DateFieldProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t, formatDate, parseDate } = useLocale();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -67,7 +68,7 @@ export function DateField({ label, value, onChange, min, max, required = false, 
         onPress={openSheet}
         style={[
           styles.trigger,
-          { backgroundColor: colors.card, borderColor: error ? colors.error : colors.outlineVariant, borderRadius: radii.control, minHeight: layout.touchTarget, paddingHorizontal: spacing.md },
+          { backgroundColor: colors.card, borderColor: error ? colors.error : colors.outlineVariant, borderRadius: radii.control, minHeight: minTapTarget, paddingHorizontal: spacing.md },
           disabled ? styles.disabled : undefined,
         ]}
       >
