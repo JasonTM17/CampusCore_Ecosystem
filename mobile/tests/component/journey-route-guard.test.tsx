@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 let mockPathname = '/registration';
+let mockLocale: 'vi' | 'en' = 'vi';
 let mockPendingCheckin: string | null = null;
 let mockSession: {
   kind: 'signedOut' | 'authenticated';
@@ -12,6 +13,8 @@ let mockSession: {
   blockedReason: string | null;
   booted: boolean;
   bootStatus: string;
+  bootUnavailableReason?: string;
+  retryBoot?: () => Promise<void>;
 } = {
   kind: 'signedOut',
   role: 'student',
@@ -41,8 +44,17 @@ jest.mock('../../src/design/theme', () => ({
 }));
 jest.mock('../../src/i18n/locale-provider', () => ({
   LocaleProvider: ({ children }: { children: ReactNode }) => children,
-  useLocale: () => ({ ready: true }),
+  useLocale: () => ({ ready: true, locale: mockLocale }),
 }));
+jest.mock('../../src/components/Ui', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  const Native = jest.requireActual('react-native') as typeof import('react-native');
+  return {
+    UiText: ({ children }: { children: ReactNode }) => React.createElement(Native.Text, {}, children),
+    Button: ({ label, onPress, loading }: { label: string; onPress: () => void; loading?: boolean }) =>
+      React.createElement(Native.Pressable, { accessibilityRole: 'button', accessibilityLabel: label, disabled: loading, onPress }, React.createElement(Native.Text, {}, label)),
+  };
+});
 jest.mock('../../src/session/SessionContext', () => ({
   SessionProvider: ({ children }: { children: ReactNode }) => children,
   useSession: () => mockSession,
@@ -68,6 +80,7 @@ import AppGroupLayout from '../../app/(app)/_layout';
 
 beforeEach(() => {
   mockPathname = '/registration';
+  mockLocale = 'vi';
   mockPendingCheckin = null;
   mockSession = {
     kind: 'signedOut', role: 'student', accountId: null, capabilities: [],
@@ -76,6 +89,27 @@ beforeEach(() => {
 });
 
 describe('route recovery and role denial', () => {
+  test.each([
+    ['vi', 'Không có kết nối mạng.', 'Thử lại phiên'],
+    ['en', 'You are offline.', 'Retry session'],
+  ] as ['vi' | 'en', string, string][])('offline bootstrap shows a %s retry surface before any signed-out redirect', async (locale, message, retryLabel) => {
+    mockLocale = locale;
+    const retryBoot = jest.fn(async () => {});
+    mockSession = { ...mockSession, bootStatus: 'unavailable', bootUnavailableReason: 'offline', retryBoot };
+    const view = await render(<RootLayout />);
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByTestId('redirect-target')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: retryLabel }));
+    expect(retryBoot).toHaveBeenCalledTimes(1);
+    mockSession = { ...mockSession, bootStatus: 'checking' };
+    await view.rerender(<RootLayout />);
+    expect(screen.getByRole('button', { name: retryLabel })).toBeDisabled();
+    expect(screen.queryByTestId('redirect-target')).toBeNull();
+    mockSession = { ...mockSession, kind: 'authenticated', accountId: 'student-1', bootStatus: 'ready', bootUnavailableReason: undefined };
+    await view.rerender(<RootLayout />);
+    expect(screen.queryByText(message)).toBeNull();
+    expect(screen.queryByTestId('redirect-target')).toBeNull();
+  });
   test('an expired session returns to its protected route after sign-in', async () => {
     const view = await render(<RootLayout />);
     expect(screen.getByTestId('redirect-target')).toHaveTextContent('/sign-in');
