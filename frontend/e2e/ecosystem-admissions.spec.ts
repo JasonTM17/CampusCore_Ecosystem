@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { expect, request as pwRequest, test, type Page } from '@playwright/test';
 
 /**
@@ -144,7 +146,7 @@ test.beforeAll(async () => {
     `/api/v1/admissions/applications/${draft.id}/attachments`, {
       fileName: 'e2e-score.pdf',
       contentType: 'application/pdf',
-      dataBase64: Buffer.from('synthetic-e2e-score').toString('base64'),
+      dataBase64: readFileSync(path.join(__dirname, 'fixtures', 'document.pdf')).toString('base64'),
     }, { 'Idempotency-Key': `e2e-adm-att-${CYCLE}` });
   expect(withAttachment.attachments.length).toBe(1);
   const attachmentId = withAttachment.attachments[0].id;
