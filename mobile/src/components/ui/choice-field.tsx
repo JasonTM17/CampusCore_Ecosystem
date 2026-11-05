@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
 import { SegmentedControl, Sheet } from './primitives';
@@ -24,7 +24,7 @@ export interface ChoiceFieldProps {
 const SEGMENT_LIMIT = 3;
 
 export function ChoiceField({ label, options, value, onChange, display = 'auto', placeholder, error, hint, disabled = false }: ChoiceFieldProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const segmented = display === 'segmented' || (display === 'auto' && options.length <= SEGMENT_LIMIT);
@@ -47,7 +47,7 @@ export function ChoiceField({ label, options, value, onChange, display = 'auto',
             onPress={() => setOpen(true)}
             style={[
               styles.trigger,
-              { backgroundColor: colors.card, borderColor: error ? colors.error : colors.outlineVariant, borderRadius: radii.control, minHeight: layout.touchTarget, paddingHorizontal: spacing.md },
+              { backgroundColor: colors.card, borderColor: error ? colors.error : colors.outlineVariant, borderRadius: radii.control, minHeight: minTapTarget, paddingHorizontal: spacing.md },
               disabled ? styles.disabled : undefined,
             ]}
           >
@@ -65,7 +65,7 @@ export function ChoiceField({ label, options, value, onChange, display = 'auto',
                     accessibilityLabel={option.label}
                     accessibilityState={{ checked: isSelected, selected: isSelected }}
                     onPress={() => { onChange(option.value); setOpen(false); }}
-                    style={[styles.option, { minHeight: layout.touchTarget, paddingHorizontal: spacing.sm }, isSelected ? { backgroundColor: colors.primaryFixed } : undefined]}
+                    style={[styles.option, { minHeight: minTapTarget, paddingHorizontal: spacing.sm }, isSelected ? { backgroundColor: colors.primaryFixed } : undefined]}
                   >
                     <UiText variant="bodyMedium" tone={isSelected ? 'primary' : 'default'} style={styles.grow}>{option.label}</UiText>
                     <UiText variant="label" tone="primary">{isSelected ? '✓' : ''}</UiText>
