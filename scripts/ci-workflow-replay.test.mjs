@@ -16,10 +16,245 @@ import {
   replayTimingStep,
   replayWorkflow,
 } from './ci-workflow-replay.mjs';
+import { resolveBashCommand } from './bash-command.mjs';
+import { spawnPortable, spawnSyncPortable } from './portable-spawn.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'ci.yml');
 const workflowSource = readFileSync(workflowPath, 'utf8');
+const bashCallers = [
+  'ci-workflow-replay.mjs',
+  'ci-secret-output.test.mjs',
+  'verify-backup.test.mjs',
+];
+const previewVerifiers = [
+  'ecosystem-admissions-verify.mjs',
+  'ecosystem-careers-verify.mjs',
+  'ecosystem-content-verify.mjs',
+  'ecosystem-events-verify.mjs',
+  'ecosystem-learning-verify.mjs',
+  'ecosystem-library-verify.mjs',
+  'ecosystem-sso-verify.mjs',
+];
+const windowsBatchCallers = [
+  'platform-verify.mjs',
+  'bff-verify.mjs',
+  'identity-verify.mjs',
+  'verify-ecosystem.mjs',
+  ...previewVerifiers,
+];
+
+function waitForExit(child) {
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code, signal) => resolve({ code, signal }));
+  });
+}
+
+test('Bash callers do not assume the default Git for Windows installation path', () => {
+  for (const file of bashCallers) {
+    const source = readFileSync(path.join(repoRoot, 'scripts', file), 'utf8');
+    assert.doesNotMatch(
+      source,
+      /C:\\\\Program Files\\\\Git\\\\bin\\\\bash\.exe/,
+      `${file} must not assume Git for Windows is installed under Program Files`,
+    );
+  }
+});
+
+test('Windows batch fallbacks do not pass argv through shell mode', () => {
+  for (const file of windowsBatchCallers) {
+    const source = readFileSync(path.join(repoRoot, 'scripts', file), 'utf8');
+    assert.doesNotMatch(source, /shell:\s*true/, `${file} must keep command arguments as argv`);
+    assert.match(source, /spawnSyncPortable/, `${file} must use the shared Windows command fallback`);
+  }
+});
+
+test('retries Windows batch tools through ComSpec with a separate argv list', () => {
+  const calls = [];
+  const fallbackResult = { status: 0, stdout: 'ok', stderr: '' };
+  const result = spawnSyncPortable(
+    'mvn',
+    ['-f', 'D:\\Project With Spaces\\java-services\\pom.xml'],
+    {
+      cwd: 'D:\\Project With Spaces',
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      encoding: 'utf8',
+    },
+    {
+      platform: 'win32',
+      spawnSyncImpl: (command, args, options) => {
+        calls.push({ command, args, options });
+        if (calls.length === 1) return { error: Object.assign(new Error('batch shim'), { code: 'EINVAL' }) };
+        return fallbackResult;
+      },
+    },
+  );
+
+  assert.equal(result, fallbackResult);
+  assert.equal(calls[0].options.shell, false);
+  assert.equal(calls[1].command, 'C:\\Windows\\System32\\cmd.exe');
+  assert.deepEqual(calls[1].args, [
+    '/d', '/s', '/c', 'call', 'mvn', '-f', 'D:\\Project With Spaces\\java-services\\pom.xml',
+  ]);
+  assert.equal(calls[1].options.shell, false);
+});
+
+test('runs a Windows batch tool with a path and argument containing spaces', { skip: process.platform !== 'win32' }, (t) => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'batch path with spaces-'));
+  const commandPath = path.join(directory, 'capture args.cmd');
+  const outputPath = path.join(directory, 'captured.txt');
+  writeFileSync(commandPath, `@echo off\r\n> "${outputPath}" echo %~1\r\n`, 'utf8');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const result = spawnSyncPortable(commandPath, ['argument with spaces'], { encoding: 'utf8' });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(outputPath, 'utf8').trim(), 'argument with spaces');
+});
+
+test('preview verifiers start every child without shell mode', () => {
+  for (const file of previewVerifiers) {
+    const source = readFileSync(path.join(repoRoot, 'scripts', file), 'utf8');
+    assert.doesNotMatch(source, /\bshell\s*:/, `${file} must not delegate argument parsing to a shell`);
+    assert.match(source, /spawnPortable/, `${file} must start long-running children portably`);
+  }
+});
+
+test('spawnSyncPortable passes spaces, double quotes and ampersands through unchanged', () => {
+  const argument = 'a b "c" & d';
+  const result = spawnSyncPortable(
+    process.execPath,
+    ['-e', 'process.stdout.write(process.argv[1])', argument],
+    { encoding: 'utf8' },
+  );
+
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, argument);
+});
+
+test('spawnPortable passes spaces, double quotes and ampersands through unchanged', async () => {
+  const argument = 'a b "c" & d';
+  const child = spawnPortable(
+    process.execPath,
+    ['-e', 'process.stdout.write(process.argv[1])', argument],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  const { code, signal } = await waitForExit(child);
+  assert.equal(signal, null, stderr);
+  assert.equal(code, 0, stderr);
+  assert.equal(stdout, argument);
+});
+
+test('spawnPortable starts executables directly with shell mode off', () => {
+  const calls = [];
+  const child = { pid: 1 };
+  const result = spawnPortable(
+    'C:\\Program Files\\nodejs\\node.exe',
+    ['--version'],
+    { stdio: 'ignore' },
+    {
+      platform: 'win32',
+      spawnImpl: (command, args, options) => {
+        calls.push({ command, args, options });
+        return child;
+      },
+    },
+  );
+
+  assert.equal(result, child);
+  assert.equal(calls[0].command, 'C:\\Program Files\\nodejs\\node.exe');
+  assert.deepEqual(calls[0].args, ['--version']);
+  assert.equal(calls[0].options.shell, false);
+});
+
+test('spawnPortable routes Windows batch wrappers through ComSpec', () => {
+  const calls = [];
+  const child = { pid: 1 };
+  const result = spawnPortable(
+    'npm.cmd',
+    ['run', 'dev', '--', '--port', '3102'],
+    {
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      stdio: 'ignore',
+    },
+    {
+      platform: 'win32',
+      spawnImpl: (command, args, options) => {
+        calls.push({ command, args, options });
+        return child;
+      },
+    },
+  );
+
+  assert.equal(result, child);
+  assert.equal(calls[0].command, 'C:\\Windows\\System32\\cmd.exe');
+  assert.deepEqual(calls[0].args, [
+    '/d', '/s', '/c', 'call', 'npm.cmd', 'run', 'dev', '--', '--port', '3102',
+  ]);
+  assert.equal(calls[0].options.shell, false);
+});
+
+test('spawnPortable runs a Windows batch wrapper with a spaced argument', {
+  skip: process.platform !== 'win32',
+}, async (t) => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'batch path with spaces-'));
+  const commandPath = path.join(directory, 'capture args.cmd');
+  const outputPath = path.join(directory, 'captured.txt');
+  writeFileSync(commandPath, `@echo off\r\n> "${outputPath}" echo %~1\r\n`, 'utf8');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const child = spawnPortable(commandPath, ['argument with spaces'], { stdio: 'ignore' });
+  const { code, signal } = await waitForExit(child);
+  assert.equal(signal, null);
+  assert.equal(code, 0);
+  assert.equal(readFileSync(outputPath, 'utf8').trim(), 'argument with spaces');
+});
+
+test('finds Git Bash beside Git for Windows when the install path contains spaces', () => {
+  let checkedPath;
+  const command = resolveBashCommand({
+    platform: 'win32',
+    runGit: () => 'D:/Portable Git/mingw64/libexec/git-core\n',
+    exists: (candidate) => {
+      checkedPath = candidate;
+      return true;
+    },
+  });
+
+  assert.equal(checkedPath, 'D:\\Portable Git\\bin\\bash.exe');
+  assert.equal(command, checkedPath);
+});
+
+test('uses PATH bash on non-Windows without looking up Git', () => {
+  let lookedUpGit = false;
+  const command = resolveBashCommand({
+    platform: 'linux',
+    runGit: () => {
+      lookedUpGit = true;
+      throw new Error('Git lookup should not run');
+    },
+  });
+
+  assert.equal(command, 'bash');
+  assert.equal(lookedUpGit, false);
+});
+
+test('falls back to PATH bash when Git for Windows has no adjacent bash executable', () => {
+  const command = resolveBashCommand({
+    platform: 'win32',
+    runGit: () => 'D:/Portable Git/mingw64/libexec/git-core\n',
+    exists: () => false,
+  });
+
+  assert.equal(command, 'bash');
+});
 
 const approvedActions = new Map([
   ['actions/checkout', { sha: '11d5960a326750d5838078e36cf38b85af677262', version: 'v4.4.0' }],

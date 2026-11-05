@@ -2,17 +2,14 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync as bashExists } from 'node:fs';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { resolveBashCommand } from './bash-command.mjs';
 
-// The PATH bash on Windows can be the WSL launcher (no node, no drive paths): prefer Git Bash there.
-const BASH = process.platform === 'win32' && bashExists('C:\\Program Files\\Git\\bin\\bash.exe')
-  ? 'C:\\Program Files\\Git\\bin\\bash.exe'
-  : 'bash';
+const BASH = resolveBashCommand();
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'ci.yml');

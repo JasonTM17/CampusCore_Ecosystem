@@ -53,6 +53,8 @@ về `publicBaseUrl` canonical. Unknown/missing surface → 404 JSON
 `SURFACE_UNKNOWN` — không 302 về default (tránh open redirect qua host
 poisoning). Không client chọn theo query/Origin tự khai.
 
+**Edge trust token policy:** Khi bật tin cậy edge headers (`CAMPUSCORE_TRUST_EDGE_HEADERS=true` trên cả web và API), token chia sẻ (`CAMPUSCORE_PROXY_TOKEN` phía Next.js và `RATE_LIMIT_PROXY_TOKEN` / `app.rate-limit.proxy-token` phía Spring Boot) bắt buộc phải có độ dài tối thiểu 32 ký tự và không được dùng giá trị demo đã công bố (`sso-preview-proxy-token-0123456789`). Quy tắc này được thẩm tra bởi `frontend/src/lib/proxy-request-headers.ts` và `RateLimitProperties.requireStrongEdgeProxyToken`; nếu token ngắn hơn 32 ký tự hoặc dùng giá trị demo, cả hai ứng dụng đều từ chối khởi động (fail closed).
+
 Callback exact per client: `{base}/session/callback`; post-logout:
 `{base}/session/logged-out`.
 

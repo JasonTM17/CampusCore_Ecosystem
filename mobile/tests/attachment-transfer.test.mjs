@@ -144,6 +144,27 @@ test('downloadToDevice saves the bytes as a data URI with the server name or the
   assert.equal(adapter.calls.save[1].mimeType, 'application/octet-stream');
 });
 
+test('downloadToDevice skips saving a result returned after its caller aborts', async () => {
+  const adapter = fakeAdapter();
+  const controller = new AbortController();
+  let resolveFile;
+  const pendingFile = new Promise(resolve => { resolveFile = resolve; });
+  let receivedSignal;
+  const pending = transfer.downloadToDevice(
+    adapter,
+    async signal => { receivedSignal = signal; return pendingFile; },
+    'file.pdf',
+    controller.signal,
+  );
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort();
+  resolveFile({ data: new Uint8Array([1]).buffer, contentType: 'application/pdf', fileName: 'file.pdf' });
+
+  assert.deepEqual(await pending, { status: 'cancelled' });
+  assert.equal(receivedSignal, controller.signal);
+  assert.equal(adapter.calls.save.length, 0);
+});
+
 test('downloadToDevice reports a failed fetch and an empty body as failed', async () => {
   const adapter = fakeAdapter();
   const failed = await transfer.downloadToDevice(adapter, async () => { throw Object.assign(new Error('x'), { code: 'NETWORK_ERROR' }); }, 'f');

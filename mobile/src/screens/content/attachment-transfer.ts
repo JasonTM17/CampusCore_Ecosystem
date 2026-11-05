@@ -85,13 +85,14 @@ export async function uploadPicked<T>(
   options: {
     keys: AttemptKeys;
     intent: string;
-    upload: (part: { uri: string; name: string; type: string }, idempotencyKey: string) => Promise<T>;
+    signal?: AbortSignal;
+    upload: (part: { uri: string; name: string; type: string }, idempotencyKey: string, signal?: AbortSignal) => Promise<T>;
   },
 ): Promise<UploadOutcome<T>> {
   const scope = `${options.intent}:${file.uri}:${file.sizeBytes ?? 0}`;
   const key = options.keys.keyFor('upload', scope);
   try {
-    const result = await options.upload(toUploadPart(file), key);
+    const result = await options.upload(toUploadPart(file), key, options.signal);
     options.keys.settle('upload', scope);
     return { status: 'done', result };
   } catch (error) {
@@ -125,11 +126,13 @@ export function bytesToBase64(buffer: ArrayBuffer): string {
 /** Native results stay on disk; byte-only callers retain the compatibility lane. */
 export async function downloadToDevice(
   adapter: FileAdapter,
-  fetchBytes: () => Promise<DownloadedBytes & Partial<DiskDownload>>,
+  fetchBytes: (signal?: AbortSignal) => Promise<DownloadedBytes & Partial<DiskDownload>>,
   fallbackName: string,
+  signal?: AbortSignal,
 ): Promise<DownloadOutcome> {
   const capability = adapter.capability('save');
   if (!capability.available) return { status: 'unavailable', reason: capability.reason };
+  if (signal?.aborted) return { status: 'cancelled' };
   let file: (DownloadedBytes & Partial<DiskDownload>) | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let released = false;
@@ -144,9 +147,11 @@ export async function downloadToDevice(
     // Loading the helper must not initialize native session storage (preview,
     // unavailable adapters and component-only environments also import it).
     const { sessionStore } = await import('../../auth/mobile-session-store');
+    if (signal?.aborted) return { status: 'cancelled' };
     const epoch = sessionStore.sessionEpoch();
     const stale = () => sessionStore.sessionEpoch() !== epoch;
-    file = await fetchBytes();
+    file = await fetchBytes(signal);
+    if (signal?.aborted) return { status: 'cancelled' };
     if (stale()) return { status: 'failed', reason: 'SESSION_CHANGED' };
     if (!file.localUri && file.data.byteLength === 0) return { status: 'failed', reason: 'EMPTY' };
     if (file.localUri) {
@@ -168,6 +173,7 @@ export async function downloadToDevice(
       name: sanitizeFileName(file.localUri ?? file.fileName ?? fallbackName),
       mimeType,
     });
+    if (signal?.aborted) return { status: 'cancelled' };
     return stale() ? { status: 'failed', reason: 'SESSION_CHANGED' } : result;
   } catch (error) {
     return { status: 'failed', reason: (error as { code?: string } | null)?.code ?? 'ERROR' };

@@ -99,7 +99,9 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
     >
       <CheckinEntryCard navigation={navigation} />
       {semestersFailed ? (
-        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+        <View style={academicStyles.card}>
+          <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+        </View>
       ) : null}
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (

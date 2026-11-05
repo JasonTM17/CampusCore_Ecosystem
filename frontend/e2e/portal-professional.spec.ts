@@ -142,22 +142,22 @@ test.describe('public and auth', () => {
     await page.goto('/en/login?portal=student');
     await expect(page.locator('[data-login-portal="student"]')).toBeVisible();
     await expect(page.getByRole('heading', { name: /student sign-in/i })).toBeVisible();
-    await page.getByRole('tab', { name: /^lecturer$/i }).click();
+    await page.getByRole('navigation', { name: /campus portal/i }).getByRole('link', { name: /^lecturer$/i }).click();
     await expect(page).toHaveURL(/portal=lecturer/);
     await expect(page.locator('[data-login-portal="lecturer"]')).toBeVisible();
     await expect(page.getByRole('heading', { name: /faculty sign-in/i })).toBeVisible();
     await expect(page.locator('form').getByText(/faculty office/i)).toBeVisible();
-    await page.getByRole('tab', { name: /^dean$/i }).click();
+    await page.getByRole('navigation', { name: /campus portal/i }).getByRole('link', { name: /^dean$/i }).click();
     await expect(page).toHaveURL(/portal=dean/);
     await expect(page.locator('[data-login-portal="dean"]')).toBeVisible();
     await expect(page.getByRole('heading', { name: /dean sign-in/i })).toBeVisible();
     // There is no admin tab anymore: the admin chrome is only reachable by
     // the ?portal=admin deep link, which selects no visible tab.
-    await expect(page.getByRole('tab', { name: /^admin$/i })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: /campus portal/i }).getByRole('link', { name: /^admin$/i })).toHaveCount(0);
     await page.goto('/en/login?portal=admin');
     await expect(page.locator('[data-login-portal="admin"]')).toBeVisible();
     await expect(page.getByRole('heading', { name: /operations sign-in/i })).toBeVisible();
-    await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: /campus portal/i }).locator('[aria-current="page"]')).toHaveCount(0);
     // The office-support hint is intentionally hidden on the admin portal —
     // its absence is part of the distinct admin chrome.
     await expect(page.locator('form').getByText(/campus operations|faculty office|academic office/i)).toHaveCount(0);

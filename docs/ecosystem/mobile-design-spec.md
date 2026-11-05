@@ -299,7 +299,7 @@ From `mobile/`:
 npx tsc --noEmit
 npm test
 npx jest --runInBand
-node ..\scripts\check-mobile-parity.mjs
+node ../scripts/check-mobile-parity.mjs
 ```
 
 Also run `git diff --check` on owned paths and read-only token parity check.

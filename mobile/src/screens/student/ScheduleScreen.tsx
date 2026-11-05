@@ -137,7 +137,9 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       }}
     >
       {semestersFailed ? (
-        <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+        <View style={academicStyles.card}>
+          <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+        </View>
       ) : null}
       <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
       <SegmentTabs

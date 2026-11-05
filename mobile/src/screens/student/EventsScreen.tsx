@@ -5,6 +5,8 @@ import { Button, Card, UiText } from '../../components/Ui';
 import { FilterChip, SegmentedControl } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileEvent, MobileEventRegistration } from '../../api/client';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
@@ -23,7 +25,9 @@ type Tab = 'catalog' | 'mine';
 /** Student events: published catalogue, own registrations, register and cancel. The server owns every transition. */
 export function EventsScreen(_props: MobileScreenProps) {
   const { locale, formatDateTime, copy: common } = useContentCopy();
+  const { window } = useTheme();
   const copy = eventsMessages[locale];
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const labels = copy.statusLabels as Record<string, string>;
   const [tab, setTab] = useState<Tab>('catalog');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -169,7 +173,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                 </View>
                 <ContentChevron />
               </Pressable>
-              <View style={styles.actionRow}>{actionButton(event)}</View>
+              <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton(event)}</View>
             </Card>
           )}
         />
@@ -201,7 +205,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                 <ContentChevron />
               </Pressable>
               {entry.registrationStatus === 'REGISTERED'
-                ? <View style={styles.actionRow}>{actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)}</View>
+                ? <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)}</View>
                 : null}
             </Card>
           )}
@@ -220,5 +224,6 @@ const styles = StyleSheet.create({
   rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   actionRow: { alignItems: 'flex-end', marginTop: tokens.spacing.xs },
+  actionRowLargeText: { alignItems: 'stretch' },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

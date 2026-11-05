@@ -107,6 +107,12 @@ const element = (props: Partial<Parameters<typeof AssignmentDetail>[0]> = {}): R
 
 const answerField = () => screen.getByLabelText(copy.yourAnswer);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 afterEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
@@ -126,6 +132,23 @@ describe('assignment server draft', () => {
     await render(element());
     await fireEvent.press(screen.getByRole('button', { name: copy.saveDraft }));
     expect(mockWrites.saveDraft).toHaveBeenCalledWith('sub-1', { textBody: 'Câu trả lời đã lưu' });
+  });
+
+  test('a save result after leaving the detail view does not publish stale completion', async () => {
+    mockQuery.value = scriptData(submission());
+    const pending = deferred<Record<string, never>>();
+    const onChanged = jest.fn();
+    mockWrites.saveDraft.mockImplementationOnce(() => pending.promise);
+    const view = await render(element({ onChanged }));
+    await fireEvent.changeText(answerField(), 'Câu trả lời');
+    await fireEvent.press(screen.getByRole('button', { name: copy.saveDraft }));
+    expect(mockWrites.saveDraft).toHaveBeenCalled();
+    await view.unmount();
+    pending.resolve({});
+    await pending.promise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(onChanged).not.toHaveBeenCalled();
   });
 
   test('a file-only server draft is shown and can be submitted', async () => {

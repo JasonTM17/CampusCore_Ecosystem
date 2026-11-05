@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
 
 const mockApi: Record<string, jest.Mock<(...args: any[]) => Promise<any>>> = {};
 for (const name of [
@@ -89,8 +90,8 @@ const renderEnglish = (el: ReactElement) =>
       <ThemeProvider forcedScheme="light">{el}</ThemeProvider>
     </LocaleProvider>,
   );
-function setWidth(w: number) {
-  jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
+function setWidth(w: number, fontScale = 1) {
+  jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
 }
 
 function deferred<T>() {
@@ -151,6 +152,19 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); navigate.mockClear(); });
 
 describe('topics, round and advisors', () => {
+  test.each([[360, 1, 1], [393, 2, 1], [600, 1, 1], [839, 1.3, 1], [840, 1, 2], [1000, 1, 2], [1000, 1.3, 1], [1000, 2, 1]])(
+    'uses %s dp and font %s to choose %s topic columns',
+    async (width, fontScale, columns) => {
+      setWidth(width, fontScale);
+      await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+      await screen.findByText(TOPIC_A.title);
+      let cell = screen.getByRole('button', { name: `${copy.openTopic}: ${TOPIC_A.title}` }).parent;
+      const expectedWidth = columns === 2 ? '48.5%' : '100%';
+      while (cell && StyleSheet.flatten(cell.props.style)?.width !== expectedWidth) cell = cell.parent;
+      expect(cell).toBeTruthy();
+    },
+  );
+
   test('opens on the registration round and lists its published topics', async () => {
     setWidth(360);
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
@@ -429,6 +443,29 @@ describe('registration', () => {
     expect(mockApi.removeMember).not.toHaveBeenCalled();
     await fireEvent.press(await screen.findByRole('button', { name: copy.remove }));
     await waitFor(() => expect(mockApi.removeMember).toHaveBeenCalledWith('g1', 's3'));
+  });
+
+  test('member and search result actions take their own full-width line at large text', async () => {
+    setWidth(360, 2);
+    seed({ group: group({ memberStudentIds: ['s1', 's2', 's3'] }), progress: progress() });
+    mockApi.searchStudents.mockResolvedValue([{ studentId: 's4', studentNumber: '214', firstName: 'Dũng', lastName: 'Phạm' }]);
+    await renderThemed(screenUnderTest());
+    await fireEvent.changeText(await screen.findByLabelText(copy.memberSearch), 'du');
+    const remove = await screen.findByRole('button', { name: `${copy.memberRemove}: Lê Hà` });
+    const add = await screen.findByRole('button', { name: `${copy.memberAdd}: Phạm Dũng` }, { timeout: 2000 });
+    for (const action of [remove, add]) {
+      expect(StyleSheet.flatten(action.props.style).alignSelf).toBe('stretch');
+      expect(StyleSheet.flatten(action.props.style).minHeight).toBeGreaterThanOrEqual(tokens.layout.touchTarget);
+    }
+    expect(screen.getByText('Lê Hà').props.numberOfLines).toBeUndefined();
+  });
+
+  test('member actions stay in the row at the default text scale', async () => {
+    setWidth(360, 1);
+    seed({ group: group({ memberStudentIds: ['s1', 's2', 's3'] }), progress: progress() });
+    await renderThemed(screenUnderTest());
+    const remove = await screen.findByRole('button', { name: `${copy.memberRemove}: Lê Hà` });
+    expect(StyleSheet.flatten(remove.props.style).alignSelf).toBeUndefined();
   });
 
   test('a server rule violation shows the specific copy, never the raw message', async () => {

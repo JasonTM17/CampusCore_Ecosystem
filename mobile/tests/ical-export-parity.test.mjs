@@ -24,7 +24,15 @@ function transpile(file, name, rewrite = (text) => text) {
 }
 
 const webFile = loadWeb(path.join(webLib, 'ical-generator.ts'));
-const mobileFile = transpile(path.join(mobileRoot, 'src', 'screens', 'academic', 'ical-export.ts'), 'mobile-ical');
+const mobileLocaleFile = transpile(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'mobile-locale');
+const mobileAcademicMessagesFile = transpile(path.join(mobileRoot, 'src', 'i18n', 'academic-messages.ts'), 'mobile-academic-messages');
+const mobileFile = transpile(
+  path.join(mobileRoot, 'src', 'screens', 'academic', 'ical-export.ts'),
+  'mobile-ical',
+  (text) => text
+    .replace("'../../i18n/academic-messages'", `'${pathToFileURL(mobileAcademicMessagesFile).href}'`)
+    .replace("'../../i18n/locale'", `'${pathToFileURL(mobileLocaleFile).href}'`),
+);
 const web = await import(pathToFileURL(webFile).href);
 const mobile = await import(pathToFileURL(mobileFile).href);
 
@@ -96,6 +104,22 @@ test('Vietnam civil dates do not shift with the device time zone', () => {
   assert.equal(monday.dtend, '20260907T090000');
   assert.equal(monday.rrule, 'FREQ=WEEKLY;UNTIL=20261231T165959Z');
   assert.equal(monday.location, 'Phòng 204, A2');
+});
+
+test('calendar credit values use the active locale number format', () => {
+  const enrollment = [{
+    id: 'fractional-credit',
+    status: 'ENROLLED',
+    section: {
+      sectionNumber: '01',
+      course: { code: 'CS204', nameEn: 'Software Architecture', nameVi: 'Kiến trúc phần mềm', credits: 1234.5 },
+      schedules: [{ dayOfWeek: 2, startTime: '07:30', endTime: '09:00' }],
+    },
+  }];
+  const vietnamese = mobile.buildScheduleIcsEvents(enrollment, semester, 'vi', NOW)[0];
+  const english = mobile.buildScheduleIcsEvents(enrollment, semester, 'en', NOW)[0];
+  assert.match(vietnamese.description, /Số tín chỉ: 1\.234,5/);
+  assert.match(english.description, /Credits: 1,234\.5/);
 });
 
 test('document structure is RFC 5545 with CRLF endings and escaped text', () => {

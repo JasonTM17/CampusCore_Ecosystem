@@ -2,6 +2,7 @@ import { useCallback, useMemo, type ReactElement, type ReactNode, type Ref } fro
 import { FlatList, Platform, StyleSheet, View, type FlatListProps } from 'react-native';
 
 import { tokens } from '../../design/tokens';
+import { ASSISTANT_FAB_CLEARANCE } from '../assistant-fab-insets';
 
 export interface PerformanceListProps<T> extends Omit<FlatListProps<T>, 'ListHeaderComponent' | 'ListFooterComponent' | 'ListEmptyComponent' | 'data' | 'renderItem' | 'keyExtractor'> {
   data: readonly T[];
@@ -53,6 +54,6 @@ export function useListRenderer<T>(render: (item: T, index: number) => ReactElem
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md,
-    paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight },
+    paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_CLEARANCE) },
   gap: { height: tokens.spacing.sm },
 });

@@ -134,8 +134,8 @@ test('student page dynamic templates preserve the previous visible output', () =
   assert.equal(en.studentPages.transcript.programEmptyDescription, 'Courses from your study program will appear here.');
   assert.equal(vi.studentPages.transcript.print.systemName, 'CampusUTE');
   assert.equal(en.studentPages.transcript.print.systemName, 'CampusUTE');
-  assert.equal(render(vi.studentPages.schedule.description, { semesterName: 'Học kỳ 1' }), 'Thời khóa biểu học tập của sinh viên trong Học kỳ 1.');
-  assert.equal(render(en.studentPages.schedule.description, { semesterName: 'Học kỳ 1' }), 'Keep the weekly class agenda for Học kỳ 1 visible while the rest of the student area stays one click away.');
+  assert.equal(vi.studentPages.schedule.description, undefined);
+  assert.equal(en.studentPages.schedule.description, undefined);
   assert.equal(render(vi.studentPages.schedule.ics.calendarName, { semesterName: 'Fall 2026' }), 'Lịch học - Fall 2026');
   assert.equal(render(en.studentPages.schedule.ics.calendarName, { semesterName: 'Fall 2026' }), 'Schedule - Fall 2026');
   assert.equal(render(vi.studentPages.conduct.activitiesCount, { count: 5 }), '5 hoạt động');

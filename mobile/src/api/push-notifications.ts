@@ -45,6 +45,15 @@ export interface PushNotificationClient {
   unregister(): Promise<boolean>;
 }
 
+/** A network blip, a rate limit or a 5xx may clear up; a 4xx will not. */
+function retryableRegistration(error: unknown): boolean {
+  const value = error as { status?: unknown; retryable?: unknown } | null;
+  if (typeof value?.retryable === 'boolean') return value.retryable;
+  const status = value?.status;
+  if (typeof status !== 'number') return true;
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
 /** The UI calls this only after it has explained the permission request. */
 export function createPushNotificationClient(
   platform: PushPlatform,
@@ -66,11 +75,19 @@ export function createPushNotificationClient(
         if (!installationId) return { status: 'registration-failed' };
         const token = await platform.getPushToken();
         if (!token) return { status: 'registration-failed' };
-        await api.registerPushDevice(installationId, {
+        const body: PushDeviceRegistrationBody = {
           provider: platform.provider,
           platform: platform.platform,
           token,
-        });
+        };
+        try {
+          await api.registerPushDevice(installationId, body);
+        } catch (error) {
+          if (!retryableRegistration(error)) throw error;
+          // The device row is keyed by installation id, so one retry of the
+          // same body upserts instead of creating a duplicate row.
+          await api.registerPushDevice(installationId, body);
+        }
         return { status: 'registered', installationId };
       } catch {
         // Provider/API errors can contain device or credential data; return a

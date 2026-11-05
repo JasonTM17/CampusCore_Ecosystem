@@ -1,4 +1,5 @@
-import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
+import { cardRows } from './content-card-rows';
+import { renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -110,7 +111,7 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
               key={file.id}
               name={file.fileName ?? file.id}
               sizeBytes={file.sizeBytes}
-              fetchBytes={() => contentApi.careersDownload(application.id, file.id)}
+              fetchBytes={(signal) => contentApi.careersDownload(application.id, file.id, signal)}
             />
           ), {footer: <>
           {active && !preview ? (
@@ -118,7 +119,7 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
               intent={`careers:${application.id}`}
               policy={DOCUMENT_POLICY}
               disabled={busy}
-              upload={(part, key) => contentApi.careersUpload(application.id, part, key)}
+              upload={(part, key, signal) => contentApi.careersUpload(application.id, part, key, signal)}
               onUploaded={onUploaded}
             />
           ) : null}

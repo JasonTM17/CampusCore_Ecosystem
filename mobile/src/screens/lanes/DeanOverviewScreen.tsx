@@ -96,21 +96,23 @@ export function DeanOverviewScreen() {
             </UiText>
           ) : null}
 
-          <StatStrip
-            items={[
-              { icon: 'account-group-outline', label: copy.deanTotalGroups, value: String(stats?.totalGroups ?? 0) },
-              { icon: 'clock-outline', label: copy.deanPending, value: String(stats?.groupsPendingApproval ?? 0) },
-              { icon: 'check-circle-outline', label: copy.deanApproved, value: String(stats?.groupsApproved ?? 0) },
-              { icon: 'close-circle-outline', label: copy.deanRejected, value: String(stats?.groupsRejected ?? 0) },
-            ]}
-          />
+          <View style={laneStyles.stack}>
+            <StatStrip
+              items={[
+                { icon: 'account-group-outline', label: copy.deanTotalGroups, value: String(stats?.totalGroups ?? 0) },
+                { icon: 'clock-outline', label: copy.deanPending, value: String(stats?.groupsPendingApproval ?? 0) },
+                { icon: 'check-circle-outline', label: copy.deanApproved, value: String(stats?.groupsApproved ?? 0) },
+                { icon: 'close-circle-outline', label: copy.deanRejected, value: String(stats?.groupsRejected ?? 0) },
+              ]}
+            />
 
-          <ChartSummary
-            title={copy.deanByDepartment}
-            series={(stats?.byDepartment ?? []).map((row) => ({ label: row.departmentName ?? row.departmentId ?? '', value: row.groupCount ?? 0 }))}
-          />
+            <ChartSummary
+              title={copy.deanByDepartment}
+              series={(stats?.byDepartment ?? []).map((row) => ({ label: row.departmentName ?? row.departmentId ?? '', value: row.groupCount ?? 0 }))}
+            />
 
-          <SectionHeading title={copy.deanSupervisors} />
+            <SectionHeading title={copy.deanSupervisors} />
+          </View>
           </View>)}</LaneShell>
   );
 }

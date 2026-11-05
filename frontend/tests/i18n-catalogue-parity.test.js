@@ -152,3 +152,33 @@ test('admin analytics charts reads distribution copy from the catalogue', () => 
     'AdminAnalyticsCharts must bind opsCopy.noDistributionDescription',
   );
 });
+
+test('schedule grid defines AM abbreviation in English for shift badge parity', () => {
+  const pages = loadModule('src/i18n/messages-student-pages.ts', aliases);
+  assert.equal(pages.studentPagesEn.schedule.grid.morningLabel, 'AM');
+  const weeklyGrid = read('src/components/schedule/weekly-grid.tsx');
+  assert.doesNotMatch(
+    weeklyGrid,
+    /locale === ['"]vi['"] \? studentPagesVi\.schedule\.grid\.morningLabel : ['"]AM['"]/,
+    'weekly-grid must bind shift badges from the active locale catalogue',
+  );
+  assert.match(
+    weeklyGrid,
+    /morningLabel/,
+    'weekly-grid must reference morningLabel',
+  );
+});
+
+test('lecturer announcement modal binds student audience role from catalogue', () => {
+  const modal = read('src/components/announcements/LecturerAnnouncementCreateModal.tsx');
+  assert.doesNotMatch(
+    modal,
+    />\s*STUDENT\s*</,
+    'LecturerAnnouncementCreateModal must not render raw uppercase STUDENT enum badge',
+  );
+  assert.match(
+    modal,
+    /workspaceCopy\.presentation\.role\.STUDENT/,
+    'LecturerAnnouncementCreateModal must bind presentation.role.STUDENT from catalogue',
+  );
+});

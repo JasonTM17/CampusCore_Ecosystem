@@ -30,7 +30,7 @@ export function EmptyState({
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         <p className="max-w-md text-sm leading-6 text-muted-foreground">
           {description}
         </p>
@@ -70,7 +70,7 @@ export function ErrorState({
           <AlertCircle className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
           <p className="text-sm leading-6 text-muted-foreground">
             {description}
           </p>
@@ -147,7 +147,7 @@ export function ForbiddenState({
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-portal-yellow text-portal-yellow-ink">
         <ShieldAlert className="h-5 w-5" aria-hidden="true" />
       </div>
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
         {description}
       </p>

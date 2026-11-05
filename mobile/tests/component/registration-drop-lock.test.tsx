@@ -1,8 +1,10 @@
-import { beforeEach, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { academicMessages } from '../../src/i18n/academic-messages';
 
@@ -103,6 +105,43 @@ beforeEach(() => {
   navigation.navigate = jest.fn();
 });
 
+afterEach(() => { jest.restoreAllMocks(); });
+
+test('registration summary card has standard spacing before its search field', async () => {
+  type JsonNode = { type: string; props: Record<string, unknown>; children?: (JsonNode | string)[] | null };
+  const flatten = (node: JsonNode | JsonNode[] | string | null | undefined): JsonNode[] => {
+    if (node == null || typeof node === 'string') return [];
+    if (Array.isArray(node)) return node.flatMap(flatten);
+    return [node, ...(node.children ?? []).flatMap(flatten)];
+  };
+  const textContent = (node: JsonNode): string => (node.children ?? []).map((child) =>
+    typeof child === 'string' ? child : textContent(child),
+  ).join('');
+
+  await render(screenElement(<RegistrationScreen {...props} />));
+  const nodes = flatten(screen.toJSON() as JsonNode);
+  const summaryIndex = nodes.findIndex((node) => textContent(node) === 'Đã chọn (0)');
+  const searchIndex = nodes.findIndex((node) => node.props.accessibilityLabel === copy.searchLabel);
+  const sectionSpacer = nodes.slice(summaryIndex + 1, searchIndex).some((node) =>
+    StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.height === tokens.spacing.md,
+  );
+
+  expect(summaryIndex).toBeGreaterThanOrEqual(0);
+  expect(searchIndex).toBeGreaterThan(summaryIndex);
+  expect(sectionSpacer).toBe(true);
+});
+
+test('registration search stays on one line with a short placeholder and a complete accessible name', async () => {
+  jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 360, height: 800, scale: 2, fontScale: 2 } as ReturnType<typeof Dimensions.get>);
+  await render(screenElement(<RegistrationScreen {...props} />));
+  const input = screen.getByLabelText(copy.searchLabel);
+
+  expect(input.props.placeholder).toBe('Tìm học phần');
+  expect(input.props.accessibilityLabel).toBe(copy.searchLabel);
+  expect(input.props.multiline).toBe(false);
+  expect(academicMessages.en.searchPlaceholder).toBe('Search courses');
+});
+
 test('a second drop press during the post-drop reload is ignored', async () => {
   const reload = deferred<void>();
   mockReload.mockImplementation(() => reload.promise);
@@ -165,4 +204,23 @@ test('a second select during the post-register refresh cannot send another enrol
 
   await act(async () => { reload.resolve(); await reload.promise; });
   expect(mockPost).toHaveBeenCalledTimes(1);
+});
+
+test('two rapid registration submissions send one enrollment request', async () => {
+  mockQueries['academic.registration'] = {
+    data: { ...workspace, sections: [selectable], enrollments: [] },
+  };
+  let resolvePost!: (value: unknown) => void;
+  mockPost.mockImplementationOnce(() => new Promise((resolve) => { resolvePost = resolve; }));
+  await render(screenElement(<RegistrationScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
+  const submit = screen.getByRole('button', { name: copy.registerSelected });
+  await act(async () => {
+    await fireEvent.press(submit);
+    await fireEvent.press(submit);
+  });
+
+  expect(mockPost).toHaveBeenCalledTimes(1);
+  await act(async () => { resolvePost({ id: 'enr-new' }); });
 });
