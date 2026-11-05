@@ -32,6 +32,7 @@ import {
 import { previewNews } from '../content/preview-data';
 import { summaryOrExcerpt } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
+import { summaryRowAccessibilityLabel } from '../student/summary-label';
 import type { MobileScreenProps } from '../../navigation/types';
 
 /** How far the form card rides up over the navy hero band. */
@@ -312,7 +313,12 @@ function FeaturedNewsCard({
   const styles = useThemedStyles(makeNewsStyles);
   return (
     <Pressable
-      accessibilityLabel={joinMeta([item.title, category, date])}
+      accessibilityLabel={summaryRowAccessibilityLabel({
+        title: item.title,
+        badge: category,
+        date,
+        summary,
+      })}
       accessibilityRole="link"
       onPress={onPress}
       style={({ pressed }) => [pressed ? styles.pressed : undefined]}
@@ -326,7 +332,7 @@ function FeaturedNewsCard({
             {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
           </View>
           <UiText variant="label">{item.title}</UiText>
-          {summary ? <UiText numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
+          {summary ? <UiText ellipsizeMode="tail" numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
           <View style={styles.readRow}>
             <UiText variant="label" tone="primary">{readLabel}</UiText>
             <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />

@@ -14,7 +14,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
 import { docCategoryLabel, docSummary, docTitle } from '../content/docs-model';
 import { DocDetail } from '../content/DocDetail';
-import { joinMeta } from '../content/content-rules';
+import { summaryRowAccessibilityLabel } from './summary-label';
 import { ContentChevron, ContentIconChip, ListFrame, useContentCopy } from '../content/content-ui';
 import { previewDocs } from '../content/preview-data';
 import { usePagedList } from '../content/use-paged-list';
@@ -79,34 +79,42 @@ export function DocsScreen(_props: MobileScreenProps) {
           onSubmitEditing={() => setSearch(input.trim())}
         />
       )}
-      renderItem={(doc) => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={joinMeta([docTitle(doc, locale), fillCopy(copy.revision, { n: doc.publishedRevision })])}
-          onPress={() => {
-            router.replace({ pathname: '/docs', params: { slug: doc.slug } });
-            setSelected(doc.slug);
-            setSelectedRevision(null);
-          }}
-          style={styles.row}
-        >
-          <Card>
-            <View style={styles.rowContent}>
-              <ContentIconChip icon="file-document-outline" />
-              <View style={styles.rowCopy}>
-                <UiText variant="label">{docTitle(doc, locale)}</UiText>
-                {docSummary(doc, locale) ? <UiText variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{docSummary(doc, locale)}</UiText> : null}
-                <View style={styles.meta}>
-                  <StatusPill label={fillCopy(copy.revision, { n: doc.publishedRevision })} tone="primary" />
-                  {doc.categoryId ? <UiText variant="meta" tone="muted">{docCategoryLabel(doc.categoryId, categoryLabels)}</UiText> : null}
-                  {doc.publishedAt ? <UiText variant="meta" tone="muted">{formatDate(doc.publishedAt)}</UiText> : null}
+      renderItem={(doc) => {
+        const docSummaryText = docSummary(doc, locale);
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={summaryRowAccessibilityLabel({
+              title: docTitle(doc, locale),
+              badge: fillCopy(copy.revision, { n: doc.publishedRevision }),
+              date: doc.publishedAt ? formatDate(doc.publishedAt) : null,
+              summary: docSummaryText,
+            })}
+            onPress={() => {
+              router.replace({ pathname: '/docs', params: { slug: doc.slug } });
+              setSelected(doc.slug);
+              setSelectedRevision(null);
+            }}
+            style={styles.row}
+          >
+            <Card>
+              <View style={styles.rowContent}>
+                <ContentIconChip icon="file-document-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{docTitle(doc, locale)}</UiText>
+                  {docSummaryText ? <UiText ellipsizeMode="tail" variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{docSummaryText}</UiText> : null}
+                  <View style={styles.meta}>
+                    <StatusPill label={fillCopy(copy.revision, { n: doc.publishedRevision })} tone="primary" />
+                    {doc.categoryId ? <UiText variant="meta" tone="muted">{docCategoryLabel(doc.categoryId, categoryLabels)}</UiText> : null}
+                    {doc.publishedAt ? <UiText variant="meta" tone="muted">{formatDate(doc.publishedAt)}</UiText> : null}
+                  </View>
                 </View>
+                <ContentChevron />
               </View>
-              <ContentChevron />
-            </View>
-          </Card>
-        </Pressable>
-      )}
+            </Card>
+          </Pressable>
+        );
+      }}
     />
   );
 }
