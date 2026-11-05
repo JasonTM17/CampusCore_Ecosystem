@@ -347,6 +347,14 @@ jobs:
           '
       - name: Verify PostgreSQL integration tests
         run: node scripts/platform-verify.mjs pgit --project campuscore-ci-java-it-${{ github.run_id }} --evidence artifacts/verification/pgit-ci
+      - name: Upload PostgreSQL integration evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pgit-evidence-${{ github.run_attempt }}
+          path: artifacts/verification/pgit-ci/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Write and validate CI timing summary
         if: always()
         continue-on-error: true
