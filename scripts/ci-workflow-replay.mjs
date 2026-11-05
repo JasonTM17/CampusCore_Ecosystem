@@ -2,7 +2,6 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync as bashExists } from 'node:fs';
 import {
   copyFileSync,
   existsSync,
@@ -16,11 +15,9 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveBashCommand } from './bash-command.mjs';
 
-// The PATH bash on Windows can be the WSL launcher (no node, no drive paths): prefer Git Bash there.
-const BASH = process.platform === 'win32' && bashExists('C:\\Program Files\\Git\\bin\\bash.exe')
-  ? 'C:\\Program Files\\Git\\bin\\bash.exe'
-  : 'bash';
+const BASH = resolveBashCommand();
 
 // Temp cleanup is best effort: a just-exited shell can still hold the directory on Windows.
 function removeTempDir(dir) {

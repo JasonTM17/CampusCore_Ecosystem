@@ -267,6 +267,7 @@ function runRaceCredentialVerifyStub(fixture, scriptName) {
   mkdirSync(scripts, { recursive: true });
   copyFileSync(path.join(repoRoot, 'scripts', `${scriptName}.mjs`), path.join(scripts, `${scriptName}.mjs`));
   copyFileSync(path.join(repoRoot, 'scripts', 'compose-secrets.mjs'), path.join(scripts, 'compose-secrets.mjs'));
+  copyFileSync(path.join(repoRoot, 'scripts', 'portable-spawn.mjs'), path.join(scripts, 'portable-spawn.mjs'));
   copyFileSync(path.join(repoRoot, '.env.example'), path.join(repo, '.env.example'));
   const record = path.join(fixture, `${scriptName}-credentials.jsonl`);
   const evidence = path.join(fixture, `${scriptName}-credentials-evidence`);
