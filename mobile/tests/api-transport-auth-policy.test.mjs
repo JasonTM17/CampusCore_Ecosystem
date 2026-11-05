@@ -142,6 +142,48 @@ test('release HTTP bases need the explicit local-only opt-in; HTTPS stays accept
   }
 });
 
+test('the base URL collapses duplicate path slashes and keeps one boundary', async () => {
+  const client = createApiClient({ baseUrl: 'https://api.test//api//v1/', mode: 'live' });
+  assert.equal(client.baseUrl, 'https://api.test/api/v1');
+  const net = installFetch(() => json(200, { ok: true }));
+  try {
+    assert.deepEqual(await client.get('/me'), { ok: true });
+    assert.equal(net.calls[0].url, 'https://api.test/api/v1/me');
+  } finally {
+    net.restore();
+  }
+});
+
+test('a JSON request that never answers fails at its deadline instead of hanging', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 20, epochPollMs: 60_000 });
+  let seenSignal;
+  const net = installFetch((call) => {
+    seenSignal = call.signal;
+    return new Promise((_resolve, reject) => {
+      const abort = () => reject(new DOMException('aborted', 'AbortError'));
+      // No client deadline => no signal, so the request never settles.
+      if (!call.signal) return;
+      if (call.signal.aborted) abort();
+      else call.signal.addEventListener('abort', abort, { once: true });
+    });
+  });
+  try {
+    let outcome = 'watchdog';
+    await Promise.race([
+      client.get('/slow').then(() => { outcome = 'resolved'; }, (error) => { outcome = error; }),
+      new Promise((resolve) => setTimeout(() => resolve('watchdog'), 1_000)),
+    ]);
+    assert.notEqual(outcome, 'watchdog', 'the client must not wait forever');
+    assert.ok(outcome instanceof ApiClientError, String(outcome));
+    assert.equal(outcome.code, 'NETWORK_ERROR');
+    assert.equal(outcome.retryable, true);
+    assert.equal(seenSignal.aborted, true, 'the stalled fetch is aborted');
+  } finally {
+    net.restore();
+  }
+});
+
 test('an unconfigured release request fails through the typed network path before fetch', async () => {
   const previousDev = globalThis.__DEV__;
   globalThis.__DEV__ = false;
@@ -381,7 +423,8 @@ test('JSON path is unchanged: headers, bodies, 204, text and failed refresh brid
     assert.equal(sent.headers.get('idempotency-key'), 'abc');
     assert.equal(sent.headers.get('authorization'), 'Bearer old-token');
     assert.match(sent.headers.get('x-request-id'), /^mobile-/);
-    assert.equal(sent.signal, undefined, 'JSON calls keep the caller signal untouched');
+    assert.ok(sent.signal instanceof AbortSignal, 'JSON calls carry their own deadline signal');
+    assert.equal(sent.signal.aborted, false);
 
     assert.equal(await client.get('/empty'), undefined);
     assert.equal(await client.get('/text'), 'plain');

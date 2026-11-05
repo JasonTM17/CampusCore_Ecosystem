@@ -59,7 +59,7 @@ export function parseTotalCount(headers: HeaderReader | null | undefined): numbe
   return Number.isSafeInteger(total) ? total : undefined;
 }
 
-/** Wraps the bare-array body; the end of the list is the total when known, else a short page. */
+/** Wraps the bare-array body; a short or empty page ends the list even when a total is known. */
 export function toPagedResult<T>(
   body: unknown,
   headers: HeaderReader | null | undefined,
@@ -75,7 +75,7 @@ export function toPagedResult<T>(
   let hasMore = false;
   if (limit !== undefined) {
     const offset = (window.page ?? 0) * limit;
-    hasMore = total !== undefined ? offset + items.length < total : items.length >= limit;
+    hasMore = items.length >= limit && (total === undefined || offset + items.length < total);
   }
   return total === undefined ? { items, hasMore } : { items, total, hasMore };
 }
