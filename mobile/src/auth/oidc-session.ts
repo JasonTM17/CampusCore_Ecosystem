@@ -96,20 +96,33 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     body: Record<string, unknown> | null;
   }> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        const error = new Error('The token exchange timed out.');
+        error.name = 'AbortError';
+        reject(error);
+      }, deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS);
+    });
     try {
-      const response = await fetchImpl(`${issuer}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: buildTokenRequestBody(callback.code, codeVerifier),
-        signal: controller.signal,
-      });
-      return { ok: response.ok, status: response.status, body: parseJson(await response.text()) };
+      return await Promise.race([
+        (async () => {
+          const response = await fetchImpl(`${issuer}/oauth2/token`, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: buildTokenRequestBody(callback.code, codeVerifier),
+            signal: controller.signal,
+          });
+          return { ok: response.ok, status: response.status, body: parseJson(await response.text()) };
+        })(),
+        deadline,
+      ]);
     } finally {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
     }
   })();
 
