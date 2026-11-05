@@ -1130,3 +1130,60 @@ test('native multipart is prepared once and replays the prepared body/key after 
   assert.equal(state.refreshCalls, 1);
   assert.ok(sent.every(init => init.body === prepared && init.headers.get('Idempotency-Key') === 'native-intent'));
 });
+
+test('stalled uploads and downloads fail retryably at the configured request deadline', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 20, epochPollMs: 60_000 });
+  const controllers = [new AbortController(), new AbortController()];
+  const net = installFetch(call => new Promise((_resolve, reject) => {
+    const abort = () => reject(new DOMException('aborted', 'AbortError'));
+    if (call.signal.aborted) abort();
+    else call.signal.addEventListener('abort', abort, { once: true });
+  }));
+  let watchdogTimer;
+  try {
+    const pending = Promise.allSettled([
+      client.download('/learning/materials/slow/file', { signal: controllers[0].signal }),
+      client.upload('/admissions/applications/slow/attachments', new FormData(), {
+        idempotencyKey: 'same-intent', signal: controllers[1].signal,
+      }),
+    ]);
+    const result = await Promise.race([
+      pending,
+      new Promise(resolve => { watchdogTimer = setTimeout(() => resolve('watchdog'), 500); }),
+    ]);
+    assert.notEqual(result, 'watchdog', 'the transfer deadline must release both stalled requests');
+    assert.ok(Array.isArray(result));
+    assert.ok(result.every(item => item.status === 'rejected'
+      && item.reason instanceof ApiClientError
+      && item.reason.code === 'NETWORK_ERROR'
+      && item.reason.retryable === true));
+    assert.ok(net.calls.every(call => call.signal.aborted), 'the stalled sockets are aborted');
+  } finally {
+    clearTimeout(watchdogTimer);
+    controllers.forEach(controller => controller.abort());
+    net.restore();
+  }
+});
+
+test('a transfer cannot return a response after its caller has aborted', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, timeoutMs: 60_000, epochPollMs: 60_000 });
+  const controller = new AbortController();
+  let resolveFetch;
+  const net = installFetch(() => new Promise(resolve => { resolveFetch = resolve; }));
+  try {
+    const pending = client.download('/learning/materials/late/file', { signal: controller.signal })
+      .then(value => ({ value }), error => ({ error }));
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort();
+    resolveFetch(new Response(new Uint8Array([1])));
+
+    const outcome = await pending;
+    assert.ok(outcome.error instanceof ApiClientError, 'a late success must be discarded');
+    assert.equal(outcome.error.code, 'REQUEST_ABORTED');
+  } finally {
+    controller.abort();
+    net.restore();
+  }
+});
