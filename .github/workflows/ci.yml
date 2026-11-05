@@ -130,6 +130,7 @@ jobs:
             scripts/alert-uri-policy.test.mjs \
             scripts/caddy-validate.test.mjs \
             scripts/check-migration-immutability.test.mjs \
+            scripts/check-migrations.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/check-supabase-migrations.test.mjs \
             scripts/ci-required-lane-guard.test.mjs \
@@ -693,7 +694,18 @@ jobs:
           # origin/main (shallow clones make the merge-base diff empty).
           fetch-depth: 0
       - name: Flyway migrations are immutable once merged
-        run: node scripts/check-migration-immutability.mjs origin/main
+        env:
+          PREVIOUS_REF: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            previous_ref="$PREVIOUS_REF"
+            if [ -z "$previous_ref" ] || [ "$previous_ref" = "0000000000000000000000000000000000000000" ]; then
+              previous_ref='HEAD^'
+            fi
+            node scripts/check-migration-immutability.mjs HEAD "$previous_ref"
+          else
+            node scripts/check-migration-immutability.mjs origin/main
+          fi
       - name: Generate disposable Compose secrets
         run: node scripts/compose-secrets.mjs --ensure
       - name: Validate fail-closed base Compose
