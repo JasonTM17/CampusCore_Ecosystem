@@ -1,4 +1,5 @@
-import { cardRows, contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
+import { cardRows } from './content-card-rows';
+import { contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -77,7 +78,7 @@ export function ConductScreen(_props: MobileScreenProps) {
               ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
     </> }}
     >
-      {query.warning && !preview ? <DataNotice message={query.warning} /> : null}
+      {query.warning && !preview ? <View style={styles.notice}><DataNotice message={query.warning} /></View> : null}
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : (<>{failure ? (
@@ -105,6 +106,7 @@ export function ConductScreen(_props: MobileScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  notice: { marginBottom: tokens.spacing.sm },
   stack: { gap: tokens.spacing.md },
   activity: { gap: 2, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
 });

@@ -278,7 +278,7 @@ export function DetailFrame<T>({ title, onBack, children, list }: { title: strin
       list={list}
       headerAction={<Button label={copy.back} accessibilityLabel={copy.back} variant="text" onPress={onBack} />}
     >
-      {children}
+      {list ? <View style={styles.detailHead}>{children}</View> : children}
     </ScreenShell>
   );
 }
@@ -446,6 +446,7 @@ const styles = StyleSheet.create({
   frame: { flex: 1 },
   frameInner: { flex: 1 },
   head: { gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
+  detailHead: { marginBottom: tokens.spacing.sm },
   hero: { alignItems: 'flex-start', borderRadius: tokens.radii.card, flexDirection: 'row', gap: tokens.spacing.sm, padding: tokens.spacing.md },
   heroCopy: { flex: 1, minWidth: 0 },
   heroDetail: { marginTop: tokens.spacing.xs },

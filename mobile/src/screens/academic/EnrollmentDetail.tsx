@@ -39,7 +39,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
 
   return (
     <View>
-      <Button label={copy.back} onPress={onBack} variant="text" />
+      <Button label={copy.back} onPress={onBack} variant="text" style={academicStyles.card} />
       <Card>
         <View style={styles.detailHeader}>
           <IconChip icon="book-open-variant" size={40} />
