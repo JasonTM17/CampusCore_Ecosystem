@@ -194,7 +194,7 @@ return (
       {workspace?.eligibilityError ? (
         <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
       ) : null}
-      {!roundOpen ? <StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /> : null}
+      {!roundOpen ? <View style={academicStyles.card}><StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /></View> : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
       <ScreenSpacer />
       {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}

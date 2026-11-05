@@ -74,7 +74,7 @@ export function AcademicShell<T>({ title, eyebrow, loading = false, error, warni
   const frameList = list ? { ...list, ...(refreshControl ? { refreshControl } : {}) } : undefined;
   return (
     <ScreenShell title={title} eyebrow={eyebrow} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
-      {warning ? <DataNotice message={warning} /> : null}
+      {warning ? <View style={academicStyles.card}><DataNotice message={warning} /></View> : null}
       {loading ? (
         <StatePanel kind="loading" title={copy.loading} />
       ) : error ? (
