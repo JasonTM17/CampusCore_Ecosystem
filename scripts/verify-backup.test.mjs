@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveBashCommand } from './bash-command.mjs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -73,8 +74,7 @@ function makeArchive(name, content) {
 }
 
 // On Windows the PATH ash can be the WSL launcher, which cannot read drive paths: prefer Git Bash.
-const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
-const bashCommand = process.platform === 'win32' && fs.existsSync(gitBash) ? gitBash : 'bash';
+const bashCommand = resolveBashCommand();
 const posix = (file) => file.replaceAll('\\', '/');
 
 function verify(archive, cwd, env = {}) {
