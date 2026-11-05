@@ -151,8 +151,6 @@ export const studentPagesEn = {
   schedule: {
     eyebrow: 'Student area',
     title: 'Schedule',
-    description:
-      'Keep the weekly class agenda for {semesterName} visible while the rest of the student area stays one click away.',
     selectSemester: 'Select semester for schedule',
     allSemesters: 'All semesters',
     openCourses: 'Open my courses',
@@ -179,7 +177,7 @@ export const studentPagesEn = {
       shortDayLabels: { 1: 'Sun', 2: 'Mon', 3: 'Tue', 4: 'Wed', 5: 'Thu', 6: 'Fri', 7: 'Sat' } as Record<number, string>,
       unknownDay: 'Unknown day',
       hourLabel: 'Hour',
-      morningLabel: 'Morning',
+      morningLabel: 'AM',
       afternoonLabel: 'PM',
       eveningLabel: 'Eve',
     },
@@ -486,7 +484,6 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
   schedule: {
     eyebrow: 'Cổng Sinh viên',
     title: 'Thời khóa biểu',
-    description: 'Thời khóa biểu học tập của sinh viên trong {semesterName}.',
     selectSemester: 'Chọn học kỳ cho thời khóa biểu',
     allSemesters: 'Tất cả học kỳ',
     openCourses: 'Mở môn học của tôi',

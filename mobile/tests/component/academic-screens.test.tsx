@@ -151,7 +151,7 @@ describe('transcript', () => {
     expect(screen.getAllByText('3,42').length).toBeGreaterThan(0);
     expect(screen.getByText('GPA tích lũy (hệ 4)')).toBeOnTheScreen();
     expect(screen.getByText('MA101')).toBeOnTheScreen();
-    expect(screen.getByLabelText('A+, 9.0 - 10.0, 4.0')).toBeOnTheScreen();
+    expect(screen.getByLabelText('A+, 9,0 - 10,0, 4,0')).toBeOnTheScreen();
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
 
@@ -160,6 +160,7 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />, 'en'));
     expect(screen.getByRole('header', { name: 'Transcript' })).toBeOnTheScreen();
     expect(screen.getAllByText('3.42').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('A+, 9.0 - 10.0, 4.0')).toBeOnTheScreen();
   });
 
   test('an API error is an error state, never data', async () => {
@@ -222,6 +223,52 @@ describe('enrollments and courses', () => {
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
     await fireEvent.press(screen.getByRole('button', { name: 'Quay lại' }));
     expect(screen.getByRole('tab', { name: 'Đã học (1)' })).toBeOnTheScreen();
+  });
+
+  const unknownEnrollment = { ...enrollments[0], status: 'WAITLISTED' };
+  const renderUnknownStatus = async (locale: 'vi' | 'en', tabName: string, fallback: string) => {
+    mockQueries['academic.enrollments'] = { data: [unknownEnrollment] };
+    mockQueries['academic.semesters'] = { data: semesters };
+    const view = await render(wrap(<EnrollmentsScreen {...props} />, locale));
+    await act(async () => { await fireEvent.press(screen.getByRole('tab', { name: tabName })); });
+    expect(screen.getByText(fallback)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: /CS101/ }));
+    expect(screen.getByText(fallback)).toBeOnTheScreen();
+    expect(screen.queryByText('WAITLISTED')).toBeNull();
+    await view.unmount();
+  };
+
+  test('unknown enrollment statuses use Vietnamese copy in the list and detail', async () => {
+    await renderUnknownStatus('vi', 'Đã học (1)', 'Trạng thái chưa xác định');
+  });
+
+  test('unknown enrollment statuses use English copy in the list and detail', async () => {
+    await renderUnknownStatus('en', 'Past (1)', 'Unknown status');
+  });
+
+  test('formats fractional enrollment credits in the active locale', async () => {
+    const fractional = {
+      ...enrollments[0],
+      section: { ...enrollments[0].section, course: { ...course('CS101', 'Nhập môn lập trình'), credits: 3.5 } },
+    };
+    mockQueries['academic.enrollments'] = { data: [fractional] };
+    mockQueries['academic.semesters'] = { data: semesters };
+    const view = await render(wrap(<EnrollmentsScreen {...props} />));
+    await fireEvent.press(screen.getByRole('button', { name: /CS101/ }));
+    expect(screen.getByText('3,5')).toBeOnTheScreen();
+    await view.unmount();
+  });
+
+  test('preview enrollment names follow the active locale', async () => {
+    Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
+    for (const [locale, name] of [
+      ['vi', 'Kiến trúc phần mềm'],
+      ['en', 'Software Architecture'],
+    ] as const) {
+      const view = await render(wrap(<EnrollmentsScreen {...props} />, locale));
+      expect(screen.getByText(name)).toBeOnTheScreen();
+      await view.unmount();
+    }
   });
 
   test('courses is the same workspace, in English on request', async () => {
@@ -318,7 +365,7 @@ describe('grades', () => {
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getByText('MA101')).toBeOnTheScreen();
     expect(screen.queryByText('CS101')).toBeNull();
-    expect(screen.getByLabelText('B, 7.0 - 7.9, 3.0')).toBeOnTheScreen();
+    expect(screen.getByLabelText('B, 7,0 - 7,9, 3,0')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Xem bảng điểm tích lũy' }));
     expect(navigate).toHaveBeenCalledWith('transcript');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
@@ -416,12 +463,42 @@ describe('curriculum', () => {
     expect(navigate).toHaveBeenCalledWith('registration');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
+
+  test('formats credit amounts inside Vietnamese progress copy', async () => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 2345.5 },
+        courses: [
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 1234.5, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+        ],
+      },
+    };
+    const view = await render(wrap(<CurriculumScreen {...props} />));
+    expect(screen.getByText('1.234,5 tín chỉ')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Tích lũy 1.234,5/2.345,5 tín chỉ')).toBeOnTheScreen();
+    await view.unmount();
+  });
 });
 
 describe('registration', () => {
   const pressSelect = async (code: string) => fireEvent.press(screen.getByRole('button', { name: `Chọn lớp: ${code} Lớp 01` }));
   const pressRegister = async () => fireEvent.press(screen.getByRole('button', { name: 'Đăng ký các lớp đã chọn' }));
   const conflict = Object.assign(new Error('conflict'), { status: 409, code: 'SCHEDULE_CONFLICT' });
+
+  test('an unreachable registration read exposes retry and renders after recovery', async () => {
+    mockQueries['academic.registration'] = { error: academicMessages.vi.offline, errorStatus: 0 };
+    const view = await render(wrap(<RegistrationScreen {...props} />));
+
+    expect(screen.getByText(academicMessages.vi.offline)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Chọn lớp/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: academicMessages.vi.retry }));
+    expect(mockReload).toHaveBeenCalledTimes(1);
+
+    mockQueries['academic.registration'] = { data: registrationData([section('R1')]) };
+    await view.rerender(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getByRole('button', { name: 'Chọn lớp: CSR1 Lớp 01' })).toBeOnTheScreen();
+    expect(screen.queryByText(academicMessages.vi.offline)).toBeNull();
+  });
 
   test('a conflict keeps the selection and explains why', async () => {
     mockQueries['academic.registration'] = { data: registrationData([section('A1')]) };
@@ -579,5 +656,17 @@ describe('registration', () => {
     expect(screen.getByText('Chưa thể tải.')).toBeOnTheScreen();
     expect(screen.queryByText('Distributed Systems')).toBeNull();
     expect(screen.queryByRole('button', { name: /Chọn lớp/ })).toBeNull();
+  });
+
+  test('the screen title is not repeated as the basket hero eyebrow', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('M1')]) };
+    await render(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getAllByText('Đăng ký học phần')).toHaveLength(1);
+  });
+
+  test('the catalog search placeholder uses the standard course term', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('M2')]) };
+    await render(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getByLabelText('Tìm lớp học phần').props.placeholder).toBe('Tìm học phần');
   });
 });

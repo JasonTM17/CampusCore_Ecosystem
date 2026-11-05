@@ -13,9 +13,9 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { ensureComposeSecrets } from './compose-secrets.mjs';
+import { spawnSyncPortable } from './portable-spawn.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_FILE = 'docker-compose.e2e.yml';
@@ -52,18 +52,10 @@ function nodeVersionOk() {
 
 function tryRun(cmd, argv, opts = {}) {
   const env = { ...process.env, ...(args_env || {}), ...(opts.env || {}) };
-  let res = spawnSync(cmd, argv, {
+  const res = spawnSyncPortable(cmd, argv, {
     cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: MAX_BUFFER,
     env, timeout: opts.timeoutMs || 120000,
   });
-  // npm/mvn ship as .cmd shims on Windows; execFile-style spawn cannot run
-  // them without a shell — retry through cmd.exe only for that failure.
-  if (res.error && res.error.code === 'ENOENT' && process.platform === 'win32') {
-    res = spawnSync(cmd, argv, {
-      cwd: opts.cwd || REPO, encoding: 'utf8', maxBuffer: MAX_BUFFER,
-      env, shell: true, timeout: opts.timeoutMs || 120000,
-    });
-  }
   if (res.error) return { ok: false, out: `${res.stdout || ''}${res.stderr || ''}${res.error.message || ''}`, code: -1 };
   return { ok: res.status === 0, out: `${res.stdout || ''}${res.stderr || ''}`, code: res.status };
 }

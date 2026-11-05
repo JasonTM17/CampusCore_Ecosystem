@@ -28,6 +28,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <SessionProvider>{chi
 let foreground: (state: AppStateStatus) => void;
 let request: jest.Mock<(...args: unknown[]) => Promise<Response>>;
 let secure: Map<string, string>;
+let connectivity: { isConnected?: boolean; isInternetReachable?: boolean };
 
 function access(claims: Record<string, unknown> = {}) {
   return `e30.${Buffer.from(JSON.stringify({ sub: 'account', roles: ['STUDENT'], exp: Math.floor(Date.now() / 1000) + 600, ...claims })).toString('base64url')}.synthetic`;
@@ -40,8 +41,10 @@ beforeEach(() => {
   sessionExpiredHandler = undefined;
   secure = new Map([['cu.install', JSON.stringify({ appInstanceId: 'install' })], ['cu.refresh', 'synthetic-refresh']]);
   request = jest.fn(async () => new Response('{}', { status: 503 }));
+  connectivity = {};
   mockStore = createSessionStore({
     issuer: 'https://issuer.test', fetchImpl: request as typeof fetch,
+    getNetworkState: async () => connectivity,
     secure: {
       getItemAsync: async (key) => secure.get(key) ?? null,
       setItemAsync: async (key, value) => { secure.set(key, value); },
@@ -53,6 +56,25 @@ beforeEach(() => {
     foreground = listener;
     return { remove: jest.fn() };
   });
+});
+
+test('offline cold start stays retryable and foreground recovery restores the saved session', async () => {
+  connectivity = { isConnected: false };
+  const { result } = await renderHook(useSession, { wrapper });
+  expect(result.current.bootStatus).toBe('unavailable');
+  expect(result.current.bootUnavailableReason).toBe('offline');
+  expect(result.current.accountId).toBeNull();
+  expect(request).not.toHaveBeenCalled();
+  expect(secure.get('cu.refresh')).toBe('synthetic-refresh');
+
+  request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: access(), refresh_token: 'synthetic-rotation' })));
+  connectivity = { isConnected: true, isInternetReachable: true };
+  await act(async () => { foreground('active'); });
+  expect(result.current.kind).toBe('authenticated');
+  expect(result.current.bootStatus).toBe('ready');
+  expect(result.current.bootUnavailableReason).toBeUndefined();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(secure.get('cu.refresh')).toBe('synthetic-rotation');
 });
 
 test('a lost boot refresh requires sign-in and cannot be retried with the old token', async () => {

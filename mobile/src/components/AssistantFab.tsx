@@ -9,9 +9,9 @@ import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { resolveGuard, screenForPath, type SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
+import { ASSISTANT_FAB_CLEARANCE, ASSISTANT_FAB_SIZE } from './assistant-fab-insets';
 
-export const ASSISTANT_FAB_SIZE = 56;
-export const ASSISTANT_FAB_CLEARANCE = ASSISTANT_FAB_SIZE + tokens.spacing.md;
+export { ASSISTANT_FAB_CLEARANCE, ASSISTANT_FAB_SIZE } from './assistant-fab-insets';
 
 export interface AssistantFabVisibilityInput {
   session: SessionKind;

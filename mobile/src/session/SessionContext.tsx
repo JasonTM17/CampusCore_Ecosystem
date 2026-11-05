@@ -22,6 +22,7 @@ import {
 } from '../auth/capabilities';
 import { decodeJwtPayload, roleFromClaims } from '../auth/oidc-session';
 import { sessionStore } from '../auth/mobile-session-store';
+import type { RefreshResult } from '../auth/session-store';
 import { LANE_FLAGS } from '../config/lane-flags';
 import { clearQueryCache, queryCacheIdentity, syncQueryCacheIdentity } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
@@ -53,6 +54,7 @@ export interface SessionState {
 }
 
 type BootStatus = 'checking' | 'ready' | 'unavailable' | 'reauthRequired';
+type BootUnavailableReason = Extract<RefreshResult, { kind: 'unavailable' }>['reason'];
 
 interface SessionActions {
   retryBoot?(): Promise<void>;
@@ -71,6 +73,7 @@ export interface SessionValue extends SessionState, SessionActions {
   booted: boolean;
   /** Unavailable is retryable before dispatch; reauthRequired needs fresh OIDC sign-in. */
   bootStatus?: BootStatus;
+  bootUnavailableReason?: BootUnavailableReason;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -128,6 +131,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [epoch, setEpoch] = useState(0);
   const [booted, setBooted] = useState(false);
   const [bootStatus, setBootStatus] = useState<BootStatus>('checking');
+  const [bootUnavailableReason, setBootUnavailableReason] = useState<BootUnavailableReason>();
   const bootStatusRef = useRef(bootStatus);
   const bootFlight = useRef<Promise<void> | null>(null);
   const foregroundRetrySafe = useRef(false);
@@ -143,9 +147,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     );
   }, [state.kind, state.accountId, state.role, state.capabilities]);
 
-  const updateBootStatus = useCallback((status: BootStatus) => {
+  const updateBootStatus = useCallback((status: BootStatus, reason?: BootUnavailableReason) => {
     bootStatusRef.current = status;
     setBootStatus(status);
+    // Keep the offline retry surface visible while the next probe is pending.
+    if (status !== 'checking') setBootUnavailableReason(reason);
   }, []);
 
   const expireSession = useCallback(() => {
@@ -207,8 +213,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (result.kind === 'reauthRequired') {
           expireSession();
         } else if (result.kind === 'unavailable') {
-          foregroundRetrySafe.current = result.reason === 'issuer';
-          updateBootStatus('unavailable');
+          foregroundRetrySafe.current = result.reason === 'issuer' || result.reason === 'offline';
+          updateBootStatus('unavailable', result.reason);
         } else if (result.kind === 'refreshed') {
           const claims = decodeJwtPayload(result.accessToken);
           const capabilities = capabilitiesOf(result.accessToken);
@@ -347,6 +353,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     epoch,
     booted,
     bootStatus,
+    bootUnavailableReason,
     retryBoot,
     enterPreview,
     completeSignIn,
@@ -354,7 +361,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     signOut,
     markBlocked,
     setRole,
-  }), [state, epoch, booted, bootStatus, retryBoot, enterPreview, completeSignIn, switchRole, signOut, markBlocked, setRole]);
+  }), [state, epoch, booted, bootStatus, bootUnavailableReason, retryBoot, enterPreview, completeSignIn, switchRole, signOut, markBlocked, setRole]);
 
   if (!booted) {
     return null;

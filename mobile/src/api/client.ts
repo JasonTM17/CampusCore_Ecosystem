@@ -709,6 +709,8 @@ export interface ApiClientOptions {
    * one it started under; a sign-out or account switch aborts the transfer.
    */
   epochPollMs?: number;
+  /** Deadline for a request, download, or upload (uploads and downloads default to a longer bound); 0 disables it. */
+  timeoutMs?: number;
   /** Injectable native boundary; null deliberately keeps byte-only transport. */
   nativeFiles?: NativeFileRuntime | null;
 }
@@ -930,6 +932,9 @@ function getErrorDetails(body: unknown) {
 }
 
 const DEFAULT_EPOCH_POLL_MS = 250;
+const DEFAULT_JSON_TIMEOUT_MS = 30_000;
+/** Uploads and downloads move up to 20 MB over a mobile link, so they get a longer whole-transfer bound. */
+const DEFAULT_TRANSFER_TIMEOUT_MS = 300_000;
 
 function withIdempotencyKey(headers: HeadersInit | undefined, idempotencyKey: string | undefined) {
   if (!idempotencyKey) return headers;
@@ -1165,6 +1170,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const controller = transfer ? new AbortController() : undefined;
     const callerSignal = fetchInit.signal ?? undefined;
     let sessionChanged = false;
+    let transferTimedOut = false;
     let stopWatching = () => {};
     if (controller) {
       const abortFromCaller = () => controller.abort();
@@ -1173,7 +1179,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       } else {
         callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
       }
-      const timer = options.sessionEpoch
+      const epochTimer = options.sessionEpoch
         ? setInterval(() => {
           if (epochChanged(requestEpoch)) {
             sessionChanged = true;
@@ -1181,12 +1187,63 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           }
         }, options.epochPollMs ?? DEFAULT_EPOCH_POLL_MS)
         : undefined;
+      const transferTimeoutMs = Math.max(0, options.timeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS);
+      const timeoutTimer = transferTimeoutMs > 0
+        ? setTimeout(() => {
+          transferTimedOut = true;
+          controller.abort();
+        }, transferTimeoutMs)
+        : undefined;
       stopWatching = () => {
-        if (timer !== undefined) clearInterval(timer);
+        if (epochTimer !== undefined) clearInterval(epochTimer);
+        if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
         callerSignal?.removeEventListener('abort', abortFromCaller);
       };
       fetchInit.signal = controller.signal;
     }
+
+    // A JSON call must settle even when the server accepts the connection and
+    // then goes quiet. Transfers use their session/caller controller above.
+    const jsonTimeoutMs = transfer ? 0 : Math.max(0, options.timeoutMs ?? DEFAULT_JSON_TIMEOUT_MS);
+    let jsonTimedOut = false;
+    let stopJsonDeadline = () => {};
+    if (jsonTimeoutMs > 0) {
+      const deadline = new AbortController();
+      const jsonCallerSignal = fetchInit.signal ?? undefined;
+      const abortFromJsonCaller = () => deadline.abort();
+      if (jsonCallerSignal?.aborted) {
+        deadline.abort();
+      } else {
+        jsonCallerSignal?.addEventListener('abort', abortFromJsonCaller, { once: true });
+      }
+      const jsonTimer = setTimeout(() => {
+        jsonTimedOut = true;
+        deadline.abort();
+      }, jsonTimeoutMs);
+      fetchInit.signal = deadline.signal;
+      stopJsonDeadline = () => {
+        clearTimeout(jsonTimer);
+        jsonCallerSignal?.removeEventListener('abort', abortFromJsonCaller);
+      };
+    }
+
+    const assertRequestActive = () => {
+      if (!transfer && jsonTimedOut) {
+        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+      }
+      if (transfer && transferTimedOut) {
+        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+      }
+      if (transfer && epochChanged(requestEpoch)) sessionChanged = true;
+      if (transfer && sessionChanged) {
+        throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+      }
+      const signal = transfer ? controller?.signal : fetchInit.signal;
+      if (signal?.aborted) {
+        throw new ApiClientError(transfer ? 'The transfer was aborted' : 'The network request was aborted',
+          0, requestId, 'REQUEST_ABORTED');
+      }
+    };
 
     try {
       if (mode === 'upload' && nativeFiles && isFormData(fetchInit.body)
@@ -1195,9 +1252,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
       let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
       let body = await readBody(response);
+      assertRequestActive();
 
       if (!isPublic && !isSnapshot && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
         const refreshOutcome = await refreshSessionOnce(requestEpoch);
+        assertRequestActive();
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
         // previous account's dying request can never evict the session that
@@ -1220,6 +1279,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           headers.set('Authorization', `Bearer ${rotated}`);
           ({ response, sameOrigin } = await send(url, fetchInit, headers, transfer));
           body = await readBody(response);
+          assertRequestActive();
         }
       }
 
@@ -1255,6 +1315,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       return { body, headers: response.headers, requestId };
     } catch (error) {
       diskDownload?.release();
+      if (jsonTimedOut && !(error instanceof ApiClientError && error.status > 0)) {
+        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+      }
+      if (transferTimedOut) {
+        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+      }
       if (!transfer || error instanceof ApiClientError) throw error;
       if (sessionChanged) {
         throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
@@ -1274,6 +1340,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       );
     } finally {
       stopWatching();
+      stopJsonDeadline();
     }
   }
 

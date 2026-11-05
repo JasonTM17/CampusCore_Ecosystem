@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadTs } from './helpers/load-ts.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
@@ -23,9 +24,9 @@ async function load(file, name, rewrites = {}) {
   return import(pathToFileURL(out).href);
 }
 
-const gpa = await load(path.join(academic, 'gpa.ts'), 'gpa');
 const localeUrl = pathToFileURL(path.join(tmp, 'locale.mjs')).href;
 await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
+const gpa = await load(path.join(academic, 'gpa.ts'), 'gpa', { '../../i18n/locale': localeUrl });
 const model = await load(path.join(academic, 'academic-model.ts'), 'academic-model', { '../../i18n/locale': localeUrl });
 const browse = await load(path.join(academic, 'registration-browse.ts'), 'registration-browse');
 const basket = await load(path.join(academic, 'registration-basket.ts'), 'registration-basket');
@@ -61,11 +62,22 @@ test('score bands convert to the official letter and 4.0 point', () => {
 });
 
 test('scale rows list every band without overlapping display ranges', () => {
-  const rows = gpa.gradeScaleRows();
+  const rows = gpa.gradeScaleRows('vi');
   assert.equal(rows.length, 9);
-  assert.deepEqual(rows[0], { letter: 'A+', range: '9.0 - 10.0', point: '4.0' });
-  assert.deepEqual(rows[1], { letter: 'A', range: '8.5 - 8.9', point: '4.0' });
-  assert.deepEqual(rows.at(-1), { letter: 'F', range: '0.0 - 3.9', point: '0.0' });
+  assert.deepEqual(rows[0], { letter: 'A+', range: '9,0 - 10,0', point: '4,0' });
+  assert.deepEqual(rows[1], { letter: 'A', range: '8,5 - 8,9', point: '4,0' });
+  assert.deepEqual(rows.at(-1), { letter: 'F', range: '0,0 - 3,9', point: '0,0' });
+  assert.deepEqual(gpa.gradeScaleRows('en')[0], { letter: 'A+', range: '9.0 - 10.0', point: '4.0' });
+});
+
+test('preview enrollment fixtures distinguish Vietnamese and English course names', async () => {
+  const { previewEnrollments } = await loadTs('src/screens/academic/academic-preview.ts');
+  for (const enrollment of previewEnrollments) {
+    const course = enrollment.section?.course;
+    assert.ok(course?.nameVi, `${course?.code} needs a Vietnamese course name`);
+    assert.ok(course?.nameEn, `${course?.code} needs an English course name`);
+    assert.notEqual(course?.nameVi, course?.nameEn, `${course?.code} must not reuse its English title as Vietnamese`);
+  }
 });
 
 test('grade point prefers the server value, then the letter, then the score', () => {

@@ -410,19 +410,21 @@ test('the two-factor step returns to the same requested page', async () => {
   assert.deepEqual(session.pushed, ['/dashboard/grades'], 'the verified login keeps the same next');
 });
 
-test('the portal tabs preserve the requested page', async () => {
+test('the portal navigation preserves the requested page', async () => {
   const { tree } = await renderLogin({
     search: 'portal=student&reason=unauthorized&next=%2Fdashboard%2Fgrades',
   });
-  const tabs = elements(tree).filter((node) => node.props.role === 'tab');
-  assert.equal(tabs.length > 0, true, 'portal tabs render');
-  for (const tab of tabs) {
-    const url = new URL(tab.props.href, 'http://portal.test');
+  const links = elements(tree).filter(
+    (node) => typeof node.props.href === 'string' && node.props.href.startsWith('/login?portal='),
+  );
+  assert.equal(links.length > 0, true, 'portal navigation links render');
+  for (const link of links) {
+    const url = new URL(link.props.href, 'http://portal.test');
     assert.equal(url.searchParams.get('reason'), 'unauthorized');
     assert.equal(
       url.searchParams.get('next'),
       '/dashboard/grades',
-      `the ${url.searchParams.get('portal')} tab keeps the requested page`,
+      `the ${url.searchParams.get('portal')} link keeps the requested page`,
     );
   }
 });

@@ -8,6 +8,7 @@ import { LocalizedLink } from '@/components/LocalizedLink';
 import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/state-block';
 import { campusErrorKind } from '@/lib/campus-error';
+import { safeDecodeURIComponent } from '@/lib/safe-url';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
 import { sanitizeAnnouncementHtml } from '@/lib/html-sanitizer';
@@ -21,7 +22,7 @@ import { formatRelativeTime } from '@/lib/announcement-presentation';
 export default function DocDetailPage() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
-  const slug = decodeURIComponent(params.slug ?? '');
+  const slug = safeDecodeURIComponent(params.slug ?? '');
   const revParam = searchParams.get('rev');
   const revision = revParam != null && /^\d+$/.test(revParam) ? Number(revParam) : null;
   const { locale, messages } = useI18n();

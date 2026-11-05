@@ -10,6 +10,7 @@ import {
   UiText,
 } from '../../components/Ui';
 import { ChartSummary } from '../../components/ui/chart-summary';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import type { LaneScreenId } from '../../navigation/routes';
@@ -48,20 +49,22 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
           ]}
         />
         <ScreenSpacer />
-        <ChartSummary
-          title={copy.adminChartTitle}
-          series={(data?.gradeDistribution ?? []).map((row) => ({ label: row.grade ?? '', value: row.count ?? 0 }))}
-        />
-        <ChartSummary
-          title={copy.adminDepartments}
-          series={(data?.departments ?? []).map((row) => ({ label: row.code ?? row.name ?? '', value: row.students ?? 0 }))}
-        />
-        <ChartSummary
-          title={copy.adminTrends}
-          kind="sparkline"
-          unit="%"
-          series={(data?.semesterTrends ?? []).map((row) => ({ label: row.semester ?? '', value: row.completionRate ?? 0 }))}
-        />
+        <ResponsiveGrid>
+          <ChartSummary
+            title={copy.adminChartTitle}
+            series={(data?.gradeDistribution ?? []).map((row) => ({ label: row.grade ?? '', value: row.count ?? 0 }))}
+          />
+          <ChartSummary
+            title={copy.adminDepartments}
+            series={(data?.departments ?? []).map((row) => ({ label: row.code ?? row.name ?? '', value: row.students ?? 0 }))}
+          />
+          <ChartSummary
+            title={copy.adminTrends}
+            kind="sparkline"
+            unit="%"
+            series={(data?.semesterTrends ?? []).map((row) => ({ label: row.semester ?? '', value: row.completionRate ?? 0 }))}
+          />
+        </ResponsiveGrid>
         <ScreenSpacer />
         <SectionCard icon="tune-vertical-variant" title={copy.adminShortcuts}>
           {DETAIL_LANES.map(({ id, icon }, index) => (

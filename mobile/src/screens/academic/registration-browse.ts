@@ -22,6 +22,8 @@ export interface BrowseSection {
   courseId?: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string | null;
+  courseNameVi?: string | null;
   credits?: number;
   capacity: number;
   enrolledCount: number;
@@ -37,6 +39,8 @@ export interface CourseGroup<T extends BrowseSection = BrowseSection> {
   courseKey: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string | null;
+  courseNameVi?: string | null;
   credits: number;
   sections: T[];
 }
@@ -74,7 +78,15 @@ export function groupByCourse<T extends BrowseSection>(sections: readonly T[]): 
   const groups = new Map<string, CourseGroup<T>>();
   for (const section of sections) {
     const key = section.courseId ?? section.courseCode;
-    const group = groups.get(key) ?? { courseKey: key, courseCode: section.courseCode, courseName: section.courseName, credits: section.credits ?? 0, sections: [] };
+    const group = groups.get(key) ?? {
+      courseKey: key,
+      courseCode: section.courseCode,
+      courseName: section.courseName,
+      courseNameEn: section.courseNameEn,
+      courseNameVi: section.courseNameVi,
+      credits: section.credits ?? 0,
+      sections: [],
+    };
     group.sections.push(section);
     groups.set(key, group);
   }

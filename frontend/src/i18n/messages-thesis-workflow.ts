@@ -312,7 +312,7 @@ export const thesisWorkflowEn = {
     repositoryDescription:
       'Department-scoped archive of approved groups, submitted reports, attached artifacts, and research rosters.',
     repositorySearchPlaceholder:
-      'Search by topic title, student name, student ID (MSSV), or supervisor...',
+      'Search topic, student, MSSV, or supervisor…',
     allReports: 'All reports ({count})',
     noReportsFound: 'No thesis reports match your search criteria.',
     noRoundReportsYet: 'No thesis reports have been submitted for this registration round yet.',
@@ -591,7 +591,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
         actions: [
           'Duyệt nhóm cần 3–5 sinh viên và đúng 1 nhóm trưởng; nhóm nháp 1–2 sinh viên được bổ sung trước khi duyệt.',
           'Mỗi sinh viên chỉ được tham gia duy nhất 1 nhóm trong toàn bộ đợt đăng ký.',
-          'Mỗi nhóm chỉ đăng ký đúng 1 đề tài; Giảng viên hướng dẫn sẽ xét duyệt (Approve) hoặc từ chối (Reject kèm lý do).',
+          'Mỗi nhóm chỉ đăng ký đúng 1 đề tài; Giảng viên hướng dẫn sẽ xét duyệt hoặc từ chối kèm lý do.',
         ],
         deadlineNote: 'Chỉ được phép tạo nhóm và đăng ký trong khung giờ quy định của Giai đoạn 2.',
       },
@@ -822,7 +822,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
     repositoryDescription:
       'Kho theo bộ môn dành cho nhóm đã duyệt, báo cáo đã nộp, tài liệu đính kèm và danh sách thành viên.',
     repositorySearchPlaceholder:
-      'Tìm kiếm theo tên đề tài, họ tên sinh viên, MSSV hoặc GVHD...',
+      'Tìm đề tài, sinh viên, MSSV hoặc GVHD…',
     allReports: 'Tất cả báo cáo ({count})',
     noReportsFound: 'Không tìm thấy báo cáo luận văn nào phù hợp với điều kiện tìm kiếm.',
     noRoundReportsYet: 'Chưa có nhóm nào nộp báo cáo luận văn trong đợt đăng ký này.',

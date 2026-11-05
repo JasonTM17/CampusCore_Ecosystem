@@ -28,6 +28,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusCodeMessage, campusErrorCode, campusErrorMessage } from '@/lib/campus-error';
 import { createRequestEpoch } from '@/lib/request-epoch';
+import { countLabel } from '@/lib/plural';
 
 type StatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
 type ReviewDecision = 'APPROVED' | 'REJECTED';
@@ -226,7 +227,10 @@ export default function AdminCreditLimitApplicationsPage() {
             description={copy.emptyDescription}
           />
         ) : (
-          <AdminTableCard title={copy.tableTitle} description={copy.pageSummary.replace('{count}', String(applications.length))}>
+          <AdminTableCard
+            title={copy.tableTitle}
+            description={countLabel(applications.length, copy.pageSummaryOne, copy.pageSummary).replace('{count}', String(applications.length))}
+          >
             <div className="space-y-3 md:hidden" role="list" aria-label={copy.tableTitle}>
               {applications.map((application) => {
                 const Icon = applicationIcon(application.status);

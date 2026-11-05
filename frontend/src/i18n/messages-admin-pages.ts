@@ -716,7 +716,7 @@ export const adminPagesVi: Widen<typeof adminPagesEn> = {
     markdownLabel: "Markdown & Khối",
     tinyMceHint: "Chuẩn xuất bản học thuật HCMUTE",
     markdownHint: "Hỗ trợ phím tắt và mẫu nhanh",
-    tinyMcePlaceholder: "Soạn thảo nội dung thông báo chuẩn học thuật HCMUTE (hỗ trợ bảng biểu, định dạng, danh sách)...",
+    tinyMcePlaceholder: "Soạn thảo nội dung thông báo...",
     markdownPlaceholder: "Soạn thảo nội dung thông báo... (Hỗ trợ tiêu đề, in đậm, bảng biểu, ghi chú khẩn)",
     audienceDescription: "Chọn Toàn trường hoặc nhóm cụ thể. Xem trước bên cạnh sẽ phản ánh lựa chọn này.",
     targetYearsPlaceholder: "Ví dụ: 1, 2, 3",

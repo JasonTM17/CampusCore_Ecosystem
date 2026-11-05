@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -19,6 +19,7 @@ import {
 import { apiClient, campusApi, type AuthUser } from '../../api/client';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
+import { tokens } from '../../design/tokens';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
 import type { MobileScreenProps } from '../../navigation/types';
 import { SecureField } from '../account/SecureField';
@@ -188,7 +189,6 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     ? 'Nguyen Duc Minh'
     : [account?.firstName, account?.lastName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
-  const idLabel = role === 'lecturer' ? copy.profile.lecturerId : copy.profile.studentId;
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
 
   if (isLoading || error) {
@@ -207,7 +207,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
 
   return (
     <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow}>
-      {warning ? <DataNotice message={warning} /> : null}
+      {warning ? <View style={profileStyles.notice}><DataNotice message={warning} /></View> : null}
       <Card style={[styles.profileHero, { backgroundColor: chrome.surface, borderColor: colors.outlineVariant }]}>
         <IdentityHeader
           chips={[isLive ? roleLabel : `${roleLabel} · ${copy.profile.preview}`]}
@@ -221,11 +221,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       </Card>
       <ScreenSpacer />
       <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
-        <ListRow icon="account-outline" title={copy.profile.fullName} subtitle={displayName} />
-        <Divider />
         <ListRow icon="email-outline" title={copy.profile.email} subtitle={displayEmail} />
-        <Divider />
-        <ListRow icon="card-account-details-outline" title={idLabel} subtitle={displayId} />
         {isLive ? (
           <>
             <Divider />
@@ -319,3 +315,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     </ScreenShell>
   );
 }
+
+const profileStyles = StyleSheet.create({
+  notice: { marginBottom: tokens.spacing.sm },
+});

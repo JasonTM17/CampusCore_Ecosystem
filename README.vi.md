@@ -112,14 +112,21 @@ kịch bản demo: [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md). Dùng base Comp
 
 ### App mobile (Android emulator)
 
+Khởi động cụm local kèm OIDC cho mobile (Android emulator trỏ `http://10.0.2.2:4010`):
+
 ```powershell
+# Bật overlay mobile và kiểm tra luồng OIDC không cần trình duyệt
+node scripts/local-dev.mjs up --mobile
+node scripts/mobile-local-oidc-verify.mjs
+
+# Chạy app mobile (Expo)
 cd mobile
 Copy-Item .env.example .env   # giữ nguyên các giá trị local sau khi copy
 npm start
 ```
 
-Yêu cầu môi trường: [mobile/README.md](mobile/README.md).
-Đăng nhập mobile cục bộ: [mobile/README.md](mobile/README.md).
+Trên Windows, nếu cổng cơ sở dữ liệu `5432` bị dịch vụ hệ thống chiếm dụng, đặt `POSTGRES_HOST_PORT` trong `.env` (ví dụ `55432`).
+Yêu cầu môi trường và build release signing: [mobile/README.md](mobile/README.md).
 
 ## Kiểm thử
 

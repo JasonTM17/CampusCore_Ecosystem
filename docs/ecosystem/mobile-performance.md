@@ -2,7 +2,7 @@
 
 Status: **DONE_WITH_CONCERNS for Lead review; smoothness acceptance remains open**.
 No Git writes, commits, pushes, release publishing, or provider calls were made.
-Execution authority: [P1 plan](../../plans/261029-P1-mobile-performance/plan.md).
+Execution authority: `plans/261029-P1-mobile-performance/plan.md`.
 
 ## Method and limits
 
@@ -254,7 +254,7 @@ settings were unchanged. Source: `3837c1e3425c8f8898392456daa30cab7c3d4186`.
 Mobile source/config/package hashes still matched the build snapshot after
 journeys/performance at 17:04. Unrelated source edits appeared at final handoff;
 these results bind the packaged APK, not the later dirty working tree.
-Detailed journeys and defects: [P4 report](../../plans/reports/test-261029-1637-p4-real-android.md).
+Detailed journeys and defects: `plans/reports/test-261029-1637-p4-real-android.md`.
 
 Fresh Expo prebuild and arm64 release build/install passed. Packaged Hermes,
 preview mode, non-debuggable release variant signed with the generated debug key;

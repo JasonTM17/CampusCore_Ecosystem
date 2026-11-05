@@ -115,6 +115,62 @@ test('TextDecoder streaming preserves UTF-8 split between bytes and parses multi
   assert.deepEqual(JSON.parse(frames[0].data), meta);
 });
 
+test('unknown event types are skipped without breaking the stream', async () => {
+  const meta = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
+  const delta = fixture.find((row) => row.scenario === 'normal' && row.event === 'delta').data;
+  const done = fixture.find((row) => row.scenario === 'normal' && row.event === 'done').data;
+  const wire = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const bytes = new TextEncoder().encode(
+    wire('progress', { type: 'progress', percent: 50 })
+      + wire('meta', meta)
+      + wire('progress', { type: 'progress', percent: 90 })
+      + wire('delta', delta)
+      + wire('done', done),
+  );
+  const events = await collect(transportFor(responseForBytes(bytes)).stream(request));
+  assert.deepEqual(events.map((event) => event.type), ['meta', 'delta', 'done']);
+});
+
+test('a malformed frame stops the response body instead of leaving it streaming', async () => {
+  let cancelled = false;
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: meta\ndata: {nope\n\n'));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  await assert.rejects(
+    collect(transportFor(new Response(stream)).stream(request)),
+    (error) => error.code === 'STREAM_INVALID_JSON',
+  );
+  assert.equal(cancelled, true, 'the response body is cancelled');
+});
+
+test('stopping the consumer after a frame releases the open response body', async () => {
+  let cancelled = false;
+  const meta = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
+  const delta = fixture.find((row) => row.scenario === 'normal' && row.event === 'delta').data;
+  const done = fixture.find((row) => row.scenario === 'normal' && row.event === 'done').data;
+  const wire = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(wire('meta', meta) + wire('delta', delta) + wire('done', done)));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const consumed = [];
+  for await (const event of transportFor(new Response(stream)).stream(request)) {
+    consumed.push(event.type);
+    if (event.type === 'done') break;
+  }
+  assert.deepEqual(consumed, ['meta', 'delta', 'done']);
+  assert.equal(cancelled, true, 'the open body is cancelled when the consumer stops');
+});
+
 test('terminal order rejects frames after done and EOF without a terminal is incomplete', async () => {
   const meta = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
   const delta = fixture.find((row) => row.scenario === 'normal' && row.event === 'delta').data;

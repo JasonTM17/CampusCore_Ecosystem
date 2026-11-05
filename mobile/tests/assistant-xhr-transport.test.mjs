@@ -311,6 +311,21 @@ test('ordering violations raise after the valid prefix; EOF and socket loss mark
   assert.equal((await lostRun.settled).error.code, 'STREAM_CONNECTION_LOST');
 });
 
+test('an unrecognised event type is ignored while the stream continues', async () => {
+  const { run } = harness();
+  const { xhr, settled } = run();
+  xhr.respond();
+  xhr.text(frame('progress', { type: 'progress', percent: 50 })
+    + frame('meta', meta)
+    + frame('progress', { type: 'progress', percent: 90 })
+    + frame('delta', delta(0))
+    + frame('done', done));
+  xhr.complete();
+  const result = await settled;
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.events.map((event) => event.type), ['meta', 'delta', 'done']);
+});
+
 test('response memory is bounded and a shrinking responseText is rejected', async () => {
   const big = harness({ maxResponseChars: 64 });
   const bigRun = big.run();

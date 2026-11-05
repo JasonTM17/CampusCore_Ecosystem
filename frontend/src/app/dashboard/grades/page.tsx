@@ -236,7 +236,6 @@ export default function GradesPage() {
       <PageHeader
         eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
         title={copy.title}
-        description={copy.description.replace('{semester}', () => selectedSemesterName)}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="min-w-[220px]">

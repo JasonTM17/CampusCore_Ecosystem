@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  compileFile,
+  loadApiStack,
   loadDocsStack,
   loadHealthStack,
   loadSiteAppearanceStack,
@@ -9,6 +11,102 @@ const {
   contextFor,
   createFetch,
 } = require('./proxy-route-harness');
+
+const EDGE_TOKEN = 'test-edge-token-0123456789abcdef0123456789';
+const PREVIEW_TOKEN = 'sso-preview-proxy-token-0123456789';
+
+function loadIdentityRoute(lane, fetch, env = {}) {
+  if (lane === 'api') return loadApiStack(fetch, env).route;
+  return compileFile('src/app/session/[...path]/route.ts', {
+    process: { env: { JAVA_API_ORIGIN: 'http://java.test', ...env } },
+    globals: { fetch },
+  });
+}
+
+async function sendIdentityRequest(route, lane, headers = {}) {
+  return route.POST(makeRequest({ host: 'portal.localhost', headers }),
+    contextFor(lane === 'api' ? ['auth', 'login'] : ['logout']));
+}
+
+for (const lane of ['api', 'session']) {
+  test(`${lane} proxy strips caller forwarding and edge credentials by default`, async () => {
+    const { fetch, calls } = createFetch();
+    const route = loadIdentityRoute(lane, fetch);
+    await sendIdentityRequest(route, lane, {
+      'x-forwarded-for': '198.51.100.42',
+      'x-forwarded-host': 'evil.example',
+      'x-forwarded-proto': 'https',
+      'x-forwarded-port': '443',
+      forwarded: 'for=198.51.100.42;host=evil.example;proto=https',
+      'x-real-ip': '198.51.100.42',
+      'x-campuscore-proxy-token': PREVIEW_TOKEN,
+      'x-campuscore-client-ip': '198.51.100.42',
+    });
+    const headers = calls[0].options.headers;
+    assert.equal(headers.get('x-forwarded-for'), 'web-proxy');
+    for (const name of ['x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port',
+      'forwarded', 'x-real-ip', 'x-campuscore-proxy-token', 'x-campuscore-client-ip']) {
+      assert.equal(headers.get(name), null, name);
+    }
+  });
+
+  test(`${lane} proxy requires explicit edge opt-in even with a configured token`, async () => {
+    for (const flag of [undefined, 'false', '1']) {
+      const { fetch, calls } = createFetch();
+      const route = loadIdentityRoute(lane, fetch, {
+        CAMPUSCORE_PROXY_TOKEN: EDGE_TOKEN, CAMPUSCORE_TRUST_EDGE_HEADERS: flag,
+      });
+      await sendIdentityRequest(route, lane, { 'x-forwarded-for': '203.0.113.9' });
+      assert.equal(calls[0].options.headers.get('x-forwarded-for'), 'web-proxy');
+      assert.equal(calls[0].options.headers.get('x-campuscore-client-ip'), 'web-proxy');
+    }
+  });
+
+  test(`${lane} proxy preserves separate trusted edge clients and removes poisoned metadata`, async () => {
+    const { fetch, calls } = createFetch();
+    const route = loadIdentityRoute(lane, fetch, {
+      CAMPUSCORE_TRUST_EDGE_HEADERS: 'true', CAMPUSCORE_PROXY_TOKEN: EDGE_TOKEN,
+    });
+    for (const ip of ['203.0.113.9', '2001:db8::2']) {
+      await sendIdentityRequest(route, lane, {
+        'x-forwarded-for': `198.51.100.42, ${ip}`,
+        'x-real-ip': '198.51.100.42',
+        'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'ftp',
+        'x-forwarded-port': '21', forwarded: 'for=198.51.100.42',
+        'x-campuscore-proxy-token': PREVIEW_TOKEN,
+        'x-campuscore-client-ip': '198.51.100.42',
+      });
+      const headers = calls.at(-1).options.headers;
+      assert.equal(headers.get('x-forwarded-for'), ip);
+      assert.equal(headers.get('x-campuscore-client-ip'), ip);
+      assert.equal(headers.get('x-campuscore-proxy-token'), EDGE_TOKEN);
+      for (const name of ['x-real-ip', 'x-forwarded-host', 'x-forwarded-proto',
+        'x-forwarded-port', 'forwarded']) assert.equal(headers.get(name), null, name);
+    }
+  });
+
+  test(`${lane} proxy does not promote a malformed or absent edge address`, async () => {
+    const { fetch, calls } = createFetch();
+    const route = loadIdentityRoute(lane, fetch, {
+      CAMPUSCORE_TRUST_EDGE_HEADERS: 'true', CAMPUSCORE_PROXY_TOKEN: EDGE_TOKEN,
+    });
+    for (const value of [undefined, '203.0.113.9, ', 'not-an-ip', '203.0.113.9:80']) {
+      await sendIdentityRequest(route, lane, value ? { 'x-forwarded-for': value } : {});
+      assert.equal(calls.at(-1).options.headers.get('x-forwarded-for'), 'web-proxy');
+    }
+  });
+
+  test(`${lane} proxy refuses unsafe edge tokens during module initialization`, () => {
+    for (const token of [undefined, '', '   ', 'short', 'x'.repeat(31), PREVIEW_TOKEN]) {
+      assert.throws(() => loadIdentityRoute(lane, createFetch().fetch, {
+        CAMPUSCORE_TRUST_EDGE_HEADERS: 'true', CAMPUSCORE_PROXY_TOKEN: token,
+      }), /CAMPUSCORE_PROXY_TOKEN.*32.*unpublished/);
+    }
+    assert.doesNotThrow(() => loadIdentityRoute(lane, createFetch().fetch, {
+      CAMPUSCORE_TRUST_EDGE_HEADERS: 'true', CAMPUSCORE_PROXY_TOKEN: 'x'.repeat(32),
+    }));
+  });
+}
 
 test('the docs proxy strips credential and forwarding headers but keeps content negotiation', async () => {
   const { fetch, calls } = createFetch();

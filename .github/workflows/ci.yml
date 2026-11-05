@@ -17,6 +17,8 @@
 # 2. java-api (BLOCKS MERGE):
 #    - Java modular monolith compile and surefire verification.
 #    - Surefire zero-test assertion: fails if total tests run equals 0 across reports.
+#    - Disposable-PostgreSQL integration lane (platform-verify.mjs pgit): every
+#      *PostgresIT runs; a zero or skipped IT run fails the gate.
 #
 # 3. frontend (BLOCKS MERGE):
 #    - Web dependencies (npm ci), typecheck, lint, build.
@@ -130,6 +132,7 @@ jobs:
             scripts/check-migration-immutability.test.mjs \
             scripts/check-mobile-parity.test.mjs \
             scripts/check-supabase-migrations.test.mjs \
+            scripts/ci-required-lane-guard.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
@@ -307,6 +310,9 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: java-services/pom.xml
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.13'
       - name: Install pypdf for PDF parser round-trip tests
         run: python -m pip install --quiet pypdf
       - name: Verify Java API
@@ -339,6 +345,16 @@ jobs:
             }
             console.log(`PASS: Verified ${total} Java tests executed across ${files.length} report files.`);
           '
+      - name: Verify PostgreSQL integration tests
+        run: node scripts/platform-verify.mjs pgit --project campuscore-ci-java-it-${{ github.run_id }} --evidence artifacts/verification/pgit-ci
+      - name: Upload PostgreSQL integration evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pgit-evidence-${{ github.run_attempt }}
+          path: artifacts/verification/pgit-ci/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Write and validate CI timing summary
         if: always()
         continue-on-error: true

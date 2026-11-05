@@ -114,14 +114,21 @@ with explicit secrets to keep demo accounts disabled.
 
 ### Mobile app (Android emulator)
 
+Start the local stack with the mobile OIDC overlay (Android emulator targets `http://10.0.2.2:4010`):
+
 ```powershell
+# Start mobile overlay and verify OIDC flow end-to-end without a browser
+node scripts/local-dev.mjs up --mobile
+node scripts/mobile-local-oidc-verify.mjs
+
+# Run the Expo mobile app
 cd mobile
 Copy-Item .env.example .env   # keep the local values after copying
 npm start
 ```
 
-Prerequisites: [mobile/README.md](mobile/README.md).
-Local mobile sign-in: [mobile/README.md](mobile/README.md).
+On Windows, if database host port `5432` is reserved, override it with `POSTGRES_HOST_PORT` in `.env` (e.g. `55432`).
+Prerequisites and release signing: [mobile/README.md](mobile/README.md).
 
 ## Testing
 

@@ -561,7 +561,6 @@ export default function ProfilePage() {
                     </Button>
                   ) : null}
                 </div>
-                <p className="text-xs text-muted-foreground">{messages.profile.photoHint}</p>
                 {avatarDirty && (
                   <p
                     role="status"

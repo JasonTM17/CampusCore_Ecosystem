@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { expect, request as pwRequest, test, type Page } from '@playwright/test';
 
 /**
@@ -192,13 +194,13 @@ test.beforeAll(async () => {
   expect(JSON.parse(dup.body).code).toBe('APPLICATION_ACTIVE');
 
   // CAR-X02: attachment upload (sha256 verified), then ownership checks.
-  const cvBytes = Buffer.from('simulated cv bytes');
+  const cvBytes = readFileSync(path.join(__dirname, 'fixtures', 'document.pdf'));
   const checksum = (await import('node:crypto')).createHash('sha256')
     .update(cvBytes).digest('hex');
   const withFile = await ok(candidate, 'POST',
     `/api/v1/careers/applications/${applicationId}/attachments`,
     {
-      fileName: 'cv.txt', contentType: 'text/plain',
+      fileName: 'cv.pdf', contentType: 'application/pdf',
       dataBase64: cvBytes.toString('base64'), checksum,
     },
     { 'Idempotency-Key': `e2e-car-att-${RUN}` });
