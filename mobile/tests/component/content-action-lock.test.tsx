@@ -29,7 +29,7 @@ jest.mock('../../src/api/client', () => ({
     post: (...args: unknown[]) => (mockPost as unknown as (...a: unknown[]) => Promise<unknown>)(...args),
     delete: jest.fn(async () => ({})),
   },
-  campusApi: {},
+  campusApi: { libraryTitle: jest.fn() },
   createAssistantClientRequestId: () => 'request-key',
   ApiClientError: class ApiClientError extends Error {
     status: number;
@@ -61,6 +61,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 import { AdmissionsScreen } from '../../src/screens/student/AdmissionsScreen';
 import { CareersScreen } from '../../src/screens/student/CareersScreen';
 import { LibraryScreen } from '../../src/screens/student/LibraryScreen';
+import { campusApi } from '../../src/api/client';
 import { joinMeta } from '../../src/screens/content/content-rules';
 
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -90,6 +91,22 @@ async function reattempt(action: () => void, confirmLabel: string) {
   const before = screen.queryAllByRole('button', { name: confirmLabel }).length;
   await act(async () => { action(); });
   await pressConfirm(confirmLabel, before);
+}
+
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
 }
 
 beforeEach(() => {
@@ -166,6 +183,34 @@ test('a second library cancel during the loans refresh is ignored', async () => 
   expect(mockPost).toHaveBeenCalledTimes(1);
   expect(screen.getByText(copy.cancelled)).toBeOnTheScreen();
   expect(screen.queryByText(copy.failed)).toBeNull();
+});
+
+test('same-frame double hold confirmation sends one library request', async () => {
+  const copy = libraryMessages.vi;
+  const title = {
+    id: 'title-1', title: 'Sách thử nghiệm', author: 'Tác giả', totalCopies: 1,
+    availableCopies: 1, version: 1,
+    copies: [{ id: 'copy-1', barcode: 'B1', status: 'AVAILABLE' }],
+  };
+  mockQueries['content.library.catalogue.'] = { data: { items: [title], total: 1, hasMore: false } };
+  mockQueries['content.library.title.title-1.0'] = { data: title };
+  jest.mocked(campusApi.libraryTitle).mockResolvedValue(title as never);
+  const request = deferred<unknown>();
+  mockPost.mockImplementation(() => request.promise);
+  await render(screenElement(<LibraryScreen {...props} />));
+  await fireEvent.press(screen.getByRole('button', { name: /Sách thử nghiệm/ }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.hold }));
+
+  const confirm = screen.getAllByRole('button', { name: copy.hold }).at(-1)!;
+  try {
+    await pressTwiceBeforeCommit(confirm);
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      request.resolve({});
+      await request.promise;
+    });
+  }
 });
 
 test('a second admissions withdraw during the applications refresh is ignored', async () => {
