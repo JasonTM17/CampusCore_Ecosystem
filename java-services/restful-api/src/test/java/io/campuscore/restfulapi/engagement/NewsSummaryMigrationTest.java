@@ -34,6 +34,14 @@ class NewsSummaryMigrationTest {
             }
         }
         assertThat(end).isEqualTo(withoutComments.length());
+
+        String correction = Files.readString(Path.of(
+                "src/main/resources/db/migration/V155__career_fair_summary.sql")).trim();
+        Matcher correctionMatcher = STATEMENT.matcher(correction);
+        assertThat(correctionMatcher.matches()).isTrue();
+        assertThat(correctionMatcher.group(2)).isEqualTo("announcement-ute-career-fair-tech-2026");
+        found.put(correctionMatcher.group(2), correctionMatcher.group(1).replace("''", "'"));
+
         assertThat(found).isEqualTo(DistinctAnnouncementSummaries.BY_ID);
         assertThat(found.values()).doesNotHaveDuplicates();
         assertThat(found.values()).allSatisfy(summary -> assertThat(summary).hasSizeLessThanOrEqualTo(500));

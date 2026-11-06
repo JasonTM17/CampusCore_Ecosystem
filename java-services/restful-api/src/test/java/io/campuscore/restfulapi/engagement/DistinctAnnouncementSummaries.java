@@ -10,7 +10,7 @@ final class DistinctAnnouncementSummaries {
             Map.entry("announcement-v32-smart-campus",
                     "Nhà trường đưa vào vận hành 04 phòng thí nghiệm trí tuệ nhân tạo và dữ liệu lớn tại tòa nhà C1 và B2, với máy chủ GPU cho học tập và nghiên cứu."),
             Map.entry("announcement-ute-career-fair-tech-2026",
-                    "Ngày hội UTE Tech Career Expo 2026 diễn ra ngày 23/10/2026 tại Khu A, với hơn 60 tập đoàn và 1.200 vị trí thực tập sinh, kỹ sư phần mềm, AI và Cloud DevOps."),
+                    "Ngày hội UTE Tech Career Expo 2026 diễn ra ngày 23/10/2026 tại Khu A, với hơn 60 tập đoàn và hơn 1.200 vị trí thực tập sinh và kỹ sư (Software Engineer, Data Engineer, AI Engineer)."),
             Map.entry("announcement-v32-job-fair",
                     "Hơn 60 tập đoàn công nghệ có mặt tại sảnh tòa nhà A1 để tuyển dụng thực tập sinh và kỹ sư chính thức."),
             Map.entry("announcement-ute-fpt-ojt-career-day",
