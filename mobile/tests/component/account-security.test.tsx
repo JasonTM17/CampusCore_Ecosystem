@@ -42,7 +42,7 @@ jest.mock('../../src/screens/account/account-api', () => ({
   },
 }));
 
-import { campusApi } from '../../src/api/client';
+import { apiClient, campusApi } from '../../src/api/client';
 import { accountApi } from '../../src/screens/account/account-api';
 import { ForgotPasswordScreen } from '../../src/screens/account/ForgotPasswordScreen';
 import { LoggedOutScreen } from '../../src/screens/account/LoggedOutScreen';
@@ -271,6 +271,23 @@ describe('two-factor card', () => {
     expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalledWith('fake-challenge', '123456');
   });
 
+  test('a confirmed change does not leave a dead enable/disable button behind', async () => {
+    mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
+    mocked(accountApi.beginTwoFactorEnable).mockResolvedValue({ challengeId: 'fake-challenge' });
+    mocked(accountApi.confirmTwoFactorEnable).mockResolvedValue({ enabled: true });
+    const onCompleted = jest.fn();
+    await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={onCompleted} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
+    await fireEvent.changeText(await screen.findByLabelText('Mã xác thực'), '123456');
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('enable'));
+
+    expect(screen.queryByRole('button', { name: 'Tắt xác thực hai yếu tố' })).toBeNull();
+  });
+
   test('a same-frame repeat tap requests only one two-factor challenge', async () => {
     mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
     const request = deferred<{ challengeId: string }>();
@@ -364,6 +381,28 @@ describe('profile account security', () => {
     expect(campusApi.changePassword).toHaveBeenCalledWith('Old-pass-1234', FAKE_PASSWORD);
   });
 
+  test('same-frame double confirmation sends one password change', async () => {
+    const pending = deferred<unknown>();
+    mocked(campusApi.changePassword).mockImplementation(() => pending.promise);
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu hiện tại'), 'Old-pass-1234');
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
+    await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu mới'), FAKE_PASSWORD);
+    await fireEvent.press(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
+
+    const confirm = screen.getAllByRole('button', { name: 'Đổi mật khẩu' }).at(-1)!;
+    try {
+      await pressTwiceBeforeCommit(confirm);
+      expect(campusApi.changePassword).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        pending.resolve({ message: 'ok' });
+        await pending.promise;
+      });
+      mocked(campusApi.changePassword).mockReset();
+    }
+  });
+
   test('a wrong current password stays on the form with a localized error', async () => {
     mocked(campusApi.changePassword).mockRejectedValue({ status: 400, code: 'INVALID_OLD_PASSWORD' });
     await renderApp(<ProfileScreen {...props} />);
@@ -423,5 +462,16 @@ describe('profile account security', () => {
 
     expect(screen.getByLabelText('Số điện thoại').props.value).toBe('0902222222');
     expect(screen.getByLabelText('Địa chỉ').props.value).toBe('Updated Address');
+  });
+
+  test('Vietnamese preview identity keeps its name diacritics', async () => {
+    const originalMode = apiClient.mode;
+    Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
+    try {
+      await renderApp(<ProfileScreen {...props} />);
+      expect(screen.getByText('Nguyễn Đức Minh')).toBeOnTheScreen();
+    } finally {
+      Object.defineProperty(apiClient, 'mode', { configurable: true, value: originalMode });
+    }
   });
 });
