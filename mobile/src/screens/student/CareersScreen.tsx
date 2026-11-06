@@ -168,7 +168,13 @@ export function CareersScreen(_props: MobileScreenProps) {
             <Card>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={joinMeta([item.title, item.organizationName, item.location])}
+                accessibilityLabel={joinMeta([
+                  item.title,
+                  item.organizationName,
+                  item.location,
+                  employmentTypeLabel(copy.employmentTypeLabels, item.employmentType),
+                  liveIds.has(item.id) ? copy.alreadyApplied : null,
+                ])}
                 onPress={() => setOpportunity(item)}
                 style={styles.rowMain}
               >
