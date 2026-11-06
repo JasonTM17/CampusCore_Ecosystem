@@ -141,6 +141,13 @@ test('failures map to specific, safe message keys', () => {
   assert.equal(key({ status: 500 }, 'code'), 'failed');
 });
 
+test('a bare 502 is a mail failure only at the challenge step', () => {
+  const key = (error, step) => flow.twoFactorErrorKey(errors.classifyError(error), step);
+  assert.equal(key({ status: 502 }, 'password'), 'mailFailed');
+  assert.equal(key({ status: 502, code: 'MAIL_DELIVERY_FAILED' }, 'code'), 'mailFailed');
+  assert.equal(key({ status: 502 }, 'code'), 'failed');
+});
+
 test('exit notice is delivered once and defaults to a plain sign-out', () => {
   assert.equal(notice.takeExitNotice(), 'signedOut');
   notice.setExitNotice('passwordChanged');
