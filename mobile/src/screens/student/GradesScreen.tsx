@@ -92,7 +92,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
               <View
                 key={record.id}
                 accessible
-                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}`}
+                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}${record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : ''}`}
               >
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.gradeRow}>

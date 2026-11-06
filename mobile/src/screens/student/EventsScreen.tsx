@@ -22,6 +22,8 @@ import { usePagedList } from '../content/use-paged-list';
 
 type Tab = 'catalog' | 'mine';
 
+const eventStatusCode = (event: MobileEvent) => event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status;
+
 /** Student events: published catalogue, own registrations, register and cancel. The server owns every transition. */
 export function EventsScreen(_props: MobileScreenProps) {
   const { locale, formatDateTime, copy: common } = useContentCopy();
@@ -158,7 +160,7 @@ export function EventsScreen(_props: MobileScreenProps) {
             <Card>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })])}
+                accessibilityLabel={joinMeta([event.title, labels[eventStatusCode(event)] ?? eventStatusCode(event), eventMeta(event), fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })])}
                 onPress={() => setSelectedId(event.id)}
                 style={styles.rowMain}
               >
@@ -167,7 +169,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                   <UiText variant="label">{event.title}</UiText>
                   <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
                   <View style={styles.chips}>
-                    <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
+                    <StatusChip code={eventStatusCode(event)} labels={labels} />
                     <UiText variant="meta" tone="muted">{fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}</UiText>
                   </View>
                 </View>
