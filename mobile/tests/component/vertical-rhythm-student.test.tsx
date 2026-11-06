@@ -59,7 +59,6 @@ import { CertificatesScreen } from '../../src/screens/content/CertificatesScreen
 import { ForgotPasswordScreen } from '../../src/screens/account/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../../src/screens/account/ResetPasswordScreen';
 import { LoggedOutScreen } from '../../src/screens/account/LoggedOutScreen';
-import { BlockedScreen } from '../../src/screens/account/BlockedScreen';
 import { SignInScreen } from '../../src/screens/auth/SignInScreen';
 import { CheckinScreen } from '../../src/screens/attendance-checkin/CheckinScreen';
 import { apiClient } from '../../src/api/client';
@@ -108,7 +107,7 @@ const studentScreens: Array<{ name: string; render: () => ReactElement; setup?: 
 
 studentScreens.push(...[
   TranscriptScreen, CurriculumScreen, EnrollmentsScreen, AnnouncementsScreen, ConductScreen, CertificatesScreen,
-  ForgotPasswordScreen, ResetPasswordScreen, LoggedOutScreen, BlockedScreen, SignInScreen,
+  ForgotPasswordScreen, ResetPasswordScreen, LoggedOutScreen, SignInScreen,
   ThesisTopicsScreen, ThesisRoundScreen, ThesisAdvisorsScreen, ThesisDetailScreen, ThesisProgressScreen, ThesisRegistrationScreen,
 ].map((Screen) => ({ name: Screen.name, render: () => <Screen {...props} /> })));
 
