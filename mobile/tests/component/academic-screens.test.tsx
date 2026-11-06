@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { RefreshControl } from 'react-native';
+import { RefreshControl, StyleSheet } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { apiClient, ApiClientError } from '../../src/api/client';
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
 import { setFileAdapter } from '../../src/files/file-adapter';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { academicMessages } from '../../src/i18n/academic-messages';
@@ -414,6 +416,7 @@ describe('grades', () => {
     expect(screen.getByText('CS102')).toBeOnTheScreen();
     expect(screen.getAllByText('Đang phúc khảo').length).toBe(2);
     expect(screen.getAllByText('2,00').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/CS101 Nhập môn/).props.accessibilityLabel).toContain('Đang phúc khảo');
   });
 });
 
@@ -474,12 +477,29 @@ describe('schedule and attendance', () => {
 
   test('attendance shows the summary rate per course', async () => {
     mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 10, present: 9, absent: 1, late: 0, excused: 0, attendanceRate: 90 }] };
-    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1' }] };
+    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { course: { code: 'CS101' } } }] };
     await render(wrap(<AttendanceScreen {...props} />));
     expect(screen.getAllByText('90%').length).toBeGreaterThan(0);
     expect(screen.getByText('9/10 buổi có mặt', { exact: false })).toBeOnTheScreen();
-    expect(screen.getByLabelText(/Vắng/)).toBeOnTheScreen();
+    const record = screen.getByLabelText(/Vắng/);
+    expect(record).toBeOnTheScreen();
+    expect(record.props.accessibilityLabel).toContain('CS101');
+    expect(record.props.accessibilityLabel).toContain('Điểm danh bù đã duyệt');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
+  });
+
+  test('low attendance rates do not use the success progress color', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 10, present: 4, absent: 6, late: 0, excused: 0, attendanceRate: 40 }] };
+    mockQueries['academic.attendance.records'] = { data: [] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    type JsonNode = { type: string; props: { accessibilityLabel?: string; accessibilityRole?: string; accessibilityValue?: { now?: number }; style?: unknown }; children: Array<JsonNode | string> | null };
+    const descendants = (node: JsonNode | null): JsonNode[] => node
+      ? [node, ...(node.children ?? []).filter((child): child is JsonNode => typeof child !== 'string').flatMap(descendants)]
+      : [];
+    const nodes = descendants(screen.toJSON() as JsonNode | null);
+    const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === '4/10 buổi có mặt');
+    const fill = progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '40%');
+    expect(StyleSheet.flatten(fill?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.warning);
   });
 });
 
