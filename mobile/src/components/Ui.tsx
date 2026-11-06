@@ -26,7 +26,7 @@ import { Button } from './ui/Button';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
 import { IconChip } from './ui/institutional';
-import { ASSISTANT_FAB_CLEARANCE } from './assistant-fab-insets';
+import { ASSISTANT_FAB_SCROLL_INSET } from './assistant-fab-insets';
 
 export { UiText } from './ui/UiText';
 export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
@@ -52,7 +52,7 @@ function buildStyles(colors: ThemeColors) {
     scrollContent: {
       paddingHorizontal: tokens.layout.mobileGutter,
       paddingTop: tokens.spacing.md,
-      paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_CLEARANCE),
+      paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_SCROLL_INSET),
     },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
     headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
@@ -126,6 +126,10 @@ export interface ScreenShellProps {
   refreshControl?: ReactElement<RefreshControlProps>;
 }
 
+export function AssistantScrollSpacer() {
+  return <View testID="assistant-scroll-spacer" style={{ height: ASSISTANT_FAB_SCROLL_INSET }} />;
+}
+
 export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false, refreshControl }: ScreenShellProps) {
   const styles = useUiStyles();
   return (
@@ -153,6 +157,7 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
           {headerAction}
         </View>}
         <ResponsiveContent>{children}</ResponsiveContent>
+        <AssistantScrollSpacer />
       </ScrollView>
     </View>
   );
