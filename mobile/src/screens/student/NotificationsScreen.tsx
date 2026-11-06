@@ -9,7 +9,7 @@ import type { MobileNotification } from '../../api/client';
 import type { PushApi } from '../../api/push-notifications';
 import { resolveNotificationRoute } from '../../api/push-routes';
 import { PUSH_OPT_IN_ENABLED } from '../../config/features';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useOptimisticRows } from '../../hooks/use-optimistic-rows';
 import { evictQueryCache, queryCacheKey } from '../../hooks/query-cache';
@@ -237,9 +237,9 @@ const styles = StyleSheet.create({
   summary: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   rowCard: { position: 'relative', padding: tokens.spacing.md },
   rowIcon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
-  rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
-  rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
-  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: tokens.layout.touchTarget },
+  rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
+  rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: minTapTarget },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: minTapTarget },
   title: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });
