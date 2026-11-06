@@ -115,7 +115,6 @@ export function TopicCard({ topic, copy, onOpen }: { topic: ThesisTopic; copy: T
       <View style={styles.row}>
         <IconChip icon="lightbulb-outline" />
         <View style={styles.grow}>
-          <UiText variant="meta" tone="primary">{topic.departmentId}</UiText>
           <UiText variant="headlineSmall">{topic.title}</UiText>
         </View>
         <ThesisStatusBadge status={topic.status} copy={copy} />

@@ -73,6 +73,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   const [confirmRemove, setConfirmRemove] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const picking = useRef(false);
+  const mutationFlight = useRef(false);
   const mounted = useRef(true);
 
   // Form fields mirror the stored report whenever its values change. A reload
@@ -155,6 +156,8 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
     }
     const plan = planReportSave(report, input, Boolean(picked));
     if (plan.steps.length === 0) return;
+    if (mutationFlight.current) return;
+    mutationFlight.current = true;
     setIssues([]);
     setNotice(null);
     const controller = new AbortController();
@@ -189,6 +192,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
       else setNotice({ tone: 'error', text: thesisErrorMessage(copy, error) });
       void state.reload();
     } finally {
+      mutationFlight.current = false;
       abort.current = null;
       setWorking(null);
     }
@@ -209,6 +213,8 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
   };
 
   const removeFile = async () => {
+    if (mutationFlight.current) return;
+    mutationFlight.current = true;
     setConfirmRemove(false);
     setNotice(null);
     setWorking('remove');
@@ -219,6 +225,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
     } catch (error) {
       setNotice({ tone: 'error', text: thesisErrorMessage(copy, error) });
     } finally {
+      mutationFlight.current = false;
       setWorking(null);
     }
   };

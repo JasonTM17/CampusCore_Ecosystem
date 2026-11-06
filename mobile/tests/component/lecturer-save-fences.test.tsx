@@ -114,6 +114,22 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 const sections = [
   { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A' },
   { sectionId: 'section-b', sectionNumber: '02', courseCode: 'CS-B', courseNameVi: 'Course B', courseNameEn: 'Course B' },
@@ -234,6 +250,28 @@ test('a deferred attendance save does not apply section A state to section B', a
   expect(screen.getByText('Bravo')).toBeTruthy();
 });
 
+test('same-frame repeated attendance save sends one request', async () => {
+  const pending = deferred<number>();
+  mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha',
+    status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+
+  try {
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: operationsMessages.vi.save }));
+    expect(mockRuntime.saveAttendance).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      pending.resolve(1);
+      await pending.promise;
+    });
+  }
+});
+
 test('an attendance save for a revisited sheet preserves its current baseline', async () => {
   const pending = deferred<number>();
   mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
@@ -288,6 +326,24 @@ test.each([
   expect(screen.getByText('Bravo')).toBeTruthy();
   expect(screen.getByLabelText(processLabelB).props.value).toBe('8');
   await waitFor(() => expect(mockRuntime.saveGrades).toHaveBeenCalledTimes(1));
+});
+
+test('same-frame repeated grading save sends one request', async () => {
+  const pending = deferred<undefined>();
+  mockRuntime.saveGrades.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerGradingScreen {...props} />, 'en');
+  const processLabel = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.en.process}`;
+  await fireEvent.changeText(await screen.findByLabelText(processLabel), '7');
+
+  try {
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: operationsMessages.en.saveScores }));
+    expect(mockRuntime.saveGrades).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      pending.resolve(undefined);
+      await pending.promise;
+    });
+  }
 });
 
 test('a grading save for a revisited section preserves its new draft', async () => {
