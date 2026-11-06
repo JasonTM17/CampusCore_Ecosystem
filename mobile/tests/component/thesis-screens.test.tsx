@@ -69,6 +69,7 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { thesisMessages } from '../../src/i18n/thesis-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { selectThesisRound } from '../../src/screens/thesis/thesis-selection';
+import { TopicCard } from '../../src/screens/thesis/thesis-ui';
 import {
   ThesisAdvisorsScreen,
   ThesisDetailScreen,
@@ -99,6 +100,22 @@ function deferred<T>() {
   let reject!: (error: unknown) => void;
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
   return { promise, resolve, reject };
+}
+
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
 }
 
 const round = (id: string, name: string, status: string, over: Record<string, unknown> = {}) => ({
@@ -152,6 +169,21 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); navigate.mockClear(); });
 
 describe('topics, round and advisors', () => {
+  test('keeps topic content while hiding the raw department id', async () => {
+    const rawIdTopic = topic('topic-test', 'Visible topic', {
+      departmentId: 'department-demo',
+      description: 'Visible description',
+    });
+    await renderThemed(<TopicCard topic={rawIdTopic} copy={copy} onOpen={navigate} />);
+
+    expect(screen.getByText('Visible topic')).toBeOnTheScreen();
+    expect(screen.getByText('Visible description')).toBeOnTheScreen();
+    expect(screen.getByText('Đã công bố')).toBeOnTheScreen();
+    expect(screen.getByText('Tối đa 3 nhóm')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Xem đề tài: Visible topic' })).toBeOnTheScreen();
+    expect(screen.queryByText('department-demo')).toBeNull();
+  });
+
   test.each([[360, 1, 1], [393, 2, 1], [600, 1, 1], [839, 1.3, 1], [840, 1, 2], [1000, 1, 2], [1000, 1.3, 1], [1000, 2, 1]])(
     'uses %s dp and font %s to choose %s topic columns',
     async (width, fontScale, columns) => {
@@ -428,6 +460,24 @@ describe('registration', () => {
     await fireEvent.press(await screen.findByRole('button', { name: copy.groupCreate }));
     await waitFor(() => expect(mockApi.createGroup).toHaveBeenCalledWith('r2'));
     expect(await screen.findByText(/1\/5/)).toBeOnTheScreen();
+  });
+
+  test('same-frame repeated group creation sends one request', async () => {
+    setWidth(360);
+    const created = group({ memberStudentIds: ['s1'], members: [member('s1', 'Nguyễn An', true)] });
+    const pending = deferred<unknown>();
+    mockApi.createGroup.mockReturnValue(pending.promise);
+    await renderThemed(screenUnderTest());
+
+    try {
+      await pressTwiceBeforeCommit(await screen.findByRole('button', { name: copy.groupCreate }));
+      expect(mockApi.createGroup).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        pending.resolve(created);
+        await pending.promise;
+      });
+    }
   });
 
   test('a cancelled group leaves registration available in an open round', async () => {
@@ -808,6 +858,26 @@ describe('progress and report', () => {
     expect(await screen.findByText(copy.reportSubmitted)).toBeOnTheScreen();
   });
 
+  test('same-frame repeated report submission sends one request', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    const pending = deferred<unknown>();
+    mockApi.submitReportLink.mockReturnValue(pending.promise);
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await fireEvent.changeText(await screen.findByLabelText(copy.reportTitle), 'Báo cáo');
+    await fireEvent.changeText(screen.getByLabelText(copy.reportUrl), 'https://example.edu/r');
+
+    try {
+      await pressTwiceBeforeCommit(screen.getByRole('button', { name: copy.reportSubmit }));
+      expect(mockApi.submitReportLink).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        pending.resolve({ groupId: 'g1', title: 'Báo cáo', url: 'https://example.edu/r' });
+        await pending.promise;
+      });
+    }
+  });
+
   test('the report form waits for the first read before it can be edited', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
@@ -944,6 +1014,28 @@ describe('progress and report', () => {
     const confirm = (await screen.findAllByRole('button', { name: copy.reportRemoveFile })).at(-1)!;
     await fireEvent.press(confirm);
     await waitFor(() => expect(mockApi.removeReportFile).toHaveBeenCalledWith('g1'));
+  });
+
+  test('same-frame repeated report removal confirmation sends one request', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'bao-cao.pdf' });
+    const pending = deferred<unknown>();
+    mockApi.removeReportFile.mockReturnValue(pending.promise);
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportRemoveFile }));
+
+    const confirm = (await screen.findAllByRole('button', { name: copy.reportRemoveFile })).at(-1)!;
+    try {
+      await pressTwiceBeforeCommit(confirm);
+      expect(mockApi.removeReportFile).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        pending.resolve({ groupId: 'g1', title: 'Báo cáo' });
+        await pending.promise;
+      });
+    }
   });
 
   test('a member sees the report read-only', async () => {

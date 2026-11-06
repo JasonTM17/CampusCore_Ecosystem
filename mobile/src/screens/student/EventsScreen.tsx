@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button, Card, UiText } from '../../components/Ui';
@@ -35,6 +35,7 @@ export function EventsScreen(_props: MobileScreenProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<{ status?: string[] }>({});
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const statuses = filter.status ?? [];
@@ -61,7 +62,8 @@ export function EventsScreen(_props: MobileScreenProps) {
   const refreshAll = useCallback(() => Promise.all([catalog.reload(), mine.reload()]), [catalog, mine]);
 
   const run = useCallback(async (action: () => Promise<unknown>, ok: string, failed: string) => {
-    if (busy || apiClient.mode !== 'live') return;
+    if (busyRef.current || busy || apiClient.mode !== 'live') return;
+    busyRef.current = true;
     setBusy(true);
     clear();
     try {
@@ -73,6 +75,7 @@ export function EventsScreen(_props: MobileScreenProps) {
     } catch (error) {
       fail(errorCode(error) === 'EVENT_FULL' ? copy.full : contentErrorMessage(common, error, failed));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [busy, clear, common, copy.full, fail, refreshAll, success]);
