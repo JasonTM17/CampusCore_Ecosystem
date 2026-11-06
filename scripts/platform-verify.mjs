@@ -459,6 +459,7 @@ export async function casePgit(args, runner = {}) {
       'campuscore_w14_index_fresh_test',
       'campuscore_w14_index_upgrade_test',
       'campuscore_news_summary_fresh_test',
+      'campuscore_news_body_fresh_test',
       'policy_migration_test_knowledge_version_current_supabase',
       // correction-migration ITs require a *fresh* db per scenario whose name
       // matches /policy_migration_test_[a-z0-9_]+ (asserted by the fixtures)
@@ -505,6 +506,7 @@ export async function casePgit(args, runner = {}) {
       ...env('W14_INDEX_FRESH_POSTGRES', 'campuscore_w14_index_fresh_test'),
       ...env('W14_INDEX_UPGRADE_POSTGRES', 'campuscore_w14_index_upgrade_test'),
       ...env('NEWS_SUMMARY_FRESH_POSTGRES', 'campuscore_news_summary_fresh_test'),
+      ...env('NEWS_BODY_FRESH_POSTGRES', 'campuscore_news_body_fresh_test'),
       // demo-team/spring-focus ITs create their own scenario DBs through an
       // admin URL that must point at the maintenance database /postgres
       CAMPUSCORE_DEMO_TEAM_PG_ADMIN_URL: `${jdbcBase}/postgres`,
