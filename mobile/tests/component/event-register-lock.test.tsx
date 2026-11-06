@@ -101,6 +101,18 @@ beforeEach(() => {
   mockPost.mockResolvedValue({});
 });
 
+test('a registered catalogue row announces the student registration status', async () => {
+  const registered = { ...event, myRegistrationStatus: 'REGISTERED', myRegistrationId: 'reg-1' };
+  mockQueries['content.events'] = { data: { items: [registered], hasMore: false } };
+  await render(screenElement(<EventsScreen {...props} />));
+
+  const row = screen.getAllByRole('button').find((button) =>
+    typeof button.props.accessibilityLabel === 'string' && button.props.accessibilityLabel.startsWith(`${event.title} ·`),
+  );
+  expect(row).toBeDefined();
+  expect(row?.props.accessibilityLabel).toContain(copy.statusLabels.REGISTERED);
+});
+
 test('a second register press during the catalogue refresh is ignored', async () => {
   const reload = deferred<void>();
   mockReload.mockImplementation(() => reload.promise);

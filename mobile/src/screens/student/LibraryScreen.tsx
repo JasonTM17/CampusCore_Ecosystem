@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, DataNotice, UiText } from '../../components/Ui';
@@ -33,6 +33,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<{ availability?: string[] }>({});
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const availableOnly = (filter.availability ?? []).includes('available');
@@ -56,7 +57,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
   });
 
   const run = useCallback(async (action: () => Promise<unknown>, ok: string) => {
-    if (busy || apiClient.mode !== 'live') return;
+    if (busyRef.current || apiClient.mode !== 'live') return;
+    busyRef.current = true;
     setBusy(true);
     clear();
     try {
@@ -69,9 +71,10 @@ export function LibraryScreen(_props: MobileScreenProps) {
     } catch (error) {
       fail(copyFailureMessage(copy, error) ?? contentErrorMessage(common, error, copy.failed));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
-  }, [busy, catalogue, clear, common, copy.copyUnavailable, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
+  }, [catalogue, clear, common, copy.copyUnavailable, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
 
   const hold = (title: MobileLibraryTitle) => ask({
     title: copy.holdTitle,
