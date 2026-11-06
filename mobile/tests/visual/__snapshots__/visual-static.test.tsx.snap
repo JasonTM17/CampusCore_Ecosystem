@@ -2145,6 +2145,10 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [],
                               "t": "View",
                             },
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
                           ],
                           "t": "View",
                         },
@@ -2664,6 +2668,10 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                         },
                         {
                           "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
                             {
                               "c": [],
                               "t": "View",
@@ -3197,6 +3205,10 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [],
                               "t": "View",
                             },
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
                           ],
                           "t": "View",
                         },
@@ -3716,6 +3728,10 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                         },
                         {
                           "c": [
+                            {
+                              "c": [],
+                              "t": "View",
+                            },
                             {
                               "c": [],
                               "t": "View",
@@ -5483,6 +5499,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                   },
                   "t": "View",
                 },
+                {
+                  "c": [],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -6057,6 +6077,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                     "paddingHorizontal": 16,
                     "paddingVertical": 12,
                   },
+                  "t": "View",
+                },
+                {
+                  "c": [],
                   "t": "View",
                 },
               ],
@@ -6637,6 +6661,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                   },
                   "t": "View",
                 },
+                {
+                  "c": [],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -7211,6 +7239,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                     "paddingHorizontal": 16,
                     "paddingVertical": 12,
                   },
+                  "t": "View",
+                },
+                {
+                  "c": [],
                   "t": "View",
                 },
               ],
@@ -7902,6 +7934,15 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                   ],
                   "t": "View",
                 },
+                {
+                  "c": [
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -8584,6 +8625,15 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                         "borderRadius": 8,
                         "padding": 16,
                       },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+                {
+                  "c": [
+                    {
+                      "c": [],
                       "t": "View",
                     },
                   ],
@@ -9278,6 +9328,15 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                   ],
                   "t": "View",
                 },
+                {
+                  "c": [
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -9960,6 +10019,15 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                         "borderRadius": 8,
                         "padding": 16,
                       },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+                {
+                  "c": [
+                    {
+                      "c": [],
                       "t": "View",
                     },
                   ],
@@ -10652,6 +10720,15 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                   ],
                   "t": "View",
                 },
+                {
+                  "c": [
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -11332,6 +11409,15 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                         "borderRadius": 8,
                         "padding": 16,
                       },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+                {
+                  "c": [
+                    {
+                      "c": [],
                       "t": "View",
                     },
                   ],
@@ -12024,6 +12110,15 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                   ],
                   "t": "View",
                 },
+                {
+                  "c": [
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
               ],
               "t": "View",
             },
@@ -12704,6 +12799,15 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                         "borderRadius": 8,
                         "padding": 16,
                       },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+                {
+                  "c": [
+                    {
+                      "c": [],
                       "t": "View",
                     },
                   ],
@@ -13475,6 +13579,10 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
               ],
               "t": "View",
             },
+            {
+              "c": [],
+              "t": "View",
+            },
           ],
           "t": "View",
         },
@@ -14236,6 +14344,10 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
               },
               "t": "View",
             },
+            {
+              "c": [],
+              "t": "View",
+            },
           ],
           "t": "View",
         },
@@ -14991,6 +15103,10 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "t": "View",
                 },
               ],
+              "t": "View",
+            },
+            {
+              "c": [],
               "t": "View",
             },
           ],
@@ -15752,6 +15868,10 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                 "maxWidth": 960,
                 "width": "100%",
               },
+              "t": "View",
+            },
+            {
+              "c": [],
               "t": "View",
             },
           ],
