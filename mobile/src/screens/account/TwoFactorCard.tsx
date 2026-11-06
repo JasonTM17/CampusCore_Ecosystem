@@ -136,7 +136,7 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
         </View>
       ) : null}
 
-      {state.stage === 'idle' && state.enabled !== null ? (
+      {state.stage === 'idle' && state.enabled !== null && state.completed === null ? (
         <Button
           label={state.enabled ? text.disable : text.enable}
           onPress={() => dispatch({ type: 'begin', action: state.enabled ? 'disable' : 'enable' })}
