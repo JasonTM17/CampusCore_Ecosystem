@@ -156,7 +156,9 @@ export function twoFactorErrorKey(
   step: 'password' | 'code',
 ): TwoFactorErrorKey {
   if (failure.code && CODE_TO_KEY[failure.code]) return CODE_TO_KEY[failure.code];
-  if (failure.status === 502) return 'mailFailed';
+  // Only the challenge step emails a code; the confirm endpoints answer 400
+  // codes, so a bare 502 there is a gateway failure, not a delivery failure.
+  if (step === 'password' && failure.status === 502) return 'mailFailed';
   if (failure.kind === 'rateLimited') return 'rateLimited';
   if (failure.kind === 'network') return 'network';
   if (failure.kind === 'unauthorized') return 'unauthorized';

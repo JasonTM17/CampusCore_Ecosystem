@@ -257,4 +257,36 @@ describe('service screens in live mode', () => {
     expect(screen.getByText(careersMessages.vi.emptyBoard)).toBeOnTheScreen();
     expect(screen.queryByText(careersMessages.vi.simulatedBanner)).toBeNull();
   });
+
+  test('a career posting announces its employment type and existing application status', async () => {
+    mockApi.mode = 'live';
+    const opportunity = {
+      id: 'opp-1',
+      title: 'Backend Developer',
+      organizationName: 'Công ty A',
+      location: 'TP. Hồ Chí Minh',
+      employmentType: 'INTERNSHIP',
+      status: 'PUBLISHED',
+    };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [opportunity], hasMore: false }
+        : key === 'content.careers.applications'
+          ? [{ id: 'app-1', opportunityId: opportunity.id, status: 'SUBMITTED', version: 1 }]
+          : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    await renderThemed(<CareersScreen {...props} />);
+
+    const row = screen.getAllByRole('button').find((button) =>
+      typeof button.props.accessibilityLabel === 'string' && button.props.accessibilityLabel.startsWith(`${opportunity.title} ·`),
+    );
+    expect(row).toBeDefined();
+    const label = String(row?.props.accessibilityLabel ?? '');
+    const missing = [careersMessages.vi.employmentTypeLabels.INTERNSHIP, careersMessages.vi.alreadyApplied]
+      .filter((value) => !label.includes(value));
+    expect(missing).toEqual([]);
+  });
 });

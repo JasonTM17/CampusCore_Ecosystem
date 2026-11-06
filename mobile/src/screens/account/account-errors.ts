@@ -46,6 +46,11 @@ export function classifyError(error: unknown): ClassifiedError {
   if (code === 'MOBILE_API_PREVIEW') {
     return { ...base, kind: 'preview' };
   }
+  // A build without an API base URL is a configuration failure, not a dead
+  // network: status 0 is the client's own sentinel, so the code decides.
+  if (code === 'API_NOT_CONFIGURED') {
+    return { ...base, kind: 'unknown' };
+  }
   if (code === 'RATE_LIMIT_EXCEEDED' || status === 429) {
     return { ...base, kind: 'rateLimited' };
   }

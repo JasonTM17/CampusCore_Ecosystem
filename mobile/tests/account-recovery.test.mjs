@@ -153,6 +153,12 @@ test('error classification covers 429, 5xx, offline, preview and business codes'
   assert.equal(kind(null), 'unknown');
 });
 
+test('a configuration failure is not reported as a network outage', () => {
+  const kind = (error) => errors.classifyError(error).kind;
+  assert.equal(kind({ status: 0, code: 'API_NOT_CONFIGURED' }), 'unknown');
+  assert.equal(kind({ status: 0, code: 'NETWORK_ERROR' }), 'network');
+});
+
 test('error messages prefer business codes and never echo server text', () => {
   const copy = accountMessages.en.errors;
   const failure = { ...errors.classifyError({ status: 400, code: 'RESET_TOKEN_INVALID' }), message: 'leaky detail' };
