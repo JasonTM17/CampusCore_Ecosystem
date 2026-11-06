@@ -125,7 +125,13 @@ export function LibraryScreen(_props: MobileScreenProps) {
   );
   // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
   const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
-  const rows = availableOnly ? catalogue.items.filter((item) => item.availableCopies > 0) : catalogue.items;
+  const previewSearch = catalogue.preview ? search.trim().toLocaleLowerCase(locale) : '';
+  const rows = catalogue.items.filter((item) => {
+    if (availableOnly && item.availableCopies <= 0) return false;
+    if (!previewSearch) return true;
+    return [item.title, item.author, item.isbn]
+      .some((value) => value?.toLocaleLowerCase(locale).includes(previewSearch));
+  });
 
   return (
     <>
