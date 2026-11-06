@@ -2,7 +2,8 @@ import { useCallback, useMemo, type ReactElement, type ReactNode, type Ref } fro
 import { FlatList, Platform, StyleSheet, View, type FlatListProps } from 'react-native';
 
 import { tokens } from '../../design/tokens';
-import { ASSISTANT_FAB_CLEARANCE } from '../assistant-fab-insets';
+import { ASSISTANT_FAB_SCROLL_INSET } from '../assistant-fab-insets';
+import { AssistantScrollSpacer } from '../Ui';
 
 export interface PerformanceListProps<T> extends Omit<FlatListProps<T>, 'ListHeaderComponent' | 'ListFooterComponent' | 'ListEmptyComponent' | 'data' | 'renderItem' | 'keyExtractor'> {
   data: readonly T[];
@@ -33,7 +34,7 @@ export function PerformanceList<T>({ header, footer, empty, listRef, gutters = t
       {...props}
       contentContainerStyle={contentStyle}
       ListHeaderComponent={header}
-      ListFooterComponent={footer}
+      ListFooterComponent={<>{footer}<AssistantScrollSpacer /></>}
       ListEmptyComponent={empty}
     />
   );
@@ -54,6 +55,6 @@ export function useListRenderer<T>(render: (item: T, index: number) => ReactElem
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md,
-    paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_CLEARANCE) },
+    paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_SCROLL_INSET) },
   gap: { height: tokens.spacing.sm },
 });
