@@ -203,6 +203,23 @@ describe('directory handoff', () => {
 });
 
 describe('staff literals follow the locale', () => {
+  test('english locale localizes the admin preview directory values', async () => {
+    mockApi.mode = 'preview';
+    const students = await renderEnglish(<AdminStudentsScreen />);
+    expect(screen.getAllByText(/Information Technology/)).toHaveLength(2);
+    expect(screen.queryByText(/Công nghệ thông tin/)).toBeNull();
+    await fireEvent.press(screen.getByText('Nguyễn Đức Minh'));
+    await waitFor(() => expect(screen.getByText('Software Engineering')).toBeTruthy());
+    await students.unmount();
+
+    await renderEnglish(<AdminLecturersScreen />);
+    expect(screen.getByText(/Faculty of Information Technology/)).toBeTruthy();
+    expect(screen.queryByText(/Khoa Công nghệ Thông tin/)).toBeNull();
+    await fireEvent.press(screen.getByText(/Nguyễn Văn A/));
+    await waitFor(() => expect(screen.getByText('Artificial Intelligence, Computer Vision')).toBeTruthy());
+    expect(screen.getAllByText(/Assoc\. Prof\., PhD/).length).toBeGreaterThan(0);
+  });
+
   test('english locale shows no vietnamese literals in the lecturer directory', async () => {
     mockApi.mode = 'preview';
     await renderEnglish(<AdminLecturersScreen />);

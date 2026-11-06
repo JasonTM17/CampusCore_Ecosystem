@@ -35,18 +35,28 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const requestFlight = useRef(false);
+  const mounted = useRef(false);
+  const statusRequest = useRef(0);
 
   const loadStatus = useCallback(async () => {
+    const request = ++statusRequest.current;
     try {
       const status = await accountApi.twoFactorStatus();
+      if (!mounted.current || request !== statusRequest.current) return;
       dispatch({ type: 'statusLoaded', enabled: Boolean(status.enabled) });
     } catch {
+      if (!mounted.current || request !== statusRequest.current) return;
       dispatch({ type: 'statusFailed' });
     }
   }, []);
 
   useEffect(() => {
+    mounted.current = true;
     void loadStatus();
+    return () => {
+      mounted.current = false;
+      statusRequest.current += 1;
+    };
   }, [loadStatus]);
 
   useEffect(() => {

@@ -6,7 +6,7 @@ import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list
 import type { PerformanceListProps } from '../../components/perf/performance-list';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { apiClient } from '../../api/client';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
 import { useLocale } from '../../i18n/locale-provider';
@@ -125,7 +125,7 @@ export interface SegmentTabsProps {
   onChange: (value: string) => void;
 }
 
-/** Equal-width tabs with a 44dp target; used where the shared segmented control is too short. */
+/** Equal-width tabs with the shared 48dp minimum target. */
 export function SegmentTabs({ label, value, options, onChange }: SegmentTabsProps) {
   const { colors } = useTheme();
   return (
@@ -164,7 +164,7 @@ export const academicStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  tab: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, flexGrow: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
+  tab: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, flexGrow: 1, justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.sm },
   tabText: { textAlign: 'center' },
   scaleHeader: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   scaleRow: { alignItems: 'center', flexDirection: 'row', minHeight: 32 },

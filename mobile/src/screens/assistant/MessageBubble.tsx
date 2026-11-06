@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, UiText } from '../../components/Ui';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { ASSISTANT_FEEDBACK_REASONS } from '../../api/assistant-limits';
 import { fillAssistantCopy, type AssistantChatCopy } from '../../i18n/assistant-messages';
@@ -82,6 +82,7 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
               <Button
                 label={rated?.rating === 'UP' ? `✓ ${copy.helpful}` : copy.helpful}
                 accessibilityLabel={copy.helpful}
+                accessibilityState={{ selected: rated?.rating === 'UP' }}
                 loading={feedbackBusy}
                 onPress={() => onRate(message.id, 'UP')}
                 variant="text"
@@ -89,6 +90,7 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
               <Button
                 label={rated?.rating === 'DOWN' ? `✓ ${copy.notHelpful}` : copy.notHelpful}
                 accessibilityLabel={copy.notHelpful}
+                accessibilityState={{ selected: rated?.rating === 'DOWN' }}
                 loading={feedbackBusy}
                 onPress={() => onRate(message.id, 'DOWN')}
                 variant="text"
@@ -129,11 +131,11 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
   text: { marginTop: tokens.spacing.xs },
   sources: { marginTop: tokens.spacing.sm },
-  sourcesHeader: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget },
+  sourcesHeader: { alignItems: 'center', flexDirection: 'row', minHeight: minTapTarget, minWidth: minTapTarget },
   grow: { flex: 1 },
   citation: { borderLeftWidth: 2, marginBottom: tokens.spacing.sm, paddingLeft: tokens.spacing.sm },
   excerpt: { marginTop: tokens.spacing.xs },
   feedback: { flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  reason: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
+  reason: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.sm },
 });

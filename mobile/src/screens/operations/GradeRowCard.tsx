@@ -9,7 +9,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
 import { calculateGrade, calculateTotalScore } from './lecturer-csv';
-import { isLockedGrade, parseScore, scoreText, type GradeRowLike, type ScoreEdit, type ScoreProblem } from './lecturer-model';
+import { isLockedGrade, parseScore, type GradeRowLike, type ScoreEdit, type ScoreProblem } from './lecturer-model';
 import { useOpsStyles } from './shared/styles';
 
 export interface GradeRowCardProps {
@@ -34,8 +34,9 @@ function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = fa
   const largeText = fontScale >= chromeFontScaleCap && width < tokens.windowClasses.compactMax;
   const name = row.studentName ?? row.studentCode ?? row.enrollmentId;
   const locked = isLockedGrade(row);
-  const processText = edit?.processScore ?? scoreText(row.processScore);
-  const finalText = edit?.finalExamScore ?? scoreText(row.finalExamScore);
+  const scoreDisplay = (value: number | null | undefined) => value == null ? '' : formatNumber(value, { maximumFractionDigits: 2 });
+  const processText = edit?.processScore ?? scoreDisplay(row.processScore);
+  const finalText = edit?.finalExamScore ?? scoreDisplay(row.finalExamScore);
   const process = parseScore(processText);
   const final = parseScore(finalText);
   const total = typeof process === 'number' && typeof final === 'number' ? calculateTotalScore(process, final) : null;

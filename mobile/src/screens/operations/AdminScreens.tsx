@@ -22,6 +22,7 @@ import { Avatar } from '../../components/ui/avatar';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import type { AppLocale } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -31,13 +32,15 @@ import { normalizeOperationsSearch } from './lecturer-model';
 import { useOpsCopy, WebOnlyPanel } from './shared/helpers';
 import { useOpsStyles } from './shared/styles';
 
+type LocalizedPreviewValue = Record<AppLocale, string>;
+
 interface StudentDirectoryItem {
   id: string;
   studentCode: string;
   name: string;
   email: string;
-  department: string;
-  major: string;
+  department: LocalizedPreviewValue;
+  major: LocalizedPreviewValue;
   cohort: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'GRADUATED';
   gpa: number;
@@ -49,8 +52,8 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
     studentCode: '2022SE0417',
     name: 'Nguyễn Đức Minh',
     email: 'minh.nguyen@ute.edu.vn',
-    department: 'Công nghệ thông tin',
-    major: 'Kỹ thuật phần mềm',
+    department: { vi: 'Công nghệ thông tin', en: 'Information Technology' },
+    major: { vi: 'Kỹ thuật phần mềm', en: 'Software Engineering' },
     cohort: 'K22',
     status: 'ACTIVE',
     gpa: 3.52,
@@ -60,8 +63,8 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
     studentCode: '2023BA0192',
     name: 'Phạm Anh Thư',
     email: 'thu.pham@ute.edu.vn',
-    department: 'Kinh tế',
-    major: 'Quản trị kinh doanh',
+    department: { vi: 'Kinh tế', en: 'Economics' },
+    major: { vi: 'Quản trị kinh doanh', en: 'Business Administration' },
     cohort: 'K23',
     status: 'ACTIVE',
     gpa: 3.68,
@@ -71,8 +74,8 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
     studentCode: '2024IT0871',
     name: 'Lê Khánh Vy',
     email: 'vy.le@ute.edu.vn',
-    department: 'Công nghệ thông tin',
-    major: 'Khoa học máy tính',
+    department: { vi: 'Công nghệ thông tin', en: 'Information Technology' },
+    major: { vi: 'Khoa học máy tính', en: 'Computer Science' },
     cohort: 'K24',
     status: 'ACTIVE',
     gpa: 3.4,
@@ -82,8 +85,8 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
     studentCode: '2021EE0115',
     name: 'Trần Hoàng Nam',
     email: 'nam.tran@ute.edu.vn',
-    department: 'Điện - Điện tử',
-    major: 'Kỹ thuật điều khiển & TĐH',
+    department: { vi: 'Điện - Điện tử', en: 'Electrical and Electronics Engineering' },
+    major: { vi: 'Kỹ thuật điều khiển & TĐH', en: 'Control Engineering and Automation' },
     cohort: 'K21',
     status: 'GRADUATED',
     gpa: 3.25,
@@ -93,8 +96,8 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
     studentCode: '2022ME0304',
     name: 'Đỗ Quang Huy',
     email: 'huy.do@ute.edu.vn',
-    department: 'Cơ khí',
-    major: 'Kỹ thuật cơ điện tử',
+    department: { vi: 'Cơ khí', en: 'Mechanical Engineering' },
+    major: { vi: 'Kỹ thuật cơ điện tử', en: 'Mechatronics Engineering' },
     cohort: 'K22',
     status: 'SUSPENDED',
     gpa: 2.9,
@@ -104,74 +107,74 @@ const SAMPLE_STUDENTS: StudentDirectoryItem[] = [
 interface LecturerDirectoryItem {
   id: string;
   lecturerCode: string;
-  title: string;
+  title: LocalizedPreviewValue;
   name: string;
-  department: string;
+  department: LocalizedPreviewValue;
   email: string;
   phone: string;
   status: 'AVAILABLE' | 'FULL';
   groupsCount: number;
   studentsCount: number;
   maxStudents: number;
-  researchAreas: string;
+  researchAreas: LocalizedPreviewValue;
 }
 
 const SAMPLE_LECTURERS: LecturerDirectoryItem[] = [
   {
     id: 'gv-1',
     lecturerCode: 'GV001',
-    title: 'PGS. TS.',
+    title: { vi: 'PGS. TS.', en: 'Assoc. Prof., PhD' },
     name: 'Nguyễn Văn A',
-    department: 'Khoa Công nghệ Thông tin',
+    department: { vi: 'Khoa Công nghệ Thông tin', en: 'Faculty of Information Technology' },
     email: 'nva@hcmute.edu.vn',
     phone: '028 3722 1223',
     status: 'AVAILABLE',
     groupsCount: 5,
     studentsCount: 12,
     maxStudents: 20,
-    researchAreas: 'Trí tuệ nhân tạo, Thị giác máy tính',
+    researchAreas: { vi: 'Trí tuệ nhân tạo, Thị giác máy tính', en: 'Artificial Intelligence, Computer Vision' },
   },
   {
     id: 'gv-2',
     lecturerCode: 'GV002',
-    title: 'TS.',
+    title: { vi: 'TS.', en: 'PhD' },
     name: 'Trần Thị B',
-    department: 'Hệ thống Thông tin',
+    department: { vi: 'Hệ thống Thông tin', en: 'Information Systems' },
     email: 'ttb@hcmute.edu.vn',
     phone: '028 3722 1224',
     status: 'AVAILABLE',
     groupsCount: 8,
     studentsCount: 18,
     maxStudents: 20,
-    researchAreas: 'Khai phá dữ liệu, Hệ thống thông tin',
+    researchAreas: { vi: 'Khai phá dữ liệu, Hệ thống thông tin', en: 'Data Mining, Information Systems' },
   },
   {
     id: 'gv-3',
     lecturerCode: 'GV003',
-    title: 'PGS. TS.',
+    title: { vi: 'PGS. TS.', en: 'Assoc. Prof., PhD' },
     name: 'Lê Hoàng C',
-    department: 'Khoa Điện - Điện tử',
+    department: { vi: 'Khoa Điện - Điện tử', en: 'Faculty of Electrical and Electronics Engineering' },
     email: 'lhc@hcmute.edu.vn',
     phone: '028 3722 1225',
     status: 'FULL',
     groupsCount: 10,
     studentsCount: 20,
     maxStudents: 20,
-    researchAreas: 'Hệ thống nhúng, IoT công nghiệp',
+    researchAreas: { vi: 'Hệ thống nhúng, IoT công nghiệp', en: 'Embedded Systems, Industrial IoT' },
   },
   {
     id: 'gv-4',
     lecturerCode: 'GV004',
-    title: 'ThS.',
+    title: { vi: 'ThS.', en: 'MSc' },
     name: 'Vũ Đình D',
-    department: 'Kỹ thuật Phần mềm',
+    department: { vi: 'Kỹ thuật Phần mềm', en: 'Software Engineering' },
     email: 'vdd@hcmute.edu.vn',
     phone: '028 3722 1226',
     status: 'AVAILABLE',
     groupsCount: 1,
     studentsCount: 10,
     maxStudents: 15,
-    researchAreas: 'Kiến trúc phần mềm, DevOps & Cloud',
+    researchAreas: { vi: 'Kiến trúc phần mềm, DevOps & Cloud', en: 'Software Architecture, DevOps & Cloud' },
   },
 ];
 
@@ -227,7 +230,7 @@ export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
 export function AdminStudentsScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
-  const { formatNumber } = useLocale();
+  const { formatNumber, locale } = useLocale();
   const { window } = useTheme();
   const numColumns = window.class === 'compact' || window.fontScale >= 1.3 ? 1 : 2;
   const preview = isOpsPreview();
@@ -242,7 +245,7 @@ export function AdminStudentsScreen() {
       normalizeOperationsSearch(item.name).includes(needle) ||
       normalizeOperationsSearch(item.studentCode).includes(needle) ||
       normalizeOperationsSearch(item.email).includes(needle) ||
-      normalizeOperationsSearch(item.department).includes(needle);
+      normalizeOperationsSearch(item.department[locale]).includes(needle);
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -285,7 +288,7 @@ export function AdminStudentsScreen() {
                   />
                 </View>
                 <UiText variant="bodySmall" tone="muted">
-                  {`${student.studentCode} · ${student.department}`}
+                  {`${student.studentCode} · ${student.department[locale]}`}
                 </UiText>
               </View>
             </Pressable>
@@ -321,11 +324,11 @@ export function AdminStudentsScreen() {
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.department}</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.department}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.department[locale]}</UiText>
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.major}</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.major}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.major[locale]}</UiText>
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.status}</UiText>
@@ -399,6 +402,7 @@ export function AdminStudentsScreen() {
 export function AdminLecturersScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const { locale } = useLocale();
   const { window } = useTheme();
   const numColumns = window.class === 'compact' || window.fontScale >= 1.3 ? 1 : 2;
   const preview = isOpsPreview();
@@ -411,7 +415,7 @@ export function AdminLecturersScreen() {
     const matchesSearch =
       needle === '' ||
       normalizeOperationsSearch(item.name).includes(needle) ||
-      normalizeOperationsSearch(item.department).includes(needle) ||
+      normalizeOperationsSearch(item.department[locale]).includes(needle) ||
       normalizeOperationsSearch(item.email).includes(needle);
     const matchesFilter = filter === 'ALL' || item.status === 'AVAILABLE';
     return matchesSearch && matchesFilter;
@@ -429,21 +433,21 @@ export function AdminLecturersScreen() {
           <Card key={lecturer.id} style={[styles.scheduleCard, numColumns > 1 ? { width: '48.5%' } : undefined]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${lecturer.title} ${lecturer.name}, ${lecturer.department}`}
+              accessibilityLabel={`${lecturer.title[locale]} ${lecturer.name}, ${lecturer.department[locale]}`}
               onPress={() => setSelectedLecturer(lecturer)}
               style={styles.directoryRow}
             >
               <Avatar decorative name={lecturer.name} size="sm" />
               <View style={styles.directoryCopy}>
                 <View style={styles.directoryTop}>
-                  <UiText variant="label" style={styles.directoryTopTitle}>{`${lecturer.title} ${lecturer.name}`}</UiText>
+                  <UiText variant="label" style={styles.directoryTopTitle}>{`${lecturer.title[locale]} ${lecturer.name}`}</UiText>
                   <StatusPill
                     label={lecturer.status === 'AVAILABLE' ? copy.filterAvailable : copy.statusFull}
                     tone={lecturer.status === 'AVAILABLE' ? 'success' : 'warning'}
                   />
                 </View>
                 <UiText variant="bodySmall" tone="muted">
-                  {lecturer.department}
+                  {lecturer.department[locale]}
                 </UiText>
                 <View style={styles.slotRow}>
                   <IconChip icon="account-group-outline" size={32} tone="neutral" />
@@ -469,8 +473,8 @@ export function AdminLecturersScreen() {
           title={copy.lecturerDetail}
         >
           <SheetHeader
-            title={`${selectedLecturer.title} ${selectedLecturer.name}`}
-            subtitle={selectedLecturer.department}
+            title={`${selectedLecturer.title[locale]} ${selectedLecturer.name}`}
+            subtitle={selectedLecturer.department[locale]}
             closeLabel={copy.close}
             onClose={() => setSelectedLecturer(null)}
           />
@@ -489,7 +493,7 @@ export function AdminLecturersScreen() {
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.department}</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedLecturer.department}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedLecturer.department[locale]}</UiText>
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.supervising}</UiText>
@@ -499,7 +503,7 @@ export function AdminLecturersScreen() {
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.research}</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedLecturer.researchAreas}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedLecturer.researchAreas[locale]}</UiText>
             </View>
             <HandoffButton label={copy.openOnWeb} path="/admin/lecturers" />
           </View>

@@ -68,6 +68,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const [pages, setPages] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const editRevisionBySection = useRef<Record<string, number>>({});
+  const writeFlights = useRef(new Set<string>());
   // Only a fetch that actually lands a new sheet may consume a conflict reload.
   const presentedSheet = useRef<SectionGradeSheet | undefined>(undefined);
   // The stale baseline to compare against after the explicit reload returns.
@@ -222,6 +223,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       setMessage({ tone: 'warning', message: copy.nothingChanged });
       return;
     }
+    if (writeFlights.current.has(savingSectionId)) return;
+    writeFlights.current.add(savingSectionId);
     setBusy('save');
     setMessage(null);
     try {
@@ -249,12 +252,15 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.saveScoresFailed) });
       if (conflict?.status === 409) reload();
     } finally {
+      writeFlights.current.delete(savingSectionId);
       if (currentSectionId.current === savingSectionId) setBusy(null);
     }
   };
 
   const publish = async () => {
     const savingSectionId = sectionId;
+    if (writeFlights.current.has(savingSectionId)) return;
+    writeFlights.current.add(savingSectionId);
     setConfirming(false);
     setBusy('publish');
     setMessage(null);
@@ -270,6 +276,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.publishFailed) });
       if ((error as { status?: number } | null)?.status === 409) reload();
     } finally {
+      writeFlights.current.delete(savingSectionId);
       if (currentSectionId.current === savingSectionId) setBusy(null);
     }
   };

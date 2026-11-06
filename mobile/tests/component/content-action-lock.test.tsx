@@ -153,6 +153,36 @@ test('a second careers withdraw during the applications refresh is ignored', asy
   expect(screen.queryByText(copy.failed)).toBeNull();
 });
 
+test('same-frame repeated careers confirmation sends one request', async () => {
+  const copy = careersMessages.vi;
+  const application = {
+    id: 'app-1', opportunityId: 'opp-1', opportunityTitle: 'Thực tập sinh Backend',
+    organizationName: 'Công ty A', status: 'SUBMITTED', version: 1,
+    submittedAt: '2026-10-01T00:00:00Z', attachments: [],
+  };
+  mockQueries['content.careers.board.'] = { data: { items: [], hasMore: false } };
+  mockQueries['content.careers.applications'] = { data: [application] };
+  const request = deferred<unknown>();
+  mockPost.mockImplementation(() => request.promise);
+  await render(screenElement(<CareersScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('tab', { name: copy.myApplications }));
+  await fireEvent.press(screen.getByRole('button', {
+    name: joinMeta([application.opportunityTitle, copy.statusLabels.SUBMITTED, application.organizationName]),
+  }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.withdraw }));
+  const confirm = screen.getAllByRole('button', { name: copy.withdraw }).at(-1)!;
+  try {
+    await pressTwiceBeforeCommit(confirm);
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      request.resolve({});
+      await request.promise;
+    });
+  }
+});
+
 test('a second library cancel during the loans refresh is ignored', async () => {
   const copy = libraryMessages.vi;
   const loan = {
@@ -244,4 +274,31 @@ test('a second admissions withdraw during the applications refresh is ignored', 
   expect(mockPost).toHaveBeenCalledTimes(1);
   expect(screen.getByText(copy.withdrawn)).toBeOnTheScreen();
   expect(screen.queryByText(copy.failed)).toBeNull();
+});
+
+test('same-frame repeated admissions confirmation sends one request', async () => {
+  const copy = admissionsMessages.vi;
+  const application = {
+    id: 'adm-1', cycle: '2026-Q1', status: 'DRAFT', version: 1,
+    fullName: 'Nguyễn Văn A', submittedAt: null, attachments: [], reviews: [],
+  };
+  mockQueries['content.admissions.mine'] = { data: [application] };
+  const request = deferred<unknown>();
+  mockPost.mockImplementation(() => request.promise);
+  await render(screenElement(<AdmissionsScreen {...props} />));
+
+  await fireEvent.press(screen.getByRole('button', {
+    name: joinMeta([application.cycle, copy.statusLabels.DRAFT, application.fullName]),
+  }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.withdraw }));
+  const confirm = screen.getAllByRole('button', { name: copy.withdraw }).at(-1)!;
+  try {
+    await pressTwiceBeforeCommit(confirm);
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      request.resolve({});
+      await request.promise;
+    });
+  }
 });

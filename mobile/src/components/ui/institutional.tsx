@@ -186,6 +186,6 @@ const styles = StyleSheet.create({
   stat: { flex: 1, minWidth: 0, padding: compact, gap: tokens.spacing.xs },
   statTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   statValue: { fontVariant: ['tabular-nums'], flexShrink: 1 },
-  filter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.sm, minHeight: minTapTarget, borderRadius: tokens.radii.control, borderWidth: 1, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm },
+  filter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tokens.spacing.sm, minHeight: minTapTarget, minWidth: minTapTarget, borderRadius: tokens.radii.control, borderWidth: 1, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, borderBottomWidth: 1, paddingBottom: compact, marginBottom: tokens.spacing.md },
 });

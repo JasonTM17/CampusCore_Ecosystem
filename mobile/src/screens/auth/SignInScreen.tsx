@@ -10,7 +10,7 @@ import { apiClient } from '../../api/client';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
 import { sessionStore } from '../../auth/mobile-session-store';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
@@ -383,7 +383,7 @@ const makeNewsStyles = (colors: ThemeColors) => StyleSheet.create({
   head: { alignItems: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   headCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   eyebrow: { letterSpacing: 0.6, textTransform: 'uppercase' },
-  seeAll: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  seeAll: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, minHeight: minTapTarget, minWidth: minTapTarget },
   feed: { gap: tokens.spacing.sm },
   featuredCard: { overflow: 'hidden', padding: 0 },
   cover: { height: 160, width: '100%' },
@@ -391,7 +391,7 @@ const makeNewsStyles = (colors: ThemeColors) => StyleSheet.create({
   featuredBody: { gap: tokens.spacing.xs, padding: tokens.spacing.md },
   metaRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   readRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
-  row: { alignItems: 'center', borderRadius: tokens.radii.control, flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+  row: { alignItems: 'center', borderRadius: tokens.radii.control, flexDirection: 'row', gap: tokens.spacing.sm, minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   empty: { paddingVertical: tokens.spacing.sm },
   skeletonBlock: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, Divider, Field, ListRow, ProgressBar, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
@@ -52,6 +52,7 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
 
   const [notice, setNotice] = useState<Notice>(null);
   const [working, setWorking] = useState(false);
+  const workingRef = useRef(false);
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<StudentSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -106,6 +107,8 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
     && (!candidate || (!active.loading && !active.error && !round));
 
   const run = async (action: () => Promise<ThesisGroup>, success?: string) => {
+    if (workingRef.current) return;
+    workingRef.current = true;
     setWorking(true);
     setNotice(null);
     try {
@@ -115,6 +118,7 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
       setNotice({ tone: 'error', text: thesisErrorMessage(copy, error) });
       void state.reload();
     } finally {
+      workingRef.current = false;
       setWorking(false);
     }
   };

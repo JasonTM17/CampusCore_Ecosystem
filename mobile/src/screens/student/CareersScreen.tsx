@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card, DataNotice, UiText } from '../../components/Ui';
@@ -32,6 +32,7 @@ export function CareersScreen(_props: MobileScreenProps) {
   const [opportunity, setOpportunity] = useState<MobileCareerOpportunity | null>(null);
   const [applicationId, setApplicationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const live = apiClient.mode === 'live';
@@ -52,7 +53,8 @@ export function CareersScreen(_props: MobileScreenProps) {
   const liveIds = useMemo(() => activeOpportunityIds(apps.items), [apps.items]);
 
   const run = useCallback(async (action: () => Promise<unknown>, ok: string, failureFor?: (code: string | undefined) => string | null) => {
-    if (busy || !live) return false;
+    if (busyRef.current || busy || !live) return false;
+    busyRef.current = true;
     setBusy(true);
     clear();
     try {
@@ -66,6 +68,7 @@ export function CareersScreen(_props: MobileScreenProps) {
       fail(failureFor?.(errorCode(error)) ?? contentErrorMessage(common, error, copy.failed));
       return false;
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [apps, busy, clear, common, copy.failed, fail, live, success]);

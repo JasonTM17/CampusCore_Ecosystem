@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, DataNotice, Field, UiText } from '../../components/Ui';
@@ -25,6 +25,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
   const [cycle, setCycle] = useState('');
   const [cycleError, setCycleError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [stale, setStale] = useState(false);
   const [formEpoch, setFormEpoch] = useState(0);
   const { flash, success, fail, clear } = useFlash();
@@ -39,7 +40,8 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
   });
 
   const run = useCallback(async <T,>(action: () => Promise<T>, ok: string): Promise<T | undefined> => {
-    if (busy || !live) return undefined;
+    if (busyRef.current || busy || !live) return undefined;
+    busyRef.current = true;
     setBusy(true);
     clear();
     setStale(false);
@@ -64,6 +66,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
       }
       return undefined;
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [apps, busy, clear, common, copy, fail, live, success]);
