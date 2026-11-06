@@ -85,6 +85,22 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 function setViewport(width: number, fontScale: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
 }
@@ -138,6 +154,22 @@ test('a second register press during the catalogue refresh is ignored', async ()
   expect(mockPost).toHaveBeenCalledTimes(1);
   expect(screen.getByText(copy.registered)).toBeOnTheScreen();
   expect(screen.queryByText(copy.registerFailed)).toBeNull();
+});
+
+test('same-frame repeated event registration sends one request', async () => {
+  const request = deferred<unknown>();
+  mockPost.mockImplementation(() => request.promise);
+  await render(screenElement(<EventsScreen {...props} />));
+
+  try {
+    await pressTwiceBeforeCommit(registerAction());
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      request.resolve({});
+      await request.promise;
+    });
+  }
 });
 
 test('the event action takes the card width at large text', async () => {

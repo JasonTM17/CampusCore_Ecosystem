@@ -113,6 +113,7 @@ export function useAssistantChat() {
   const [quotaResetAt, setQuotaResetAt] = useState<{ at: string | null } | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null);
+  const feedbackFlight = useRef(false);
   const [feedbackError, setFeedbackError] = useState(false);
   const [history, setHistory] = useState<HistoryState>(emptyHistory);
   const [streamState, dispatchStream] = useReducer(assistantStreamReducer, initialAssistantStreamState);
@@ -337,6 +338,8 @@ export function useAssistantChat() {
     if (history.open && !history.loaded && !history.loading && !history.error) void refreshHistory(scope, false, null);
   }, [history.open, history.loaded, history.loading, history.error, refreshHistory, scope]);
 
+  useEffect(() => () => { historySeq.current += 1; }, []);
+
   useEffect(() => () => { selectionSeq.current += 1; orchestrator?.dispose(); }, [orchestrator]);
 
   const setHistoryOpen = useCallback((open: boolean) => setHistory((current) => ({ ...current, open })), []);
@@ -403,9 +406,10 @@ export function useAssistantChat() {
   }, [clearThread]);
 
   const rate = useCallback(async (messageId: string, rating: AssistantFeedbackRating, reason?: AssistantFeedbackReason) => {
-    if (messageId.startsWith('local-') || feedbackBusyId) return;
+    if (messageId.startsWith('local-') || feedbackFlight.current || feedbackBusyId) return;
     const current = messages.find((item) => item.id === messageId)?.feedback;
     const toggleOff = !reason && current?.rating === rating;
+    feedbackFlight.current = true;
     setFeedbackBusyId(messageId);
     setFeedbackError(false);
     try {
@@ -417,6 +421,7 @@ export function useAssistantChat() {
     } catch {
       setFeedbackError(true);
     } finally {
+      feedbackFlight.current = false;
       setFeedbackBusyId(null);
     }
   }, [feedbackBusyId, messages]);

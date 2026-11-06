@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { minTapTarget } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'live' as 'preview' | 'live' };
@@ -128,6 +129,15 @@ describe('sign-in guest news feed', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('news', { newsItem: 'b' });
     await fireEvent.press(screen.getByTestId('signin-news-see-all'));
     expect(navigation.navigate).toHaveBeenCalledWith('news');
+  });
+
+  test('guest news links and compact rows keep a 48dp minimum height', async () => {
+    mockQuery.value.data = paged(ITEMS);
+    await renderScreen();
+    const seeAll = StyleSheet.flatten(screen.getByTestId('signin-news-see-all').props.style);
+    const compactRow = StyleSheet.flatten(screen.getByTestId('signin-news-row-1').props.style);
+    expect(seeAll.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+    expect(compactRow.minHeight).toBeGreaterThanOrEqual(minTapTarget);
   });
 
   test('a missing cover falls back to the neutral placeholder', async () => {
