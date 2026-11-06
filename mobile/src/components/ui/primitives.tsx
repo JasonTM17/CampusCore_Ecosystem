@@ -269,7 +269,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
   const { t } = useLocale();
   const clear = onClear ?? (() => onChangeText(''));
   return (
-    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, paddingLeft: spacing.md }, style]}>
+    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, paddingLeft: spacing.md }, style]}>
       <TextInput
         {...input}
         multiline={false}
@@ -278,7 +278,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
         accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
         placeholder={placeholder}
         placeholderTextColor={colors.outline}
-        style={{ color: colors.text, flex: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: layout.touchTarget, paddingVertical: spacing.sm }}
+        style={{ color: colors.text, flex: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, paddingVertical: spacing.sm }}
       />
       {value.length > 0 ? (
         <Pressable
@@ -414,6 +414,7 @@ export function FormField({ label, error, hint, required = false, style, ...inpu
       </UiText>
       <TextInput
         {...input}
+        multiline={input.multiline ?? true}
         onFocus={(event) => { setFocused(true); input.onFocus?.(event); }}
         onBlur={(event) => { setFocused(false); input.onBlur?.(event); }}
         accessibilityLabel={input.accessibilityLabel ?? label}

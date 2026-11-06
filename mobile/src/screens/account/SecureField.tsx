@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 
 export interface SecureFieldProps {
   label: string;
@@ -108,15 +108,15 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.control,
     borderWidth: 1,
     flexDirection: 'row',
-    minHeight: tokens.layout.touchTarget,
+    minHeight: minTapTarget,
     paddingLeft: tokens.spacing.md,
   },
-  input: { flex: 1, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
+  input: { flex: 1, minHeight: minTapTarget, paddingVertical: tokens.spacing.sm },
   toggle: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: tokens.layout.touchTarget,
-    minWidth: tokens.layout.touchTarget,
+    minHeight: minTapTarget,
+    minWidth: minTapTarget,
   },
   error: { marginTop: tokens.spacing.xs },
 });

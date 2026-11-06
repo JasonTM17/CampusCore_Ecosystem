@@ -56,6 +56,13 @@ describe('Skeleton', () => {
 });
 
 describe('SearchBar', () => {
+  test('input meets the 48dp minimum height', async () => {
+    await render(<SearchBar value="" onChangeText={() => {}} placeholder="Tìm lớp" />);
+    const input = screen.getByLabelText('Tìm lớp');
+    const style = StyleSheet.flatten(input.props.style);
+    expect(style.minHeight).toBeGreaterThanOrEqual(48);
+  });
+
   test('typing and clear button', async () => {
     const onChangeText = jest.fn();
     await render(<SearchBar value="" onChangeText={onChangeText} placeholder="Tìm lớp" />);
@@ -113,6 +120,14 @@ describe('InlineError', () => {
 });
 
 describe('FormField', () => {
+  test('address value wraps without changing the stored text', async () => {
+    const value = 'Phường Buôn Ma Thuột, Tỉnh Đắk Lắk';
+    await render(<FormField label="Địa chỉ" value={value} />);
+    const input = screen.getByLabelText('Địa chỉ');
+    expect(input.props.value).toBe(value);
+    expect(input.props.multiline).toBe(true);
+  });
+
   test('label, hint and error states', async () => {
     await render(<FormField label="Email" hint="Dùng email trường" />);
     expect(screen.getByLabelText('Email')).toBeOnTheScreen();
