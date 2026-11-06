@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { UiText } from '../../components/ui/UiText';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { civilDayOf, civilKey } from './academic-model';
 import { useLocale } from '../../i18n/locale-provider';
@@ -53,11 +53,12 @@ const styles = StyleSheet.create({
   dayCell: {
     alignItems: 'center',
     borderRadius: tokens.radii.control,
-    flexBasis: tokens.layout.touchTarget,
+    flexBasis: minTapTarget,
     flexGrow: 1,
-    flexShrink: 1,
+    flexShrink: 0,
     justifyContent: 'center',
-    minHeight: tokens.layout.touchTarget,
+    minHeight: minTapTarget,
+    minWidth: minTapTarget,
     paddingVertical: tokens.spacing.xs,
   },
   dayDate: { fontVariant: ['tabular-nums'] },

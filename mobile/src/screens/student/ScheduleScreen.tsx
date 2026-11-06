@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -153,9 +153,9 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       {view === 'week' ? (
         <View>
           <View style={academicStyles.row}>
-            <Button accessibilityLabel={copy.prevWeek} label="‹" onPress={() => setWeekOffset((value) => value - 1)} variant="text" />
+            <Button accessibilityLabel={copy.prevWeek} label="‹" onPress={() => setWeekOffset((value) => value - 1)} variant="text" style={{ minWidth: minTapTarget }} />
             <UiText variant="label" accessibilityLiveRegion="polite">{weekLabel}</UiText>
-            <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" />
+            <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" style={{ minWidth: minTapTarget }} />
           </View>
           <WeekStrip
             days={days}
