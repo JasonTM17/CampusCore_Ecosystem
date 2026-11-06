@@ -184,6 +184,19 @@ beforeEach(() => {
 });
 
 describe('grade row versions on the lecturer grade sheet', () => {
+  test('loaded fractional scores use the active locale decimal separator', async () => {
+    mockRuntime.queries['lecturer:grades:section-a'] = {
+      data: {
+        sectionId: 'section-a',
+        rows: [{ ...versionedSheet.rows[0], processScore: 8.5, finalExamScore: 9.25 }],
+      },
+    };
+    await render(themed(<LecturerGradingScreen {...props} />, 'vi'));
+    const processLabelVi = `${fillCopy(operationsMessages.vi.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.vi.process}`;
+
+    expect((await screen.findByLabelText(processLabelVi)).props.value).toBe('8,5');
+  });
+
   test('grade search finds Vietnamese names without diacritics', async () => {
     mockRuntime.queries['lecturer:grades:section-a'] = {
       data: {

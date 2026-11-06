@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { ThemeProvider } from '../../src/design/theme';
-import { tokens } from '../../src/design/tokens';
+import { minTapTarget, tokens } from '../../src/design/tokens';
 
 const mockChat = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCancel = jest.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
@@ -56,6 +58,28 @@ function setWidth(w: number) {
 }
 function setMatrix(width: number, fontScale: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
 }
 
 type TestNode = { parent?: TestNode | null; type?: string; props?: Record<string, unknown> };
@@ -162,6 +186,11 @@ describe('assistant scope, entry and quota', () => {
 });
 
 describe('assistant citations, feedback and history', () => {
+  test('invalidates a pending history response on unmount', () => {
+    const source = readFileSync(resolve(__dirname, '../../src/screens/assistant/useAssistantChat.ts'), 'utf8');
+    expect(source).toMatch(/useEffect\(\(\) => \(\) => \{\s*historySeq\.current \+= 1;\s*\}, \[\]\);/);
+  });
+
   test('citations are collapsed behind the sources control and show their excerpt when opened', async () => {
     setWidth(360);
     mockChat.mockResolvedValue(reply({
@@ -170,10 +199,25 @@ describe('assistant citations, feedback and history', () => {
     await renderThemed(<AssistantChatScreen {...props} />);
     await ask('Học phí?');
     const sources = await screen.findByRole('button', { name: copy.sources.replace('{count}', '1') });
+    const sourcesStyle = StyleSheet.flatten(sources.props.style);
+    expect(sourcesStyle.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+    expect(sourcesStyle.minWidth).toBeGreaterThanOrEqual(minTapTarget);
     expect(screen.queryByText('Học phí thu theo tín chỉ.')).toBeNull();
     await fireEvent.press(sources);
     expect(await screen.findByText('Học phí thu theo tín chỉ.')).toBeOnTheScreen();
     expect(screen.getByText('Quy chế học phí')).toBeOnTheScreen();
+  });
+
+  test('feedback reason chips meet the 48dp minimum on both axes', async () => {
+    setWidth(360);
+    mockChat.mockResolvedValue(reply());
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Lịch thi?');
+    await fireEvent.press(await screen.findByRole('button', { name: copy.helpful }));
+    const reason = await screen.findAllByRole('button', { name: copy.reasons.HELPFUL }).then((buttons) => buttons[buttons.length - 1]);
+    const style = StyleSheet.flatten(reason.props.style);
+    expect(style.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
   });
 
   test('feedback is stored against the server message id', async () => {
@@ -183,6 +227,25 @@ describe('assistant citations, feedback and history', () => {
     await ask('Lịch thi?');
     await fireEvent.press(await screen.findByRole('button', { name: copy.helpful }));
     await waitFor(() => expect(mockPutFeedback).toHaveBeenCalledWith('msg-1', 'UP', undefined));
+  });
+
+  test('same-frame repeated feedback sends one request', async () => {
+    setWidth(360);
+    mockChat.mockResolvedValue(reply());
+    const request = deferred<unknown>();
+    mockPutFeedback.mockImplementation(() => request.promise);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Lịch thi?');
+
+    try {
+      await pressTwiceBeforeCommit(await screen.findByRole('button', { name: copy.helpful }));
+      expect(mockPutFeedback).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        request.resolve(undefined);
+        await request.promise;
+      });
+    }
   });
 
   test('history lists conversations, loads one and deletes only after confirmation', async () => {

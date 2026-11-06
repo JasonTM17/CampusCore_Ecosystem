@@ -100,6 +100,22 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 beforeEach(() => {
   mockRuntime.reloads = {};
   mockRuntime.queries = { 'lecturer:grading': [section], 'lecturer:grades:section-a': gradeSheet };
@@ -145,4 +161,23 @@ test('a second publish press during the post-publish reload is ignored', async (
   expect(screen.getByText(copy.publishedOk)).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: copy.publishGrades })).toBeDisabled();
   expect(mockRuntime.publishGrades).toHaveBeenCalledTimes(1);
+});
+
+test('same-frame repeated publish confirmation sends one request', async () => {
+  const pending = deferred<undefined>();
+  mockRuntime.publishGrades.mockImplementation(() => pending.promise);
+  await render(screenElement(<LecturerGradingScreen {...props} />));
+  await screen.findByText('Alpha');
+  await fireEvent.press(screen.getByRole('button', { name: copy.publishGrades }));
+
+  const confirm = screen.getByRole('button', { name: copy.publishConfirm });
+  try {
+    await pressTwiceBeforeCommit(confirm);
+    expect(mockRuntime.publishGrades).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => {
+      pending.resolve(undefined);
+      await pending.promise;
+    });
+  }
 });

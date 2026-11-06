@@ -13,6 +13,7 @@ export interface ButtonProps {
   label: string;
   onPress: () => void;
   accessibilityLabel?: string;
+  accessibilityState?: ComponentProps<typeof Pressable>['accessibilityState'];
   variant?: 'primary' | 'secondary' | 'text' | 'destructive';
   icon?: ComponentProps<typeof MaterialCommunityIcons>['name'];
   /** Secondary/text action on a navy HeroCard. */
@@ -39,6 +40,7 @@ export function Button({
   label,
   onPress,
   accessibilityLabel,
+  accessibilityState,
   variant = 'primary',
   disabled = false,
   loading = false,
@@ -57,7 +59,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ busy: loading, disabled: isDisabled }}
+      accessibilityState={{ ...accessibilityState, busy: loading, disabled: isDisabled }}
       disabled={isDisabled}
       onPress={onPress}
       onFocus={() => setFocused(true)}
@@ -65,7 +67,7 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         small ? styles.smallPad : styles.normalPad,
-        { minHeight: Math.max(48, layout.touchTarget) },
+        { minHeight: Math.max(48, layout.touchTarget), minWidth: Math.max(48, layout.touchTarget) },
         variantStyle(variant, colors),
         onBrand ? { backgroundColor: chrome.overlay, borderColor: chrome.overlay, borderWidth: 1 } : undefined,
         focused ? { outlineColor: onBrand ? chrome.accent : colors.primary, outlineWidth: 2, outlineOffset: 2, outlineStyle: 'solid' } : undefined,

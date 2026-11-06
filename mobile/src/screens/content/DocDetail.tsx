@@ -41,6 +41,7 @@ export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailPro
     : query.data ?? null;
   const shown = revision ?? doc?.publishedRevision ?? null;
   const viewingOld = doc !== null && revision !== null && revision !== doc.publishedRevision;
+  const categoryLabel = doc?.categoryId ? docCategoryLabel(doc.categoryId, categoryLabels) : undefined;
 
   return (
     <DetailFrame title={copy.docDetailTitle} onBack={onBack}>
@@ -72,8 +73,7 @@ export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailPro
               icon="file-document-outline"
               detail={joinMeta([
                 doc.publishedAt ? `${copy.publishedAt}: ${formatDateTime(doc.publishedAt)}` : null,
-                doc.categoryId ? `${copy.category}: ${docCategoryLabel(doc.categoryId, categoryLabels)}` : null,
-                (doc.tagIds ?? []).length > 0 ? `${copy.tags}: ${(doc.tagIds ?? []).join(', ')}` : null,
+                categoryLabel ? `${copy.category}: ${categoryLabel}` : null,
               ])}
             >
               <View style={styles.heroPills}>

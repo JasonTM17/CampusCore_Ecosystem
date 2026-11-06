@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -246,6 +248,13 @@ describe('logged out', () => {
 });
 
 describe('two-factor card', () => {
+  test('guards the awaited status response after unmount', () => {
+    const source = readFileSync(resolve(__dirname, '../../src/screens/account/TwoFactorCard.tsx'), 'utf8');
+    expect(source).toMatch(/const mounted = useRef\(false\);/);
+    expect(source).toMatch(/if \(!mounted\.current \|\| request !== statusRequest\.current\) return;/);
+    expect(source).toMatch(/return \(\) => \{\s*mounted\.current = false;\s*statusRequest\.current \+= 1;\s*\};/);
+  });
+
   test('enable flow confirms the code, clears secrets and hands off the sign-out', async () => {
     mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
     mocked(accountApi.beginTwoFactorEnable).mockResolvedValue({ challengeId: 'fake-challenge' });
@@ -361,6 +370,16 @@ describe('profile account security', () => {
     await act(async () => {});
   });
 
+  test('same-frame repeated sign-out confirmation ends the session once', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Đăng xuất' }));
+
+    const confirm = screen.getAllByRole('button', { name: 'Đăng xuất' }).at(-1)!;
+    await pressTwiceBeforeCommit(confirm);
+
+    expect(navigation.signOut).toHaveBeenCalledTimes(1);
+  });
+
   test('change password validates, confirms, then signs out on success', async () => {
     mocked(campusApi.changePassword).mockResolvedValue({ message: 'ok' });
     await renderApp(<ProfileScreen {...props} />);
@@ -418,6 +437,23 @@ describe('profile account security', () => {
   test('the profile form meets the accessibility contract', async () => {
     await renderApp(<ProfileScreen {...props} />);
     expectAccessible();
+  });
+
+  test('same-frame repeated profile save sends one update', async () => {
+    const request = deferred<unknown>();
+    mocked(campusApi.updateProfile).mockImplementation(() => request.promise);
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Số điện thoại'), '0901234567');
+
+    try {
+      await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+      expect(campusApi.updateProfile).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        request.resolve({});
+        await request.promise;
+      });
+    }
   });
 
   test('the profile detail card does not repeat the identity header name and ID', async () => {

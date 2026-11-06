@@ -4,15 +4,14 @@
 import type { AcademicEnrollment, AcademicSemester } from './academic-model';
 import type { AcademicGradeRecord, AttendanceSummaryRow, MyCurriculum } from './academic-api';
 import type { BrowseSection } from './registration-browse';
-
 const course = (code: string, nameEn: string, nameVi: string, credits: number) => ({ code, name: nameEn, nameEn, nameVi, credits });
 
-// The sample term is centred on today so the week and term views always show sessions.
+// Campus civil date at UTC+7, matching campusIsoDate. This file is loaded as a
+// data URL by the node tests, so it cannot import that helper.
 const isoDay = (offsetDays: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const campus = new Date(Date.now() + offsetDays * 86_400_000 + 7 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${campus.getUTCFullYear()}-${pad(campus.getUTCMonth() + 1)}-${pad(campus.getUTCDate())}`;
 };
 
 export const previewSemester: AcademicSemester = {
