@@ -92,7 +92,12 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     onConfirm: () => void run(async () => {
       // The server submits what it stored: save first, then submit the version that save returned.
       const saved = await contentApi.admissionsSave(application.id, form, application.version);
-      return contentApi.admissionsSubmit(application.id, saved.version);
+      try {
+        return await contentApi.admissionsSubmit(application.id, saved.version);
+      } catch (error) {
+        setStale(true);
+        throw error;
+      }
     }, copy.submitted),
   });
 

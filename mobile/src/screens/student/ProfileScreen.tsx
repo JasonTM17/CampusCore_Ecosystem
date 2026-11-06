@@ -71,6 +71,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const savingPasswordRef = useRef(false);
   const [confirmPasswordChange, setConfirmPasswordChange] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
@@ -168,6 +169,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   };
 
   const updatePassword = async () => {
+    if (savingPasswordRef.current) return;
+    savingPasswordRef.current = true;
     setConfirmPasswordChange(false);
     setIsSavingPassword(true);
     try {
@@ -180,13 +183,14 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     } catch (failure) {
       setPasswordMessage(errorMessage(classifyError(failure), copy.errors));
     } finally {
+      savingPasswordRef.current = false;
       setIsSavingPassword(false);
     }
   };
 
   const roleLabel = role === 'lecturer' ? copy.profile.roleLecturer : role === 'admin' ? copy.profile.roleAdmin : copy.profile.roleStudent;
   const displayName = !isLive
-    ? 'Nguyen Duc Minh'
+    ? 'Nguyễn Đức Minh'
     : [account?.firstName, account?.lastName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';

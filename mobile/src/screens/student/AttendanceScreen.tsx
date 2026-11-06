@@ -68,7 +68,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
                 </View>
                 <StatusPill label={`${row.attendanceRate}%`} tone={rateTone(row.attendanceRate)} />
               </View>
-              <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone="success" />
+              <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone={row.attendanceRate >= 80 ? 'success' : 'warning'} />
             </Card>
           ))),
 { key: "static-1", render: () => <>{summary.length === 0 ? null : (<><View>
@@ -83,7 +83,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
           ) : null}</View></>)}</> },
 ...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), <>
               </>, (record, index) => (
-                <View key={record.id} accessible accessibilityLabel={`${formatDate(record.date)}, ${copy.attendanceStatus[record.status] ?? record.status}`}>
+                <View key={record.id} accessible accessibilityLabel={[formatDate(record.date), record.section?.course?.code, record.notes, copy.attendanceStatus[record.status] ?? record.status].filter(Boolean).join(', ')}>
                   {index > 0 ? <Divider /> : null}
                   <View style={academicStyles.row}>
                     <View style={academicStyles.rowCopy}>
