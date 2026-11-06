@@ -31,7 +31,7 @@ Mọi ảnh/GIF nằm trong [`docs/assets/mobile`](assets/mobile); cách tạo l
 | Giao diện | Một nguồn token (`contracts/ecosystem/tokens.json`), sáng/tối theo hệ thống |
 | Đăng nhập | OIDC qua trình duyệt trong app (Chrome Custom Tab), token lưu trong SecureStore |
 | Bố cục | Ba lớp cửa sổ: compact, medium (≥ 600 dp), expanded (≥ 840 dp); danh sách đổi số cột theo lớp |
-| Trợ năng | Vùng chạm ≥ 44 dp, nhãn TalkBack cho nút chỉ có biểu tượng, ảnh trang trí được ẩn, hỗ trợ cỡ chữ 2.0× |
+| Trợ năng | Vùng chạm ≥ 48 dp, nhãn TalkBack cho nút chỉ có biểu tượng, ảnh trang trí được ẩn, hỗ trợ cỡ chữ 2.0× |
 
 Thanh điều hướng dưới cùng theo vai trò; menu **Danh mục** chỉ liệt kê các tuyến mà vai trò đó được phép,
 và điều hướng trực tiếp tới tuyến không được phép sẽ bị chặn.

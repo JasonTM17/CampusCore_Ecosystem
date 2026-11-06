@@ -111,8 +111,10 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   return (
     <Card>
       <View style={styles.header}>
-        <IconChip icon="shield-lock-outline" />
-        <UiText accessibilityRole="header" variant="headlineSmall" style={styles.title}>{text.title}</UiText>
+        <View style={styles.titleRow}>
+          <IconChip icon="shield-lock-outline" />
+          <UiText accessibilityRole="header" variant="headlineSmall">{text.title}</UiText>
+        </View>
         {state.enabled !== null ? (
           <StatusPill label={status} tone={state.enabled ? 'success' : 'neutral'} />
         ) : null}
@@ -208,8 +210,8 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
-  title: { flex: 1, paddingRight: tokens.spacing.sm },
+  header: { alignItems: 'flex-start', gap: tokens.spacing.sm },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm },
   gap: { marginTop: tokens.spacing.sm },
   codeNote: { marginBottom: tokens.spacing.sm },
 });
