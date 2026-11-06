@@ -15,7 +15,7 @@ import type { FileRowAction, FileRowProps } from '../../components/ui/index';
 import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
 import { apiClient } from '../../api/client';
 import { chromeFor } from '../../design/chrome';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { getFileAdapter } from '../../files/file-adapter';
 import type { PickedFile } from '../../files/file-adapter';
@@ -135,7 +135,7 @@ export function ContentChevron() {
   return <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={colors.textMuted} name="chevron-right" size={20} />;
 }
 
-/** The 44dp trailing action used by compact rows; its accessible name is supplied by the screen. */
+/** The trailing action used by compact rows; its accessible name is supplied by the screen. */
 export function ContentIconAction({
   accessibilityLabel,
   icon,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, minWidth: 0 },
   heroDetail: { marginTop: tokens.spacing.xs },
   iconChip: { alignItems: 'center', borderRadius: tokens.radii.control, flexShrink: 0, height: 40, justifyContent: 'center', width: 40 },
-  iconAction: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
+  iconAction: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, minHeight: minTapTarget, minWidth: minTapTarget, justifyContent: 'center' },
   iconActionDisabled: { opacity: 0.65 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
   metaRowStacked: { flexDirection: 'column', alignItems: 'flex-start' },

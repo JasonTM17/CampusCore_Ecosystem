@@ -8,10 +8,14 @@ jest.mock('../../src/api/client', () => ({
     return { mode: 'preview' };
   },
 }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({
+  useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
+}));
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { shellMessages } from '../../src/i18n/shell-messages';
+import { minTapTarget } from '../../src/design/tokens';
 import { ActionTile } from '../../src/components/Ui';
 import { AppBar } from '../../src/components/AppBar';
 import { MenuPanel } from '../../src/components/MenuPanel';
@@ -26,7 +30,10 @@ import {
   SearchBar,
   SegmentedControl,
   SheetHeader,
+  Button,
 } from '../../src/components/ui/index';
+import { SegmentTabs } from '../../src/screens/academic/academic-ui';
+import { ContentIconAction } from '../../src/screens/content/content-ui';
 
 function wrap(ui: ReactElement) {
   return (
@@ -42,6 +49,12 @@ function flattenStyle(style: any): any {
 }
 
 describe('shared controls keep the 48dp tap target', () => {
+  test('short text buttons keep a 48dp minimum width', async () => {
+    await render(wrap(<Button label="A" variant="text" onPress={() => {}} />));
+    const style = flattenStyle(screen.getByRole('button', { name: 'A' }).props.style);
+    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
+  });
+
   test('IconButton meets the target', async () => {
     await render(wrap(<IconButton icon="close" accessibilityLabel="Đóng" onPress={() => {}} />));
     const style = flattenStyle(screen.getByRole('button', { name: 'Đóng' }).props.style);
@@ -57,9 +70,26 @@ describe('shared controls keep the 48dp tap target', () => {
   });
 
   test('FilterChip meets the target', async () => {
-    await render(wrap(<FilterChip label="Trạng thái" selected={false} onPress={() => {}} />));
-    const style = flattenStyle(screen.getByRole('button', { name: 'Trạng thái' }).props.style);
+    await render(wrap(<FilterChip label="A" selected={false} onPress={() => {}} />));
+    const style = flattenStyle(screen.getByRole('button', { name: 'A' }).props.style);
     expect(style.minHeight).toBeGreaterThanOrEqual(48);
+    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
+  });
+
+  test('academic term tabs meet the 48dp minimum on both axes', async () => {
+    await render(wrap(
+      <SegmentTabs label="Chọn học kỳ" value="a" options={[{ value: 'a', label: 'Kỳ A' }, { value: 'b', label: 'Kỳ B' }]} onChange={() => {}} />,
+    ));
+    const style = flattenStyle(screen.getByRole('tab', { name: 'Kỳ A' }).props.style);
+    expect(style.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
+  });
+
+  test('compact content icon actions meet the 48dp minimum on both axes', async () => {
+    await render(wrap(<ContentIconAction icon="close" accessibilityLabel="Xóa tệp" onPress={() => {}} />));
+    const style = flattenStyle(screen.getByRole('button', { name: 'Xóa tệp' }).props.style);
+    expect(style.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
   });
 
   test('DateField trigger meets the target', async () => {

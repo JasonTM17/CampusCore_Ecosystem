@@ -18,9 +18,10 @@ export const docSummary = (doc: LocalizedDoc, locale: 'vi' | 'en'): string =>
 export const docBody = (doc: LocalizedDoc, locale: 'vi' | 'en'): string =>
   (locale === 'vi' ? doc.bodyVi : doc.bodyEn) ?? '';
 
-/** Use reviewed locale labels for known category codes and retain unknown server values. */
-export function docCategoryLabel(categoryId: string, labels: Readonly<Record<string, string>>): string {
-  return labels[categoryId.trim().toLowerCase()] ?? categoryId;
+/** Return only reviewed locale labels; unknown category codes have no public label. */
+export function docCategoryLabel(categoryId: string, labels: Readonly<Record<string, string>>): string | undefined {
+  const label = labels[categoryId.trim().toLowerCase()];
+  return label?.trim() ? label : undefined;
 }
 
 /** Revisions that resolve for readers: the published one and every earlier one, newest first. */

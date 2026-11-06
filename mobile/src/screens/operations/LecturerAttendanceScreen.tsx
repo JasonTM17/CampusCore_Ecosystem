@@ -81,6 +81,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   // A dirty sheet stays keyed to its own (section, date) while the lecturer
   // looks at another one, so switching never silently discards marks.
   const draftsRef = useRef<Record<string, { rows: RosterRow[]; baseline: AttendanceBaseline }>>({});
+  const saveFlights = useRef(new Set<string>());
 
   const applySheet = (next: AttendanceSheet) => {
     delete draftsRef.current[`${next.sectionId}:${next.date}`];
@@ -167,6 +168,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       return;
     }
     const savingKey = sheetKey;
+    if (saveFlights.current.has(savingKey)) return;
+    saveFlights.current.add(savingKey);
     const savingRevision = editRevisionByKey.current[savingKey] ?? 0;
     setSave({ kind: 'saving' });
     try {
@@ -189,6 +192,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       } else {
         setSave({ kind: 'error', message: opsErrorMessage(copy, error, copy.saveFailed) });
       }
+    } finally {
+      saveFlights.current.delete(savingKey);
     }
   };
 

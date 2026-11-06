@@ -25,6 +25,7 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<FilterValue>({});
   const priorities = filter.priority ?? [];
+  const filterLabel = priorities.length > 0 ? `${t('filters')} (${priorities.length})` : t('filters');
 
   const preview = useMemo(() => previewAnnouncements(locale), [locale]);
   const list = usePagedList<MobilePublicAnnouncement>({
@@ -48,8 +49,8 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
         header={(
           <View style={styles.filterRow}>
             <Button
-              label={priorities.length > 0 ? `${t('filters')} (${priorities.length})` : t('filters')}
-              accessibilityLabel={t('filters')}
+              label={filterLabel}
+              accessibilityLabel={filterLabel}
               variant="secondary"
               onPress={() => setFilterOpen(true)}
             />

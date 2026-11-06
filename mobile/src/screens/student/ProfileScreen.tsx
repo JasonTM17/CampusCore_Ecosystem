@@ -64,6 +64,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const addressRef = useRef(address);
   const seededPhoneRef = useRef<string | null>(null);
   const seededAddressRef = useRef<string | null>(null);
+  const profileSaveFlight = useRef(false);
+  const signOutFlight = useRef(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -107,6 +109,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
 
   const endSession = useCallback(
     (notice: ExitNotice) => {
+      if (signOutFlight.current) return;
+      signOutFlight.current = true;
       setExitNotice(notice);
       navigation.signOut();
     },
@@ -119,6 +123,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   );
 
   const saveProfile = async () => {
+    if (profileSaveFlight.current) return;
     setProfileMessage(null);
     const submittedPhone = phone.trim();
     const submittedAddress = address.trim();
@@ -126,6 +131,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       setProfileMessage(copy.profile.phoneInvalid);
       return;
     }
+    profileSaveFlight.current = true;
     setIsSavingProfile(true);
     try {
       await campusApi.updateProfile({ phone: submittedPhone, address: submittedAddress });
@@ -142,6 +148,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     } catch {
       setProfileMessage(copy.profile.saveFailed);
     } finally {
+      profileSaveFlight.current = false;
       setIsSavingProfile(false);
     }
   };
