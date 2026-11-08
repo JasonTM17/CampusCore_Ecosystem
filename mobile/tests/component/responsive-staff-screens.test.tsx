@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, fireEvent } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -15,7 +15,7 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
   return {
-    useLocalSearchParams: () => ({}),
+    useLocalSearchParams: () => mockSectionParams,
     usePathname: () => '/dashboard',
     useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
     useFocusEffect: (cb: () => void) => useEffect(cb, [cb]),
@@ -38,7 +38,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
   LANE_PAGE_SIZE: 20,
   laneApi: {
     analytics: jest.fn(async () => ({
-      totals: { total: 100, up: 10, down: 5 },
+      totals: { students: 100, lecturers: 10, courses: 20, enrollments: 50 },
       gradeDistribution: [{ grade: 'A', count: 20 }, { grade: 'B', count: 30 }],
       departments: [{ code: 'CNTT', students: 50 }],
       semesterTrends: [{ semester: 'HK1', completionRate: 85 }],
@@ -48,12 +48,14 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 
 import { AdminOverviewScreen } from '../../src/screens/lanes/AdminOverviewScreen';
 import { LecturerScheduleScreen } from '../../src/screens/operations/LecturerScheduleScreen';
+import { LecturerAttendanceScreen } from '../../src/screens/operations/LecturerAttendanceScreen';
 import { AdminStudentsScreen, AdminLecturersScreen } from '../../src/screens/operations/AdminScreens';
 import { AssistantComposer } from '../../src/screens/assistant/AssistantComposer';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const navigation = { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'lecturer' } as MobileScreenProps;
+let mockSectionParams: { sectionId?: string } = {};
 
 function setWindow(width: number, height = 800, fontScale = 1) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({
@@ -65,6 +67,7 @@ function setWindow(width: number, height = 800, fontScale = 1) {
 }
 
 afterEach(() => {
+  mockSectionParams = {};
   jest.restoreAllMocks();
 });
 
@@ -138,6 +141,7 @@ describe('responsive staff screens and assistant layout', () => {
       busy: false,
       notice: null,
       setDraft: jest.fn(),
+      attachDraftSetter: jest.fn(),
       send: jest.fn(),
       stop: jest.fn(),
     };
@@ -167,6 +171,7 @@ describe('responsive staff screens and assistant layout', () => {
       busy: false,
       notice: null,
       setDraft: jest.fn(),
+      attachDraftSetter: jest.fn(),
       send: jest.fn(),
       stop: jest.fn(),
     };
@@ -188,5 +193,31 @@ describe('responsive staff screens and assistant layout', () => {
     expect(attendanceBtns.length).toBeGreaterThan(0);
     const btnStyle = StyleSheet.flatten(attendanceBtns[0].props.style);
     expect(btnStyle?.flexGrow).toBe(1);
+  });
+
+  test('attendance follows a changed section route parameter while mounted', async () => {
+    mockSectionParams = { sectionId: 'preview-cs204' };
+    const view = await renderThemed(<LecturerAttendanceScreen {...props} />);
+
+    expect(screen.getByRole('button', { name: 'Lớp học phần: CS204 · Lớp 02' })).toBeOnTheScreen();
+    mockSectionParams = { sectionId: 'preview-ba312' };
+    await view.rerender(
+      <LocaleProvider initialLocale="vi">
+        <ThemeProvider forcedScheme="light"><LecturerAttendanceScreen {...props} /></ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Lớp học phần: BA312 · Lớp 01' })).toBeOnTheScreen();
+  });
+
+  test('section picker selection is preserved when mounted with a sectionId route parameter', async () => {
+    mockSectionParams = { sectionId: 'preview-cs204' };
+    await renderThemed(<LecturerAttendanceScreen {...props} />);
+
+    expect(screen.getByRole('button', { name: 'Lớp học phần: CS204 · Lớp 02' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Lớp học phần: CS204 · Lớp 02' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'BA312 · Lớp 01' }));
+
+    expect(screen.getByRole('button', { name: 'Lớp học phần: BA312 · Lớp 01' })).toBeOnTheScreen();
   });
 });

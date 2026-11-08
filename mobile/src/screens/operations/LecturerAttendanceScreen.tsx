@@ -4,10 +4,12 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/Ui';
 import { DateField } from '../../components/ui/date-field';
-import { SearchBar } from '../../components/ui/primitives';
+import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { campusIsoDate, countForm } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
+import { useStableCallback } from '../../hooks/use-stable-callback';
 import { AttendanceRosterRow } from './AttendanceRosterRow';
 import { StaleAttendanceError, lecturerApi, type AttendanceSheet } from './lecturer-api';
 import { attendanceCsvFilename, generateAttendanceCsv } from './lecturer-csv';
@@ -42,6 +44,7 @@ type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved'; count:
 export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
+  const { formatNumber } = useLocale();
   const preview = isOpsPreview();
   const params = useLocalSearchParams<{ sectionId?: string }>();
   const sectionsQuery = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
@@ -77,6 +80,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingDiscard, setPendingDiscard] = useState<'markAll' | 'reload' | null>(null);
   const editRevisionByKey = useRef<Record<string, number>>({});
   // A dirty sheet stays keyed to its own (section, date) while the lecturer
   // looks at another one, so switching never silently discards marks.
@@ -116,41 +120,74 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet, sheetKey]);
 
-  const changes = attendanceChangeCount(rows, baseline);
-  const metrics = attendanceMetrics(rows);
+  const changes = useMemo(() => attendanceChangeCount(rows, baseline), [rows, baseline]);
+  const metrics = useMemo(() => attendanceMetrics(rows), [rows]);
   const visible = useMemo(() => filterRoster(rows, search), [rows, search]);
   const { rows: shown, hasMore } = windowOf(visible, pages, PAGE_SIZE);
   const ready = loadedKey === sheetKey;
   const busy = save.kind === 'saving';
 
-  const switchSheet = (nextSectionId: string, nextDate: string) => {
+  const switchSheet = useStableCallback((nextSectionId: string, nextDate: string) => {
     if (nextSectionId === sectionId && nextDate === date) return;
-    if (loadedKey === sheetKey && changes > 0) {
-      draftsRef.current[sheetKey] = { rows, baseline };
+    if (loadedKey === sheetKey) {
+      if (changes > 0) draftsRef.current[sheetKey] = { rows, baseline };
+      else delete draftsRef.current[sheetKey];
     }
     if (nextSectionId !== sectionId) {
       setPicked(nextSectionId);
       setSearch('');
     }
     if (nextDate !== date) setDate(nextDate);
-  };
+  });
 
-  const change = (studentId: string, status: MarkStatus | null) => {
-    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
+  const lastRouteSection = useRef(params.sectionId);
+  useEffect(() => {
+    if (typeof params.sectionId === 'string' && params.sectionId && params.sectionId !== lastRouteSection.current) {
+      lastRouteSection.current = params.sectionId;
+      switchSheet(params.sectionId, date);
+    }
+  }, [params.sectionId, date, switchSheet]);
+
+  const change = useStableCallback((studentId: string, status: MarkStatus | null) => {
+    const activeSheetKey = currentSheetKey.current;
+    editRevisionByKey.current[activeSheetKey] = (editRevisionByKey.current[activeSheetKey] ?? 0) + 1;
     setRows((current) => setRowStatus(current, studentId, status));
     setSave({ kind: 'idle' });
-  };
+  });
 
-  const markAll = () => {
+  const applyMarkAll = () => {
     editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
     setRows((current) => setAllStatus(current, 'PRESENT', new Set(visible.map((row) => row.studentId))));
     setSave({ kind: 'idle' });
   };
 
-  const reloadSheet = () => {
+  const markAll = () => {
+    if (changes > 0) {
+      setPendingDiscard('markAll');
+      return;
+    }
+    applyMarkAll();
+  };
+
+  const applyReloadSheet = () => {
     setSave({ kind: 'idle' });
     if (sheet) applySheet(sheet);
     void sheetQuery.reload();
+  };
+
+  const reloadSheet = () => {
+    if (changes > 0) {
+      setPendingDiscard('reload');
+      return;
+    }
+    applyReloadSheet();
+  };
+
+  const confirmDiscard = () => {
+    const action = pendingDiscard;
+    setPendingDiscard(null);
+    if (action === 'markAll') applyMarkAll();
+    if (action === 'reload') applyReloadSheet();
   };
   // The pull refreshes the two live reads this screen shows: the section list and
   // the active sheet. The spinner tracks exactly those two reloads, so it never
@@ -232,10 +269,10 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
               <View style={styles.saveBar}>
                 {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
-                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(countForm(save.count, copy.savedOne, copy.saved), { n: save.count })} /> : null}
+                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(countForm(save.count, copy.savedOne, copy.saved), { n: formatNumber(save.count) })} /> : null}
                 {changes > 0 ? (
                   <UiText variant="bodySmall" tone="muted">
-                    {fillCopy(countForm(changes, copy.unsavedOne, copy.unsaved), { n: changes })}
+                    {fillCopy(countForm(changes, copy.unsavedOne, copy.unsaved), { n: formatNumber(changes) })}
                   </UiText>
                 ) : null}
                 <Button
@@ -263,10 +300,10 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
               <StatStrip
                 style={styles.stats}
                 items={[
-                  { icon: 'account-check-outline', label: copy.statusPresent, value: String(metrics.present) },
-                  { icon: 'account-remove-outline', label: copy.statusAbsent, value: String(metrics.absent) },
-                  { icon: 'clock-alert-outline', label: copy.statusLate, value: String(metrics.late) },
-                  { icon: 'percent-outline', label: copy.rateLabel, value: `${metrics.rate.toFixed(0)}%` },
+                  { icon: 'account-check-outline', label: copy.statusPresent, value: formatNumber(metrics.present) },
+                  { icon: 'account-remove-outline', label: copy.statusAbsent, value: formatNumber(metrics.absent) },
+                  { icon: 'clock-alert-outline', label: copy.statusLate, value: formatNumber(metrics.late) },
+                  { icon: 'percent-outline', label: copy.rateLabel, value: `${formatNumber(metrics.rate, { maximumFractionDigits: 0 })}%` },
                 ]}
               />
               {remoteChanged ? (
@@ -286,13 +323,24 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
               />
               <Button
                 icon="check-all"
-                label={search.trim() ? fillCopy(copy.markAllPresentScoped, { n: visible.length }) : copy.markAllPresent}
+                label={search.trim() ? fillCopy(copy.markAllPresentScoped, { n: formatNumber(visible.length) }) : copy.markAllPresent}
                 variant="secondary"
                 onPress={markAll}
                 disabled={busy || visible.length === 0}
               />
               <View style={[styles.stack, { marginTop: 12 }]}>
                 {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
-                </View></View>)}</View>)}</OpsShell>
+                </View></View>)}</View>)}
+      <Dialog
+        visible={pendingDiscard !== null}
+        title={copy.discardUnsavedTitle}
+        description={copy.discardUnsavedBody}
+        confirmLabel={copy.discardUnsavedConfirm}
+        cancelLabel={copy.discardUnsavedCancel}
+        destructive
+        onConfirm={confirmDiscard}
+        onCancel={() => setPendingDiscard(null)}
+      />
+    </OpsShell>
   );
 }
