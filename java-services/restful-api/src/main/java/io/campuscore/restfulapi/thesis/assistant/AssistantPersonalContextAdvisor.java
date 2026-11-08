@@ -2058,9 +2058,13 @@ public class AssistantPersonalContextAdvisor {
             if (cumulative != null && cumulative.totalCreditsAttempted() > 0) {
                 answer.append("\n").append(vi ? "Tích lũy toàn khóa: " : "Cumulative: ")
                         .append(cumulative.totalCreditsEarned())
-                        .append(vi ? " tín chỉ, GPA " : " credits, GPA ")
-                        .append(cumulative.cumulativeGpa())
-                        .append(vi ? " (thang 4)\n" : " (4.0 scale)\n");
+                        .append(vi ? " tín chỉ" : " credits");
+                if (cumulative.cumulativeGpa() != null) {
+                    answer.append(vi ? ", GPA " : ", GPA ")
+                            .append(cumulative.cumulativeGpa())
+                            .append(vi ? " (thang 4)" : " (4.0 scale)");
+                }
+                answer.append("\n");
             }
             int rendered = 0;
             for (GradeSummary grade : requestedRows) {
@@ -2103,9 +2107,13 @@ public class AssistantPersonalContextAdvisor {
                     : "No published grades yet — in-progress courses will appear once graded.\n");
         } else {
             answer.append("\n").append(vi ? "Tích lũy: " : "Cumulative: ")
-                    .append(cumulative.totalCreditsEarned()).append(vi ? " tín chỉ, GPA " : " credits, GPA ")
-                    .append(cumulative.cumulativeGpa())
-                    .append(vi ? " (thang 4)\n" : " (4.0 scale)\n");
+                    .append(cumulative.totalCreditsEarned()).append(vi ? " tín chỉ" : " credits");
+            if (cumulative.cumulativeGpa() != null) {
+                answer.append(vi ? ", GPA " : ", GPA ")
+                        .append(cumulative.cumulativeGpa())
+                        .append(vi ? " (thang 4)" : " (4.0 scale)");
+            }
+            answer.append("\n");
             if (latestName != null) {
                 GradeTotals latest = new GradeTotals();
                 bySemester.get(latestName.semesterId()).forEach(latest::add);

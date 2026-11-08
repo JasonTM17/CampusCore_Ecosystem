@@ -226,7 +226,7 @@ class AcademicBatchAdversarialChallengeTest {
     }
 
     @Test
-    @DisplayName("Conduct: Student with zero conduct score rows returns zero average and 'Chưa có đánh giá'")
+    @DisplayName("Conduct: Student with zero conduct score rows returns null cumulative average and classification")
     void conduct_studentWithZeroScoresReturnsZeroAndChuaCoDanhGia() {
         jdbc.update("INSERT INTO \"campuscore_auth\".\"User\" (\"id\", \"firstName\", \"lastName\") VALUES (?, ?, ?)",
                 "usr-02", "Minh", "Le");
@@ -236,8 +236,8 @@ class AcademicBatchAdversarialChallengeTest {
         StudentConductSummaryDto summary = conductService.studentSummary("stu-02");
 
         assertNotNull(summary);
-        assertEquals(BigDecimal.ZERO, summary.cumulativeAverageScore());
-        assertEquals("Chưa có đánh giá", summary.cumulativeClassificationVi());
+        assertNull(summary.cumulativeAverageScore());
+        assertNull(summary.cumulativeClassificationVi());
         assertNull(summary.currentSemester());
         assertTrue(summary.history().isEmpty());
     }

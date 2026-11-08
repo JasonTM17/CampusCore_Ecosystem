@@ -313,7 +313,7 @@ export default function StudentConductPage() {
           <CardContent className="pt-0">
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-extrabold tracking-tight text-foreground">
-                {summary ? formatNumber(summary.cumulativeAverageScore) : '—'}
+                {summary?.cumulativeAverageScore != null ? formatNumber(summary.cumulativeAverageScore) : '—'}
               </span>
               <span className="text-sm font-medium text-muted-foreground">/ 100</span>
               <span className="ml-2 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">

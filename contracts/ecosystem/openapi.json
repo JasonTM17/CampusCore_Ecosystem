@@ -1780,6 +1780,12 @@
           "courseName": {
             "type": "string"
           },
+          "courseNameEn": {
+            "type": "string"
+          },
+          "courseNameVi": {
+            "type": "string"
+          },
           "credits": {
             "format": "int32",
             "type": "integer"
@@ -7426,10 +7432,16 @@
       "StudentConductSummaryDto": {
         "properties": {
           "cumulativeAverageScore": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "cumulativeClassificationVi": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currentSemester": {
             "$ref": "#/components/schemas/ConductSemesterScoreDto"
@@ -8257,7 +8269,10 @@
             "type": "integer"
           },
           "gpa": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "records": {
             "items": {
@@ -8286,7 +8301,10 @@
             "$ref": "#/components/schemas/TranscriptBasisNote"
           },
           "cumulativeGpa": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "totalCreditsAttempted": {
             "format": "int32",
@@ -12422,7 +12440,7 @@
             }
           },
           {
-            "description": "Mã định danh sinh viên (UUID)",
+            "description": "Mã định danh sinh viên (UUID hoặc mã sinh viên)",
             "in": "query",
             "name": "studentId",
             "required": false,

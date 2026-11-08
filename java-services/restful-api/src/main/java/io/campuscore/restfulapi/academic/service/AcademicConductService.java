@@ -135,8 +135,8 @@ public class AcademicConductService {
                     resolvedProfileId,
                     studentCode,
                     fullName,
-                    BigDecimal.ZERO,
-                    "Chưa có đánh giá",
+                    null,
+                    null,
                     null,
                     List.of()
             );

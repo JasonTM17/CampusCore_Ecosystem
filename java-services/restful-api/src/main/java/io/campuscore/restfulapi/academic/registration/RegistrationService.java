@@ -162,6 +162,7 @@ public class RegistrationService {
         // one response per section below, in result order.
         List<CatalogRow> rows = jdbc.query(
                 "SELECT section.\"id\", section.\"sectionNumber\", section.\"courseId\", course.\"code\", course.\"name\","
+                        + " course.\"nameEn\", course.\"nameVi\","
                         + " course.\"credits\", section.\"capacity\", section.\"enrolledCount\", section.\"status\","
                         + " schedule.\"dayOfWeek\" AS schedule_day, schedule.\"startTime\" AS schedule_start,"
                         + " schedule.\"endTime\" AS schedule_end,"
@@ -202,6 +203,8 @@ public class RegistrationService {
                             rs.getString("courseId"),
                             rs.getString("code"),
                             rs.getString("name"),
+                            rs.getString("nameEn"),
+                            rs.getString("nameVi"),
                             rs.getInt("credits"),
                             rs.getInt("capacity"),
                             rs.getInt("enrolledCount"),
@@ -227,6 +230,8 @@ public class RegistrationService {
                         row.courseId(),
                         row.courseCode(),
                         row.courseName(),
+                        row.courseNameEn(),
+                        row.courseNameVi(),
                         row.credits(),
                         row.capacity(),
                         row.enrolledCount(),
@@ -261,6 +266,8 @@ public class RegistrationService {
                     assembled.courseId(),
                     assembled.courseCode(),
                     assembled.courseName(),
+                    assembled.courseNameEn(),
+                    assembled.courseNameVi(),
                     assembled.credits(),
                     assembled.capacity(),
                     assembled.enrolledCount(),
@@ -294,6 +301,8 @@ public class RegistrationService {
                         current.courseId(),
                         current.courseCode(),
                         current.courseName(),
+                        current.courseNameEn(),
+                        current.courseNameVi(),
                         current.credits(),
                         current.capacity(),
                         current.enrolledCount(),
@@ -1341,6 +1350,8 @@ public class RegistrationService {
             String courseId,
             String courseCode,
             String courseName,
+            String courseNameEn,
+            String courseNameVi,
             int credits,
             int capacity,
             int enrolledCount,
