@@ -19,6 +19,7 @@ export const THESIS_REPORT_MIME_TYPES = [
 ] as const;
 
 export const THESIS_TOPIC_PAGE_SIZE = 20;
+export const THESIS_ADVISOR_TOPIC_PAGE_SIZE = 20;
 export const THESIS_ROUND_PAGE_SIZE = 100;
 export const THESIS_STUDENT_SEARCH_MIN = 2;
 /** The advisor directory is built from per-topic supervisor reads, so it is bounded. */
@@ -42,6 +43,7 @@ export interface ThesisTopic {
   id: string;
   roundId: string;
   departmentId: string;
+  departmentName?: string | null;
   title: string;
   description: string;
   maxGroups: number;
@@ -422,7 +424,7 @@ export function thesisErrorInfo(error: unknown): ThesisErrorInfo {
   if (text === 'REQUEST_ABORTED' || text === 'SESSION_CHANGED' || (error as { name?: unknown } | null)?.name === 'AbortError') {
     return { ...base, kind: 'aborted' };
   }
-  if (numeric === 0 || text === 'NETWORK_ERROR') return { ...base, kind: 'offline' };
+  if (numeric !== 408 && (numeric === 0 || text === 'NETWORK_ERROR')) return { ...base, kind: 'offline' };
   // A resource 401 stays inline and retryable: the API client's refresh lane
   // owns the only sign-in route, so this screen never claims the session died.
   if (isResourceUnauthorizedError(error)) return { ...base, kind: 'generic' };

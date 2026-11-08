@@ -9,10 +9,11 @@ import { useWindowClass } from '../../design/theme';
 import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { ThesisAdvisorsView } from './ThesisAdvisorsView';
+import { AdvisorCard, ThesisAdvisorsView } from './ThesisAdvisorsView';
 import { ThesisRoundPicker } from './ThesisRoundPicker';
 import { QueryNotices, RoundCard, TopicCard, useThesisUi } from './thesis-ui';
-import { useActiveThesisRound, useThesisTopics } from './use-thesis';
+import { THESIS_ADVISOR_TOPIC_CAP, type AdvisorEntry, type ThesisTopic } from './thesis-model';
+import { useActiveThesisRound, useAdvisorDirectory, useThesisTopics } from './use-thesis';
 
 export { ThesisDetailScreen } from './ThesisDetailScreen';
 export { ThesisProgressScreen } from './ThesisProgressScreen';
@@ -41,6 +42,8 @@ function useSearchTerm(query: string): string {
   return term;
 }
 
+type ThesisListItem = ThesisTopic | AdvisorEntry;
+
 /** Published topics of the selected round, with the round and advisor views one tap away. */
 export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useThesisUi();
@@ -52,47 +55,93 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
   const [query, setQuery] = useState('');
   const term = useSearchTerm(query);
   const topics = useThesisTopics(roundId, term);
+  const directory = useAdvisorDirectory(roundId, view === 'advisors');
   const visible = topics.items;
   const searching = term.length > 0;
   const topicsIdle = !topics.loading && !topics.error;
+  const directoryIdle = !directory.loading && !directory.error;
   const topicCount = topics.total ?? topics.items.length;
 
   return (
-    <ScreenShell
+    <ScreenShell<ThesisListItem>
       title={copy.topicsTitle}
       headerAction={<Button label={copy.myGroup} onPress={() => navigation.navigate('thesis.progress')} variant="text" />}
-
-      list={{ numColumns: twoColumns ? 2 : 1, columnWrapperStyle: twoColumns ? styles.columns : undefined, data: active.round && view === "topics" ? visible : [], keyExtractor: (item, index) => String(item.id),
-        renderItem: ({ item: topic }) => (
-                <View style={twoColumns ? styles.topicHalf : styles.topicFull}>
+      list={{
+        initialNumToRender: 20,
+        numColumns: (twoColumns && view === 'topics') ? 2 : 1,
+        columnWrapperStyle: (twoColumns && view === 'topics') ? styles.columns : undefined,
+        data: (!active.round ? [] : view === 'topics' ? visible : view === 'advisors' ? directory.entries : []) as ThesisListItem[],
+        keyExtractor: (item: ThesisListItem) => ('lecturerId' in item ? item.lecturerId : String(item.id)),
+        renderItem: ({ item }: { item: ThesisListItem }) => {
+          if (view === 'topics') {
+            const topic = item as unknown as ThesisTopic;
+            return (
+              <View style={twoColumns ? styles.topicHalf : styles.topicFull}>
                 <TopicCard
                   key={topic.id}
                   topic={topic}
                   copy={copy}
                   onOpen={() => navigation.navigate('thesis.detail', { thesisTopicId: topic.id })}
                 />
-                </View>
-              ),
-        footer: <>{active.round ? (<>{view === 'topics' ? (<>{null}
-              {topics.loadMoreError ? (
-                <StatePanel kind="error" title={topics.loadMoreError} actionLabel={copy.retry} onAction={topics.loadMore} />
-              ) : null}
-              {topics.hasMore && !topics.loadMoreError ? (
-                <Button
-                  label={topics.loadingMore ? copy.loadingMore : copy.loadMore}
-                  loading={topics.loadingMore}
-                  onPress={topics.loadMore}
-                  variant="secondary"
-                />
-              ) : null}
-            </>) : null}
-        </>) : null}
-    </>,
+              </View>
+            );
+          }
+          if (view === 'advisors') {
+            return <AdvisorCard advisor={item as unknown as AdvisorEntry} copy={copy} />;
+          }
+          return null;
+        },
+        footer: (
+          <>
+            {active.round && view === 'topics' ? (
+              <>
+                {topics.loadMoreError ? (
+                  <StatePanel kind="error" title={topics.loadMoreError} actionLabel={copy.retry} onAction={topics.loadMore} />
+                ) : null}
+                {topics.hasMore && !topics.loadMoreError ? (
+                  <Button
+                    label={topics.loadingMore ? copy.loadingMore : copy.loadMore}
+                    loading={topics.loadingMore}
+                    onPress={topics.loadMore}
+                    variant="secondary"
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {active.round && view === 'advisors' ? (
+              <>
+                {directoryIdle && directory.capped ? (
+                  <UiText variant="meta" tone="muted" style={styles.count}>
+                    {fillThesisCopy(countForm(THESIS_ADVISOR_TOPIC_CAP, copy.advisorsCappedOne, copy.advisorsCapped), { count: THESIS_ADVISOR_TOPIC_CAP })}
+                  </UiText>
+                ) : null}
+                {directoryIdle && directory.failed > 0 ? (
+                  <View style={styles.failure}>
+                    <UiText variant="meta" tone="warning">{copy.advisorsLoadFailed}</UiText>
+                    <Button label={copy.retry} variant="secondary" onPress={() => void directory.reload()} />
+                  </View>
+                ) : null}
+                {directory.loadMoreError ? (
+                  <StatePanel kind="error" title={directory.loadMoreError} actionLabel={copy.retry} onAction={directory.loadMore} />
+                ) : null}
+                {directory.hasMore && !directory.loadMoreError ? (
+                  <Button
+                    label={directory.loadingMore ? copy.loadingMore : copy.loadMore}
+                    loading={directory.loadingMore}
+                    onPress={directory.loadMore}
+                    variant="secondary"
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </>
+        ),
       }}
     >
       <QueryNotices state={active} copy={copy} />
       {!active.loading && !active.error && !active.round ? <NoRounds copy={copy} /> : null}
-      {active.round ? (<>
+      {active.round ? (
+        <>
           <ThesisRoundPicker rounds={active.rounds} current={active.round} onSelect={active.select} copy={copy} />
           <View style={styles.segment}>
             <SegmentedControl
@@ -108,8 +157,15 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
           </View>
 
           {view === 'round' ? <RoundCard round={active.round} copy={copy} formatDate={locale.formatDate} /> : null}
-          {view === 'advisors' ? <ThesisAdvisorsView roundId={roundId} copy={copy} /> : null}
-          {view === 'topics' ? (<>
+          {view === 'advisors' ? (
+            <>
+              <UiText variant="bodySmall" tone="muted" style={styles.count}>{copy.advisorsBody}</UiText>
+              <QueryNotices state={directory} copy={copy} />
+              {directoryIdle && directory.entries.length === 0 ? <StatePanel kind="empty" title={copy.advisorsEmpty} /> : null}
+            </>
+          ) : null}
+          {view === 'topics' ? (
+            <>
               <SearchBar
                 value={query}
                 onChangeText={setQuery}
@@ -127,7 +183,11 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
               {topicsIdle && visible.length === 0 ? (
                 <StatePanel kind="empty" title={searching ? copy.emptyTopicsFiltered : copy.emptyTopics} />
               ) : null}
-              {null}</>) : null}</>) : null}</ScreenShell>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </ScreenShell>
   );
 }
 
@@ -153,14 +213,51 @@ export function ThesisRoundScreen(_props: MobileScreenProps) {
 export function ThesisAdvisorsScreen(_props: MobileScreenProps) {
   const { copy } = useThesisUi();
   const active = useActiveThesisRound();
+  const directory = useAdvisorDirectory(active.round?.id ?? null);
+  const idle = !directory.loading && !directory.error;
   return (
-    <ScreenShell title={copy.advisorsTitle}>
+    <ScreenShell
+      title={copy.advisorsTitle}
+      list={{
+        data: active.round ? directory.entries : [],
+        keyExtractor: (item) => item.lecturerId,
+        renderItem: ({ item }) => <AdvisorCard advisor={item} copy={copy} />,
+        footer: (
+          <>
+            {idle && directory.capped ? (
+              <UiText variant="meta" tone="muted" style={styles.count}>
+                {fillThesisCopy(countForm(THESIS_ADVISOR_TOPIC_CAP, copy.advisorsCappedOne, copy.advisorsCapped), { count: THESIS_ADVISOR_TOPIC_CAP })}
+              </UiText>
+            ) : null}
+            {idle && directory.failed > 0 ? (
+              <View style={styles.failure}>
+                <UiText variant="meta" tone="warning">{copy.advisorsLoadFailed}</UiText>
+                <Button label={copy.retry} variant="secondary" onPress={() => void directory.reload()} />
+              </View>
+            ) : null}
+            {directory.loadMoreError ? (
+              <StatePanel kind="error" title={directory.loadMoreError} actionLabel={copy.retry} onAction={directory.loadMore} />
+            ) : null}
+            {directory.hasMore && !directory.loadMoreError ? (
+              <Button
+                label={directory.loadingMore ? copy.loadingMore : copy.loadMore}
+                loading={directory.loadingMore}
+                onPress={directory.loadMore}
+                variant="secondary"
+              />
+            ) : null}
+          </>
+        ),
+      }}
+    >
       <QueryNotices state={active} copy={copy} />
       {!active.loading && !active.error && !active.round ? <NoRounds copy={copy} /> : null}
       {active.round ? (
         <>
           <ThesisRoundPicker rounds={active.rounds} current={active.round} onSelect={active.select} copy={copy} />
-          <ThesisAdvisorsView roundId={active.round.id} copy={copy} />
+          <UiText variant="bodySmall" tone="muted" style={styles.count}>{copy.advisorsBody}</UiText>
+          <QueryNotices state={directory} copy={copy} />
+          {idle && directory.entries.length === 0 ? <StatePanel kind="empty" title={copy.advisorsEmpty} /> : null}
         </>
       ) : null}
     </ScreenShell>
@@ -174,4 +271,5 @@ const styles = StyleSheet.create({
   segment: { marginBottom: tokens.spacing.md },
   search: { marginBottom: tokens.spacing.sm },
   count: { marginBottom: tokens.spacing.sm },
+  failure: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
 });
