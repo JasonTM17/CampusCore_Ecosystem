@@ -253,6 +253,7 @@ test('a JSON request that never answers fails at its deadline instead of hanging
     ]);
     assert.notEqual(outcome, 'watchdog', 'the client must not wait forever');
     assert.ok(outcome instanceof ApiClientError, String(outcome));
+    assert.equal(outcome.status, 408, 'a timeout is not proof that the device is offline');
     assert.equal(outcome.code, 'NETWORK_ERROR');
     assert.equal(outcome.retryable, true);
     assert.equal(seenSignal.aborted, true, 'the stalled fetch is aborted');
@@ -293,6 +294,25 @@ function requestLane(client, lane, account) {
   if (lane === 'upload') return client.upload(route, new FormData());
   return client.get(route);
 }
+
+test('a successful JSON response from a stale epoch is discarded', async () => {
+  const { state, options } = makeSession('account-a');
+  const response = deferred();
+  const client = createApiClient({ ...options, epochPollMs: 60_000 });
+  const net = installFetch(() => response.promise);
+  const pending = client.get('/profile');
+  try {
+    await drainRequests();
+    state.epoch += 2;
+    state.token = 'account-b';
+    response.resolve(json(200, { gpa: 'A' }));
+    await assert.rejects(pending, (error) => error.code === 'SESSION_CHANGED');
+  } finally {
+    response.resolve(json(200, {}));
+    await Promise.allSettled([pending]);
+    net.restore();
+  }
+});
 
 for (const lane of lanes) {
   test(`pending account A refresh cannot satisfy or expire account B's ${lane} lane`, async () => {
@@ -450,6 +470,58 @@ test('concurrent 401s share one refresh across JSON, download and upload lanes',
     assert.deepEqual(results[3], { ok: true });
     assert.equal(net.calls.length, 8, 'each request retries exactly once');
     assert.equal(state.expired, 0);
+  } finally {
+    net.restore();
+  }
+});
+
+test('a late 401 after a completed rotation replays without a second refresh', async () => {
+  const { state, options } = makeSession();
+  const firstA = deferred();
+  const firstB = deferred();
+  const client = createApiClient(options);
+  const net = installFetch((call) => {
+    if (call.url.endsWith('/a') && authorizedWith('old-token')(call)) return firstA.promise;
+    if (call.url.endsWith('/b') && authorizedWith('old-token')(call)) return firstB.promise;
+    return json(200, { ok: true });
+  });
+  const requestA = client.get('/a');
+  const requestB = client.get('/b');
+  try {
+    await drainRequests();
+    firstA.resolve(json(401, { message: 'expired' }));
+    assert.deepEqual(await requestA, { ok: true });
+    assert.equal(state.refreshCalls, 1);
+    firstB.resolve(json(401, { message: 'expired' }));
+    assert.deepEqual(await requestB, { ok: true });
+    assert.equal(state.refreshCalls, 1, 'the rotated token avoids a second issuer grant');
+    assert.equal(net.calls[3].headers.get('authorization'), 'Bearer new-token');
+  } finally {
+    firstA.resolve(json(401, {}));
+    firstB.resolve(json(401, {}));
+    await Promise.allSettled([requestA, requestB]);
+    net.restore();
+  }
+});
+
+test('a 401 replay gets a fresh JSON deadline after rotation', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    timeoutMs: 100,
+    epochPollMs: 60_000,
+    refreshSession: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      state.token = 'new-token';
+      return true;
+    },
+  });
+  const net = installFetch((_call, index) => index === 1
+    ? new Promise((resolve) => setTimeout(() => resolve(json(401, { message: 'expired' })), 80))
+    : json(200, { ok: true }));
+  try {
+    assert.deepEqual(await client.get('/deadline-replay'), { ok: true });
+    assert.equal(net.calls.length, 2);
   } finally {
     net.restore();
   }
@@ -1191,6 +1263,7 @@ test('stalled uploads and downloads fail retryably at the configured request dea
     assert.ok(Array.isArray(result));
     assert.ok(result.every(item => item.status === 'rejected'
       && item.reason instanceof ApiClientError
+      && item.reason.status === 408
       && item.reason.code === 'NETWORK_ERROR'
       && item.reason.retryable === true));
     assert.ok(net.calls.every(call => call.signal.aborted), 'the stalled sockets are aborted');
