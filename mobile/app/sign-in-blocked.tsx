@@ -1,5 +1,6 @@
-import { Linking, StyleSheet, View } from 'react-native';
+import { BackHandler, Linking, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 import { Button, UiText } from '../src/components/Ui';
 import { useTheme } from '../src/design/theme';
@@ -21,6 +22,15 @@ export default function SignInBlocked() {
   const copy = useAccountCopy();
   const reason = session.blockedReason ?? copy.blocked.fallbackReason;
   const portal = configuredPortalUrl();
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      session.markBlocked(null);
+      router.replace('/sign-in');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [router, session.markBlocked]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

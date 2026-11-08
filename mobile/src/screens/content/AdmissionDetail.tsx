@@ -44,6 +44,26 @@ export interface AdmissionDetailProps {
   onDeleteFile: (file: AttachmentInfo) => void;
 }
 
+type ReviewChecklistItem = { item: string; result: string | null; note: string | null };
+
+function parseReviewChecklist(value: string | null | undefined): ReviewChecklistItem[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((entry): ReviewChecklistItem[] => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.item !== 'string' || !row.item.trim()) return [];
+      const result = typeof row.result === 'string' && row.result.trim() ? row.result.trim() : null;
+      const note = typeof row.note === 'string' && row.note.trim() ? row.note.trim() : null;
+      return [{ item: row.item.trim(), result, note }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** One application: editable form while draft or returned, read-only after, with files and review history. */
 export function AdmissionDetail(props: AdmissionDetailProps) {
   const { application, busy, preview, flash, stale = false, formEpoch = 0, onReload, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
@@ -85,6 +105,12 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
             <View key={review.id} accessible style={{ gap: 2, minHeight: 44, justifyContent: 'center' }}>
               <UiText variant="label">{`${copy.reviewActions[review.action] ?? review.action} · ${formatDateTime(review.createdAt)}`}</UiText>
               {review.note ? <UiText variant="bodySmall">{review.note}</UiText> : null}
+              {parseReviewChecklist(review.checklist).map((item, index) => (
+                <View key={`${item.item}:${index}`} style={{ gap: 2 }}>
+                  <UiText variant="bodySmall">{`${item.item}${item.result ? ` · ${item.result}` : ''}`}</UiText>
+                  {item.note ? <UiText variant="bodySmall" tone="muted">{item.note}</UiText> : null}
+                </View>
+              ))}
             </View>
           ), {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <><View style={{ gap: 12 }}>
 
@@ -95,7 +121,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
     </> }}
     >
       <View style={{ gap: 12 }}>
-        {preview ? <DataNotice message={copy.simulatedBanner} /> : null}
+        {preview || application.decisionLabel === 'SIMULATED' ? <DataNotice message={copy.simulatedBanner} /> : null}
         <FlashNotice flash={flash} />
         <Card>
           <ContentHero title={application.cycle} icon="file-document-edit-outline" detail={fillCopy(copy.version, { n: application.version })}>

@@ -8,7 +8,7 @@ import {
 
 export type CheckinState =
   | { type: 'idle' | 'loadingSessions' | 'noOpenSession' | 'needsPermission' | 'permissionBlocked'
-      | 'servicesOff' | 'acquiringFix' | 'lowAccuracy' | 'submitting' | 'alreadyCheckedIn'
+      | 'servicesOff' | 'acquiringFix' | 'lowAccuracy' | 'reducedAccuracy' | 'submitting' | 'alreadyCheckedIn'
       | 'sessionClosed' | 'notEnrolled' | 'authRecovery' }
   | { type: 'needsConsent'; version: string; reason?: 'INVALID_CONSENT_VERSION' }
   | { type: 'readyForCode'; requireCode: boolean }
@@ -132,6 +132,11 @@ export function createCheckinMachine(deps: {
     if (permission !== 'granted') {
       publish({ type: permission === 'denied-blocked' ? 'permissionBlocked' : 'needsPermission' }); return;
     }
+    if (await deps.location.accuracyAuthorization?.() === 'reduced') {
+      if (current(ticket)) publish({ type: 'reducedAccuracy' });
+      return;
+    }
+    if (!current(ticket)) return;
     if (!await deps.location.isServicesEnabled()) {
       if (current(ticket)) publish({ type: 'servicesOff' }); return;
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, IconChip, UiText } from '../../components/Ui';
@@ -7,11 +7,17 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { AccountFrame } from './AccountFrame';
 import { takeExitNotice } from './exit-notice';
 import { useAccountCopy } from './use-account-copy';
+import { useOptionalSession } from '../../session/SessionContext';
 
 /** Destination after the session ended; the wipe already ran in the session layer. */
 export function LoggedOutScreen({ navigation }: MobileScreenProps) {
   const copy = useAccountCopy();
   const [notice] = useState(takeExitNotice);
+  const session = useOptionalSession();
+
+  useEffect(() => {
+    if (session?.signingOut) session.clearSigningOut();
+  }, [session?.signingOut, session?.clearSigningOut]);
 
   return (
     <AccountFrame title={copy.loggedOut.title}>

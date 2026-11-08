@@ -173,6 +173,9 @@ export const canSelect = (availability: SectionAvailability): boolean => availab
 
 /** Registration-specific backend error codes mapped to copy keys. */
 const ERROR_KEYS: Record<string, string> = {
+  DUPLICATE_COURSE: 'duplicateCourse',
+  ENROLLMENT_DUPLICATE: 'enrollmentDuplicate',
+  SECTION_CLOSED: 'sectionClosed',
   SECTION_FULL: 'sectionFull',
   SCHEDULE_CONFLICT: 'scheduleConflict',
   CREDIT_CAP_EXCEEDED: 'creditCapExceeded',

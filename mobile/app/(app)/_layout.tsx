@@ -1,6 +1,6 @@
 import { Redirect, Slot, usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, findNodeHandle, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBar } from '../../src/components/AppBar';
@@ -13,6 +13,8 @@ import { hasApplicantSurface, NO_CAPABILITIES } from '../../src/auth/capabilitie
 import { LANE_FLAGS } from '../../src/config/lane-flags';
 import { useTheme } from '../../src/design/theme';
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
+import { useContentQuery } from '../../src/screens/content/use-content-query';
+import { contentApi } from '../../src/screens/content/content-api';
 import {
   pathFor,
   resolveGuard,
@@ -35,10 +37,26 @@ export default function AppGroupLayout() {
   const pathname = usePathname() ?? '/';
   useDashboardPrefetch(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<View | null>(null);
+  const previousMenuOpen = useRef(false);
+  const applicant = hasApplicantSurface(session.capabilities ?? NO_CAPABILITIES);
+  const unread = useContentQuery<number>(
+    'content.notifications.unread-count',
+    () => contentApi.unreadCount(),
+    session.kind === 'authenticated' && !applicant,
+  );
   const { colors, window } = useTheme();
   const expanded = window.class === 'expanded';
 
-  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
+  useEffect(() => {
+    if (previousMenuOpen.current && !menuOpen) {
+      const target = findNodeHandle(menuButtonRef.current);
+      if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+    }
+    previousMenuOpen.current = menuOpen;
+  }, [menuOpen]);
+
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS, session.signingOut);
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
   }
@@ -63,8 +81,6 @@ export default function AppGroupLayout() {
   };
   // An applicant session cannot open the profile screen, so the shell offers
   // the session-ending control in place of the profile shortcut.
-  const applicant = hasApplicantSurface(session.capabilities ?? NO_CAPABILITIES);
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['bottom']}>
       <AppBar
@@ -73,7 +89,10 @@ export default function AppGroupLayout() {
         onProfile={applicant ? undefined : () => navigate('profile')}
         onSignOut={applicant ? () => {
           setMenuOpen(false);
-          void session.signOut().catch(() => undefined).finally(() => router.replace('/session/logged-out'));
+          session.beginSignOut();
+          router.dismissAll();
+          router.replace('/session/logged-out');
+          void session.signOut().catch(() => undefined);
         } : undefined}
       />
       <View style={styles.container}>
@@ -88,6 +107,8 @@ export default function AppGroupLayout() {
               role={session.role}
               onNavigate={navigate}
               onMenu={() => setMenuOpen(true)}
+              unreadCount={unread.data ?? 0}
+              menuButtonRef={menuButtonRef}
             />
           ) : null}
           <View testID="app-route-content" style={styles.routeContent}>
@@ -106,6 +127,8 @@ export default function AppGroupLayout() {
               role={session.role}
               onNavigate={navigate}
               onMenu={() => setMenuOpen(true)}
+              unreadCount={unread.data ?? 0}
+              menuButtonRef={menuButtonRef}
             />
           ) : null}
         </View>

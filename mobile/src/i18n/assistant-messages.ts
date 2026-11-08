@@ -79,6 +79,16 @@ const chatVi = {
   emptySpecializedTitle: 'Hỏi nội dung chuyên sâu',
   emptySpecializedBody: 'Kiến thức chuyên ngành và hướng dẫn thực hiện luận văn.',
   sources: 'Nguồn tham khảo ({count})',
+  citationDomainLabels: {
+    THESIS: 'Luận văn',
+    REGISTRATION: 'Đăng ký học phần',
+    ACADEMIC_CATALOG: 'Chương trình đào tạo',
+    ANNOUNCEMENT: 'Thông báo',
+    POLICY: 'Quy định',
+    GENERAL_FAQ: 'Câu hỏi thường gặp',
+    SPECIALIZED: 'Chuyên ngành',
+  } as Record<string, string>,
+  citationDomainOther: 'Khác',
   fallbackAnswer: 'Đang dùng câu trả lời dự phòng',
   knowledgeUnavailable: 'Kho tri thức hiện chưa sẵn sàng.',
   guardSensitive: 'Vui lòng không gửi thông tin cá nhân hoặc bí mật như email, số điện thoại, mã sinh viên hay mật khẩu.',
@@ -145,6 +155,16 @@ const chatEn: typeof chatVi = {
   emptySpecializedTitle: 'Ask a specialized question',
   emptySpecializedBody: 'Professional knowledge and guidance for your thesis work.',
   sources: 'Sources ({count})',
+  citationDomainLabels: {
+    THESIS: 'Thesis',
+    REGISTRATION: 'Course registration',
+    ACADEMIC_CATALOG: 'Academic catalog',
+    ANNOUNCEMENT: 'Announcement',
+    POLICY: 'Policy',
+    GENERAL_FAQ: 'General FAQ',
+    SPECIALIZED: 'Specialized',
+  },
+  citationDomainOther: 'Other',
   fallbackAnswer: 'Using a fallback answer',
   knowledgeUnavailable: 'The knowledge base is not available right now.',
   guardSensitive: 'Please do not send personal data or secrets such as email, phone number, student ID or passwords.',
@@ -185,4 +205,9 @@ export const assistantChatMessages: Record<AssistantMessagesLocale, AssistantCha
 
 export function fillAssistantCopy(template: string, params: Record<string, string | number> = {}): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(params[key] ?? ''));
+}
+
+export function citationDomainLabel(domain: string | null | undefined, copy: AssistantChatCopy): string {
+  if (!domain) return '';
+  return copy.citationDomainLabels[domain] ?? copy.citationDomainOther;
 }

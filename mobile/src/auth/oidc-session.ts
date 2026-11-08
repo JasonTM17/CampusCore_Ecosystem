@@ -26,7 +26,7 @@ import {
  * expo-native surfaces (PKCE generation, system browser).
  */
 
-export type OidcBlockedCode = 'no_mobile_surface';
+export type OidcBlockedCode = 'no_mobile_surface' | 'password_change_required';
 
 export type OidcOutcome =
   | { kind: 'signedIn'; accessToken: string; refreshToken: string; accountId: string; role: UserRole }
@@ -87,7 +87,11 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     return { kind: 'blocked', reason: 'state mismatch — the sign-in response was rejected.' };
   }
   if (callback.kind === 'blocked') {
-    return { kind: 'blocked', reason: callback.reason };
+    return {
+      kind: 'blocked',
+      reason: callback.reason,
+      ...(callback.code === 'PASSWORD_CHANGE_REQUIRED' ? { code: 'password_change_required' as const } : {}),
+    };
   }
 
   const { ok, status, body } = await (async (): Promise<{

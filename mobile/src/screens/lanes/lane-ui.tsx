@@ -121,7 +121,7 @@ export function LaneShell<T>({ title, loading = false, error, onRetry, banner, c
 
 export const statusTone = (status: string | undefined): 'neutral' | 'primary' | 'success' | 'warning' | 'error' => {
   switch (status) {
-    case 'ACCEPTED': case 'APPROVED': case 'PUBLISHED': case 'COMPLETED': case 'ISSUED': case 'OFFER': case 'PRESENT': case 'ATTENDED': case 'SUCCESS': return 'success';
+    case 'ACCEPTED': case 'APPROVED': case 'CONFIRMED': case 'PUBLISHED': case 'COMPLETED': case 'ISSUED': case 'OFFER': case 'PRESENT': case 'ATTENDED': case 'SUCCESS': return 'success';
     case 'REJECTED': case 'CANCELLED': case 'ABSENT': case 'EXPIRED': case 'ERROR': case 'URGENT': return 'error';
     case 'SUBMITTED': case 'REQUESTED': case 'PENDING': case 'RETURNED': case 'LATE': case 'WARNING': return 'warning';
     case 'IN_REVIEW': case 'REVIEWING': case 'INTERVIEW': case 'REGISTRATION_OPEN': case 'INFO': case 'ACADEMIC': return 'primary';

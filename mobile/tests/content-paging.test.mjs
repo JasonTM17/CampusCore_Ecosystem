@@ -119,6 +119,7 @@ test('error mapping never leaks server text and picks copy by status', () => {
   assert.equal(errors.contentErrorMessage(copy, withStatus(404)), '404');
   assert.equal(errors.contentErrorMessage(copy, withStatus(429)), 'slow');
   assert.equal(errors.contentErrorMessage(copy, withStatus(503)), 'srv');
+  assert.equal(errors.contentErrorKind(Object.assign(new Error('timeout'), { status: 408, code: 'NETWORK_ERROR' })), 'generic');
   assert.equal(errors.contentErrorMessage(copy, new TypeError('Network request failed')), 'off');
   assert.equal(errors.contentErrorMessage(copy, withStatus(409), 'custom'), 'custom');
   assert.equal(errors.contentErrorMessage(copy, new Error('secret')), 'gen');

@@ -88,23 +88,24 @@ if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "s
             </GroupCard>;
 const record = entry.item; const index = entry.index;
 const courseName = localizedName({ name: record.courseName, nameEn: record.courseNameEn, nameVi: record.courseNameVi }, locale) || record.courseName;
+const creditsLabel = fillCopy(countForm(record.credits ?? 0, copy.creditsOne, copy.credits), { n: record.credits ?? 0 });
+const componentScores = record.processScore != null || record.finalExamScore != null
+  ? `${copy.processScore} ${formatNumber(record.processScore, { maximumFractionDigits: 1 })} · ${copy.finalExam} ${formatNumber(record.finalExamScore, { maximumFractionDigits: 1 })}`
+  : null;
+const appealedLabel = record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
 return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
               <View
                 key={record.id}
                 accessible
-                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}${record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : ''}`}
+                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}, ${creditsLabel}${componentScores ? `, ${componentScores}` : ''}${appealedLabel}`}
               >
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.gradeRow}>
                   <View style={styles.gradeCopy}>
                     <StatusPill label={record.courseCode} tone="primary" />
                     <UiText variant="bodyMedium">{courseName}</UiText>
-                    <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits ?? 0, copy.creditsOne, copy.credits), { n: record.credits ?? 0 })}</UiText>
-                    {record.processScore != null || record.finalExamScore != null ? (
-                      <UiText variant="meta" tone="muted">
-                        {copy.processScore} {formatNumber(record.processScore, { maximumFractionDigits: 1 })} · {copy.finalExam} {formatNumber(record.finalExamScore, { maximumFractionDigits: 1 })}
-                      </UiText>
-                    ) : null}
+                    <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
+                    {componentScores ? <UiText variant="meta" tone="muted">{componentScores}</UiText> : null}
                   </View>
                   <View style={styles.gradeResult}>
                     {record.finalGrade != null ? (

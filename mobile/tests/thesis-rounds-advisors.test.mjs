@@ -249,6 +249,7 @@ test('errors map to student-safe copy and never expose the server text', () => {
     [error(429), 'rate'],
     [error(503), 'unavailable'],
     [error(0, 'NETWORK_ERROR'), 'offline'],
+    [error(408, 'NETWORK_ERROR'), 'generic'],
     [new TypeError('fetch failed'), 'offline'],
     [error(0, 'REQUEST_ABORTED'), 'aborted'],
     [error(500, 'SESSION_CHANGED'), 'aborted'],

@@ -1,6 +1,6 @@
 import { Redirect, SplashScreen, Stack, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StatusBar, View } from 'react-native';
+import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
 import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Medium';
@@ -49,16 +49,29 @@ function BootReady({ fontsReady }: { fontsReady: boolean }) {
   const { ready: localeReady, locale } = useLocale();
   const { colors } = useTheme();
   const pathname = usePathname() ?? '/';
-  const ready = fontsReady && booted && localeReady;
+  const shellReady = fontsReady && localeReady;
   useEffect(() => {
-    if (!ready) return;
+    if (!shellReady) return;
     const frame = requestAnimationFrame(() => { void SplashScreen.hideAsync().catch(() => undefined); });
     return () => cancelAnimationFrame(frame);
-  }, [ready]);
-  if (!ready) return <View />;
+  }, [shellReady]);
+  if (!shellReady) return <View />;
+  const copy = accountMessages[locale].signIn;
+  if (!booted) {
+    return (
+      <View
+        accessible
+        accessibilityLabel={copy.booting}
+        accessibilityLiveRegion="polite"
+        accessibilityRole="progressbar"
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}
+      >
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
   const offlineBoot = bootUnavailableReason === 'offline'
     && (bootStatus === 'unavailable' || bootStatus === 'checking');
-  const copy = accountMessages[locale].signIn;
   return (
     <ErrorBoundary resetKey={pathname}>
       {offlineBoot ? (
@@ -92,32 +105,30 @@ function RootNavigator() {
   const pathname = usePathname() ?? '/';
   const [resumePath, setResumePath] = useState<string | null>(null);
   const returnTarget = useRef<string | null>(null);
-  // Preserve a lecturer check-in link through the sign-in detour (G3B); the
-  // store validates the session-id shape and only holds memory.
-  if (session.kind === 'signedOut') {
-    rememberCheckinPath(pathname);
-  }
   // Resume the preserved link once a session exists: consume it in an effect,
   // then let it take over the guard's redirect slot on the NEXT commit. A
   // plain replace races (and loses to) the /sign-in → role-home Redirect that
   // fires in the same commit as the session flip.
   const { kind, role, capabilities } = session;
-  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS, session.signingOut);
   const knownRoute = screenForPath(pathname) !== null || laneScreenForPath(pathname) !== null;
-  // A terminal refresh can clear the session mid-route; resume only a known local route after sign-in.
-  if (kind === 'signedOut' && session.bootStatus === 'reauthRequired'
-    && decision.action === 'redirect' && decision.to === 'auth.signIn' && knownRoute) {
-    returnTarget.current = pathname;
-  }
+  // Preserve known route intents after commit; render stays free of mutations.
   useEffect(() => {
-    if (kind === 'signedOut') return;
+    if (kind !== 'signedOut') return;
+    rememberCheckinPath(pathname);
+    if (decision.action === 'redirect' && decision.to === 'auth.signIn' && knownRoute) {
+      returnTarget.current = pathname;
+    }
+  }, [kind, pathname, decision.action, decision.to, knownRoute]);
+  useEffect(() => {
+    if (kind === 'signedOut' || session.signingOut) return;
     const pending = consumePendingCheckinPath() ?? returnTarget.current;
     returnTarget.current = null;
     if (pending === null) return;
-    if (resolveGuard(kind, role, pending, capabilities ?? NO_CAPABILITIES, LANE_FLAGS).action === 'allow') {
+    if (resolveGuard(kind, role, pending, capabilities ?? NO_CAPABILITIES, LANE_FLAGS, session.signingOut).action === 'allow') {
       setResumePath(pending);
     }
-  }, [kind, role, capabilities]);
+  }, [kind, role, capabilities, session.signingOut]);
   useEffect(() => {
     if (resumePath !== null && pathname === resumePath) setResumePath(null);
   }, [resumePath, pathname]);

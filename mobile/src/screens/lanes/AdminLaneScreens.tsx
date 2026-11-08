@@ -16,6 +16,7 @@ import {
   type AuditRow,
   type CreditApplication,
   type EnrollmentRow,
+  type NotificationRecipient,
   type NotificationRow,
   type RosterRow,
   type StaffEvent,
@@ -68,8 +69,10 @@ function useEventStartClock(events: readonly StaffEvent[]): number {
 const personName = (user?: { firstName?: string; lastName?: string }) =>
   [user?.lastName, user?.firstName].filter(Boolean).join(' ');
 
-const courseLine = (section?: { sectionNumber?: string; course?: { code?: string; name?: string } }) =>
-  [section?.course?.code, section?.course?.name].filter(Boolean).join(' · ') + (section?.sectionNumber ? ` (${section.sectionNumber})` : '');
+const courseLine = (section?: { sectionNumber?: string; course?: { code?: string; name?: string; nameEn?: string; nameVi?: string } }, locale?: 'vi' | 'en') => {
+  const localizedName = locale === 'vi' ? section?.course?.nameVi : locale === 'en' ? section?.course?.nameEn : undefined;
+  return [section?.course?.code, localizedName || section?.course?.name].filter(Boolean).join(' · ') + (section?.sectionNumber ? ` (${section.sectionNumber})` : '');
+};
 
 interface FilterBarProps {
   copy: LanesCopy;
@@ -148,7 +151,7 @@ const orUndefined = (value: string) => (value.trim() === '' ? undefined : value.
 
 export function AdminAttendanceScreen() {
   const { copy } = useLanesCopy();
-  const { formatDate } = useLocale();
+  const { formatDate, locale } = useLocale();
   const filters = useFilters({ sectionId: '', studentId: '', date: '' });
   const { applied, page } = filters;
   const request = useLaneRequest(
@@ -180,7 +183,7 @@ export function AdminAttendanceScreen() {
           title={personName(row.student?.user) || row.studentId || ''}
           status={row.status}
           copy={copy}
-          lines={[courseLine(row.section), row.date ? formatDate(row.date) : null]}
+          lines={[courseLine(row.section, locale), row.date ? formatDate(row.date) : null]}
         />
       )}
     />
@@ -191,8 +194,8 @@ export function AdminAttendanceScreen() {
 
 export function AdminEnrollmentsScreen() {
   const { copy } = useLanesCopy();
-  const { formatDate } = useLocale();
-  const filters = useFilters({ status: '', semesterId: '', sectionId: '', studentId: '' });
+  const { formatDate, locale } = useLocale();
+  const filters = useFilters({ status: '', semesterId: '', sectionId: '', search: '' });
   const { applied, page } = filters;
   const request = useLaneRequest(
     () => laneApi.enrollments(
@@ -200,11 +203,11 @@ export function AdminEnrollmentsScreen() {
         status: orUndefined(applied.status),
         semesterId: orUndefined(applied.semesterId),
         sectionId: orUndefined(applied.sectionId),
-        studentId: orUndefined(applied.studentId),
+        search: orUndefined(applied.search),
       },
       { page, limit: LANE_PAGE_SIZE },
     ),
-    `admin:enrollments:${applied.status}:${applied.semesterId}:${applied.sectionId}:${applied.studentId}:${page}`,
+    `admin:enrollments:${applied.status}:${applied.semesterId}:${applied.sectionId}:${applied.search}:${page}`,
   );
   return (
     <PagedList<EnrollmentRow>
@@ -218,10 +221,10 @@ export function AdminEnrollmentsScreen() {
       footer={<HandoffLink label={copy.openOnWeb} path="/admin/enrollments" />}
       filters={
         <>
-          <StatusFilter copy={copy} statuses={['ENROLLED', 'PENDING', 'DROPPED', 'COMPLETED']} value={filters.draft.status} onChange={(value) => filters.set('status', value)} />
+          <StatusFilter copy={copy} statuses={['ENROLLED', 'PENDING', 'CONFIRMED', 'DROPPED', 'COMPLETED']} value={filters.draft.status} onChange={(value) => filters.set('status', value)} />
           <FormField label={copy.filterSemester} value={filters.draft.semesterId} onChangeText={(value) => filters.set('semesterId', value)} autoCapitalize="none" />
           <FormField label={copy.filterSection} value={filters.draft.sectionId} onChangeText={(value) => filters.set('sectionId', value)} autoCapitalize="none" />
-          <FormField label={copy.filterStudent} value={filters.draft.studentId} onChangeText={(value) => filters.set('studentId', value)} autoCapitalize="none" />
+          <FormField label={copy.filterStudent} value={filters.draft.search} onChangeText={(value) => filters.set('search', value)} autoCapitalize="none" />
         </>
       }
       renderItem={(row, index) => (
@@ -230,7 +233,7 @@ export function AdminEnrollmentsScreen() {
           title={personName(row.student?.user) || copy.student}
           status={row.status}
           copy={copy}
-          lines={[courseLine(row.section), row.semester?.name, row.enrolledAt ? formatDate(row.enrolledAt) : null]}
+          lines={[courseLine(row.section, locale), (locale === 'vi' ? row.semester?.nameVi : row.semester?.nameEn) || row.semester?.name, row.enrolledAt ? formatDate(row.enrolledAt) : null]}
         />
       )}
     />
@@ -474,20 +477,79 @@ type SendState = 'idle' | 'sending' | 'sent' | 'unknown';
 
 const EMPTY_DRAFT: NotificationDraft = { userId: '', title: '', message: '', type: 'INFO' };
 
+const recipientLabel = (recipient: NotificationRecipient) => {
+  const name = personName(recipient);
+  return [name || recipient.email, name && recipient.email ? recipient.email : null].filter(Boolean).join(' · ') || recipient.id;
+};
+
 export function AdminNotificationsScreen() {
   const { copy } = useLanesCopy();
   const { formatDateTime } = useLocale();
   const [draft, setDraft] = useState<NotificationDraft>(EMPTY_DRAFT);
+  const [recipientQuery, setRecipientQuery] = useState('');
+  const [recipient, setRecipient] = useState<NotificationRecipient | null>(null);
+  const [recipientResults, setRecipientResults] = useState<NotificationRecipient[]>([]);
+  const [recipientSearched, setRecipientSearched] = useState(false);
+  const [recipientSearching, setRecipientSearching] = useState(false);
+  const [recipientSearchError, setRecipientSearchError] = useState<string | null>(null);
   const [problems, setProblems] = useState<ReturnType<typeof validateNotification>>([]);
   const [previewing, setPreviewing] = useState(false);
   const [state, setState] = useState<SendState>('idle');
   const [sendError, setSendError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const recipientSearchRequest = useRef(0);
   const [page, setPage] = useState(1);
   const history = useLaneRequest(() => laneApi.notificationHistory({ page, limit: LANE_PAGE_SIZE }), `admin:notifications:${page}`);
 
+  const searchRecipients = async () => {
+    const term = recipientQuery.trim();
+    if (!term) return;
+    const requestId = ++recipientSearchRequest.current;
+    setRecipientSearching(true);
+    setRecipientResults([]);
+    setRecipientSearchError(null);
+    try {
+      const response = await laneApi.searchNotificationRecipients(term);
+      if (recipientSearchRequest.current !== requestId) return;
+      setRecipientResults(response.items);
+      setRecipientSearched(true);
+    } catch (error) {
+      if (recipientSearchRequest.current !== requestId) return;
+      setRecipientResults([]);
+      setRecipientSearched(false);
+      setRecipientSearchError(laneErrorMessage(copy, error, copy.generic));
+    } finally {
+      if (recipientSearchRequest.current === requestId) setRecipientSearching(false);
+    }
+  };
+
+  const editRecipientQuery = (value: string) => {
+    recipientSearchRequest.current += 1;
+    setRecipientQuery(value);
+    setRecipient(null);
+    setDraft((current) => ({ ...current, userId: '' }));
+    setRecipientResults([]);
+    setRecipientSearched(false);
+    setRecipientSearching(false);
+    setRecipientSearchError(null);
+    setProblems((current) => current.filter((problem) => problem !== 'recipient'));
+  };
+
+  const selectRecipient = (candidate: NotificationRecipient) => {
+    recipientSearchRequest.current += 1;
+    setRecipient(candidate);
+    setRecipientQuery(recipientLabel(candidate));
+    setDraft((current) => ({ ...current, userId: candidate.id }));
+    setRecipientResults([]);
+    setRecipientSearched(false);
+    setRecipientSearching(false);
+    setRecipientSearchError(null);
+    setProblems((current) => current.filter((problem) => problem !== 'recipient'));
+  };
+
   const preview = () => {
     const found = validateNotification(draft);
+    if ((!recipient || recipient.id !== draft.userId) && !found.includes('recipient')) found.push('recipient');
     setProblems(found);
     setSendError(null);
     if (found.length === 0) setPreviewing(true);
@@ -498,7 +560,7 @@ export function AdminNotificationsScreen() {
   // to check the history first. A manual resend of the unchanged draft replays
   // the idempotency key, so the server dedupes it.
   const send = async () => {
-    if (inFlight.current) return;
+    if (inFlight.current || !recipient || recipient.id !== draft.userId || validateNotification(draft).length > 0) return;
     inFlight.current = true;
     setState('sending');
     setSendError(null);
@@ -506,6 +568,10 @@ export function AdminNotificationsScreen() {
       await laneApi.sendNotification(draft);
       setPreviewing(false);
       setDraft(EMPTY_DRAFT);
+      setRecipientQuery('');
+      setRecipient(null);
+      setRecipientResults([]);
+      setRecipientSearched(false);
       setState('sent');
       void history.reload();
     } catch (error) {
@@ -533,8 +599,6 @@ export function AdminNotificationsScreen() {
     <LaneShell
       title={copy.titles['admin.notifications']}
       loading={history.loading && !history.data}
-      error={history.error}
-      onRetry={() => void history.reload()}
       banner={state === 'sent' ? { tone: 'success', message: copy.notifSent } : null}
 
       list={{ data: rows, keyExtractor: (item, index) => String(item.id ?? index),
@@ -547,10 +611,8 @@ export function AdminNotificationsScreen() {
               lines={[row.type ? copy.notifTypes[row.type] ?? row.type : null, row.createdAt ? formatDateTime(row.createdAt) : null]}
             />
           ),
-        footer: <><View><View style={laneStyles.stack}>
-        </View>
-        {meta ? <Pager copy={copy} page={page} totalPages={meta.totalPages} total={meta.total} onPage={setPage} disabled={history.loading} /> : null}
-      </View>
+        footer: <>
+          {meta ? <Pager copy={copy} page={page} totalPages={meta.totalPages} total={meta.total} onPage={setPage} disabled={history.loading} /> : null}
 
       {previewing ? (
         <Sheet
@@ -587,13 +649,23 @@ export function AdminNotificationsScreen() {
           />
         ) : null}
         <FormField
-          label={copy.notifRecipient}
-          value={draft.userId}
-          onChangeText={(userId) => setDraft((current) => ({ ...current, userId }))}
+          label={recipient ? copy.notifRecipient : copy.notifRecipientSearch}
+          value={recipientQuery}
+          onChangeText={editRecipientQuery}
           autoCapitalize="none"
           autoCorrect={false}
           error={problems.includes('recipient') ? copy.notifRecipientInvalid : undefined}
         />
+        {!recipient ? (
+          <View style={[laneStyles.stack, { marginBottom: 12 }]}>
+            <Button label={copy.notifRecipientSearchAction} onPress={() => void searchRecipients()} loading={recipientSearching} disabled={busy || !recipientQuery.trim()} />
+            {recipientSearchError ? <Notice tone="error" message={recipientSearchError} /> : null}
+            {recipientSearched && recipientResults.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.noMatch}</UiText> : null}
+            {recipientResults.map((candidate) => (
+              <Button key={candidate.id} label={recipientLabel(candidate)} variant="secondary" onPress={() => selectRecipient(candidate)} disabled={busy} />
+            ))}
+          </View>
+        ) : null}
         <FormField
           label={copy.notifTitle}
           value={draft.title}
@@ -623,7 +695,8 @@ export function AdminNotificationsScreen() {
 
           <SectionHeading title={copy.notifHistory} />
         </View>
-        {rows.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
+        {history.error ? <Notice tone="error" message={history.error} actionLabel={copy.retry} onAction={() => void history.reload()} /> : null}
+        {rows.length === 0 && !history.error ? <StatePanel kind="empty" title={copy.empty} /> : null}
         <View style={laneStyles.stack}>
           </View></View></LaneShell>
   );

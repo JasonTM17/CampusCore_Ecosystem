@@ -7,6 +7,8 @@ interface EventLike {
   status: string;
   seatsRemaining: number;
   startsAt?: string | null;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
   myRegistrationId?: string | null;
   myRegistrationStatus?: string | null;
 }
@@ -20,6 +22,12 @@ export function eventAction(event: EventLike, now: number = Date.now()): EventAc
     return !ended && !started && event.myRegistrationId ? 'cancel' : 'none';
   }
   if (event.status !== 'REGISTRATION_OPEN') return 'none';
+  const startsAt = event.startsAt ? Date.parse(event.startsAt) : Number.NaN;
+  const opensAt = event.registrationOpensAt ? Date.parse(event.registrationOpensAt) : Number.NaN;
+  const closesAt = event.registrationClosesAt ? Date.parse(event.registrationClosesAt) : Number.NaN;
+  if ((Number.isFinite(startsAt) && startsAt <= now)
+    || (Number.isFinite(opensAt) && opensAt > now)
+    || (Number.isFinite(closesAt) && closesAt <= now)) return 'none';
   return event.seatsRemaining > 0 ? 'register' : 'full';
 }
 
@@ -185,8 +193,9 @@ export function isUrgentPriority(priority: string | null | undefined): boolean {
 
 /** Server category ids arrive in several casings/separators; labels key on UPPER_SNAKE. */
 export function newsCategoryLabel(labels: Readonly<Record<string, string>>, categoryId: string | null | undefined): string {
-  const key = categoryId?.trim().toUpperCase().replace(/[ -]+/g, '_') ?? '';
-  return key ? labels[key] ?? '' : '';
+  const key = categoryId?.trim().toUpperCase().replace(/[ -]+/g, '_').replace(/^CAT_/, '') ?? '';
+  const alias = key === 'TRAINING_ACADEMIC' ? 'ACADEMIC_AFFAIRS' : key;
+  return alias ? labels[alias] ?? '' : '';
 }
 
 /** The detail target one announcement row opens: the permalink slug, else the id. */

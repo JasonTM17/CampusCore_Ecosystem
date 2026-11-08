@@ -37,6 +37,7 @@ import { CheckinScreen } from '../../src/screens/attendance-checkin/CheckinScree
 const copy = checkinMessages.vi;
 const NOW = 1_800_000_000_000;
 const ID = '12345678-1234-4abc-8def-123456789abc';
+const mockGoBack = jest.fn();
 const SESSION: OpenAttendanceSession = {
   id: ID, sectionId: 'section', sectionLabel: 'CT101 · Class', closesAt: new Date(NOW + 600_000).toISOString(),
   requireCode: true, geofenceName: 'Campus A',
@@ -49,6 +50,8 @@ function setup(overrides: {
   services?: boolean;
   checkinError?: AttendanceApiError;
   checkinDecision?: 'ACCEPTED' | 'PENDING_REVIEW' | 'REJECTED';
+  checkinStatus?: string | null;
+  accuracyAuthorization?: 'full' | 'reduced';
   accuracy?: number;
 } = {}) {
   const api = {
@@ -59,11 +62,14 @@ function setup(overrides: {
     acceptConsent: jest.fn<AttendanceApi['acceptConsent']>().mockResolvedValue({ accepted: true, version: 'v1', acceptedAt: null }),
     checkin: jest.fn<AttendanceApi['checkin']>().mockImplementation(async () => {
       if (overrides.checkinError) throw overrides.checkinError;
-      return { decision: overrides.checkinDecision ?? 'ACCEPTED', status: 'PRESENT', message: 'ok' };
+      return { decision: overrides.checkinDecision ?? 'ACCEPTED',
+        status: overrides.checkinStatus === undefined ? 'PRESENT' : overrides.checkinStatus, message: 'ok' };
     }),
   };
   const location = {
     ensurePermission: jest.fn<LocationProvider['ensurePermission']>().mockResolvedValue(overrides.permission ?? 'granted'),
+    accuracyAuthorization: jest.fn<() => Promise<'full' | 'reduced'>>()
+      .mockResolvedValue(overrides.accuracyAuthorization ?? 'full'),
     isServicesEnabled: jest.fn<LocationProvider['isServicesEnabled']>().mockResolvedValue(overrides.services ?? true),
     getFreshFix: jest.fn<LocationProvider['getFreshFix']>().mockImplementation(async () => ({
       latitude: 10, longitude: 106, accuracyMeters: overrides.accuracy ?? 20,
@@ -77,7 +83,7 @@ function setup(overrides: {
 }
 
 const props = {
-  navigation: { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() },
+  navigation: { navigate: jest.fn(), navigateLane: jest.fn(), goBack: mockGoBack },
   role: 'student', selectedThesisTopicId: null,
 } as unknown as MobileScreenProps;
 
@@ -115,6 +121,8 @@ let removeAppStateListener: ReturnType<typeof jest.fn>;
 beforeEach(() => {
   mockParams = {};
   mockRouter.back.mockReset();
+  mockRouter.canGoBack = () => true;
+  mockGoBack.mockReset();
   foreground = undefined;
   removeAppStateListener = jest.fn();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
@@ -197,6 +205,20 @@ describe('check-in screen states', () => {
     await submitCode('123456');
     await byTestId('checkin-state-accepted');
     expect(fixture.api.checkin).toHaveBeenCalledWith(ID, expect.objectContaining({ code: '123456' }));
+  });
+
+  test('completion from a cold deep link uses guarded navigation back', async () => {
+    mockRouter.canGoBack = () => false;
+    const fixture = setup();
+    await show(fixture.machine);
+    await reachReady();
+    await submitCode('123456');
+    await byTestId('checkin-state-accepted');
+
+    press(copy.done);
+
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
   test('empty session list shows the empty state', async () => {
@@ -283,6 +305,36 @@ describe('check-in screen states', () => {
     expect(screen.getByRole('button', { name: copy.retry })).toBeOnTheScreen();
   });
 
+  test('reduced location accuracy offers settings and rechecks when the app returns', async () => {
+    const fixture = setup({ accuracyAuthorization: 'reduced' });
+    await show(fixture.machine);
+    await byRole(sessionActionName());
+    press(sessionActionName());
+    await byRole(copy.permissionAction);
+    press(copy.permissionAction);
+    await byTestId('checkin-state-reducedAccuracy');
+
+    expect(screen.getByText('Bật Vị trí chính xác trong cài đặt ứng dụng rồi thử lại.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: copy.openSettings })).toBeOnTheScreen();
+
+    fixture.location.accuracyAuthorization.mockResolvedValue('full');
+    await act(async () => { foreground?.('active'); });
+    await byTestId('checkin-ready');
+  });
+
+  test('retry after a rejected code clears the previous code', async () => {
+    const fixture = setup({ checkinError: new AttendanceApiError('BAD_CODE', 422) });
+    await show(fixture.machine);
+    await reachReady();
+    await submitCode('123456');
+    await byTestId('checkin-state-rejected');
+
+    press(copy.retry);
+    await byTestId('checkin-ready');
+
+    expect(screen.getByTestId('checkin-code')).toHaveProp('value', '');
+  });
+
   test.each<[AttendanceErrorCode, string, keyof typeof copy]>([
     ['OUTSIDE_AREA', 'checkin-state-rejected', 'outsideTitle'],
     ['BAD_CODE', 'checkin-state-rejected', 'badCodeTitle'],
@@ -309,6 +361,19 @@ describe('check-in screen states', () => {
     await byTestId('checkin-state-pendingReview');
     expect(screen.getByText(copy.pendingTitle)).toBeTruthy();
   });
+
+  test.each(['MANUAL_RECORD_PRESERVED', null, 'UNKNOWN'] as const)(
+    'accepted check-in status %s is not shown as present', async (checkinStatus) => {
+      const fixture = setup({ checkinStatus });
+      await show(fixture.machine);
+      await reachReady();
+      await submitCode('123456');
+      await byTestId('checkin-state-accepted');
+
+      expect(screen.queryByText(copy.statusPresent)).toBeNull();
+      expect(screen.getByText(copy.statusPreserved)).toBeTruthy();
+    },
+  );
 
   test('a short code stays client-side — submit is blocked', async () => {
     const fixture = setup();

@@ -28,12 +28,12 @@
             {
               "scheme": "https",
               "host": "www.campusute.io.vn",
-              "path": "/news"
+              "pathPrefix": "/news"
             },
             {
               "scheme": "https",
               "host": "www.campusute.io.vn",
-              "path": "/docs"
+              "pathPrefix": "/docs"
             },
             {
               "scheme": "https",

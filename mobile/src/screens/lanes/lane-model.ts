@@ -135,8 +135,6 @@ export function attendanceMark(row: { registrationId?: string; version?: number 
 export const NOTIFICATION_TYPES = ['INFO', 'SUCCESS', 'WARNING', 'ERROR'] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
 export interface NotificationDraft {
   userId: string;
   title: string;
@@ -149,7 +147,8 @@ export type DraftProblem = 'recipient' | 'title' | 'message';
 /** Field problems for a one-recipient system notification; empty means ready to preview. */
 export function validateNotification(draft: NotificationDraft): DraftProblem[] {
   const problems: DraftProblem[] = [];
-  if (!UUID.test(draft.userId.trim())) problems.push('recipient');
+  const userId = draft.userId.trim();
+  if (userId === '' || userId.length > 120) problems.push('recipient');
   if (draft.title.trim() === '' || draft.title.trim().length > 200) problems.push('title');
   if (draft.message.trim() === '' || draft.message.length > 2000) problems.push('message');
   return problems;

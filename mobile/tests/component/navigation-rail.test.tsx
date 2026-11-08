@@ -1,7 +1,7 @@
 import { localizedNavLabel, shellMessages } from '../../src/i18n/shell-messages';
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions, StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, Dimensions, StyleSheet, Text } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 
 import AppGroupLayout from '../../app/(app)/_layout';
@@ -12,6 +12,14 @@ import { tokens } from '../../src/design/tokens';
 import { getBottomNavigation, type UserRole } from '../../src/navigation/routes';
 import { pathFor, roleHomePath } from '../../src/navigation/route-map';
 import { useSession } from '../../src/session/SessionContext';
+
+jest.mock('react-native', () => {
+  const native = jest.requireActual('react-native') as typeof import('react-native');
+  Object.defineProperty(native, 'findNodeHandle', { configurable: true, value: jest.fn(() => 1) });
+  return native;
+});
+
+const mockUnreadCount = { value: undefined as number | undefined };
 
 jest.mock('expo-router', () => {
   const { Text, View } = require('react-native');
@@ -25,10 +33,16 @@ jest.mock('expo-router', () => {
 jest.mock('../../src/session/SessionContext', () => ({ useSession: jest.fn() }));
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' } }));
 jest.mock('../../src/hooks/use-dashboard-prefetch', () => ({ useDashboardPrefetch: jest.fn() }));
+jest.mock('../../src/screens/content/use-content-query', () => ({
+  useContentQuery: jest.fn((_key: string, _fetcher: unknown, enabled = true) => ({
+    data: enabled ? mockUnreadCount.value : undefined,
+  })),
+}));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 const push = jest.fn();
 const replace = jest.fn();
+const dismissAll = jest.fn();
 const switchRole = jest.fn();
 
 function setWindow(width: number, fontScale = 1) {
@@ -37,9 +51,11 @@ function setWindow(width: number, fontScale = 1) {
 
 function setSession(role: UserRole = 'student', kind: 'preview' | 'authenticated' | 'signedOut' = 'preview') {
   jest.mocked(useSession).mockReturnValue({
-    kind, role, switchRole, epoch: 0, booted: true, accountId: null, blockedReason: null,
+    kind, role, signingOut: false, switchRole, epoch: 0, booted: true, accountId: null, blockedReason: null,
     enterPreview: () => true,
     completeSignIn: () => {},
+    beginSignOut: jest.fn(),
+    clearSigningOut: jest.fn(),
     signOut: async () => {},
     markBlocked: () => {},
     setRole: () => {},
@@ -53,7 +69,9 @@ const renderLayout = (scheme: 'light' | 'dark' = 'light') => render(
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(useRouter).mockReturnValue({ push, replace } as unknown as ReturnType<typeof useRouter>);
+  jest.spyOn(AccessibilityInfo, 'setAccessibilityFocus').mockImplementation(() => {});
+  mockUnreadCount.value = undefined;
+  jest.mocked(useRouter).mockReturnValue({ push, replace, dismissAll } as unknown as ReturnType<typeof useRouter>);
   setSession();
 });
 afterEach(() => { jest.restoreAllMocks(); });
@@ -172,15 +190,39 @@ describe('adaptive app navigation', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
   });
 
+  test.each([360, 1000])('w%s shows unread notifications in the accessible Alerts tab', async (width) => {
+    setWindow(width);
+    setSession('student', 'authenticated');
+    mockUnreadCount.value = 3;
+    await renderLayout();
+
+    const alerts = screen.getByRole('tab', { name: 'Thông báo, 3 Chưa đọc' });
+    expect(alerts).toBeOnTheScreen();
+    expect(screen.getByText('3', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  test.each([360, 1000])('w%s moves accessibility focus into and back out of the menu', async (width) => {
+    setWindow(width);
+    await renderLayout();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục' }));
+    await waitFor(() => expect(AccessibilityInfo.setAccessibilityFocus).toHaveBeenCalledTimes(1));
+    await fireEvent.press(screen.getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(AccessibilityInfo.setAccessibilityFocus).toHaveBeenCalledTimes(2));
+  });
+
   test.each([360, 1000])('an applicant session has no student navigation and can sign out at w%s', async (width) => {
     setWindow(width);
-    const signOut = jest.fn(async () => {});
+    const signOut = jest.fn(() => new Promise<void>(() => {}));
+    const beginSignOut = jest.fn();
     jest.mocked(useSession).mockReturnValue({
-      kind: 'authenticated', role: 'student', switchRole, epoch: 0, booted: true,
+      kind: 'authenticated', role: 'student', signingOut: false, switchRole, epoch: 0, booted: true,
       accountId: 'acct-applicant', blockedReason: null,
       capabilities: ['admissions.self', 'applicant.surface'],
       enterPreview: () => true,
       completeSignIn: () => {},
+      beginSignOut,
+      clearSigningOut: jest.fn(),
       signOut,
       markBlocked: () => {},
       setRole: () => {},
@@ -203,8 +245,13 @@ describe('adaptive app navigation', () => {
     const signOutControl = screen.getByRole('button', { name: shellMessages.vi.signOut });
     expect(screen.queryByRole('button', { name: shellMessages.vi.screens.profile })).toBeNull();
     await fireEvent.press(signOutControl);
+    expect(dismissAll).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith('/session/logged-out');
+    expect(beginSignOut).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/session/logged-out'));
+    expect(beginSignOut.mock.invocationCallOrder[0]).toBeLessThan(dismissAll.mock.invocationCallOrder[0]);
+    expect(dismissAll.mock.invocationCallOrder[0]).toBeLessThan(replace.mock.invocationCallOrder[0]);
+    expect(replace.mock.invocationCallOrder[0]).toBeLessThan(signOut.mock.invocationCallOrder[0]);
   });
 
   test.each(['signedOut', 'authenticated'] as const)('%s keeps the protected-route guard', async (kind) => {

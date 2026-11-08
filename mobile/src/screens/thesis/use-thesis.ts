@@ -309,6 +309,8 @@ export interface ThesisGroupState extends ThesisQueryState {
   isLeader: boolean;
   /** Applies a mutation response locally, then revalidates the progress read. */
   applyGroup: (group: ThesisGroup) => void;
+  loaded: boolean;
+  isStale: boolean;
 }
 
 export function useThesisGroup(roundId: string | null): ThesisGroupState {
@@ -359,6 +361,8 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
     isLeader: isGroupLeader(snapshot?.group, snapshot?.studentId),
     applyGroup,
     loading: !preview && roundId !== null && query.isLoading && !live,
+    loaded: preview || live !== undefined,
+    isStale: !preview && query.isStale,
     error: preview || live ? null : roundId !== null ? query.error : null,
     warning: preview ? null : query.warning,
     reload: preview ? noReload : query.reload,
@@ -410,24 +414,28 @@ export function useThesisReport(groupId: string | null | undefined, enabled: boo
 
 interface AdvisorSnapshot {
   key: string;
-  entries: AdvisorEntry[];
+  rows: Array<{ topic: ThesisTopic; supervisors: ThesisSupervisor[] }>;
   /** Topics whose supervisor read failed. */
   failed: number;
-  /** The round has more topics than the directory reads. */
-  capped: boolean;
+  hasMore: boolean;
+  total?: number;
 }
 
 export interface AdvisorDirectory extends ThesisQueryState {
   entries: AdvisorEntry[];
   failed: number;
   capped: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  loadMoreError: string | null;
+  loadMore: () => void;
 }
 
 /**
  * The lecturer directory is not readable by students, so advisors are derived
  * from each published topic's supervisors: bounded concurrency, bounded topics.
  */
-export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
+export function useAdvisorDirectory(roundId: string | null, enabled = true): AdvisorDirectory {
   const { copy, locale } = useThesisCopy();
   const preview = isPreview();
   const sample = usePreviewData(locale);
@@ -435,7 +443,7 @@ export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
   const query = useScreenQuery<AdvisorSnapshot>(
     `thesis:advisors:${key}`,
     async () => {
-      const page = await thesisApi.topics(key, { page: 0, limit: THESIS_ADVISOR_TOPIC_CAP });
+      const page = await thesisApi.topics(key, { page: 0, limit: THESIS_TOPIC_PAGE_SIZE });
       let failed = 0;
       const rows = await mapWithConcurrency(page.items, THESIS_ADVISOR_CONCURRENCY, async (topic) => {
         try {
@@ -446,23 +454,128 @@ export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
           return { topic, supervisors: [] as ThesisSupervisor[] };
         }
       });
-      return { key, entries: buildAdvisorDirectory(rows), failed, capped: page.hasMore };
+      return { key, rows, failed, hasMore: page.hasMore && page.items.length < THESIS_ADVISOR_TOPIC_CAP, total: page.total };
     },
-    { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
+    { enabled: !preview && roundId !== null && enabled, resourceClass: 'detail', errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
   const live = query.data && query.data.key === key ? query.data : undefined;
-  const entries = useMemo(
-    () => (preview
-      ? buildAdvisorDirectory(sample.topics.map((topic) => ({ topic, supervisors: sample.supervisors[topic.id] ?? [] })))
-      : live?.entries ?? []),
-    [preview, sample, live],
-  );
+  const first = live;
+  const firstRef = useRef(first);
+  firstRef.current = first;
+
+  const [extra, setExtra] = useState<{
+    owner: AdvisorSnapshot;
+    rows: Array<{ topic: ThesisTopic; supervisors: ThesisSupervisor[] }>;
+    page: number;
+    hasMore: boolean;
+    failed: number;
+    error: string | null;
+  } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const request = useRef<{ owner: AdvisorSnapshot; token: number } | null>(null);
+  const token = useRef(0);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      token.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (request.current && request.current.owner !== first) {
+      request.current = null;
+      token.current += 1;
+      setLoadingMore(false);
+    }
+    setExtra((previous) => (previous && previous.owner !== first ? null : previous));
+  }, [first]);
+
+  const owned = extra && extra.owner === first ? extra : null;
+  const allRows = useMemo(() => {
+    if (preview) {
+      return sample.topics.map((topic) => ({ topic, supervisors: sample.supervisors[topic.id] ?? [] }));
+    }
+    const base = live?.rows ?? [];
+    const added = owned?.rows ?? [];
+    return [...base, ...added];
+  }, [preview, sample, live, owned]);
+
+  const totalLoaded = allRows.length;
+  const hasMore = preview
+    ? false
+    : Boolean(first && (owned ? owned.hasMore : first.hasMore) && totalLoaded < THESIS_ADVISOR_TOPIC_CAP);
+  const capped = preview ? false : Boolean(first && totalLoaded >= THESIS_ADVISOR_TOPIC_CAP);
+
+  const loadMore = useCallback(() => {
+    if (preview || !first || request.current?.owner === first || !hasMore || roundId === null) return;
+    const owner = first;
+    const requestToken = token.current + 1;
+    token.current = requestToken;
+    request.current = { owner, token: requestToken };
+    const current = () => request.current?.token === requestToken && firstRef.current === owner;
+    setLoadingMore(true);
+    setExtra((previous) => (previous?.owner === owner ? { ...previous, error: null } : previous));
+    const nextPage = (owned?.page ?? 0) + 1;
+    thesisApi.topics(roundId, { page: nextPage, limit: THESIS_TOPIC_PAGE_SIZE })
+      .then(async (result) => {
+        if (!mounted.current || !current()) return;
+        let pageFailed = 0;
+        const newRows = await mapWithConcurrency(result.items, THESIS_ADVISOR_CONCURRENCY, async (topic) => {
+          try {
+            return { topic, supervisors: await thesisApi.supervisors(topic.id) };
+          } catch (error) {
+            if (isResourceUnauthorizedError(error) || thesisErrorInfo(error).status === 403) throw error;
+            pageFailed += 1;
+            return { topic, supervisors: [] as ThesisSupervisor[] };
+          }
+        });
+        if (!mounted.current || !current()) return;
+        const combined = [...(owned?.rows ?? []), ...newRows];
+        const nextTotal = first.rows.length + combined.length;
+        setExtra({
+          owner,
+          rows: combined,
+          page: nextPage,
+          hasMore: result.hasMore && nextTotal < THESIS_ADVISOR_TOPIC_CAP,
+          failed: (owned?.failed ?? 0) + pageFailed,
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || isAbortLike(error) || !current()) return;
+        const message = thesisErrorMessage(copy, error);
+        setExtra({
+          owner,
+          rows: owned?.rows ?? [],
+          page: owned?.page ?? 0,
+          hasMore: true,
+          failed: owned?.failed ?? 0,
+          error: message,
+        });
+      })
+      .finally(() => {
+        if (!current()) return;
+        request.current = null;
+        if (mounted.current) setLoadingMore(false);
+      });
+  }, [preview, first, hasMore, roundId, owned, copy]);
+
+  const entries = useMemo(() => buildAdvisorDirectory(allRows), [allRows]);
+  const failed = (first?.failed ?? 0) + (owned?.failed ?? 0);
+
   return {
     entries,
-    failed: preview ? 0 : live?.failed ?? 0,
-    capped: preview ? false : live?.capped ?? false,
-    loading: !preview && roundId !== null && query.isLoading && !live,
-    error: preview || live ? null : roundId !== null ? query.error : null,
+    failed: preview ? 0 : failed,
+    capped,
+    hasMore,
+    loadingMore,
+    loadMoreError: owned?.error ?? null,
+    loadMore,
+    loading: !preview && roundId !== null && query.isLoading && !first,
+    error: preview || first ? null : query.error,
     warning: preview ? null : query.warning,
     reload: preview ? noReload : query.reload,
     preview,
