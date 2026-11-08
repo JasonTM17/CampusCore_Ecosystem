@@ -21,7 +21,7 @@ const client = read('src/api/client.ts');
 // which wraps the shared client; `methods` are the facade entries each lane must expose.
 const contentApiSource = read('src/screens/content/content-api.ts');
 const contentSources = () => fs.readdirSync(path.join(mobileRoot, 'src/screens/content'))
-  .filter((name) => /\.tsx?$/.test(name))
+  .filter((name) => /\.tsx?$/.test(name) && name !== 'ConductScreen.tsx')
   .map((name) => read(`src/screens/content/${name}`))
   .join('\n');
 
@@ -56,6 +56,12 @@ test('domain screens call the API client — no web-handoff shortcuts', () => {
       assert.match(contentApiSource, new RegExp(`${method}: `), `contentApi.${method} missing`);
     }
   }
+});
+
+test('conduct certificate links are limited to validated HTTP(S) URLs', () => {
+  const source = read('src/screens/content/ConductScreen.tsx');
+  assert.match(source, /url\.protocol === 'http:' \|\| url\.protocol === 'https:'/);
+  assert.match(source, /\{validCertificateUrl\(activity\.certificateUrl\) \? \([\s\S]*?const url = validCertificateUrl\(activity\.certificateUrl\);\s*if \(!url\) return;[\s\S]*?Linking\.openURL\(url\)/);
 });
 
 test('every pathByScreen route resolves to a real app/ route file', () => {

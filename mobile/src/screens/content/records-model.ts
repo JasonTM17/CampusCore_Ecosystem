@@ -9,6 +9,7 @@ export interface ConductActivity {
   organizer?: string | null;
   activityDate?: string | null;
   points?: number | null;
+  certificateUrl?: string | null;
 }
 
 export interface ConductCriterion {
@@ -74,6 +75,7 @@ function parseTerm(raw: unknown, index: number): ConductTerm | null {
               organizer: text(entry.organizer),
               activityDate: text(entry.activityDate),
               points: num(entry.points),
+              certificateUrl: text(entry.certificateUrl),
             }]
           : [];
       })
