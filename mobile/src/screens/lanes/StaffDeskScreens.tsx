@@ -36,6 +36,7 @@ import {
   type PendingAction,
 } from './lane-ui';
 import { HandoffLink } from './HandoffLink';
+import { useSession } from '../../session/SessionContext';
 
 interface DeskProps<T extends { id: string }> {
   title: string;
@@ -150,13 +151,14 @@ function DeskPager({ copy, view, loading, onPage }: {
 export function ApplyReviewScreen() {
   const { copy } = useLanesCopy();
   const { formatDateTime } = useLocale();
+  const session = useSession();
   const desk = usePagedDesk<AdmissionApp>('apply', (status, page) =>
     laneApi.admissionsQueuePaged(status, deskWindow(page)));
   const runner = useActionRunner(copy, () => void desk.request.reload());
   const items = useMemo(() => desk.request.data?.items ?? [], [desk.request.data]);
 
   const run = (kind: QueueAction, row: AdmissionApp): PendingAction => {
-    const subject = row.fullName ?? row.applicantEmail ?? row.id;
+    const subject = [row.fullName ?? row.applicantEmail ?? row.id, row.cycle].filter(Boolean).join(' · ');
     if (kind === 'claim') return action(copy, kind, subject, () => laneApi.admissionsClaim(row));
     if (kind === 'return') return action(copy, kind, subject, (text) => laneApi.admissionsReturn(row, text));
     return action(copy, kind, subject, (text) => laneApi.admissionsDecide(row, kind === 'accept' ? 'ACCEPTED' : 'REJECTED', text));
@@ -176,26 +178,32 @@ export function ApplyReviewScreen() {
       runner={runner}
       webPath="/apply/review"
       pager={<DeskPager copy={copy} view={desk.view} loading={desk.request.loading} onPage={desk.onPage} />}
-      renderItem={(row) => (
-        <QueueCard
-          key={row.id}
-          title={row.fullName ?? row.applicantEmail ?? row.id}
-          status={row.status}
-          copy={copy}
-          lines={[
-            row.applicantEmail,
-            row.intendedMajor ? `${copy.major}: ${row.intendedMajor}` : null,
-            row.submittedAt ? `${copy.submittedAt}: ${formatDateTime(row.submittedAt)}` : null,
-            fillCopy(copy.attachments, { n: row.attachments?.length ?? 0 }),
-          ]}
-          actions={admissionsActions(row.status).map((kind) => ({
-            key: kind,
-            label: ACTION_LABEL(copy, kind),
-            variant: kind === 'accept' ? 'primary' : kind === 'reject' || kind === 'return' ? 'destructive' : 'secondary',
-            onPress: () => runner.request(run(kind, row)),
-          }))}
-        />
-      )}
+      renderItem={(row) => {
+        const readOnlyReview = row.status === 'IN_REVIEW'
+          && !(session.accountId && row.claimedBy && session.accountId === row.claimedBy);
+        return (
+          <QueueCard
+            key={row.id}
+            title={row.fullName ?? row.applicantEmail ?? row.id}
+            status={row.status}
+            copy={copy}
+            lines={[
+              row.applicantEmail,
+              row.cycle ? `${copy.admissionCycle}: ${row.cycle}` : null,
+              row.intendedMajor ? `${copy.major}: ${row.intendedMajor}` : null,
+              row.submittedAt ? `${copy.submittedAt}: ${formatDateTime(row.submittedAt)}` : null,
+            ]}
+            actions={readOnlyReview ? [] : admissionsActions(row.status).map((kind) => ({
+              key: kind,
+              label: ACTION_LABEL(copy, kind),
+              variant: kind === 'accept' ? 'primary' : kind === 'reject' || kind === 'return' ? 'destructive' : 'secondary',
+              onPress: () => runner.request(run(kind, row)),
+            }))}
+          >
+            {readOnlyReview ? <UiText variant="bodySmall" tone="muted">{copy.claimedByAnotherReviewer}</UiText> : null}
+          </QueueCard>
+        );
+      }}
     />
   );
 }
