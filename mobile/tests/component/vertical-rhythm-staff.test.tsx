@@ -79,7 +79,7 @@ const page = (items: unknown[]) => ({
 function setPreviewData() {
   Object.assign(mockLaneData, {
     'admin:overview': {
-      totals: { total: 120, up: 10, down: 2 },
+      totals: { students: 5, lecturers: 3, courses: 2, enrollments: 4 },
       gradeDistribution: [], departments: [], semesterTrends: [],
     },
     'dean:rounds': [{ id: 'round-1', name: 'Round 1', status: 'OPEN' }],
@@ -273,4 +273,12 @@ describe('vertical rhythm in staff and assistant screens', () => {
       await view.unmount();
     });
   }
+
+  test('admin overview renders the four API totals without unsupported trend tiles', async () => {
+    const view = await renderThemed(<AdminOverviewScreen {...props} />);
+    for (const value of ['5', '3', '2', '4']) expect(screen.getByText(value)).toBeTruthy();
+    expect(screen.queryByText('Tăng')).toBeNull();
+    expect(screen.queryByText('Giảm')).toBeNull();
+    await view.unmount();
+  });
 });
