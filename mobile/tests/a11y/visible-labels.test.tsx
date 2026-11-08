@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
-import { assistantChatMessages } from '../../src/i18n/assistant-messages';
+import { assistantChatMessages, citationDomainLabel } from '../../src/i18n/assistant-messages';
 import { AnnouncementsScreen } from '../../src/screens/content/AnnouncementsScreen';
 import { MessageBubble } from '../../src/screens/assistant/MessageBubble';
 import type { ChatMessage } from '../../src/screens/assistant/useAssistantChat';
@@ -66,4 +66,28 @@ test('a rated assistant feedback button exposes its visible selected status', as
   expect(ratedButton).toBeTruthy();
   expect(ratedButton?.props.accessibilityState?.selected).toBe(true);
   expect(screen.getByRole('button', { name: 'Chưa đúng' }).props.accessibilityState?.selected).toBe(false);
+});
+
+test('assistant citation domains use localized labels and a neutral fallback', async () => {
+  const message: ChatMessage = {
+    id: 'assistant-1',
+    from: 'assistant',
+    text: 'Câu trả lời.',
+    citations: [{
+      id: 'citation-1', slug: 'thesis-rules', title: 'Quy chế luận văn', source: 'Phòng Đào tạo',
+      locale: 'vi', excerpt: 'Quy định về luận văn.', domain: 'THESIS',
+    }],
+  };
+
+  await render(
+    <ThemeProvider forcedScheme="light">
+      <MessageBubble message={message} copy={assistantChatMessages.vi} feedbackBusy={false} onRate={() => {}} />
+    </ThemeProvider>,
+  );
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Nguồn tham khảo (1)' }));
+  expect(screen.getByText(/Luận văn/)).toBeOnTheScreen();
+  expect(screen.queryByText(/THESIS/)).toBeNull();
+  expect(citationDomainLabel('THESIS', assistantChatMessages.en)).toBe('Thesis');
+  expect(citationDomainLabel('UNLISTED', assistantChatMessages.vi)).toBe('Khác');
 });
