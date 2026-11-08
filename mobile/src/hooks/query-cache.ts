@@ -73,9 +73,30 @@ export function readQueryCache<T>(key: string, maxAge?: number): T | undefined {
   return entry.data as T;
 }
 
+const subscribers = new Map<string, Set<(data: unknown) => void>>();
+
+/**
+ * Observe writes to one entry, so every mounted consumer of a key (a screen and
+ * the shell chrome, for example) shows the value the latest writer stored.
+ */
+export function subscribeQueryCache(key: string, listener: (data: unknown) => void): () => void {
+  let set = subscribers.get(key);
+  if (!set) {
+    set = new Set();
+    subscribers.set(key, set);
+  }
+  set.add(listener);
+  return () => {
+    set?.delete(listener);
+    if (set?.size === 0) subscribers.delete(key);
+  };
+}
+
 export function writeQueryCache(key: string, data: unknown): void {
   if (key.endsWith(UNCACHEABLE_SUFFIX)) return;
   cache.set(key, { data, at: Date.now() });
+  const set = subscribers.get(key);
+  if (set) for (const listener of [...set]) listener(data);
 }
 
 /** Freshness never evicts stale data: it stays available for SWR/offline reads. */

@@ -13,6 +13,7 @@ import {
   isQueryCacheFresh,
   queryCacheKey,
   readQueryCache,
+  subscribeQueryCache,
   writeQueryCache,
   type QueryCacheScope,
 } from './query-cache';
@@ -162,6 +163,20 @@ export function useScreenQuery<T>(
     writeQueryCache(cacheKey, next);
     update({ data: next });
   }, [cacheKey, enabled, isCurrent, update]);
+
+  // Another consumer of the same key stored a newer value: show it here too and
+  // drop any read of ours that was dispatched before that write.
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeQueryCache(cacheKey, (next) => {
+      if (!isCurrent()) return;
+      writeGeneration.current += 1;
+      setState((previous) => {
+        const base = previous.boundary === boundary ? previous : initialQueryState<T>(boundary, optionsRef.current.maxAge);
+        return Object.is(base.data, next) ? base : { ...base, data: next as T };
+      });
+    });
+  }, [cacheKey, enabled, boundary, isCurrent]);
 
   const reloadData = useCallback(async (): Promise<T | undefined> => {
     if (!enabled || boundary.inFlight || !isCurrent() || !canRevalidate(AppState.currentState)) {
