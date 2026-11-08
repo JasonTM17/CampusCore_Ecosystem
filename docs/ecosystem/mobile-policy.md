@@ -161,11 +161,15 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   resolve** (epoch check gate cả SecureStore *write*, không chỉ
   resolve — refresh in-flight lúc logout không được ghi token mới lên
   đĩa, KM-6). `sessionEpoch` bump trên sign-in/sign-out.
-- **Logout ordering (KM-6)**: `epoch++` **trước** → wipe `cu.refresh`
-  → clear memory access → clear per-account query cache → rồi mới
+- **Logout ordering (KM-6)**: `epoch++` **trước** → clear memory access
+  → ghi tombstone vào sandbox install marker, dùng secure install marker nếu
+  sandbox write thất bại → wipe `cu.refresh`
+  → clear per-account query cache → rồi mới
   `POST {issuer}/oauth2/revoke` `token=<refresh>&client_id=cu-mobile`
   (idempotent, best-effort — revoke fail vẫn sign-out local). Late
-  refresh in-flight: epoch-check tại persist-step = no-op.
+  refresh in-flight: epoch-check tại persist-step = no-op. Bootstrap fail
+  closed while either signed-out marker is present; only a confirmed `saveRefresh`
+  clears them, so a retained SecureStore token cannot restore after delete failure.
 - **401/403 & refresh resilience**: 401 → shared-refresh một lần (`single-flight`,
   loại trừ auth endpoints để tránh lặp vô tận). `cu.refresh` bị xóa khỏi
   SecureStore **trước** khi request token được gửi đi, vì issuer không có cửa sổ
@@ -327,9 +331,13 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
 3. Reinstall-wipe (KM-1): sandbox `installMarker` vắng hoặc mismatch
    `cu.install.appInstanceId` → wipe `cu.refresh` trước request đầu
    tiên; match → giữ.
-4. Logout (KM-6): ordering `epoch++ → wipe cu.refresh → clear memory →
-   revoke` — refresh promise in-flight lúc logout **không được** persist
-   token mới (epoch check gate cả write), resolve = no-op.
+4. Logout (KM-6): ordering `epoch++ → clear memory → ghi tombstone vào sandbox
+   install marker (nếu không ghi được thì dùng secure install marker) → wipe
+   cu.refresh → revoke` —
+   bootstrap phải trả signed-out khi một trong hai marker còn; chỉ `saveRefresh`
+   thành công mới được xóa cả hai marker. Refresh in-flight lúc logout **không
+   được** persist token mới (epoch check gate cả write), tránh refresh token còn
+   trên SecureStore được bootstrap dùng lại nếu thao tác xóa SecureStore thất bại.
 5. Role gate: deep-link tới route role khác → redirect roleHome,
    screen không render — pure-function guard unit test trên compat-map
    (`resolveGuard(session, role, path)` trả decision — test gọi trực

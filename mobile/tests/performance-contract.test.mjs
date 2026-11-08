@@ -20,7 +20,9 @@ test('shared list exposes native header/empty/footer/refresh/paging/key contract
 test('font loading does not prevent session mount; splash follows readiness', () => {
   const boot = read('app/_layout.tsx');
   assert.match(boot, /SplashScreen\.preventAutoHideAsync\(\)/);
-  assert.match(boot, /fontsReady && booted && localeReady/);
+  assert.match(boot, /<SessionProvider>[\s\S]*<BootReady fontsReady=\{fontsLoaded \|\| Boolean\(fontError\)\}/);
+  assert.match(boot, /const shellReady = fontsReady && localeReady;/);
+  assert.match(boot, /if \(!booted\) \{[\s\S]*accessibilityRole="progressbar"/);
   assert.match(boot, /SplashScreen\.hideAsync\(\)/);
   assert.doesNotMatch(boot, /if \(!fontsLoaded\)/);
   assert.doesNotMatch(boot, /from '@expo-google-fonts\/be-vietnam-pro';/);

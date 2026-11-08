@@ -66,6 +66,23 @@ describe('OIDC surface outcome', () => {
     }
   });
 
+  test('a password-change authorize error maps to the safe blocked code', async () => {
+    const outcome = await signInWithOidc({
+      issuer: ISSUER,
+      now: () => NOW,
+      openSession: async () => ({
+        type: 'success',
+        url: `${OIDC_REDIRECT_URI}?error=PASSWORD_CHANGE_REQUIRED&error_description=private-detail&state=state`,
+      }),
+      fetchImpl: jest.fn(async () => new Response('{}', { status: 200 })),
+    });
+
+    expect(outcome).toMatchObject({ kind: 'blocked', code: 'password_change_required' });
+    if (outcome.kind === 'blocked') {
+      expect(outcome.reason).not.toContain('private-detail');
+    }
+  });
+
   test('an applicant grant and a student role still sign in', async () => {
     const applicant = await signInWithOidc({
       issuer: ISSUER,

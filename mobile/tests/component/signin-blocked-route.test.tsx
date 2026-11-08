@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { render, screen } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -9,9 +10,10 @@ const mockSession = {
   blockedReason: null as string | null,
   markBlocked: jest.fn(),
 };
+const mockRouter = { replace: jest.fn() };
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: jest.fn() }),
+  useRouter: () => mockRouter,
 }));
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => mockSession,
@@ -69,5 +71,21 @@ describe('sign-in blocked route copy', () => {
       if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;
       else process.env.EXPO_PUBLIC_PORTAL_URL = configured;
     }
+  });
+
+  test('Android hardware back clears the blocked reason before returning to sign-in', async () => {
+    type BackPressHandler = Parameters<typeof BackHandler.addEventListener>[1];
+    let onBack: BackPressHandler | undefined;
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_eventName, listener) => {
+      onBack = listener;
+      return { remove: jest.fn() };
+    });
+    const replace = jest.spyOn(mockRouter, 'replace');
+
+    await renderScreen('en');
+
+    expect(onBack?.({} as Parameters<BackPressHandler>[0])).toBe(true);
+    expect(mockSession.markBlocked).toHaveBeenCalledWith(null);
+    expect(replace).toHaveBeenCalledWith('/sign-in');
   });
 });

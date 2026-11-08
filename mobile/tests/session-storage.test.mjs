@@ -683,3 +683,55 @@ test('a bootstrap marker read finishing after account switch cannot invalidate t
   await completed;
   assert.equal(secure.map.get('cu.refresh'), 'current-account');
 });
+
+test('a sign-out tombstone prevents a retained refresh token from returning after restart', async () => {
+  const { store, secure, sandbox } = makeStore();
+  secure.map.set('cu.install', JSON.stringify({ appInstanceId: 'install' }));
+  secure.map.set('cu.refresh', 'retained-refresh');
+  sandbox.map.set('installMarker', JSON.stringify({ appInstanceId: 'install' }));
+  const order = [];
+  const deleteItemAsync = secure.deleteItemAsync;
+  sandbox.setItem = async (key, value) => {
+    order.push('tombstone');
+    sandbox.map.set(key, value);
+  };
+  secure.deleteItemAsync = async () => {
+    order.push('secure-delete');
+    throw new Error('secure deletion unavailable');
+  };
+
+  await store.signOut();
+
+  assert.deepEqual(order, ['tombstone', 'secure-delete']);
+  assert.equal(JSON.parse(sandbox.map.get('installMarker')).signedOut, true);
+  assert.equal(JSON.parse(secure.map.get('cu.install')).signedOut, undefined);
+  const restarted = createSessionStore({ secure, sandbox, issuer: ISSUER });
+  assert.equal((await restarted.loadBootstrap()).refreshToken, null);
+
+  secure.deleteItemAsync = deleteItemAsync;
+  await restarted.saveRefresh('fresh-sign-in-refresh');
+  assert.equal(JSON.parse(sandbox.map.get('installMarker')).signedOut, undefined);
+  assert.equal(JSON.parse(secure.map.get('cu.install')).signedOut, undefined);
+  const nextRestart = createSessionStore({ secure, sandbox, issuer: ISSUER });
+  assert.equal((await nextRestart.loadBootstrap()).refreshToken, 'fresh-sign-in-refresh');
+});
+
+test('the secure install marker prevents restoration when the sandbox tombstone cannot be written', async () => {
+  const { store, secure, sandbox } = makeStore();
+  secure.map.set('cu.install', JSON.stringify({ appInstanceId: 'install', createdAt: '2023-11-14T22:13:20.000Z' }));
+  secure.map.set('cu.refresh', 'retained-refresh');
+  sandbox.map.set('installMarker', JSON.stringify({ appInstanceId: 'install' }));
+  sandbox.setItem = async () => { throw new Error('sandbox marker unavailable'); };
+  secure.deleteItemAsync = async () => { throw new Error('secure deletion unavailable'); };
+
+  await store.signOut();
+
+  const restarted = createSessionStore({ secure, sandbox, issuer: ISSUER });
+  assert.equal((await restarted.loadBootstrap()).refreshToken, null);
+  assert.equal(JSON.parse(secure.map.get('cu.install')).signedOut, true);
+
+  await restarted.saveRefresh('fresh-sign-in-refresh');
+  assert.equal(JSON.parse(secure.map.get('cu.install')).signedOut, undefined);
+  const nextRestart = createSessionStore({ secure, sandbox, issuer: ISSUER });
+  assert.equal((await nextRestart.loadBootstrap()).refreshToken, 'fresh-sign-in-refresh');
+});

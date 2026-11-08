@@ -71,8 +71,9 @@ export interface SessionStore {
    */
   refreshAccessToken(): Promise<RefreshResult>;
   /**
-   * Logout ordering: epoch++ → clear memory → best-effort wipe cu.refresh →
-   * best-effort POST {issuer}/oauth2/revoke. Never throws.
+   * Logout ordering: epoch++ → clear memory → persist signed-out markers →
+   * best-effort wipe cu.refresh → best-effort POST {issuer}/oauth2/revoke.
+   * Never throws.
    */
   signOut(): Promise<void>;
   setAccessToken(token: string | null): void;
@@ -113,6 +114,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   const tokenTimeoutMs = deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS;
 
   let accessToken: string | null = null;
+  let secureSignedOutMarker = false;
   // Bumped on sign-in/sign-out; a late refresh resolving under a newer epoch
   // is a no-op BEFORE it can touch disk (KM-6).
   let sessionEpoch = 0;
@@ -275,6 +277,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
         const install = parseJson(await secure.getItemAsync(INSTALL_KEY));
         const marker = parseJson(await sandbox.getItem(MARKER_KEY));
         if (epoch !== sessionEpoch) return { refreshToken: null, wipedForReinstall: false };
+        secureSignedOutMarker = install?.signedOut === true;
         const installId = typeof install?.appInstanceId === 'string' ? install.appInstanceId : null;
         const markerId = typeof marker?.appInstanceId === 'string' ? marker.appInstanceId : null;
 
@@ -290,7 +293,12 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
             JSON.stringify({ appInstanceId, createdAt: new Date(now()).toISOString() }),
           );
           await sandbox.setItem(MARKER_KEY, JSON.stringify({ appInstanceId }));
+          secureSignedOutMarker = false;
           return { refreshToken: null, wipedForReinstall: true };
+        }
+
+        if (secureSignedOutMarker || marker?.signedOut === true) {
+          return { refreshToken: null, wipedForReinstall: false };
         }
 
         return {
@@ -306,6 +314,21 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
         if (epoch !== sessionEpoch) throw new Error('Session changed before credential storage.');
         await secure.setItemAsync(REFRESH_KEY, token);
         if (epoch !== sessionEpoch) throw new Error('Session changed during credential storage.');
+        if (secureSignedOutMarker) {
+          const install = parseJson(await secure.getItemAsync(INSTALL_KEY));
+          if (install?.signedOut === true) {
+            const nextInstall = { ...install };
+            delete nextInstall.signedOut;
+            await secure.setItemAsync(INSTALL_KEY, JSON.stringify(nextInstall));
+          }
+          secureSignedOutMarker = false;
+        }
+        const marker = parseJson(await sandbox.getItem(MARKER_KEY));
+        if (marker?.signedOut === true) {
+          const nextMarker = { ...marker };
+          delete nextMarker.signedOut;
+          await sandbox.setItem(MARKER_KEY, JSON.stringify(nextMarker));
+        }
       });
     },
 
@@ -328,6 +351,23 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       sessionEpoch += 1;
       accessToken = null;
       const credential = await mutate(async () => {
+        const marker = parseJson(await sandbox.getItem(MARKER_KEY).catch(() => null)) ?? {};
+        let sandboxTombstoneWritten = false;
+        try {
+          await sandbox.setItem(MARKER_KEY, JSON.stringify({ ...marker, signedOut: true }));
+          sandboxTombstoneWritten = true;
+        } catch {
+          // SecureStore install metadata is the fallback if the sandbox write fails.
+        }
+        if (!sandboxTombstoneWritten) {
+          const install = parseJson(await secure.getItemAsync(INSTALL_KEY).catch(() => null)) ?? {};
+          try {
+            await secure.setItemAsync(INSTALL_KEY, JSON.stringify({ ...install, signedOut: true }));
+            secureSignedOutMarker = true;
+          } catch {
+            // If both marker stores fail, the credential wipe remains best-effort.
+          }
+        }
         const stored = await secure.getItemAsync(REFRESH_KEY).catch(() => null);
         await secure.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
         return stored;

@@ -69,6 +69,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       const outcome = await signInWithOidc({ issuer: sessionStoreIssuer() });
       if (attemptEpoch !== sessionStore.sessionEpoch()) return;
       if (outcome.kind === 'cancelled') {
+        session.markBlocked(copy.signIn.authorizationCancelled);
         return;
       }
       if (outcome.kind === 'unavailable') {
@@ -76,7 +77,13 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
         return;
       }
       if (outcome.kind === 'blocked') {
-        setError(outcome.code === 'no_mobile_surface' ? copy.signIn.noMobileSurface : copy.signIn.invalid);
+        if (outcome.code === 'no_mobile_surface') {
+          setError(copy.signIn.noMobileSurface);
+          return;
+        }
+        session.markBlocked(outcome.code === 'password_change_required'
+          ? copy.signIn.passwordChangeRequired
+          : copy.signIn.authorizationRejected);
         return;
       }
       sessionStore.bumpEpoch();
@@ -90,8 +97,12 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       if (epoch !== sessionStore.sessionEpoch()) return;
       sessionStore.setAccessToken(outcome.accessToken);
       navigation.completeSignIn(outcome.role, outcome.accountId);
-    } catch {
-      setError(copy.signIn.unreachable);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        session.markBlocked(copy.signIn.authorizationTimeout);
+      } else {
+        setError(copy.signIn.unreachable);
+      }
     } finally {
       signInFlight.current = false;
       setIsSubmitting(false);
@@ -247,7 +258,7 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
           <View style={[styles.skeletonBlock, styles.skeletonRow]} />
         </View>
       ) : list.error ? (
-        <View accessible accessibilityLabel={list.error} accessibilityRole="alert" testID="signin-news-error">
+        <View testID="signin-news-error">
           <StatePanel kind="error" title={list.error} actionLabel={copy.retry} onAction={() => void list.reload()} />
         </View>
       ) : !featured ? (

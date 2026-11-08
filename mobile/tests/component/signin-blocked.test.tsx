@@ -8,6 +8,13 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'live' as 'preview' | 'live' };
 const mockSignIn = jest.fn<() => Promise<unknown>>();
+const mockSession = {
+  kind: 'signedOut',
+  role: 'student',
+  capabilities: [],
+  bootStatus: 'ready',
+  markBlocked: jest.fn(),
+};
 
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode, get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }; },
@@ -28,7 +35,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
   }),
 }));
 jest.mock('../../src/session/SessionContext', () => ({
-  useSession: () => ({ kind: 'signedOut', role: 'student', capabilities: [], bootStatus: 'ready' }),
+  useSession: () => mockSession,
 }));
 jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: () => mockSignIn() }));
 jest.mock('../../src/auth/mobile-session-store', () => ({
@@ -67,6 +74,10 @@ afterEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
   mockApi.mode = 'live';
+  mockSession.kind = 'signedOut';
+  mockSession.role = 'student';
+  mockSession.capabilities = [];
+  mockSession.bootStatus = 'ready';
   if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;
   else process.env.EXPO_PUBLIC_PORTAL_URL = configured;
 });
@@ -93,14 +104,24 @@ describe('sign-in blocked outcome', () => {
     expect(openURL).toHaveBeenCalledWith('https://portal.example.edu');
   });
 
-  test('other blocked outcomes keep the generic validation copy and no portal action', async () => {
+  test.each([
+    { locale: 'vi' as const, reason: 'Bạn cần đổi mật khẩu trên cổng thông tin trước khi đăng nhập.' },
+    { locale: 'en' as const, reason: 'Change your password in the web portal before signing in.' },
+  ])('a password-change gate routes with safe localized copy ($locale)', async ({ locale, reason }) => {
     process.env.EXPO_PUBLIC_PORTAL_URL = 'https://portal.example.edu';
-    mockSignIn.mockResolvedValueOnce({ kind: 'blocked', reason: 'private provider text' });
+    mockSignIn.mockResolvedValueOnce({
+      kind: 'blocked',
+      code: 'password_change_required',
+      reason: 'private provider text',
+    });
 
-    await renderScreen('en');
-    await fireEvent.press(screen.getByRole('button', { name: 'Sign in with CampusUTE ID' }));
+    await renderScreen(locale);
+    await fireEvent.press(screen.getByRole('button', {
+      name: locale === 'vi' ? 'Đăng nhập bằng CampusUTE ID' : 'Sign in with CampusUTE ID',
+    }));
 
-    expect(await screen.findByText(accountMessages.en.signIn.invalid)).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: accountMessages.en.blocked.openPortal })).toBeNull();
+    expect(mockSession.markBlocked).toHaveBeenCalledWith(reason);
+    expect(screen.queryByText('private provider text')).toBeNull();
+    expect(screen.queryByText(accountMessages[locale].signIn.invalid)).toBeNull();
   });
 });
