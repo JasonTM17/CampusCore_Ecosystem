@@ -140,6 +140,7 @@ export interface ThesisCopy {
   reportPicked: string;
   reportSubmittedAt: string;
   reportDeadline: string;
+  reportWindowClosed: string;
   validation: {
     titleLong: string;
     noteLong: string;
@@ -318,6 +319,7 @@ const vi: ThesisCopy = {
   reportPicked: 'Tệp đã chọn',
   reportSubmittedAt: 'Nộp lúc',
   reportDeadline: 'Hạn nộp',
+  reportWindowClosed: 'Chỉ có thể cập nhật báo cáo khi đợt đã đóng đăng ký và còn hạn nộp.',
   validation: {
     titleLong: 'Tiêu đề tối đa 240 ký tự.',
     noteLong: 'Ghi chú tối đa 500 ký tự.',
@@ -380,6 +382,11 @@ const vi: ThesisCopy = {
       VALIDATION_ERROR: 'Thông tin chưa hợp lệ.',
       ROUND_NOT_FOUND: 'Không tìm thấy đợt.',
       GROUP_NOT_FOUND: 'Không tìm thấy nhóm.',
+      TOPIC_ROUND_MISMATCH: 'Đề tài thuộc đợt đăng ký khác.',
+      TOPIC_NOT_PUBLISHED: 'Chỉ có thể chọn đề tài đã công bố.',
+      RESULT_ALREADY_RESOLVED: 'Đề tài đã hoàn tất kết quả và không nhận thêm nhóm.',
+      TOPIC_ALREADY_GRADED: 'Đề tài đã được chấm điểm và không nhận thêm nhóm.',
+      TOPIC_FULL: 'Đề tài đã đủ số lượng nhóm.',
     },
   },
 };
@@ -540,6 +547,7 @@ const en: ThesisCopy = {
   reportPicked: 'Selected file',
   reportSubmittedAt: 'Submitted',
   reportDeadline: 'Deadline',
+  reportWindowClosed: 'Reports can only be updated once registration is closed and before the deadline.',
   validation: {
     titleLong: 'The title is limited to 240 characters.',
     noteLong: 'The note is limited to 500 characters.',
@@ -602,6 +610,11 @@ const en: ThesisCopy = {
       VALIDATION_ERROR: 'Some details are not valid.',
       ROUND_NOT_FOUND: 'Round not found.',
       GROUP_NOT_FOUND: 'Group not found.',
+      TOPIC_ROUND_MISMATCH: 'The topic belongs to another registration round.',
+      TOPIC_NOT_PUBLISHED: 'Only published topics can be selected.',
+      RESULT_ALREADY_RESOLVED: 'This topic result is resolved and cannot accept another group.',
+      TOPIC_ALREADY_GRADED: 'This topic is already graded and cannot accept another group.',
+      TOPIC_FULL: 'This topic has reached its group limit.',
     },
   },
 };

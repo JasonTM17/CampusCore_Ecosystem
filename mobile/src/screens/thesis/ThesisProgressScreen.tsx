@@ -75,7 +75,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                       <UiText variant="display" tone="primary">{fillThesisCopy(copy.progressPercent, { value: percent })}</UiText>
                     ) : null}
                   </View>
-                  <ThesisStatusBadge status={group.approvalStatus === 'APPROVED' ? 'APPROVED' : group.status} copy={copy} />
+                  <ThesisStatusBadge status={group.status === 'CANCELLED' ? 'CANCELLED' : group.approvalStatus === 'APPROVED' ? 'APPROVED' : group.approvalStatus === 'REJECTED' ? 'REJECTED' : group.status} copy={copy} />
                 </View>
                 {progress ? <ProgressBar value={percent} tone={percent === 100 && !notQualified ? 'success' : 'primary'} /> : null}
                 {outcome ? (
@@ -140,7 +140,10 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   </UiText>
                   <Badge label={copy.status[group.approvalStatus] ?? group.approvalStatus} tone={statusTone(group.approvalStatus)} />
                 </View>
-                {(group.members ?? []).map((member, index, all) => (
+                {((group.members && group.members.length > 0)
+                  ? group.members
+                  : (group.memberStudentIds ?? []).map((studentId) => ({ studentId }))
+                ).map((member, index, all) => (
                   <View key={member.studentId}>
                     <ListRow
                       leading={memberLabel(member).slice(0, 1).toUpperCase()}
@@ -152,7 +155,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                 ))}
               </Card>
 
-              <ThesisReportCard group={group} isLeader={state.isLeader} onChanged={() => void state.reload()} />
+              <ThesisReportCard group={group} isLeader={state.isLeader} roundStatus={active.round?.status} reportDeadline={active.round?.reportDeadline} onChanged={() => void state.reload()} />
               <AskAssistantButton navigation={navigation} label={copy.askAssistant} />
             </>
           ) : null}

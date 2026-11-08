@@ -21,7 +21,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
   const round = topic ? rounds.rounds.find((item) => item.id === topic.roundId) ?? null : null;
   const group = useThesisGroup(topic?.roundId ?? null);
   const chosen = Boolean(topic && group.group?.topicId === topic.id);
-  const canRegister = Boolean(topic) && isRegistrationOpen(round) && !chosen;
+  const canRegister = Boolean(topic) && isRegistrationOpen(round) && group.loaded && !group.loading && !group.error && !group.isStale && !chosen;
 
   return (
     <ScreenShell title={copy.detailTitle}>
@@ -33,7 +33,9 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
             <View style={styles.header}>
               <IconChip icon="lightbulb-outline" size={40} />
               <View style={styles.grow}>
-                <UiText variant="meta" tone="primary">{`${copy.topicDepartment}: ${topic.departmentId}`}</UiText>
+                {topic.departmentName ? (
+                  <UiText variant="meta" tone="primary">{`${copy.topicDepartment}: ${topic.departmentName}`}</UiText>
+                ) : null}
                 <UiText variant="headlineSmall">{topic.title}</UiText>
               </View>
               <ThesisStatusBadge status={topic.status} copy={copy} />
@@ -65,6 +67,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
             <UiText variant="bodySmall" tone="success" style={styles.line}>{copy.topicAssigned}</UiText>
           ) : null}
           <QueryNotices state={{ ...rounds, preview: false }} copy={copy} />
+          <QueryNotices state={group} copy={copy} />
           <View style={styles.actions}>
             {canRegister ? (
               <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />
