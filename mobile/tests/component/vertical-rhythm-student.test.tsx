@@ -16,6 +16,7 @@ jest.mock('../../src/api/client', () => ({
 }));
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'preview', role: 'student', capabilities: [] }),
+  useOptionalSession: () => null,
 }));
 jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn() }));
 jest.mock('../../src/auth/mobile-session-store', () => ({ sessionStore: {} }));

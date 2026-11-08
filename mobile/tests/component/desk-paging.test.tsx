@@ -26,6 +26,8 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
     libraryCancel: jest.fn(),
   },
 }));
+const mockSession = { kind: 'authenticated', role: 'staff', capabilities: [] as string[], accountId: 'staff-a' };
+jest.mock('../../src/session/SessionContext', () => ({ useSession: () => mockSession }));
 
 import { ApplyReviewScreen, CareersDeskScreen, LibraryDeskScreen } from '../../src/screens/lanes/StaffDeskScreens';
 import { laneApi } from '../../src/screens/lanes/lane-api';
@@ -102,7 +104,7 @@ describe('staff desk paging', () => {
 
   test('an admissions rejection sends the written reason', async () => {
     api.admissionsQueuePaged.mockResolvedValue({
-      items: [{ id: 'a1', fullName: 'An', status: 'IN_REVIEW', version: 4 }],
+      items: [{ id: 'a1', fullName: 'An', status: 'IN_REVIEW', claimedBy: 'staff-a', version: 4 }],
       total: 1,
       hasMore: false,
     });

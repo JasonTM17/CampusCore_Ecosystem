@@ -94,7 +94,7 @@ test('native binding retains an existing secure session and writes only device-o
   await store.signOut();
   expect(store.getAccessToken()).toBeNull();
   expect(mockSecure.has('cu.refresh')).toBe(false);
-  expect([...mockSandbox.entries()]).toEqual([['installMarker', JSON.stringify({ appInstanceId: 'existing' })]]);
+  expect([...mockSandbox.entries()]).toEqual([['installMarker', JSON.stringify({ appInstanceId: 'existing', signedOut: true })]]);
 });
 
 test('native binding clears refresh and memory on a rejected rotation without persisting response tokens', async () => {
