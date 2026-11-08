@@ -41,6 +41,7 @@ import { selectThesisRound } from '../screens/thesis/thesis-selection';
 export interface SessionState {
   kind: SessionKind;
   role: UserRole;
+  signingOut: boolean;
   /** id_token sub — per-account cache key; null while signed out/preview. */
   accountId: string | null;
   /** Reason a sign-in attempt terminated without a session (KM-12 UX). */
@@ -61,7 +62,9 @@ interface SessionActions {
   enterPreview(): boolean;
   completeSignIn(role: UserRole, accountId: string | null): void;
   switchRole(role: UserRole): void;
+  beginSignOut(): void;
   signOut(): Promise<void>;
+  clearSigningOut(): void;
   markBlocked(reason: string | null): void;
   setRole(role: UserRole): void;
 }
@@ -81,6 +84,7 @@ const SessionContext = createContext<SessionValue | null>(null);
 const initialState: SessionState = {
   kind: 'signedOut',
   role: 'student',
+  signingOut: false,
   accountId: null,
   blockedReason: null,
   capabilities: NO_CAPABILITIES,
@@ -229,6 +233,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             setState({
               kind: 'authenticated',
               role,
+              signingOut: false,
               accountId,
               blockedReason: null,
               capabilities,
@@ -297,6 +302,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setState({
       kind: 'authenticated',
       role,
+      signingOut: false,
       accountId,
       blockedReason: null,
       capabilities: capabilitiesOf(sessionStore.getAccessToken()),
@@ -320,6 +326,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setState((current) => ({ ...current, blockedReason: reason }));
   }, []);
 
+  const beginSignOut = useCallback(() => {
+    const next = { ...stateRef.current, signingOut: true };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  const clearSigningOut = useCallback(() => {
+    if (!stateRef.current.signingOut) return;
+    const next = { ...stateRef.current, signingOut: false };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   const signOut = useCallback(async () => {
     updateBootStatus('ready');
     // Local session state includes the module-level thesis round selection.
@@ -328,7 +347,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (stateRef.current.kind === 'preview') {
       setEpoch((e) => e + 1);
       clearQueryCache();
-      setState(initialState);
+      const signedOutState = { ...initialState, signingOut: true };
+      stateRef.current = signedOutState;
+      setState(signedOutState);
       return;
     }
     // Captured before the wipe so the server can drop this device's registration.
@@ -342,8 +363,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // Local wipe first: it must not wait on, or depend on, the store call below.
     clearQueryCache();
     setEpoch((e) => e + 1);
-    stateRef.current = initialState;
-    setState(initialState);
+    const signedOutState = { ...initialState, signingOut: true };
+    stateRef.current = signedOutState;
+    setState(signedOutState);
     // No post-await state write: a new sign-in may complete during the disk wipe.
     await sessionStore.signOut();
   }, [updateBootStatus]);
@@ -358,14 +380,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     enterPreview,
     completeSignIn,
     switchRole,
+    beginSignOut,
     signOut,
+    clearSigningOut,
     markBlocked,
     setRole,
-  }), [state, epoch, booted, bootStatus, bootUnavailableReason, retryBoot, enterPreview, completeSignIn, switchRole, signOut, markBlocked, setRole]);
+  }), [state, epoch, booted, bootStatus, bootUnavailableReason, retryBoot, enterPreview, completeSignIn, switchRole, beginSignOut, signOut, clearSigningOut, markBlocked, setRole]);
 
-  if (!booted) {
-    return null;
-  }
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
@@ -375,4 +396,8 @@ export function useSession(): SessionValue {
     throw new Error('useSession must be used inside SessionProvider');
   }
   return value;
+}
+
+export function useOptionalSession(): SessionValue | null {
+  return useContext(SessionContext);
 }

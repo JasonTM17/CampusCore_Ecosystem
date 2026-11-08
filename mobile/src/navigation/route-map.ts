@@ -191,6 +191,12 @@ export function screenForPath(pathname: string): ScreenName | null {
   if (exact) {
     return exact;
   }
+  if (/^\/news\/[^/]+$/.test(clean)) {
+    return 'news';
+  }
+  if (/^\/docs\/[^/]+$/.test(clean)) {
+    return 'docs';
+  }
   // /thesis/<segment> → thesis.detail (contract §2 dynamic route); static
   // siblings already resolved above so register/progress keep precedence.
   // The legacy `/thesis/topic` shape is excluded — a stale link resolves as
@@ -241,12 +247,18 @@ export function resolveGuard(
   pathname: string,
   capabilities: CapabilitySet = NO_CAPABILITIES,
   flags?: LaneFlags,
+  signingOut = false,
 ): GuardDecision {
   const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
   if (clean === '/auth/callback') {
     // Defensive only (KM-10): the OIDC session consumes this URL; a stray
     // deep link that still arrives goes to sign-in, never a screen.
     return { action: 'redirect', to: 'auth.signIn' };
+  }
+  if (signingOut) {
+    return clean === '/session/logged-out'
+      ? { action: 'allow' }
+      : { action: 'redirect', to: 'auth.loggedOut' };
   }
   if (session === 'signedOut') {
     return SIGNED_OUT_PATHS.has(clean) || PUBLIC_PATHS.has(clean)
@@ -257,7 +269,9 @@ export function resolveGuard(
   const lane = laneScreenForPath(clean);
   if (lane !== null) {
     const granted = session === 'authenticated'
-      ? canAccessLaneScreen(role, capabilities, lane)
+      ? flags !== undefined && flags[laneGroupOf(lane)] !== true
+        ? false
+        : canAccessLaneScreen(role, capabilities, lane)
       : session === 'preview' && flags !== undefined && canPreviewLaneScreen(role, flags, lane);
     return granted
       ? { action: 'allow' }
