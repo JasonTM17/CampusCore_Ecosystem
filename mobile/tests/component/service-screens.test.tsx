@@ -197,6 +197,29 @@ describe('service screens in live mode', () => {
     expect(mockReloads['content.certificates.curriculum']).toHaveBeenCalledTimes(0);
   });
 
+  test('certificates with null conduct average shows missing-value copy', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => key === 'content.certificates.conduct' ? {
+        studentCode: '22110001',
+        fullName: 'Nguyễn Tiến Sơn',
+        cumulativeAverageScore: null,
+        cumulativeClassificationVi: null,
+        currentSemester: null,
+        history: [],
+      } : key === 'content.certificates.curriculum' ? {
+        curriculum: { id: 'program-1', code: 'CNTT', name: 'Công nghệ thông tin', totalCredits: 130 },
+        courses: [{ courseId: 'course-1', code: 'CS101', name: 'Intro', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' }],
+      } : undefined,
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CertificatesScreen {...props} />);
+    expect(screen.getByText(recordsMessages.vi.missing)).toBeOnTheScreen();
+  });
+
   test('a failed load shows an error state with retry, never an empty list', async () => {
     mockApi.mode = 'live';
     mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false };

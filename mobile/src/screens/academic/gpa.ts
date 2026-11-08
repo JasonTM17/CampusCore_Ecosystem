@@ -245,7 +245,7 @@ export function parseTranscript(raw: unknown, locale: 'vi' | 'en' = 'vi'): Trans
   });
   const fallback = summarizeBestAttempts(terms.flatMap((term) => publishedOnly(term.records)));
   return {
-    cumulativeGpa: num(summary.cumulativeGpa) ?? fallback.gpa,
+    cumulativeGpa: summary.cumulativeGpa === undefined ? fallback.gpa : num(summary.cumulativeGpa),
     totalCreditsEarned: num(summary.totalCreditsEarned) ?? fallback.completedCredits,
     totalCreditsAttempted: num(summary.totalCreditsAttempted) ?? terms.reduce((sum, term) => sum + term.creditsAttempted, 0),
     basisNote: parseBasisNote(summary.basisNote, locale),

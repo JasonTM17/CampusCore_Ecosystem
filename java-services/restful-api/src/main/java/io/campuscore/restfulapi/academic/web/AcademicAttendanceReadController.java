@@ -49,7 +49,7 @@ public class AcademicAttendanceReadController {
             @Parameter(description = "Số trang") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Số lượng bản ghi mỗi trang") @RequestParam(defaultValue = "20") int limit,
             @Parameter(description = "Mã định danh lớp học phần (UUID)") @RequestParam(required = false) String sectionId,
-            @Parameter(description = "Mã định danh sinh viên (UUID)") @RequestParam(required = false) String studentId,
+            @Parameter(description = "Mã định danh sinh viên (UUID hoặc mã sinh viên)") @RequestParam(required = false) String studentId,
             @Parameter(description = "Ngày điểm danh (YYYY-MM-DD)") @RequestParam(required = false) String date,
             @RequestParam MultiValueMap<String, String> queryParameters) {
         requireAllowedQuery(queryParameters, Set.of("page", "limit", "sectionId", "studentId", "date"));

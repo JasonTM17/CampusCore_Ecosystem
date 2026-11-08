@@ -113,6 +113,7 @@ public final class AcademicEnrollmentReadDtos {
     }
 
     public record TranscriptSummary(
+            @Schema(types = {"number", "null"})
             BigDecimal cumulativeGpa,
             int totalCreditsEarned,
             int totalCreditsAttempted,
@@ -125,6 +126,7 @@ public final class AcademicEnrollmentReadDtos {
             String semesterNameEn,
             String semesterNameVi,
             List<GradeSummary> records,
+            @Schema(types = {"number", "null"})
             BigDecimal gpa,
             int creditsEarned,
             int creditsAttempted) {

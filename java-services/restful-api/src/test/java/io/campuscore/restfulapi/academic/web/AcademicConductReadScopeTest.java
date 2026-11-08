@@ -226,6 +226,23 @@ class AcademicConductReadScopeTest {
         assertThat(summary.studentId()).isEqualTo(STUDENT);
     }
 
+    @Test
+    void studentWithoutScoresHasNullCumulativeSummary() {
+        NamedParameterJdbcTemplate realJdbc = conductSchema();
+        JdbcOperations seed = realJdbc.getJdbcOperations();
+        seedStudent(seed, STUDENT);
+
+        StudentConductSummaryDto summary =
+                realController(realJdbc).getStudentConductSummary(STUDENT, lecturer("ADMIN"));
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.studentId()).isEqualTo(STUDENT);
+        assertThat(summary.cumulativeAverageScore()).isNull();
+        assertThat(summary.cumulativeClassificationVi()).isNull();
+        assertThat(summary.currentSemester()).isNull();
+        assertThat(summary.history()).isEmpty();
+    }
+
     private static AcademicConductController realController(NamedParameterJdbcTemplate realJdbc) {
         return new AcademicConductController(new AcademicConductService(realJdbc));
     }

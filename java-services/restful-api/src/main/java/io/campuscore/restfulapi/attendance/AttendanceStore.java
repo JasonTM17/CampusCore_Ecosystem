@@ -112,8 +112,10 @@ public class AttendanceStore {
                 JOIN academic."Section" sec ON sec."id"=s."sectionId"
                 JOIN academic."AttendanceGeofence" g ON g."id"=s."geofenceId"
                 WHERE e."studentId"=? AND e."status" NOT IN ('DROPPED','CANCELLED')
-                AND s."status"='OPEN' AND s."opensAt"<=? AND s."closesAt">? AND g."isActive"=TRUE ORDER BY s."closesAt",s."id"
-                """, (rs,n)->new OpenSessionResponse(rs.getString(1),rs.getString(2),rs.getString(3),rs.getTimestamp(4).toInstant(),rs.getBoolean(5),rs.getString(6)),student,ts(now),ts(now));
+                AND s."status"='OPEN' AND s."opensAt"<=? AND s."closesAt">? AND g."isActive"=TRUE
+                AND NOT EXISTS (SELECT 1 FROM academic."AttendanceCheckin" ac WHERE ac."sessionId"=s."id" AND ac."studentId"=? AND ac."decision"<>'REJECTED')
+                ORDER BY s."closesAt",s."id"
+                """, (rs,n)->new OpenSessionResponse(rs.getString(1),rs.getString(2),rs.getString(3),rs.getTimestamp(4).toInstant(),rs.getBoolean(5),rs.getString(6)),student,ts(now),ts(now),student);
     }
     private Checkin checkin(ResultSet rs) throws SQLException {
         return new Checkin(rs.getString("id"),rs.getString("sessionId"),rs.getString("studentId"),rs.getString("deviceHash"),

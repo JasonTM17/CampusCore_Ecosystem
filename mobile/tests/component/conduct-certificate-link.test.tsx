@@ -82,3 +82,15 @@ test('certificate link launch failures show localized feedback', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Xem giấy chứng nhận: Volunteer day' }));
   expect(await screen.findByText('Không mở được giấy chứng nhận. Vui lòng thử lại.')).toBeOnTheScreen();
 });
+
+test('conduct screen with null average and no terms shows empty state', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    cumulativeAverageScore: null,
+    cumulativeClassificationVi: null,
+    currentSemester: null,
+    history: [],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  expect(screen.getByText('Chưa có điểm rèn luyện')).toBeOnTheScreen();
+});

@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -289,6 +290,20 @@ class AcademicEnrollmentReadPersistenceTest {
                 .andExpect(jsonPath("$.summary.cumulativeGpa").value(4.0))
                 .andExpect(jsonPath("$.summary.totalCreditsEarned").value(6))
                 .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(6));
+    }
+
+    @Test
+    void passFailOnlyTranscriptReportsNullGpaInsteadOfZero() throws Exception {
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"status\" = 'COMPLETED', \"gradeStatus\" = 'PUBLISHED' WHERE \"id\" = 'enrollment-3'");
+
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-2", "student-2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(nullValue()))
+                .andExpect(jsonPath("$.semesters[0].gpa").value(nullValue()))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(4))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(4))
+                .andExpect(jsonPath("$.semesters[0].creditsEarned").value(4))
+                .andExpect(jsonPath("$.semesters[0].creditsAttempted").value(4));
     }
 
     @Test

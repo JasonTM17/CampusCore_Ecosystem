@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -24,6 +25,7 @@ import io.campuscore.restfulapi.mail.web.MailDtos.MailDispatchResponse;
 import io.campuscore.restfulapi.mail.web.MailDtos.TestEmailRequest;
 import io.campuscore.restfulapi.web.DomainException;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -317,5 +319,27 @@ class MailControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().contains("Preview"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void gradeAlertPreviewUsesComputedGpaAndApplicationLetterBands() {
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        when(emailService.renderPreview(eq("grade-alert"), captor.capture())).thenReturn("<html>Preview</html>");
+
+        controller.previewTemplate("grade-alert");
+
+        Map<String, Object> sampleData = captor.getValue();
+        assertNotNull(sampleData);
+        assertEquals(4.0, sampleData.get("gpa4"));
+        assertEquals(9.0, sampleData.get("gpa10"));
+
+        List<GradeItem> grades = (List<GradeItem>) sampleData.get("grades");
+        assertNotNull(grades);
+        GradeItem item85 = grades.stream()
+                .filter(item -> Double.compare(item.score10(), 8.5) == 0)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("A", item85.scoreLetter());
     }
 }

@@ -39,6 +39,8 @@ public final class RegistrationDtos {
             String courseId,
             String courseCode,
             String courseName,
+            String courseNameEn,
+            String courseNameVi,
             int credits,
             int capacity,
             int enrolledCount,

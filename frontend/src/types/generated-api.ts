@@ -2768,6 +2768,8 @@ export interface components {
       courseCode?: string;
       courseId?: string;
       courseName?: string;
+      courseNameEn?: string;
+      courseNameVi?: string;
       /** Format: int32 */
       credits?: number;
       /**
@@ -4790,8 +4792,8 @@ export interface components {
       total?: number;
     };
     StudentConductSummaryDto: {
-      cumulativeAverageScore?: number;
-      cumulativeClassificationVi?: string;
+      cumulativeAverageScore?: number | null;
+      cumulativeClassificationVi?: string | null;
       currentSemester?: components["schemas"]["ConductSemesterScoreDto"];
       fullName?: string;
       history?: components["schemas"]["ConductSemesterScoreDto"][];
@@ -5096,7 +5098,7 @@ export interface components {
       creditsAttempted?: number;
       /** Format: int32 */
       creditsEarned?: number;
-      gpa?: number;
+      gpa?: number | null;
       records?: components["schemas"]["GradeSummary"][];
       semesterId?: string;
       semesterName?: string;
@@ -5105,7 +5107,7 @@ export interface components {
     };
     TranscriptSummary: {
       basisNote?: components["schemas"]["TranscriptBasisNote"];
-      cumulativeGpa?: number;
+      cumulativeGpa?: number | null;
       /** Format: int32 */
       totalCreditsAttempted?: number;
       /** Format: int32 */
@@ -7227,7 +7229,7 @@ export interface operations {
         limit?: number;
         /** @description Mã định danh lớp học phần (UUID) */
         sectionId?: string;
-        /** @description Mã định danh sinh viên (UUID) */
+        /** @description Mã định danh sinh viên (UUID hoặc mã sinh viên) */
         studentId?: string;
         /** @description Ngày điểm danh (YYYY-MM-DD) */
         date?: string;
