@@ -22,6 +22,16 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles({"test", "persistence"})
 class CurriculumSeedIntegrityPostgresIT {
 
+    /**
+     * The demo curricula only. Other integration tests share the database and create their
+     * own curricula without course links, which must not be judged as seed data.
+     */
+    private static final String SEEDED_CURRICULA = "('curriculum-demo', 'curriculum-se', 'curriculum-ais',"
+            + " 'curriculum-netsec', 'curriculum-isbd', 'curriculum-mis', 'curriculum-auto',"
+            + " 'curriculum-etec', 'curriculum-robot', 'curriculum-manuf', 'curriculum-autoeng',"
+            + " 'curriculum-bimeng', 'curriculum-civil', 'curriculum-bte', 'curriculum-fin',"
+            + " 'curriculum-lscm')";
+
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -48,7 +58,8 @@ class CurriculumSeedIntegrityPostgresIT {
                         + " FROM academic.\"Student\" student"
                         + " WHERE student.\"curriculumId\" = curriculum.\"id\"), '(none)') AS student_ids"
                         + " FROM academic.\"Curriculum\" curriculum"
-                        + " WHERE NOT EXISTS (SELECT 1 FROM academic.\"CurriculumCourse\" link"
+                        + " WHERE curriculum.\"id\" IN " + SEEDED_CURRICULA
+                        + " AND NOT EXISTS (SELECT 1 FROM academic.\"CurriculumCourse\" link"
                         + " WHERE link.\"curriculumId\" = curriculum.\"id\")"
                         + " ORDER BY curriculum.\"id\"",
                 (rs, rowNum) -> new EmptyCurriculum(
@@ -83,6 +94,7 @@ class CurriculumSeedIntegrityPostgresIT {
                         + " LEFT JOIN academic.\"CurriculumCourse\" link"
                         + " ON link.\"curriculumId\" = curriculum.\"id\""
                         + " LEFT JOIN academic.\"Course\" course ON course.\"id\" = link.\"courseId\""
+                        + " WHERE curriculum.\"id\" IN " + SEEDED_CURRICULA
                         + " GROUP BY curriculum.\"id\", curriculum.\"totalCredits\""
                         + " ORDER BY curriculum.\"id\"",
                 (rs, rowNum) -> new CreditBalance(
