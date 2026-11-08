@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
@@ -28,6 +28,7 @@ const mockWrites = {
   submit: jest.fn(async (_assignmentId: string, _version: number) => ({})),
   resubmit: jest.fn(async (_assignmentId: string, _input: unknown, _scope: string) => ({})),
 };
+const mockOpenDraft = jest.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({}));
 
 const mockFileRelease = jest.fn();
 const mockFilePick = jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -69,7 +70,7 @@ jest.mock('../../src/screens/content/content-api', () => ({
     learningSubmission: (submissionId: string) => mockWrites.submission(submissionId),
     learningRevisions: jest.fn(async () => []),
     learningFeedback: jest.fn(async () => []),
-    learningOpenDraft: jest.fn(async () => ({})),
+    learningOpenDraft: (...args: unknown[]) => mockOpenDraft(...args),
     learningSaveDraft: (submissionId: string, input: unknown) => mockWrites.saveDraft(submissionId, input),
     learningSubmit: (assignmentId: string, version: number) => mockWrites.submit(assignmentId, version),
     learningResubmit: (assignmentId: string, input: unknown, scope: string) => mockWrites.resubmit(assignmentId, input, scope),
@@ -161,6 +162,32 @@ describe('assignment server draft', () => {
     await pending.promise;
     await new Promise<void>((resolve) => setImmediate(resolve));
 
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  test('opening a draft aborts when leaving the assignment detail', async () => {
+    const pending = deferred<{ id: string }>();
+    const onChanged = jest.fn();
+    let requestSignal: AbortSignal | undefined;
+    mockOpenDraft.mockImplementationOnce((_assignment, signal) => {
+      requestSignal = signal as AbortSignal;
+      return pending.promise;
+    });
+    const view = await render(element({
+      assignment: assignment({ mySubmissionId: null, mySubmissionStatus: null }),
+      onChanged,
+    }));
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.startDraft }));
+    await waitFor(() => expect(mockOpenDraft).toHaveBeenCalledTimes(1));
+    expect(requestSignal).toBeDefined();
+    await view.unmount();
+    expect(requestSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ id: 'sub-new' });
+      await pending.promise;
+    });
     expect(onChanged).not.toHaveBeenCalled();
   });
 

@@ -37,6 +37,8 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   const requestFlight = useRef(false);
   const mounted = useRef(false);
   const statusRequest = useRef(0);
+  const onCompletedRef = useRef(onCompleted);
+  onCompletedRef.current = onCompleted;
 
   const loadStatus = useCallback(async () => {
     const request = ++statusRequest.current;
@@ -60,8 +62,8 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   }, [loadStatus]);
 
   useEffect(() => {
-    if (state.completed) onCompleted(state.completed);
-  }, [state.completed, onCompleted]);
+    if (state.completed) onCompletedRef.current(state.completed);
+  }, [state.completed]);
 
   const cancel = () => {
     setPassword('');
@@ -105,12 +107,16 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
         ? accountApi.confirmTwoFactorDisable
         : accountApi.confirmTwoFactorEnable;
       const result = await confirm(state.challengeId, normalizeOtpCode(code));
+      if (!mounted.current) {
+        onCompletedRef.current(state.action);
+        return;
+      }
       dispatch({ type: 'succeeded', enabled: Boolean(result.enabled) });
     } catch (error) {
-      dispatch({ type: 'failed', error: twoFactorErrorKey(classifyError(error), 'code') });
+      if (mounted.current) dispatch({ type: 'failed', error: twoFactorErrorKey(classifyError(error), 'code') });
     } finally {
       requestFlight.current = false;
-      setCode('');
+      if (mounted.current) setCode('');
     }
   };
 
