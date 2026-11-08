@@ -1,5 +1,5 @@
 import { beforeEach, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -12,6 +12,8 @@ const mockRuntime = {
   queries: {} as Record<string, unknown>,
   shared: [] as { content: string; name: string }[],
   shareFails: false,
+  shareCalls: 0,
+  sharePending: null as Promise<{ status: 'done' }> | null,
 };
 
 jest.mock('../../src/api/client', () => ({
@@ -44,6 +46,8 @@ jest.mock('../../src/screens/operations/lecturer-api', () => ({
   },
   csvShareAvailable: () => true,
   shareCsv: async (content: string, name: string) => {
+    mockRuntime.shareCalls++;
+    if (mockRuntime.sharePending) return mockRuntime.sharePending;
     if (mockRuntime.shareFails) throw new Error('native share failed');
     mockRuntime.shared.push({ content, name });
     return { status: 'done' as const };
@@ -75,11 +79,35 @@ beforeEach(() => {
   mockRuntime.mode = 'live';
   mockRuntime.shared = [];
   mockRuntime.shareFails = false;
+  mockRuntime.shareCalls = 0;
+  mockRuntime.sharePending = null;
   mockRuntime.queries = {
     'lecturer:grading': sections,
     'lecturer:grades:section-a': gradeSheet,
   };
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
 
 test('grade CSV exports the unsaved score shown on screen', async () => {
   await render(screenElement(<LecturerGradingScreen {...props} />));
@@ -99,6 +127,19 @@ test('grade CSV keeps the loaded score when the visible text is not a valid scor
   await waitFor(() => expect(mockRuntime.shared).toHaveLength(1));
   expect(mockRuntime.shared[0].content).toContain('"5.0"');
   expect(mockRuntime.shared[0].content).not.toContain('"11.0"');
+});
+
+test('same-frame repeated CSV exports open one share action', async () => {
+  const pending = deferred<{ status: 'done' }>();
+  mockRuntime.sharePending = pending.promise;
+  await render(screenElement(<LecturerGradingScreen {...props} />));
+
+  try {
+    await pressTwiceBeforeCommit(screen.getByRole('button', { name: /Export CSV/ }));
+    expect(mockRuntime.shareCalls).toBe(1);
+  } finally {
+    await act(async () => { pending.resolve({ status: 'done' }); await pending.promise; });
+  }
 });
 
 test('grade CSV reports a rejected share and releases the busy action', async () => {

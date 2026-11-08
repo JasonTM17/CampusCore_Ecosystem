@@ -7,6 +7,7 @@ import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { eventsMessages } from '../../src/i18n/events-messages';
+import { eventAction } from '../../src/screens/content/content-rules';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 type QueryState = {
@@ -127,6 +128,44 @@ test('a registered catalogue row announces the student registration status', asy
   );
   expect(row).toBeDefined();
   expect(row?.props.accessibilityLabel).toContain(copy.statusLabels.REGISTERED);
+});
+
+test('the mine tab displays ABSENT attendance status in the row and its accessible name', async () => {
+  mockQueries['content.events.mine'] = {
+    data: {
+      items: [{
+        registrationId: 'reg-absent',
+        registrationStatus: 'REGISTERED',
+        attendanceStatus: 'ABSENT',
+        registeredAt: '2026-11-01T01:00:00Z',
+        event,
+      }],
+      hasMore: false,
+    },
+  };
+  await render(screenElement(<EventsScreen {...props} />));
+  await fireEvent.press(screen.getByRole('tab', { name: copy.mine }));
+
+  expect(screen.getByText(copy.statusLabels.ABSENT)).toBeOnTheScreen();
+  const row = screen.getAllByRole('button').find((button) => String(button.props.accessibilityLabel ?? '').startsWith(event.title));
+  expect(row?.props.accessibilityLabel).toContain(copy.statusLabels.ABSENT);
+});
+
+test('registration actions close at the event and registration window boundaries', () => {
+  const now = Date.parse('2026-11-01T00:00:00Z');
+  expect(eventAction({ ...event, startsAt: '2026-10-31T23:59:59Z' }, now)).toBe('none');
+  expect(eventAction({ ...event, startsAt: '2026-11-02T00:00:00Z', registrationOpensAt: '2026-11-01T00:00:01Z' } as Parameters<typeof eventAction>[0], now)).toBe('none');
+  expect(eventAction({ ...event, startsAt: '2026-11-02T00:00:00Z', registrationClosesAt: '2026-10-31T23:59:59Z' } as Parameters<typeof eventAction>[0], now)).toBe('none');
+});
+
+test('an event window conflict displays its reason and refreshes both lists', async () => {
+  mockPost.mockRejectedValue({ status: 409, code: 'EVENT_STARTED' });
+  await render(screenElement(<EventsScreen {...props} />));
+
+  await fireEvent.press(registerAction());
+
+  expect(await screen.findByText('Sự kiện đã bắt đầu, không thể đăng ký.')).toBeOnTheScreen();
+  expect(mockReload).toHaveBeenCalledTimes(2);
 });
 
 test('a second register press during the catalogue refresh is ignored', async () => {

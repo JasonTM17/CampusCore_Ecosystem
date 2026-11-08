@@ -1,9 +1,9 @@
 import { cardRows } from './content-card-rows';
 import { contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
-import { Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { ChoiceField } from '../../components/ui/choice-field';
@@ -18,6 +18,16 @@ import { previewConduct } from './preview-data';
 import { parseConduct } from './records-model';
 import { useContentQuery } from './use-content-query';
 
+function validCertificateUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Conduct score read model: cumulative average, per-term criteria and recorded activities. */
 export function ConductScreen(_props: MobileScreenProps) {
   const { locale, copy: shared, formatDate, formatNumber, t } = useContentCopy();
@@ -25,6 +35,7 @@ export function ConductScreen(_props: MobileScreenProps) {
   const preview = isPreviewMode();
   const query = useContentQuery<unknown>('content.conduct', () => contentApi.conduct());
   const [termId, setTermId] = useState('');
+  const [certificateErrorId, setCertificateErrorId] = useState<string | null>(null);
 
   const raw = preview ? previewConduct(locale) : query.data;
   const model = useMemo(() => (raw === undefined ? null : parseConduct(raw)), [raw]);
@@ -40,12 +51,12 @@ export function ConductScreen(_props: MobileScreenProps) {
               <UiText variant="bodyMedium" tone="primary">
                 {joinMeta([
                   `${copy.conductTotal}: ${formatNumber(term.totalScore, { maximumFractionDigits: 1 })}`,
-                  locale === 'vi' ? term.classificationVi ?? term.classification : term.classification ?? term.classificationVi,
+                  locale === 'vi' ? term.classificationVi ?? term.classification : term.classification ? copy.conductClassifications[term.classification] ?? term.classification : term.classificationVi,
                 ])}
               </UiText>
               <UiText variant="bodySmall" tone="muted">
                 {joinMeta([
-                  term.status ? `${copy.conductStatus}: ${term.status}` : null,
+                  term.status ? `${copy.conductStatus}: ${copy.conductStatuses[term.status] ?? term.status}` : null,
                   term.evaluatorName ? `${copy.conductEvaluator}: ${term.evaluatorName}` : null,
                 ])}
               </UiText>
@@ -64,17 +75,32 @@ export function ConductScreen(_props: MobileScreenProps) {
               {term.activities.length === 0 ? (
                 <UiText variant="bodySmall" tone="muted">{copy.conductNoActivities}</UiText>
               ) : null}</>, (activity) => (
+              <View key={activity.id} style={styles.activity}>
                 <View
-                  key={activity.id}
                   accessible
                   accessibilityLabel={joinMeta([activity.title, activity.category, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
-                  style={styles.activity}
+                  style={styles.activityCopy}
                 >
                   <UiText variant="label">{activity.title}</UiText>
                   <UiText variant="bodySmall" tone="muted">
                     {joinMeta([activity.category, activity.organizer, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
                   </UiText>
                 </View>
+                {validCertificateUrl(activity.certificateUrl) ? (
+                  <Button
+                    label={copy.conductCertificate}
+                    accessibilityLabel={`${copy.conductCertificate}: ${activity.title}`}
+                    variant="text"
+                    onPress={() => {
+                      const url = validCertificateUrl(activity.certificateUrl);
+                      if (!url) return;
+                      setCertificateErrorId(null);
+                      void Linking.openURL(url).catch(() => setCertificateErrorId(activity.id));
+                    }}
+                  />
+                ) : null}
+                {certificateErrorId === activity.id ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{copy.conductCertificateOpenFailed}</UiText> : null}
+              </View>
               ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
     </> }}
     >
@@ -109,4 +135,5 @@ const styles = StyleSheet.create({
   notice: { marginBottom: tokens.spacing.sm },
   stack: { gap: tokens.spacing.md },
   activity: { gap: 2, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
+  activityCopy: { gap: 2 },
 });

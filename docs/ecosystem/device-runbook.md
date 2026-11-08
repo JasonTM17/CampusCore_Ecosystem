@@ -124,7 +124,7 @@ mandatory — a row without build identity does not count.
 
 `npm test --prefix mobile` (registry, route-map parity against `app/`,
 deep-link guard, domain contracts, session storage, OIDC flow) and
-`npm run typecheck` run on every change; `scripts/ecosystem-devices-verify.mjs`
+`npm run typecheck --prefix mobile` run on every change; `scripts/ecosystem-devices-verify.mjs`
 proves the committed association contract (synthetic identifiers only,
 `/session/*` + `/api/*` excluded, lanes scoped to the exact portal paths
 that resolve to native screens, and gates producer notification app-links

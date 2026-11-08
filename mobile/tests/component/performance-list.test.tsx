@@ -2,6 +2,7 @@ import { afterEach, expect, jest, test } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 import { Dimensions, FlatList, RefreshControl, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { createRef } from 'react';
+import type { ReactElement } from 'react';
 
 import { ASSISTANT_FAB_CLEARANCE } from '../../src/components/AssistantFab';
 import { ScreenShell } from '../../src/components/Ui';
@@ -125,4 +126,12 @@ test('a single card containing 200 records still mounts at most seven record tre
   expect(view.getByText('group header')).toBeOnTheScreen();
   expect(rendered).toBeGreaterThan(0);
   expect(rendered).toBeLessThanOrEqual(7);
+});
+
+test('card rows without a header start with the first data row', async () => {
+  const rows = cardRows('group', [1], (_item, index) => String(index), null as unknown as ReactElement,
+    (item) => <Text>{`record-${item}`}</Text>);
+  expect(rows.map((row) => row.key)).toEqual(['group:0']);
+  const view = await render(<PerformanceList data={rows} keyExtractor={(row) => row.key} renderItem={renderVirtualRow} />);
+  expect(view.getByText('record-1')).toBeOnTheScreen();
 });

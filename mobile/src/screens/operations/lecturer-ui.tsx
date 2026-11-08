@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { RefreshControl, View } from 'react-native';
 
 import { apiClient } from '../../api/client';
@@ -154,9 +154,12 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
   const { copy } = useOpsCopy();
   const available = csvShareAvailable();
   const [state, setState] = useState<{ status: FileRowStatus; label?: string }>({ status: 'ready' });
+  const inFlight = useRef(false);
   if (rows === 0) return null;
 
   const run = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setState({ status: 'busy' });
     try {
       const result = await shareCsv(build(), name);
@@ -166,6 +169,8 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
       else setState({ status: 'failed', label: copy.exportFailed });
     } catch {
       setState({ status: 'failed', label: copy.exportFailed });
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -176,7 +181,7 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
       name={name}
       status={status}
       statusLabel={label}
-      actions={[{ key: 'export', label: copy.exportCsv, onPress: () => void run(), disabled: !available }]}
+      actions={[{ key: 'export', label: copy.exportCsv, onPress: () => void run(), disabled: !available || state.status === 'busy' }]}
     />
   );
 }
