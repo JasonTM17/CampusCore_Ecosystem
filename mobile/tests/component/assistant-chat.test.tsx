@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import type { ReactElement } from 'react';
+import { Dimensions, FlatList, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import type { ComponentProps, ReactElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -9,6 +9,7 @@ import { ThemeProvider } from '../../src/design/theme';
 import { minTapTarget, tokens } from '../../src/design/tokens';
 
 const mockChat = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockFilterChipRender = jest.fn();
 const mockCancel = jest.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 const mockConversations = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockMessages = jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -21,6 +22,17 @@ jest.mock('../../src/api/client', () => ({
   campusApi: {},
   ApiClientError: class ApiClientError extends Error {},
 }));
+jest.mock('../../src/components/ui/index', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const actual = jest.requireActual<typeof import('../../src/components/ui/index')>('../../src/components/ui/index');
+  return {
+    ...actual,
+    FilterChip: (props: ComponentProps<typeof actual.FilterChip>) => {
+      mockFilterChipRender();
+      return React.createElement(actual.FilterChip, props);
+    },
+  };
+});
 jest.mock('../../src/api/assistant-api', () => {
   const actual = jest.requireActual('../../src/api/assistant-api') as Record<string, unknown>;
   return {
@@ -135,6 +147,36 @@ describe('assistant composer and guards', () => {
     await renderThemed(<AssistantChatScreen {...props} />);
     expect(screen.getByLabelText(copy.composerLabel).props.maxLength).toBe(ASSISTANT_MAX_MESSAGE_CHARS);
     expect(ASSISTANT_MAX_MESSAGE_CHARS).toBe(2000);
+  });
+
+  test('typing in the composer does not rerender the suggestions', async () => {
+    setWidth(360);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    const initialSuggestionRenders = mockFilterChipRender.mock.calls.length;
+    expect(initialSuggestionRenders).toBeGreaterThan(0);
+
+    await fireEvent.changeText(screen.getByLabelText(copy.composerLabel), 'A question');
+
+    expect(mockFilterChipRender).toHaveBeenCalledTimes(initialSuggestionRenders);
+  });
+
+  test('scrolling away from the end keeps the thread reading position during streaming', async () => {
+    setWidth(360);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    const list = screen.getByTestId('assistant-thread');
+    const scrollToEnd = jest.spyOn(FlatList.prototype, 'scrollToEnd').mockImplementation(() => {});
+    scrollToEnd.mockClear();
+
+    await fireEvent.scroll(list, {
+      nativeEvent: {
+        contentOffset: { x: 0, y: 600 },
+        contentSize: { width: 360, height: 1_600 },
+        layoutMeasurement: { width: 360, height: 400 },
+      },
+    });
+    await fireEvent(list, 'contentSizeChange', 360, 1_700);
+
+    expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
   test('personal data is blocked before any request and the text stays in the composer', async () => {

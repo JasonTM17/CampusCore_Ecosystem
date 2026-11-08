@@ -53,7 +53,7 @@ export function classifyFailure(code: string | undefined, connectionLost: boolea
  * conversationId; that value must never be adopted as a conversation.
  */
 export function resolveConversationId(
-  metaConversationId: string | undefined,
+  metaConversationId: string | null | undefined,
   clientRequestId: string,
   requestedConversationId: string | undefined,
 ): string | undefined {

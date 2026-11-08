@@ -5,7 +5,7 @@ import { Badge, Button, Card, UiText } from '../../components/Ui';
 import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { ASSISTANT_FEEDBACK_REASONS } from '../../api/assistant-limits';
-import { fillAssistantCopy, type AssistantChatCopy } from '../../i18n/assistant-messages';
+import { citationDomainLabel, fillAssistantCopy, type AssistantChatCopy } from '../../i18n/assistant-messages';
 import { safeText } from '../../assistant/chat-helpers';
 import type { AssistantCitation, AssistantFeedbackRating, AssistantFeedbackReason } from '../../api/client';
 import type { ChatMessage } from './useAssistantChat';
@@ -34,7 +34,7 @@ function Citations({ citations, copy }: { citations: AssistantCitation[]; copy: 
         <View key={citation.id} style={[styles.citation, { borderLeftColor: colors.primary }]}>
           <UiText variant="label" tone="primary">{safeText(citation.title, 160)}</UiText>
           <UiText variant="meta" tone="muted">
-            {[safeText(citation.source, 120), citation.locale?.toUpperCase(), citation.domain].filter(Boolean).join(' · ')}
+            {[safeText(citation.source, 120), citation.locale?.toUpperCase(), citationDomainLabel(citation.domain, copy)].filter(Boolean).join(' · ')}
           </UiText>
           {citation.excerpt ? (
             <UiText variant="bodySmall" tone="muted" style={styles.excerpt}>{safeText(citation.excerpt, 600)}</UiText>

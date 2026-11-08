@@ -1207,9 +1207,15 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const jsonTimeoutMs = transfer ? 0 : Math.max(0, options.timeoutMs ?? DEFAULT_JSON_TIMEOUT_MS);
     let jsonTimedOut = false;
     let stopJsonDeadline = () => {};
-    if (jsonTimeoutMs > 0) {
+    const jsonCallerSignal = fetchInit.signal ?? undefined;
+    const armJsonDeadline = () => {
+      stopJsonDeadline();
+      jsonTimedOut = false;
+      if (jsonTimeoutMs <= 0) {
+        fetchInit.signal = jsonCallerSignal;
+        return;
+      }
       const deadline = new AbortController();
-      const jsonCallerSignal = fetchInit.signal ?? undefined;
       const abortFromJsonCaller = () => deadline.abort();
       if (jsonCallerSignal?.aborted) {
         deadline.abort();
@@ -1225,14 +1231,15 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         clearTimeout(jsonTimer);
         jsonCallerSignal?.removeEventListener('abort', abortFromJsonCaller);
       };
-    }
+    };
+    armJsonDeadline();
 
     const assertRequestActive = () => {
       if (!transfer && jsonTimedOut) {
-        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+        throw new ApiClientError('The network request timed out', 408, requestId, 'NETWORK_ERROR');
       }
       if (transfer && transferTimedOut) {
-        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+        throw new ApiClientError('The network request timed out', 408, requestId, 'NETWORK_ERROR');
       }
       if (transfer && epochChanged(requestEpoch)) sessionChanged = true;
       if (transfer && sessionChanged) {
@@ -1255,7 +1262,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       assertRequestActive();
 
       if (!isPublic && !isSnapshot && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
-        const refreshOutcome = await refreshSessionOnce(requestEpoch);
+        const currentToken = getAccessToken();
+        const alreadyRotated = token !== undefined && currentToken !== undefined && currentToken !== token;
+        const refreshOutcome = alreadyRotated ? 'refreshed' : await refreshSessionOnce(requestEpoch);
+        if (!transfer && refreshOutcome === 'refreshed') armJsonDeadline();
         assertRequestActive();
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
@@ -1283,7 +1293,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         }
       }
 
-      if (transfer && epochChanged(requestEpoch)) {
+      if (epochChanged(requestEpoch) && (transfer || response.ok)) {
         sessionChanged = true;
         throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
       }
@@ -1316,10 +1326,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     } catch (error) {
       diskDownload?.release();
       if (jsonTimedOut && !(error instanceof ApiClientError && error.status > 0)) {
-        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+        throw new ApiClientError('The network request timed out', 408, requestId, 'NETWORK_ERROR');
       }
       if (transferTimedOut) {
-        throw new ApiClientError('The network request timed out', 0, requestId, 'NETWORK_ERROR');
+        throw new ApiClientError('The network request timed out', 408, requestId, 'NETWORK_ERROR');
       }
       if (!transfer || error instanceof ApiClientError) throw error;
       if (sessionChanged) {

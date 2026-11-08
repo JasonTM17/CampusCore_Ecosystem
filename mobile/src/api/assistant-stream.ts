@@ -12,8 +12,8 @@ export interface AssistantMetaEvent {
   type: 'meta';
   requestId: string;
   clientRequestId: string;
-  turnId: string;
-  conversationId: string;
+  turnId?: string | null;
+  conversationId?: string | null;
   model: string;
   locale: AssistantLocale;
 }
@@ -226,8 +226,10 @@ export class AssistantEventValidator {
       case 'meta':
         if (
           this.metaSeen || this.bodySeen || this.citationSeen
-          || !['requestId', 'clientRequestId', 'turnId', 'conversationId', 'model']
+          || !['requestId', 'clientRequestId', 'model']
             .every((key) => typeof value[key] === 'string')
+          || !['turnId', 'conversationId']
+            .every((key) => value[key] === undefined || value[key] === null || typeof value[key] === 'string')
           || !['en', 'vi'].includes(String(value.locale))
         ) {
           throw new AssistantStreamError('STREAM_EVENT_ORDER_INVALID');

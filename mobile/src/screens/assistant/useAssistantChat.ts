@@ -102,7 +102,20 @@ export function useAssistantChat() {
   const [scope, setScopeState] = useState<AssistantScope>(() => peekAssistantEntryScope() ?? 'academic');
   useEffect(() => { consumeAssistantEntryScope(); }, []);
 
-  const [draft, setDraft] = useState('');
+  const draftRef = useRef('');
+  const composerDraftSetter = useRef<(value: string) => void>(() => {});
+  const setDraft = useCallback((value: string | ((current: string) => string)) => {
+    const next = typeof value === 'function' ? value(draftRef.current) : value;
+    draftRef.current = next;
+    composerDraftSetter.current(next);
+  }, []);
+  const attachDraftSetter = useCallback((setter: (value: string) => void) => {
+    composerDraftSetter.current = setter;
+    setter(draftRef.current);
+    return () => {
+      if (composerDraftSetter.current === setter) composerDraftSetter.current = () => {};
+    };
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
@@ -242,6 +255,7 @@ export function useAssistantChat() {
   }, [accumulator]);
 
   const send = useCallback(async () => {
+    const draft = draftRef.current;
     const guard = inspectAssistantInput(draft);
     const text = safeText(guard.normalizedMessage, 2_000);
     if (!text) return;
@@ -279,7 +293,7 @@ export function useAssistantChat() {
       return;
     }
     settle(result, text);
-  }, [copy.previewReply, draft, isPreview, locale, orchestrator, scope, settle]);
+  }, [copy.previewReply, draftRef, isPreview, locale, orchestrator, scope, setDraft, settle]);
 
   const retry = useCallback(async () => {
     if (!orchestrator) return;
@@ -441,8 +455,8 @@ export function useAssistantChat() {
     isPreview,
     scope,
     changeScope,
-    draft,
     setDraft,
+    attachDraftSetter,
     messages,
     conversationId,
     busy,
