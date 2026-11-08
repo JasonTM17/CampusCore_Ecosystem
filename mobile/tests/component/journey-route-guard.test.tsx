@@ -74,6 +74,8 @@ jest.mock('../../src/navigation/pending-checkin', () => ({
   rememberCheckinPath: jest.fn(),
 }));
 jest.mock('../../src/hooks/use-dashboard-prefetch', () => ({ useDashboardPrefetch: jest.fn() }));
+jest.mock('../../src/screens/content/use-content-query', () => ({ useContentQuery: jest.fn(() => ({ data: undefined })) }));
+jest.mock('../../src/screens/content/content-api', () => ({ contentApi: { unreadCount: jest.fn(async () => 0) } }));
 
 import RootLayout from '../../app/_layout';
 import AppGroupLayout from '../../app/(app)/_layout';

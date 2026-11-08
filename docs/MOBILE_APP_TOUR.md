@@ -25,11 +25,11 @@ Mọi ảnh/GIF nằm trong [`docs/assets/mobile`](assets/mobile); cách tạo l
 | Hạng mục | Giá trị |
 | --- | --- |
 | Công nghệ | Expo (expo-router), React Native, TypeScript, SecureStore |
-| Số màn hình đã đăng ký | 59 (xem [Screen atlas](../mobile/README.md#screen-atlas)) |
+| Số màn hình đã đăng ký | 37; parity web-native gồm 59 ánh xạ đến 46 màn hình đích duy nhất (xem [Screen atlas](../mobile/README.md#screen-atlas)) |
 | Vai trò | Sinh viên, Giảng viên, Quản trị, Thí sinh xét tuyển (chỉ khu vực tuyển sinh) |
 | Ngôn ngữ | Tiếng Việt (mặc định) và tiếng Anh, danh mục chuỗi có kiểm tra song song vi/en |
 | Giao diện | Một nguồn token (`contracts/ecosystem/tokens.json`), sáng/tối theo hệ thống |
-| Đăng nhập | OIDC qua trình duyệt trong app (Chrome Custom Tab), token lưu trong SecureStore |
+| Đăng nhập | OIDC qua trình duyệt trong app (Chrome Custom Tab); access token được giữ trong bộ nhớ; refresh token được lưu trong SecureStore |
 | Bố cục | Ba lớp cửa sổ: compact, medium (≥ 600 dp), expanded (≥ 840 dp); danh sách đổi số cột theo lớp |
 | Trợ năng | Vùng chạm ≥ 48 dp, nhãn TalkBack cho nút chỉ có biểu tượng, ảnh trang trí được ẩn, hỗ trợ cỡ chữ 2.0× |
 
