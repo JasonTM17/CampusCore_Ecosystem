@@ -51,7 +51,8 @@ describe('screen query recovery through the API client', () => {
     });
     const view = await renderHook(() => useScreenQuery('journey.retry', () => client.get<{ value: string }>('/journey')));
 
-    await waitFor(() => expect(view.result.current.errorStatus).toBe(0));
+    const expectedStatus = failure === 'slow response' ? 408 : 0;
+    await waitFor(() => expect(view.result.current.errorStatus).toBe(expectedStatus));
     expect(view.result.current.error).not.toBeNull();
     expect(view.result.current.data).toBeUndefined();
 
