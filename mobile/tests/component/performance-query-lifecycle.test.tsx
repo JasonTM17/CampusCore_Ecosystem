@@ -68,6 +68,21 @@ test('mounting in background waits for foreground without losing the first load'
   await view.unmount();
 });
 
+test('a refreshed value reaches every other mounted consumer of the same key', async () => {
+  let remote = 11;
+  const view = await renderHook(() => [
+    useScreenQuery('content.notifications.unread-count', async () => remote),
+    useScreenQuery('content.notifications.unread-count', async () => remote),
+  ]);
+  expect(view.result.current.map((query) => query.data)).toEqual([11, 11]);
+  remote = 0;
+  await act(async () => { await view.result.current[1].reload(); });
+  expect(view.result.current.map((query) => query.data)).toEqual([0, 0]);
+  await act(async () => view.result.current[0].setData(5));
+  expect(view.result.current.map((query) => query.data)).toEqual([5, 5]);
+  await view.unmount();
+});
+
 test('unread count and paged rows retain different result shapes', async () => {
   const view = await renderHook(() => [
     useScreenQuery('content.notifications.unread', async () => ({ items: [{ id: 'one' }] })),
