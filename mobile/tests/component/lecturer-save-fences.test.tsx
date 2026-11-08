@@ -298,6 +298,77 @@ test('an attendance save for a revisited sheet preserves its current baseline', 
   expect(screen.queryByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeNull();
 });
 
+test('reverting an attendance draft to baseline removes the cached edits', async () => {
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha', status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
+  await screen.findByText('Alpha');
+
+  await fireEvent.press(screen.getByRole('button', {
+    name: fillCopy(operationsMessages.vi.clearMarkFor, { name: 'Alpha' }),
+  }));
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeNull();
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
+  await screen.findByText('Alpha');
+
+  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(false);
+});
+
+test('mark all present confirms before replacing an unsaved attendance mark', async () => {
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha', status: operationsMessages.vi.statusAbsent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.markAllPresent }));
+
+  expect(await screen.findByText(operationsMessages.vi.discardUnsavedTitle)).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: markAbsent }).props.accessibilityState?.checked).toBe(true);
+  await fireEvent.press(screen.getByRole('button', { name: 'Tiếp tục' }));
+  expect(screen.getByRole('radio', {
+    name: fillCopy(operationsMessages.vi.markStatusFor, { name: 'Alpha', status: operationsMessages.vi.statusPresent }),
+  }).props.accessibilityState?.checked).toBe(true);
+});
+
+test('stale attendance reload confirms before discarding the local marks', async () => {
+  const sheetWith = (status: string, notes: string) => ({
+    sectionId: 'section-a', date: today,
+    roster: [{ studentId: 'a1', studentCode: 'A1', firstName: 'Alpha' }],
+    marks: [{ studentId: 'a1', status, notes }],
+  });
+  mockRuntime.queries[`lecturer:sheet:section-a:${today}`] = sheetWith('EXCUSED', 'sick');
+  const view = await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha', status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+
+  mockRuntime.queries[`lecturer:sheet:section-a:${today}`] = sheetWith('ABSENT', 'medical leave');
+  await view.rerender(screenElement(<LecturerAttendanceScreen {...props} />));
+  await screen.findByText(operationsMessages.vi.stale);
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.reload }));
+
+  expect(await screen.findByText(operationsMessages.vi.discardUnsavedTitle)).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
+  await fireEvent.press(screen.getByRole('button', { name: 'Tiếp tục' }));
+  expect(screen.getByRole('radio', {
+    name: fillCopy(operationsMessages.vi.markStatusFor, { name: 'Alpha', status: operationsMessages.vi.statusAbsent }),
+  }).props.accessibilityState?.checked).toBe(true);
+});
+
 test.each([
   ['success', false],
   ['failure', true],
