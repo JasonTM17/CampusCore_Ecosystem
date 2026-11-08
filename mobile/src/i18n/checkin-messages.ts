@@ -35,6 +35,8 @@ const vi = {
   acquiringTitle: 'Đang lấy vị trí…',
   lowAccuracyTitle: 'Vị trí chưa đủ chính xác',
   lowAccuracyBody: 'Ra ngoài trời hoặc đứng gần cửa sổ, đợi vài giây rồi thử lại.',
+  reducedAccuracyTitle: 'Cần vị trí chính xác',
+  reducedAccuracyBody: 'Bật Vị trí chính xác trong cài đặt ứng dụng rồi thử lại.',
 
   codeLabel: 'Mã điểm danh (6 số)',
   submit: 'Điểm danh',
@@ -43,6 +45,7 @@ const vi = {
   acceptedTitle: 'Điểm danh thành công',
   statusPresent: 'Có mặt',
   statusLate: 'Đi muộn',
+  statusPreserved: 'Bản ghi điểm danh hiện có được giữ nguyên.',
   pendingTitle: 'Đang chờ giảng viên duyệt',
   alreadyTitle: 'Bạn đã điểm danh rồi',
   rejectedTitle: 'Điểm danh bị từ chối',
@@ -125,6 +128,8 @@ const en: CheckinCopy = {
   acquiringTitle: 'Getting your location…',
   lowAccuracyTitle: 'Position not accurate enough',
   lowAccuracyBody: 'Move outdoors or near a window, wait a few seconds, then retry.',
+  reducedAccuracyTitle: 'Precise location needed',
+  reducedAccuracyBody: 'Turn on Precise Location in app settings, then try again.',
 
   codeLabel: 'Check-in code (6 digits)',
   submit: 'Check in',
@@ -133,6 +138,7 @@ const en: CheckinCopy = {
   acceptedTitle: 'Check-in complete',
   statusPresent: 'Present',
   statusLate: 'Late',
+  statusPreserved: 'The existing attendance record was preserved.',
   pendingTitle: 'Waiting for lecturer approval',
   alreadyTitle: 'Already checked in',
   rejectedTitle: 'Check-in rejected',

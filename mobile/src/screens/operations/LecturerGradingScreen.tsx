@@ -7,6 +7,7 @@ import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { campusIsoDate, countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
+import { useStableCallback } from '../../hooks/use-stable-callback';
 import { GradeRowCard } from './GradeRowCard';
 import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
 import { calculateGrade, calculateTotalScore, generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
@@ -164,8 +165,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const graded = section?.gradedCount ?? rows.filter((row) => row.finalGrade != null).length;
   const status = section?.gradeStatus === 'PUBLISHED' || locked ? 'PUBLISHED' : 'DRAFT';
 
-  const edit = (enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => {
-    editRevisionBySection.current[sectionId] = (editRevisionBySection.current[sectionId] ?? 0) + 1;
+  const edit = useStableCallback((enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => {
+    const activeSectionId = currentSectionId.current;
+    editRevisionBySection.current[activeSectionId] = (editRevisionBySection.current[activeSectionId] ?? 0) + 1;
     setEdits((current) => ({ ...current, [enrollmentId]: { ...current[enrollmentId], [field]: text } }));
     setMessage(null);
     if (problems[enrollmentId]) {
@@ -174,7 +176,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
         return rest;
       });
     }
-  };
+  });
 
   const reload = () => { void sectionsQuery.reload(); void gradesQuery.reload(); };
   // The spinner belongs to the lecturer's pull, not to every SWR revalidation.
