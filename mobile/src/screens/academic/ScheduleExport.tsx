@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -20,6 +20,7 @@ export function ScheduleExport({ enrollments, semester }: ScheduleExportProps) {
   const { formatNumber } = useLocale();
   const available = timetableShareCapability().available;
   const [state, setState] = useState<{ status: FileRowStatus; notice?: 'shared' | 'unavailable' | 'failed' }>({ status: 'ready' });
+  const inFlight = useRef(false);
   const bundle = useMemo(
     () => buildTimetableExport(enrollments, semester, locale, copy.calendarName),
     [enrollments, semester, locale, copy.calendarName],
@@ -27,12 +28,18 @@ export function ScheduleExport({ enrollments, semester }: ScheduleExportProps) {
   if (bundle.eventCount === 0) return null;
 
   const run = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setState({ status: 'busy' });
-    const result = await shareTimetable(icsDataUri(bundle.content), bundle.filename);
-    if (result.status === 'done') setState({ status: 'ready', notice: 'shared' });
-    else if (result.status === 'cancelled') setState({ status: 'ready' });
-    else if (result.status === 'unavailable') setState({ status: 'unavailable', notice: 'unavailable' });
-    else setState({ status: 'failed', notice: 'failed' });
+    try {
+      const result = await shareTimetable(icsDataUri(bundle.content), bundle.filename);
+      if (result.status === 'done') setState({ status: 'ready', notice: 'shared' });
+      else if (result.status === 'cancelled') setState({ status: 'ready' });
+      else if (result.status === 'unavailable') setState({ status: 'unavailable', notice: 'unavailable' });
+      else setState({ status: 'failed', notice: 'failed' });
+    } finally {
+      inFlight.current = false;
+    }
   };
 
   const status: FileRowStatus = available ? state.status : 'unavailable';

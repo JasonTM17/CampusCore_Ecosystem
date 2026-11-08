@@ -39,6 +39,7 @@ const webCharts = await load(path.join(webLib, 'transcript-charts.ts'), 'web-tra
   '@/i18n/messages-student-pages': pathToFileURL(webStudentPagesOut).href,
 });
 const webBrowse = await load(path.join(webLib, 'registration-browse.ts'), 'web-registration-browse');
+const messages = await load(path.join(mobileRoot, 'src', 'i18n', 'academic-messages.ts'), 'academic-messages');
 
 const record = (courseCode, credits, letterGrade, finalGrade, extra = {}) => ({
   id: `${courseCode}-${letterGrade}`,
@@ -128,6 +129,21 @@ test('the grades summary keeps the best attempt for both GPA and the 10-point av
   assert.equal(gpa.computeGpa4(counted), 4);
   assert.equal(gpa.computeAverage10(counted), 9);
   assert.equal(gpa.summarizeBestAttempts(records).gpa, 4);
+});
+
+test('equal grade-point attempts keep the higher final score for the 10-point average', () => {
+  const records = [record('CS101', 3, 'B', 7.0), record('CS101', 3, 'B', 7.8)];
+  assert.equal(gpa.bestAttempts(records)[0].finalGrade, 7.8);
+  assert.equal(gpa.summarizeBestAttempts(records).average10, 7.8);
+});
+
+test('equal grade-point attempts keep the higher letter when the numeric score is missing', () => {
+  const forward = [record('CS101', 3, 'A+', null), record('CS101', 3, 'A', 8.7)];
+  const backward = [record('CS101', 3, 'A', 8.7), record('CS101', 3, 'A+', null)];
+  for (const records of [forward, backward]) {
+    assert.equal(gpa.bestAttempts(records)[0].letterGrade, 'A+');
+    assert.equal(gpa.summarizeBestAttempts(records).average10, null);
+  }
 });
 
 test('published filter keeps only published and appealed grades', () => {
@@ -340,6 +356,14 @@ test('availability reports the reason a section cannot be selected, in priority 
 test('backend registration error codes map to copy keys', () => {
   assert.equal(browse.registrationErrorKey('SCHEDULE_CONFLICT'), 'scheduleConflict');
   assert.equal(browse.registrationErrorKey('IDEMPOTENCY_KEY_REUSED'), 'idempotencyRetry');
+  assert.equal(browse.registrationErrorKey('DUPLICATE_COURSE'), 'duplicateCourse');
+  assert.equal(browse.registrationErrorKey('SECTION_CLOSED'), 'sectionClosed');
+  assert.equal(browse.registrationErrorKey('ENROLLMENT_DUPLICATE'), 'enrollmentDuplicate');
+  for (const locale of ['vi', 'en']) {
+    for (const key of ['duplicateCourse', 'sectionClosed', 'enrollmentDuplicate']) {
+      assert.ok(messages.academicMessages[locale].errors[key], `${locale}.${key} must be localized`);
+    }
+  }
   assert.equal(browse.registrationErrorKey('UNKNOWN'), null);
   assert.equal(browse.registrationErrorKey(undefined), null);
 });

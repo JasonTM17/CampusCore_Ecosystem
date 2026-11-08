@@ -5,6 +5,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { apiClient, ApiClientError } from '../../src/api/client';
+import * as registrationBrowse from '../../src/screens/academic/registration-browse';
 import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
 import { setFileAdapter } from '../../src/files/file-adapter';
@@ -12,8 +13,15 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { academicMessages } from '../../src/i18n/academic-messages';
 import { auditTree } from '../a11y/audit';
 import { shareTimetable } from '../../src/screens/academic/academic-api';
+import { SlipRow } from '../../src/screens/academic/SlipRow';
 
 type QueryState = { data?: unknown; error?: string | null; errorInput?: unknown; warning?: string | null; errorStatus?: number | null; isLoading?: boolean; isStale?: boolean };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 const mockQueries: Record<string, QueryState> = {};
 const mockReload = jest.fn(async () => {});
@@ -113,6 +121,22 @@ function pullControl(): { refreshing: boolean; onRefresh: () => void } {
   return found.props;
 }
 
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 const course = (code: string, name: string) => ({ code, name, nameVi: name, nameEn: name, credits: 3 });
 const enrollments = [
   { id: 'e1', sectionId: 's1', semesterId: 't2', status: 'ENROLLED', section: { sectionNumber: '01', course: course('CS101', 'Nhập môn lập trình'), schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '09:00' }] } },
@@ -192,6 +216,40 @@ describe('transcript', () => {
     const label = row.props.accessibilityLabel as string;
     expect(label).toContain('3 tín chỉ');
     expect(label).toContain('Đang phúc khảo');
+  });
+
+  test('shows a failing transcript grade with the error tone', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 0, totalCreditsEarned: 0, totalCreditsAttempted: 3 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 0, creditsEarned: 0, creditsAttempted: 3,
+          records: [{ id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 3, letterGrade: 'F', gradeStatus: 'PUBLISHED' }],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    const pillColors = screen.getAllByText('F').map((pill) =>
+      StyleSheet.flatten(pill.parent?.props.style as StyleProp<ViewStyle>)?.backgroundColor,
+    );
+    expect(pillColors).toContain(tokens.colors.errorFixed);
+  });
+
+  test('shows a published non-numeric transcript grade as its letter', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: null, totalCreditsEarned: 3, totalCreditsAttempted: 3 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: null, creditsEarned: 3, creditsAttempted: 3,
+          records: [{ id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: null, letterGrade: 'P', gradeStatus: 'PUBLISHED' }],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    expect(screen.getByText('P')).toBeOnTheScreen();
+    expect(screen.queryByText('Đã công bố')).toBeNull();
   });
 
   test('a payload that is not a transcript is not rendered', async () => {
@@ -418,9 +476,58 @@ describe('grades', () => {
     expect(screen.getAllByText('2,00').length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/CS101 Nhập môn/).props.accessibilityLabel).toContain('Đang phúc khảo');
   });
+
+  test('accessible grade rows announce credits and both displayed component scores', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, processScore: 7.2, finalExamScore: 8.6, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+
+    const row = screen.getByLabelText(/CS101 Nhập môn lập trình/);
+    const label = row.props.accessibilityLabel as string;
+    expect(label).toContain('3 tín chỉ');
+    expect(label).toContain('7,2');
+    expect(label).toContain('8,6');
+  });
 });
 
 describe('schedule and attendance', () => {
+  test('same-frame repeated registration slip downloads start once', async () => {
+    const pending = deferred<Awaited<ReturnType<typeof apiClient.download>>>();
+    const download = jest.mocked(apiClient.download);
+    setFileAdapter({
+      capability: () => ({ available: true }),
+      pick: async () => ({ status: 'cancelled' }),
+      share: async () => ({ status: 'cancelled' }),
+      save: async () => ({ status: 'done' }),
+    });
+    download.mockReturnValue(pending.promise);
+    await render(wrap(<SlipRow semesterId="semester-1" />));
+
+    try {
+      const button = screen.getByRole('button', { name: /Tải phiếu/ });
+      await act(async () => {
+        fireEvent.press(button);
+        fireEvent.press(button);
+      });
+      expect(download).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        pending.resolve({ data: new Uint8Array([1]).buffer, contentType: 'application/pdf', fileName: null, headers: new Headers(), requestId: 'test' });
+        await pending.promise;
+      });
+      download.mockReset();
+      setFileAdapter();
+    }
+  });
+
+  test('attendance treats late sessions as attended in the card label', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 3, present: 1, absent: 1, late: 1, excused: 0, attendanceRate: 67 }] };
+    mockQueries['academic.attendance.records'] = { data: [] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('2/3 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
+  });
+
   test('timetable share turns an adapter rejection into a failed outcome', async () => {
     setFileAdapter({
       capability: () => ({ available: true }),
@@ -456,13 +563,46 @@ describe('schedule and attendance', () => {
     expect(todayCells).toHaveLength(1);
   });
 
-  test('surfaces a semesters query error and does not silently select a term', async () => {
+  test('shows enrollment sessions with a semesters query error', async () => {
     mockQueries['academic.enrollments'] = { data: enrollments };
     mockQueries['academic.semesters'] = { error: 'Không thể tải danh sách học kỳ', errorStatus: 503 };
     await render(wrap(<ScheduleScreen {...props} />));
     expect(screen.getByText('Không thể tải danh sách học kỳ')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Thử lại' })).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: /CS101 Nhập môn lập trình/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('tab', { name: 'Học kỳ' }));
+    expect(screen.getByRole('button', { name: /CS101 Nhập môn lập trình/ })).toBeOnTheScreen();
+  });
+
+  test('requests one timetable share when Export is pressed twice before the busy state commits', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { data: semesters };
+    let release!: (value: { status: 'done' }) => void;
+    const pending = new Promise<{ status: 'done' }>((resolve) => { release = resolve; });
+    const share = jest.fn(() => pending);
+    let released = false;
+    const finishShare = async () => {
+      if (!released) {
+        released = true;
+        release({ status: 'done' });
+      }
+      await pending;
+    };
+    setFileAdapter({
+      capability: () => ({ available: true }),
+      pick: async () => ({ status: 'cancelled' }),
+      share,
+      save: async () => ({ status: 'cancelled' }),
+    });
+    try {
+      await render(wrap(<ScheduleScreen {...props} />));
+      const exportButton = screen.getByRole('button', { name: /ics/i });
+      await pressTwiceBeforeCommit(exportButton);
+      expect(share).toHaveBeenCalledTimes(1);
+      await act(finishShare);
+    } finally {
+      await act(finishShare);
+      setFileAdapter();
+    }
   });
 
   test('schedule lists the term sessions and reports calendar export as unavailable', async () => {
@@ -480,7 +620,7 @@ describe('schedule and attendance', () => {
     mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { course: { code: 'CS101' } } }] };
     await render(wrap(<AttendanceScreen {...props} />));
     expect(screen.getAllByText('90%').length).toBeGreaterThan(0);
-    expect(screen.getByText('9/10 buổi có mặt', { exact: false })).toBeOnTheScreen();
+    expect(screen.getByText('9/10 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
     const record = screen.getByLabelText(/Vắng/);
     expect(record).toBeOnTheScreen();
     expect(record.props.accessibilityLabel).toContain('CS101');
@@ -497,7 +637,7 @@ describe('schedule and attendance', () => {
       ? [node, ...(node.children ?? []).filter((child): child is JsonNode => typeof child !== 'string').flatMap(descendants)]
       : [];
     const nodes = descendants(screen.toJSON() as JsonNode | null);
-    const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === '4/10 buổi có mặt');
+    const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === '4/10 buổi đã tham dự');
     const fill = progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '40%');
     expect(StyleSheet.flatten(fill?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.warning);
   });
@@ -588,6 +728,54 @@ describe('registration', () => {
   const pressSelect = async (code: string) => fireEvent.press(screen.getByRole('button', { name: `Chọn lớp: ${code} Lớp 01` }));
   const pressRegister = async () => fireEvent.press(screen.getByRole('button', { name: 'Đăng ký các lớp đã chọn' }));
   const conflict = Object.assign(new Error('conflict'), { status: 409, code: 'SCHEDULE_CONFLICT' });
+
+  test('does not recompute section availability when only the browse query changes', async () => {
+    const availability = jest.spyOn(registrationBrowse, 'sectionAvailability');
+    const sections = Array.from({ length: 200 }, (_, index) => section(`P${index}`, { courseCode: `CS${index}` }));
+    mockQueries['academic.registration'] = { data: registrationData(sections) };
+    await render(wrap(<RegistrationScreen {...props} />));
+    const initialCalls = availability.mock.calls.length;
+    expect(initialCalls).toBeGreaterThan(0);
+
+    await fireEvent.changeText(screen.getByLabelText('Tìm lớp học phần'), 'CS199');
+    expect(availability).toHaveBeenCalledTimes(initialCalls);
+  });
+
+  test('ignores old-term enrollment conflicts and keeps same-term conflicts', async () => {
+    const oldTermMeeting = [{ dayOfWeek: 2, startTime: '08:00', endTime: '10:00' }];
+    const currentTermMeeting = [{ dayOfWeek: 2, startTime: '13:00', endTime: '15:00' }];
+    mockQueries['academic.registration'] = {
+      data: {
+        ...registrationData([
+          section('A1', { schedules: oldTermMeeting }),
+          section('B1', { schedules: currentTermMeeting }),
+        ]),
+        enrollments: [
+          { id: 'old', sectionId: 'old-section', semesterId: 'term-a', status: 'ENROLLED', section: { schedules: oldTermMeeting } },
+          { id: 'current', sectionId: 'current-section', semesterId: 'term-b', status: 'ENROLLED', section: { schedules: currentTermMeeting } },
+        ],
+        eligibility: { eligible: true, creditLimit: 20, creditsUsed: 3, creditsRemaining: 17, semesterId: 'term-b' },
+      },
+    };
+    await render(wrap(<RegistrationScreen {...props} />));
+
+    expect(screen.getByRole('button', { name: 'Chọn lớp: CSA1 Lớp 01' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Chọn lớp: CSB1 Lớp 01' })).toBeNull();
+  });
+
+  test('falls back to all active enrollments for conflicts when eligibility is missing', async () => {
+    const meeting = [{ dayOfWeek: 2, startTime: '08:00', endTime: '10:00' }];
+    mockQueries['academic.registration'] = {
+      data: {
+        ...registrationData([section('A1', { schedules: meeting })]),
+        eligibility: null,
+        enrollments: [{ id: 'old', sectionId: 'old-section', semesterId: 'term-a', status: 'ENROLLED', section: { schedules: meeting } }],
+      },
+    };
+    await render(wrap(<RegistrationScreen {...props} />));
+
+    expect(screen.queryByRole('button', { name: 'Chọn lớp: CSA1 Lớp 01' })).toBeNull();
+  });
 
   test('an unreachable registration read exposes retry and renders after recovery', async () => {
     mockQueries['academic.registration'] = { error: academicMessages.vi.offline, errorStatus: 0 };
@@ -736,6 +924,15 @@ describe('registration', () => {
     expect(await screen.findByText('Có lỗi xảy ra. Vui lòng thử lại.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
     expect(mockReload).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows the localized reason for a cohort eligibility error', async () => {
+    mockQueries['academic.registration'] = {
+      data: { ...registrationData([section('L2')]), eligibility: null, eligibilityError: { status: 422, code: 'COHORT_INELIGIBLE' } },
+    };
+    await render(wrap(<RegistrationScreen {...props} />));
+
+    expect(screen.getByText('Khóa của bạn chưa được đăng ký ở đợt này.')).toBeOnTheScreen();
   });
 
   test('search narrows the catalog without losing the selection', async () => {

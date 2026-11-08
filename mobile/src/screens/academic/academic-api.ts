@@ -85,6 +85,7 @@ export interface RegistrationRound {
 
 export interface RegistrationEligibility {
   eligible: boolean;
+  semesterId?: string | null;
   creditLimit?: number;
   creditsUsed?: number;
   creditsRemaining?: number;
