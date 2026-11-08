@@ -462,4 +462,16 @@ class AttendanceGeofencePersistenceTest {
             return List.of(futures.get(0).get(20,TimeUnit.SECONDS),futures.get(1).get(20,TimeUnit.SECONDS));
         }
     }
+    @Test void openSessionsForStudentExcludesAcceptedCheckinAndLeavesRejectedCheckinListed() {
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).contains(id);
+
+        store.insertCheckin(new AttendanceStore.Checkin("checkin-rejected", id, "student1", "device-hash",
+                "REJECTED", "OUT_OF_BOUNDS", 500.0, 5.0, 10.5, 106.5, false, Instant.now(), Instant.now(),
+                null, null, null));
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).contains(id);
+
+        var checkinRes = checkins.checkin(id, "student1", request("student1-device", 10.0), "127.0.0.1");
+        assertThat(checkinRes.decision()).isEqualTo("ACCEPTED");
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).doesNotContain(id);
+    }
 }

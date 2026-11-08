@@ -660,6 +660,9 @@ class AcademicEnrollmentMutationPersistenceTest {
                 .andExpect(jsonPath("$.length()").value(3))
                 // SE402 section-open: in curriculum as mandatory, two meetings with room + lecturer.
                 .andExpect(jsonPath("$[0].id").value("section-open"))
+                .andExpect(jsonPath("$[0].courseName").value("Web Application Development"))
+                .andExpect(jsonPath("$[0].courseNameEn").value("Web Application Development"))
+                .andExpect(jsonPath("$[0].courseNameVi").value("Phat trien ung dung web"))
                 .andExpect(jsonPath("$[0].schedules.length()").value(2))
                 .andExpect(jsonPath("$[0].schedules[0].dayOfWeek").value(2))
                 .andExpect(jsonPath("$[0].schedules[0].startTime").value("07:00"))

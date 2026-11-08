@@ -26,6 +26,7 @@ class AttendanceTimezonePersistenceTest {
             // Keep the in-memory database alive across repository connections.
             if (url.startsWith("jdbc:h2:")) jdbc.execute("SET DB_CLOSE_DELAY -1");
             jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
+            jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Student\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR)");
             jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Attendance\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"date\" TIMESTAMP WITH TIME ZONE, \"status\" VARCHAR, \"notes\" VARCHAR, \"createdAt\" TIMESTAMP WITH TIME ZONE, \"updatedAt\" TIMESTAMP WITH TIME ZONE)");
             jdbc.execute("DELETE FROM \"academic\".\"Attendance\"");
             jdbc.execute("SET TIME ZONE 'Asia/Bangkok'");
@@ -98,6 +99,8 @@ class AttendanceTimezonePersistenceTest {
         jdbc.execute("DROP TABLE IF EXISTS \"academic\".\"Attendance\"");
         jdbc.execute("DROP TABLE IF EXISTS \"academic\".\"Enrollment\"");
         jdbc.execute("DROP TABLE IF EXISTS \"academic\".\"Section\"");
+        jdbc.execute("DROP TABLE IF EXISTS \"academic\".\"Student\"");
+        jdbc.execute("CREATE TABLE \"academic\".\"Student\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR)");
         jdbc.execute("CREATE TABLE \"academic\".\"Attendance\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR,"
                 + " \"sectionId\" VARCHAR, \"date\" TIMESTAMP WITH TIME ZONE, \"status\" VARCHAR, \"notes\" VARCHAR,"
                 + " \"createdAt\" TIMESTAMP WITH TIME ZONE, \"updatedAt\" TIMESTAMP WITH TIME ZONE)");

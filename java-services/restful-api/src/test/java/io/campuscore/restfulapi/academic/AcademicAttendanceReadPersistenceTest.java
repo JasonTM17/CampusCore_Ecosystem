@@ -362,6 +362,25 @@ class AcademicAttendanceReadPersistenceTest {
                 .andExpect(jsonPath("$.sectionId").value("section-1"));
     }
 
+    @Test
+    void adminAttendanceFilterSupportsStudentNumberAndInternalUuid() throws Exception {
+        mvc.perform(get("/api/v1/attendance")
+                        .queryParam("studentId", "student-1")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0].student.studentId").value("S001"))
+                .andExpect(jsonPath("$.meta.total").value(4));
+
+        mvc.perform(get("/api/v1/attendance")
+                        .queryParam("studentId", "S001")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0].student.studentId").value("S001"))
+                .andExpect(jsonPath("$.meta.total").value(4));
+    }
+
     private static RequestPostProcessor adminJwt() {
         return jwt().jwt(token -> token
                         .subject("admin-user")

@@ -84,6 +84,7 @@ import { RegistrationScreen } from '../../src/screens/student/RegistrationScreen
 import { ScheduleScreen } from '../../src/screens/student/ScheduleScreen';
 import { AttendanceScreen } from '../../src/screens/student/AttendanceScreen';
 import { TranscriptScreen } from '../../src/screens/academic/TranscriptScreen';
+import { parseTranscript } from '../../src/screens/academic/gpa';
 import { CurriculumScreen } from '../../src/screens/academic/CurriculumScreen';
 import { EnrollmentsScreen } from '../../src/screens/academic/EnrollmentsScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
@@ -250,6 +251,25 @@ describe('transcript', () => {
 
     expect(screen.getByText('P')).toBeOnTheScreen();
     expect(screen.queryByText('Đã công bố')).toBeNull();
+  });
+
+  test('an explicit null transcript GPA stays null and renders the unavailable marker', async () => {
+    const payload = {
+      summary: { cumulativeGpa: null, totalCreditsEarned: 2, totalCreditsAttempted: 2 },
+      semesters: [{
+        semesterId: 't1', semesterName: 'HK1', gpa: null, creditsEarned: 2, creditsAttempted: 2,
+        records: [{ id: 'r1', courseCode: 'PE101', courseName: 'Giáo dục thể chất', credits: 2, finalGrade: 8, letterGrade: null, gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED' }],
+      }],
+    };
+
+    const parsed = parseTranscript(payload, 'vi');
+    expect(parsed?.cumulativeGpa).toBeNull();
+    expect(parsed?.terms[0].gpa).toBeNull();
+
+    mockQueries['academic.transcript'] = { data: payload };
+    await render(wrap(<TranscriptScreen {...props} />));
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.queryByText('3,50')).toBeNull();
   });
 
   test('a payload that is not a transcript is not rendered', async () => {
@@ -969,5 +989,23 @@ describe('registration', () => {
     mockQueries['academic.registration'] = { data: registrationData([section('M2')]) };
     await render(wrap(<RegistrationScreen {...props} />));
     expect(screen.getByLabelText('Tìm lớp học phần').props.placeholder).toBe('Tìm học phần');
+  });
+
+  test('shows the localized course name in Vietnamese and English', async () => {
+    mockQueries['academic.registration'] = {
+      data: registrationData([section('N1', {
+        courseName: 'Distributed Systems',
+        courseNameEn: 'Distributed Systems',
+        courseNameVi: 'Hệ thống phân tán',
+      })]),
+    };
+    const viView = await render(wrap(<RegistrationScreen {...props} />));
+    expect(screen.getByText(/Hệ thống phân tán/)).toBeOnTheScreen();
+    expect(screen.queryByText(/Distributed Systems/)).toBeNull();
+    viView.unmount();
+
+    await render(wrap(<RegistrationScreen {...props} />, 'en'));
+    expect(screen.getByText(/Distributed Systems/)).toBeOnTheScreen();
+    expect(screen.queryByText(/Hệ thống phân tán/)).toBeNull();
   });
 });
