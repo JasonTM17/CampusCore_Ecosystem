@@ -17,12 +17,18 @@ export interface FreshFix {
 export interface FreshFixOptions { timeoutMs?: number; maxAgeMs?: number }
 export interface LocationProvider {
   ensurePermission(): Promise<LocationPermission>;
+  accuracyAuthorization?(): Promise<'full' | 'reduced'>;
   isServicesEnabled(): Promise<boolean>;
   getFreshFix(options?: FreshFixOptions): Promise<FreshFix>;
 }
+export interface LocationPermissionResponse {
+  granted: boolean;
+  canAskAgain: boolean;
+  ios?: { accuracy?: 'full' | 'reduced' };
+}
 export interface LocationSource {
-  permission(): Promise<{ granted: boolean; canAskAgain: boolean }>;
-  requestPermission(): Promise<{ granted: boolean; canAskAgain: boolean }>;
+  permission(): Promise<LocationPermissionResponse>;
+  requestPermission(): Promise<LocationPermissionResponse>;
   servicesEnabled(): Promise<boolean>;
   currentPosition(): Promise<{
     coords: { latitude: number; longitude: number; accuracy: number | null };
@@ -50,6 +56,7 @@ export function createLocationProvider(source: LocationSource, options: {
   }
   return {
     ensurePermission,
+    async accuracyAuthorization() { return (await source.permission()).ios?.accuracy ?? 'full'; },
     isServicesEnabled: () => source.servicesEnabled(),
     async getFreshFix({ timeoutMs = 15000, maxAgeMs = 30000 } = {}) {
       if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(maxAgeMs) || maxAgeMs < 0) {

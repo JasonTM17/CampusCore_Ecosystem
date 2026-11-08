@@ -363,6 +363,22 @@ test('the shared validator rejects repeated or decreasing delta sequences', () =
   validator.accept({ type: 'delta', sequence: 4, text: 'c', sourceIds: [] });
 });
 
+test('meta accepts nullable conversation identifiers and still requires request identifiers and model', () => {
+  const metaData = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
+  const nullableIds = { ...metaData, turnId: null, conversationId: null };
+  assert.deepEqual(new streamModule.AssistantEventValidator().accept(nullableIds), nullableIds);
+
+  for (const key of ['requestId', 'clientRequestId', 'model']) {
+    const missing = { ...nullableIds };
+    delete missing[key];
+    assert.throws(
+      () => new streamModule.AssistantEventValidator().accept(missing),
+      (error) => error.code === 'STREAM_EVENT_ORDER_INVALID',
+      `${key} remains required`,
+    );
+  }
+});
+
 test('the shared validator binds meta to the request identity', () => {
   const metaData = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
   const bound = new streamModule.AssistantEventValidator('ffffffff-ffff-4fff-8fff-ffffffffffff');

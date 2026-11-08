@@ -1,5 +1,5 @@
 import { groupedRows } from '../../components/perf/grouped-rows';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, HeroCard, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
@@ -62,16 +62,17 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
     roundOpen: workspace?.roundOpen,
   });
 
+  const roundSemesterId = workspace?.eligibility?.semesterId;
   const enrolledMeetings = useMemo<SectionMeeting[]>(
     () => (workspace?.enrollments ?? [])
-      .filter((item) => isActiveEnrollment(item.status))
+      .filter((item) => (!roundSemesterId || item.semesterId === roundSemesterId) && isActiveEnrollment(item.status))
       .flatMap((item) => item.section?.schedules ?? []),
-    [workspace],
+    [workspace, roundSemesterId],
   );
   const groups = useMemo(() => browseSections(sections, browse), [sections, browse]);
   const roundOpen = workspace?.roundOpen ?? false;
 
-  const toView = (section: BrowseSection): SectionView => {
+  const toView = useCallback((section: BrowseSection): SectionView => {
     // The basket joins the checks: a second section must fit beside the picks.
     const others = sections.filter((item) => item.id !== section.id && actions.basket.selected.includes(item.id));
     const availability = sectionAvailability(section, {
@@ -96,7 +97,11 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       selected: actions.basket.selected.includes(section.id),
       enrollmentId: enrollment?.id ?? null,
     };
-  };
+  }, [sections, actions.basket.selected, actions.basket.failures, enrolledMeetings, workspace?.eligibility?.creditsRemaining, workspace?.enrollments, roundOpen, locale, copy]);
+  const sectionViews = useMemo(
+    () => new Map(sections.map((section) => [section.id, toView(section)] as const)),
+    [sections, toView],
+  );
 
   const eligibility = workspace?.eligibility;
   const selectedCount = actions.basket.selected.length;
@@ -122,7 +127,7 @@ if (entry.kind === "header") return <>
           </View>
           </>;
 const raw = entry.item;
-            const section = toView(raw);
+            const section = sectionViews.get(raw.id)!;
 
 return (
               <Card key={section.id} style={academicStyles.card}>

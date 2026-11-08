@@ -39,6 +39,7 @@ const routeMap = await import(
 const routes = await import(pathToFileURL(path.join(tmp, 'routes.mjs')).href);
 const { pathFor, screenForPath, roleHomePath, resolveGuard } = routeMap;
 const { screenRegistry, canAccessScreen } = routes;
+const appConfig = JSON.parse(fs.readFileSync(path.join(mobileRoot, 'app.json'), 'utf8'));
 
 test('every registry screen has a router path and round-trips', () => {
   for (const { name } of screenRegistry) {
@@ -121,6 +122,21 @@ test('signed-in sessions bounce off sign-in and unknown paths to role home', () 
   }
 });
 
+test('a signing-out session is directed only to the logged-out destination', () => {
+  assert.deepEqual(
+    resolveGuard('authenticated', 'student', '/profile', [], undefined, true),
+    { action: 'redirect', to: 'auth.loggedOut' },
+  );
+  assert.deepEqual(
+    resolveGuard('authenticated', 'student', '/session/logged-out', [], undefined, true),
+    { action: 'allow' },
+  );
+  assert.deepEqual(resolveGuard('authenticated', 'student', '/session/logged-out'), {
+    action: 'redirect',
+    to: 'dashboard.student',
+  });
+});
+
 test('role access: student allowed own screens, denied staff screens', () => {
   assert.deepEqual(resolveGuard('authenticated', 'student', '/schedule'), {
     action: 'allow',
@@ -134,6 +150,25 @@ test('role access: student allowed own screens, denied staff screens', () => {
   assert.deepEqual(resolveGuard('preview', 'lecturer', '/lecturer/grading'), {
     action: 'allow',
   });
+});
+
+test('campus news is readable by lecturer and admin roles', () => {
+  for (const role of ['lecturer', 'admin']) {
+    assert.deepEqual(resolveGuard('authenticated', role, '/news'), { action: 'allow' });
+  }
+});
+
+test('news and public document detail paths resolve and are declared as Android prefixes', () => {
+  assert.equal(screenForPath('/news/123'), 'news');
+  assert.equal(screenForPath('/docs/sample'), 'docs');
+  for (const role of ['lecturer', 'admin']) {
+    assert.deepEqual(resolveGuard('authenticated', role, '/news/123'), { action: 'allow' });
+    assert.deepEqual(resolveGuard('authenticated', role, '/docs/sample'), { action: 'allow' });
+  }
+  const intentFilters = appConfig.expo.android.intentFilters;
+  const paths = intentFilters.flatMap((filter) => filter.data.map((data) => data.pathPrefix));
+  assert.ok(paths.includes('/news'));
+  assert.ok(paths.includes('/docs'));
 });
 
 test('admin cannot reach lecturer screens — web-only ops (KM-8)', () => {

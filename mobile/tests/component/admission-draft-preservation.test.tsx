@@ -24,7 +24,7 @@ import type { AdmissionApplicationView } from '../../src/screens/content/content
 
 const typedEssay = 'Bài luận chỉ có trên thiết bị.';
 
-const application = (version: number, essay: string): AdmissionApplicationView => ({
+const application = (version: number, essay: string, reviews: AdmissionApplicationView['reviews'] = []): AdmissionApplicationView => ({
   id: 'app-1',
   applicantUserId: 'user-1',
   cycle: '2026-Q1',
@@ -36,15 +36,15 @@ const application = (version: number, essay: string): AdmissionApplicationView =
   intendedMajor: 'Công nghệ thông tin',
   essay,
   attachments: [],
-  reviews: [],
+  reviews,
   createdAt: '2026-01-01T00:00:00Z',
 });
 
-const element = (version: number, essay: string, formEpoch = 0): ReactElement => (
+const element = (version: number, essay: string, formEpoch = 0, reviews: AdmissionApplicationView['reviews'] = []): ReactElement => (
   <ThemeProvider forcedScheme="light">
     <LocaleProvider initialLocale="vi">
       <AdmissionDetail
-        application={application(version, essay)}
+        application={application(version, essay, reviews)}
         formEpoch={formEpoch}
         busy={false}
         preview={false}
@@ -84,6 +84,31 @@ describe('admission draft preservation', () => {
     await view.rerender(element(4, 'Bản nháp sau khi tải lại', 1));
 
     expect(essayField().props.value).toBe('Bản nháp sau khi tải lại');
+  });
+
+  test('a review checklist is shown when its note is empty', async () => {
+    await render(element(3, typedEssay, 0, [{
+      id: 'review-1',
+      action: 'RETURN',
+      createdAt: '2026-01-02T00:00:00Z',
+      checklist: JSON.stringify([{ item: 'Học bạ', result: 'FAIL', note: 'Thiếu bản sao có chứng thực' }]),
+      note: null,
+    }]));
+
+    expect(screen.getByText('Học bạ · FAIL')).toBeOnTheScreen();
+    expect(screen.getByText('Thiếu bản sao có chứng thực')).toBeOnTheScreen();
+  });
+
+  test('a checklist result outside the known set is still shown', async () => {
+    await render(element(3, typedEssay, 0, [{
+      id: 'review-1',
+      action: 'RETURN',
+      createdAt: '2026-01-02T00:00:00Z',
+      checklist: JSON.stringify([{ item: 'Học bạ', result: 'WAIVED', note: null }]),
+      note: null,
+    }]));
+
+    expect(screen.getByText('Học bạ · WAIVED')).toBeOnTheScreen();
   });
 
   test('the date field accepts the current campus date before UTC midnight', async () => {

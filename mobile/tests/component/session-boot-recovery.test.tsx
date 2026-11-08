@@ -77,6 +77,22 @@ test('offline cold start stays retryable and foreground recovery restores the sa
   expect(secure.get('cu.refresh')).toBe('synthetic-rotation');
 });
 
+test('the provider keeps children mounted while a boot refresh is pending', async () => {
+  let release!: (response: Response) => void;
+  request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  const probe = jest.fn(() => null);
+  const { result } = await renderHook(() => {
+    probe();
+    return useSession();
+  }, { wrapper });
+  expect(probe).toHaveBeenCalled();
+  expect(result.current.booted).toBe(false);
+  await act(async () => {
+    release(new Response(JSON.stringify({ access_token: access(), refresh_token: 'synthetic-rotation' })));
+  });
+  expect(result.current.booted).toBe(true);
+});
+
 test('a lost boot refresh requires sign-in and cannot be retried with the old token', async () => {
   request.mockRejectedValueOnce(new TypeError('offline'));
   const { result } = await renderHook(useSession, { wrapper });

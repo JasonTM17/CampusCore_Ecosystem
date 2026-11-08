@@ -34,8 +34,8 @@ export interface DeanOverview {
 }
 
 export interface AdmissionApp {
-  id: string; fullName?: string; applicantEmail?: string; intendedMajor?: string; status?: string;
-  submittedAt?: string; version?: number; attachments?: unknown[];
+  id: string; fullName?: string; applicantEmail?: string; intendedMajor?: string; cycle?: string; status?: string;
+  submittedAt?: string; version?: number; attachments?: unknown[]; claimedBy?: string | null;
 }
 
 export interface CareerApp {
@@ -63,7 +63,7 @@ export interface CreditApplication {
 }
 
 export interface AnalyticsOverview {
-  totals?: { total?: number; up?: number; down?: number };
+  totals?: { students?: number; lecturers?: number; courses?: number; enrollments?: number };
   departments?: Array<{ code?: string; name?: string; students?: number; courses?: number; sections?: number }>;
   gradeDistribution?: Array<{ grade?: string; count?: number }>;
   semesterTrends?: Array<{ semester?: string; activeStudents?: number; completionRate?: number }>;
@@ -78,9 +78,9 @@ export interface AttendanceRow {
 
 export interface EnrollmentRow {
   id?: string; status?: string; gradeStatus?: string; enrolledAt?: string;
-  section?: { sectionNumber?: string; course?: { code?: string; name?: string } };
+  section?: { sectionNumber?: string; course?: { code?: string; name?: string; nameEn?: string; nameVi?: string } };
   student?: { user?: { firstName?: string; lastName?: string } };
-  semester?: { name?: string };
+  semester?: { name?: string; nameEn?: string; nameVi?: string };
 }
 
 export interface AuditRow {
@@ -90,6 +90,10 @@ export interface AuditRow {
 
 export interface NotificationRow {
   id?: string; userId?: string; title?: string; type?: string; createdAt?: string;
+}
+
+export interface NotificationRecipient {
+  id: string; email?: string; firstName?: string; lastName?: string; roles?: string[];
 }
 
 export interface Page { page: number; limit: number }
@@ -173,6 +177,7 @@ export const laneApi = {
 
   /* admin notifications: one recipient */
   notificationHistory: (paging: Page) => metaPage<NotificationRow>('/notifications', {}, paging),
+  searchNotificationRecipients: (search: string) => metaPage<NotificationRecipient>('/users', { search }, { page: 1, limit: 5 }),
   sendNotification: (draft: NotificationDraft) => notificationSend(draft),
 };
 

@@ -210,29 +210,30 @@ export function LibraryScreen(_props: MobileScreenProps) {
               />
             </View>
           )}
-          renderItem={(loan) => (
-            <Card>
-              <View accessible accessibilityLabel={joinMeta([loan.title ?? loan.barcode, copy.statusLabels[loan.status] ?? loan.status])} style={styles.rowMain}>
-                <ContentIconChip icon="book-check-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
-                  <View style={styles.chips}>
-                    <StatusChip code={loan.status} labels={copy.statusLabels} />
+          renderItem={(loan) => {
+            const dates = joinMeta([
+              `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
+              loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
+              loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
+            ]);
+            return (
+              <Card>
+                <View accessible accessibilityLabel={joinMeta([loan.title ?? loan.barcode, copy.statusLabels[loan.status] ?? loan.status, dates])} style={styles.rowMain}>
+                  <ContentIconChip icon="book-check-outline" />
+                  <View style={styles.rowCopy}>
+                    <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
+                    <View style={styles.chips}>
+                      <StatusChip code={loan.status} labels={copy.statusLabels} />
+                    </View>
+                    <UiText variant="bodySmall" tone="muted">{dates}</UiText>
                   </View>
-                  <UiText variant="bodySmall" tone="muted">
-                    {joinMeta([
-                      `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
-                      loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
-                      loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
-                    ])}
-                  </UiText>
                 </View>
-              </View>
-              {isLoanCancellable(loan) ? (
-                <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${loan.title ?? loan.barcode ?? ''}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
-              ) : null}
-            </Card>
-          )}
+                {isLoanCancellable(loan) ? (
+                  <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${loan.title ?? loan.barcode ?? ''}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
+                ) : null}
+              </Card>
+            );
+          }}
         />
       )}
       {dialog}

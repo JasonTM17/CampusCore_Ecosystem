@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
 import { FilterChip, Notice } from '../../components/ui/index';
@@ -32,6 +32,10 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const scroll = useRef<FlatList<ChatMessage>>(null);
   const stickToBottom = useRef(true);
   const lastId = messages[messages.length - 1]?.id;
+  const onThreadScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    stickToBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 48;
+  }, []);
 
   // New turns follow the end of the thread; loading older history keeps the reading position.
   useEffect(() => { stickToBottom.current = true; }, [lastId, chat.busy]);
@@ -51,6 +55,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
         <ResponsiveContent style={styles.contentWrap}>
           <PerformanceList
             listRef={scroll}
+            testID="assistant-thread"
             data={messages}
             keyExtractor={messageKey}
             renderItem={renderMessage}
@@ -59,6 +64,8 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            onScroll={onThreadScroll}
+            scrollEventThrottle={16}
             onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
             showsVerticalScrollIndicator={false}
             header={<>

@@ -68,12 +68,30 @@ test('password policy enforces the same rules and order as the web client', () =
   assert.equal(policy.checkPasswordPolicy('Mật-khẩu-12'), null, 'Vietnamese letters count as letters');
 });
 
+test('password limit copy explains the 72-byte UTF-8 ceiling in both locales', () => {
+  assert.match(accountMessages.vi.errors.codes.PASSWORD_TOO_LONG, /72 byte UTF-8/i);
+  assert.match(accountMessages.vi.reset.checklistLength, /72 byte UTF-8/i);
+  assert.match(accountMessages.en.errors.codes.PASSWORD_TOO_LONG, /72 UTF-8 bytes/i);
+  assert.match(accountMessages.en.reset.checklistLength, /72 UTF-8 bytes/i);
+});
+
 test('password checklist and code mapping stay in the shared namespace', () => {
   assert.deepEqual(policy.passwordChecklist('Abcdef12', 'Abcdef12').map((i) => i.met), [true, true, true]);
   assert.deepEqual(policy.passwordChecklist('abc', '').map((i) => i.met), [false, false, false]);
   assert.equal(policy.mapPasswordErrorCode('PASSWORD_TOO_COMMON'), 'PASSWORD_TOO_COMMON');
   assert.equal(policy.mapPasswordErrorCode('NOT_A_CODE'), null);
   assert.equal(policy.mapPasswordErrorCode(undefined), null);
+});
+
+test('password guidance explains the UTF-8 byte limit for long accented passwords', () => {
+  const password = `${'á'.repeat(36)}A1`;
+  assert.equal(password.length, 38);
+  assert.equal(Buffer.byteLength(password, 'utf8'), 74);
+  assert.equal(policy.checkPasswordPolicy(password), 'PASSWORD_TOO_LONG');
+  assert.match(accountMessages.vi.errors.codes.PASSWORD_TOO_LONG, /72 byte/);
+  assert.match(accountMessages.vi.reset.checklistLength, /72 byte/);
+  assert.match(accountMessages.en.errors.codes.PASSWORD_TOO_LONG, /72 UTF-8 bytes/);
+  assert.match(accountMessages.en.reset.checklistLength, /72 UTF-8 bytes/);
 });
 
 test('reset token extraction accepts only a single well-formed token', () => {
@@ -224,5 +242,5 @@ test('sign-in keeps the browser-owned flow and respects the status bar inset', (
   assert.match(signIn, /SafeAreaInsetsContext/);
   assert.match(signIn, /insets\?\.top/);
   assert.match(signIn, /signInWithOidc\(/);
-  assert.doesNotMatch(signIn, /password|campusApi\.login|TextInput/);
+  assert.doesNotMatch(signIn, /campusApi\.login|setSessionTokens|<TextInput\b|secureTextEntry/);
 });

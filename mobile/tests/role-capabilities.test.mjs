@@ -146,6 +146,12 @@ test('dean is TRUONG_KHOA only; TRUONG_BO_MON follows the lecturer precedence', 
   );
 });
 
+test('only the LECTURER issuer claim opens the lecturer role', () => {
+  assert.equal(roleFromClaims(['LECTURER']), 'lecturer');
+  assert.equal(roleFromClaims(['FACULTY']), null);
+  assert.equal(roleFromClaims(['TEACHER']), null);
+});
+
 test('staff desks come from server grants only, never from the admin claim', () => {
   assert.deepEqual(resolveCapabilities({ claims: ['ADMIN'], lanes: ALL_ON, staffGrants: null }), [
     'admin.oversight',

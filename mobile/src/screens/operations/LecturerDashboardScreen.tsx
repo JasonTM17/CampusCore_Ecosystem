@@ -16,6 +16,7 @@ import {
 } from '../../components/Ui';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
@@ -29,6 +30,7 @@ import { useOpsStyles } from './shared/styles';
 export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
+  const { formatNumber } = useLocale();
   const preview = isOpsPreview();
   const schedule = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const grading = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
@@ -51,9 +53,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const reload = () => { void schedule.reload(); void grading.reload(); };
 
   const heroTitle = todayClasses.length > 0
-    ? fillCopy(countForm(todayClasses.length, copy.todayClassesCountOne, copy.todayClassesCount), { n: todayClasses.length })
+    ? fillCopy(countForm(todayClasses.length, copy.todayClassesCountOne, copy.todayClassesCount), { n: formatNumber(todayClasses.length) })
     : copy.noClassToday;
-  const heroDetail = fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: students });
+  const heroDetail = fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(students) });
 
   return (
     <OpsShell
@@ -87,9 +89,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
           <StatStrip
             style={styles.stats}
             items={[
-              { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: String(sections.length) },
-              { icon: 'account-group-outline', label: copy.metricStudents, value: String(students) },
-              { icon: 'clipboard-edit-outline', label: copy.metricToGrade, value: String(pending) },
+              { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: formatNumber(sections.length) },
+              { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(students) },
+              { icon: 'clipboard-edit-outline', label: copy.metricToGrade, value: formatNumber(pending) },
             ]}
           />
 
@@ -125,7 +127,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="calendar-month-outline"
           title={copy.scheduleTitle}
-          subtitle={fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: students })}
+          subtitle={fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(students) })}
           onPress={() => navigation.navigate('lecturer.schedule')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -133,9 +135,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="file-document-edit-outline"
           title={copy.gradingTitle}
-          subtitle={pending > 0 ? fillCopy(countForm(pending, copy.scoresPendingOne, copy.scoresPending), { n: pending }) : copy.allCaughtUp}
+          subtitle={pending > 0 ? fillCopy(countForm(pending, copy.scoresPendingOne, copy.scoresPending), { n: formatNumber(pending) }) : copy.allCaughtUp}
           onPress={() => navigation.navigate('lecturer.grading')}
-          trailing={pending > 0 ? <StatusPill label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
+          trailing={pending > 0 ? <StatusPill label={formatNumber(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
         <Divider />
         <ListRow
