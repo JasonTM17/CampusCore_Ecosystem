@@ -317,6 +317,47 @@ describe('topics, round and advisors', () => {
     expect(screen.getByText('2 đề tài')).toBeOnTheScreen();
   });
 
+  test('advisor topics load one page at a time after the first page is visible', async () => {
+    setWidth(360);
+    const topics = Array.from({ length: 60 }, (_, index) => topic(`advisor-${index}`, `Topic ${index}`));
+    mockApi.topics.mockImplementation(async (_roundId: string, options: { page?: number; limit?: number } = {}) => {
+      const start = (options.page ?? 0) * (options.limit ?? 20);
+      const items = topics.slice(start, start + (options.limit ?? 20));
+      return page(items, start + items.length < topics.length, topics.length);
+    });
+    mockApi.supervisors.mockImplementation(async (topicId: string) => {
+      const index = Number(topicId.slice('advisor-'.length));
+      return [{ lecturerId: `lecturer-${index}`, supervisorOrder: 1, firstName: `Advisor ${index}`, lastName: 'Lecturer', email: null }];
+    });
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await screen.findByText('Topic 0');
+    await fireEvent.press(screen.getByRole('tab', { name: copy.tabAdvisors }));
+
+    expect(await screen.findByText('Lecturer Advisor 0')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenCalledWith('r2', { page: 0, limit: 20 });
+    expect(mockApi.supervisors).toHaveBeenCalledTimes(20);
+    expect(mockApi.topics).not.toHaveBeenCalledWith('r2', { page: 1, limit: 20 });
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.loadMore }));
+    expect(await screen.findByText('Lecturer Advisor 20')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenCalledWith('r2', { page: 1, limit: 20 });
+    expect(mockApi.supervisors).toHaveBeenCalledTimes(40);
+  });
+
+  test('advisor cards are passed as rows to the virtualized list', async () => {
+    setWidth(360);
+    const topics = Array.from({ length: 60 }, (_, index) => topic(`advisor-${index}`, `Topic ${index}`));
+    mockApi.topics.mockImplementation(async () => page(topics, false, topics.length));
+    mockApi.supervisors.mockImplementation(async (topicId: string) => {
+      const index = Number(topicId.slice('advisor-'.length));
+      return [{ lecturerId: `lecturer-${index}`, supervisorOrder: 1, firstName: `Advisor ${index}`, lastName: 'Lecturer', email: null }];
+    });
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+    await screen.findByText('Lecturer Advisor 0');
+
+    expect(screen.getAllByText(/^Lecturer Advisor \d+$/).length).toBeLessThanOrEqual(8);
+  });
+
   test('a forbidden supervisor read shows access denied instead of an empty directory', async () => {
     setWidth(360);
     mockApi.supervisors.mockRejectedValue(Object.assign(new Error('denied'), { status: 403 }));
@@ -399,6 +440,19 @@ describe('topic detail', () => {
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
   });
 
+  test('does not show a department identifier without a readable department name', async () => {
+    setWidth(360);
+    mockApi.topic.mockResolvedValueOnce(topic('topic-test', 'Visible topic', {
+      departmentId: 'department-fit-software',
+      description: 'Visible description',
+    }));
+    await renderThemed(detail());
+
+    expect(await screen.findByText('Visible topic')).toBeOnTheScreen();
+    expect(screen.getByText('Visible description')).toBeOnTheScreen();
+    expect(screen.queryByText('department-fit-software')).toBeNull();
+  });
+
   test('registration is not offered once the topic is already chosen', async () => {
     setWidth(360);
     seed({ group: group({ topicId: 't1' }), progress: progress() });
@@ -428,6 +482,21 @@ describe('topic detail', () => {
     setWidth(360);
     mockApi.rounds.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 }));
     await renderThemed(detail());
+    expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByRole('button', { name: copy.register })).toBeOnTheScreen();
+  });
+
+  test('registration waits for a successful group lookup and retries a failed lookup', async () => {
+    setWidth(360);
+    const pendingGroups = deferred<unknown>();
+    mockApi.myGroups.mockReturnValueOnce(pendingGroups.promise).mockResolvedValueOnce(page([]));
+    await renderThemed(detail());
+    expect(await screen.findByText('Mô tả Trợ lý học vụ')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+
+    await act(async () => { pendingGroups.reject(Object.assign(new Error('timeout'), { status: 503 })); });
     expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
@@ -658,6 +727,8 @@ describe('registration', () => {
 });
 
 describe('progress and report', () => {
+  const reportWindowGuidance = 'Chỉ có thể cập nhật báo cáo khi đợt đã đóng đăng ký và còn hạn nộp.';
+  const closedRounds = [ROUNDS[0], round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')];
   const approvedGroup = (over: Record<string, unknown> = {}) => group({ topicId: 't1', status: 'APPROVED', approvalStatus: 'APPROVED', ...over });
   const approvedProgress = progress({
     currentMilestone: 'REPORT_SUBMITTED',
@@ -716,6 +787,25 @@ describe('progress and report', () => {
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect(await screen.findByText(copy.attention.GROUP_REJECTED)).toBeOnTheScreen();
     expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
+  });
+
+  test('a submitted group rejected by a lecturer shows the rejection badge', async () => {
+    setWidth(360);
+    seed({ group: group({ status: 'SUBMITTED', approvalStatus: 'REJECTED', rejectionReason: 'Thiếu thành viên' }), progress: progress() });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    await screen.findByText(`${copy.groupRejectedReason}: Thiếu thành viên`);
+    expect(screen.getAllByText(copy.status.REJECTED)).toHaveLength(2);
+    expect(screen.queryByText(copy.status.SUBMITTED)).toBeNull();
+  });
+
+  test('member IDs remain visible when the group has no hydrated member rows', async () => {
+    setWidth(360);
+    seed({ group: group({ memberStudentIds: ['s1', 's2'], members: [] }), progress: progress() });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText('s1')).toBeOnTheScreen();
+    expect(screen.getByText('s2')).toBeOnTheScreen();
   });
 
   test('an approved group renders the published final score', async () => {
@@ -838,9 +928,33 @@ describe('progress and report', () => {
     expect(mockApi.report).not.toHaveBeenCalled();
   });
 
-  test('a link report needs an artifact and an http(s) link before anything is sent', async () => {
+  test('report writes wait for registration to close and show window guidance', async () => {
     setWidth(360);
     seed({ group: approvedGroup(), progress: approvedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText(reportWindowGuidance)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+    expect(screen.queryByRole('button', { name: copy.reportSubmit })).toBeNull();
+  });
+
+  test('report writes are locked after the deadline and the date is shown', async () => {
+    setWidth(360);
+    seed({
+      rounds: [ROUNDS[0], round('r2', 'Đợt 2', 'REGISTRATION_CLOSED', { reportDeadline: '2026-09-30T23:59:59Z' })],
+      group: approvedGroup(),
+      progress: approvedProgress,
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText(reportWindowGuidance)).toBeOnTheScreen();
+    expect(screen.getByText(new RegExp(copy.reportDeadline))).toBeOnTheScreen();
+    expect(screen.queryByLabelText(copy.reportTitle)).toBeNull();
+  });
+
+  test('a link report needs an artifact and an http(s) link before anything is sent', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     mockApi.submitReportLink.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', url: 'https://example.edu/r', submittedAt: '2026-10-01T08:00:00Z' });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     const submit = await screen.findByRole('button', { name: copy.reportSubmit });
@@ -860,7 +974,7 @@ describe('progress and report', () => {
 
   test('same-frame repeated report submission sends one request', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     const pending = deferred<unknown>();
     mockApi.submitReportLink.mockReturnValue(pending.promise);
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
@@ -880,7 +994,7 @@ describe('progress and report', () => {
 
   test('the report form waits for the first read before it can be edited', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     const pending = deferred<unknown>();
     mockApi.report.mockReset();
     mockApi.report.mockImplementation(() => pending.promise);
@@ -892,9 +1006,22 @@ describe('progress and report', () => {
     expect(screen.getByLabelText(copy.reportTitle).props.value).toBe('Báo cáo cũ');
   });
 
+  test('the report deadline is shown while the closed-round write window is open', async () => {
+    setWidth(360);
+    seed({
+      rounds: [ROUNDS[0], round('r2', 'Đợt 2', 'REGISTRATION_CLOSED', { reportDeadline: '2099-12-31T23:59:59Z' })],
+      group: approvedGroup(),
+      progress: approvedProgress,
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByRole('button', { name: copy.reportSubmit })).toBeOnTheScreen();
+    expect(screen.getByText(new RegExp(copy.reportDeadline))).toBeOnTheScreen();
+  });
+
   test('without a file adapter the picker is unavailable and the link path stays usable', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect(await screen.findByText(copy.reportFileUnavailable)).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: copy.reportPick })).toBeNull();
@@ -903,7 +1030,7 @@ describe('progress and report', () => {
 
   test('does not start a second report picker while the first one is pending', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     const pendingPick = deferred<{ status: 'cancelled' }>();
     const pick = jest.fn(() => pendingPick.promise);
     setFileAdapter({
@@ -927,7 +1054,7 @@ describe('progress and report', () => {
 
   test('a picked file uploads as a multipart part and can be cancelled', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     const adapter: FileAdapter = {
       ...createUnavailableFileAdapter(),
       capability: () => ({ available: true }),
@@ -959,7 +1086,7 @@ describe('progress and report', () => {
 
   test('the picked file cache copy is released on replace, upload and unmount', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     const released: string[] = [];
     const pickedFile = (name: string) => ({
       uri: `file:///a/${name}`, name, sizeBytes: 2048,
@@ -992,7 +1119,7 @@ describe('progress and report', () => {
 
   test('a stored file can be downloaded through the save sheet and removed only after confirmation', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     mockApi.report.mockReset();
     mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', url: 'https://example.edu/r', fileName: 'bao-cao.pdf', fileSize: 2048, submittedAt: '2026-10-01T08:00:00Z' });
     const saved: unknown[] = [];
@@ -1016,11 +1143,26 @@ describe('progress and report', () => {
     await waitFor(() => expect(mockApi.removeReportFile).toHaveBeenCalledWith('g1'));
   });
 
-  test('same-frame repeated report removal confirmation sends one request', async () => {
+  test('a file-only report does not offer removal without a link artifact', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({
+      rounds: [ROUNDS[0], round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')],
+      group: approvedGroup(),
+      progress: approvedProgress,
+    });
     mockApi.report.mockReset();
     mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'bao-cao.pdf' });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText('bao-cao.pdf')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: copy.reportRemoveFile })).toBeNull();
+  });
+
+  test('same-frame repeated report removal confirmation sends one request', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', url: 'https://example.edu/r', fileName: 'bao-cao.pdf' });
     const pending = deferred<unknown>();
     mockApi.removeReportFile.mockReturnValue(pending.promise);
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
@@ -1051,7 +1193,7 @@ describe('progress and report', () => {
 
   test('a failed report save keeps the typed title, note and link', async () => {
     setWidth(360);
-    seed({ group: approvedGroup(), progress: approvedProgress });
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
     mockApi.report.mockReset();
     // A reload returns a new object carrying the unchanged stored values.
     mockApi.report.mockImplementation(async () => ({ groupId: 'g1', title: 'Báo cáo cũ', url: 'https://example.edu/cu' }));
@@ -1106,7 +1248,7 @@ describe('preview mode', () => {
 
 test('a picked file that resolves after unmount releases its cache copy', async () => {
   setWidth(360);
-  seed({ group: group({ topicId: 't1', status: 'APPROVED', approvalStatus: 'APPROVED' }), progress: progress() });
+  seed({ rounds: [ROUNDS[0], round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')], group: group({ topicId: 't1', status: 'APPROVED', approvalStatus: 'APPROVED' }), progress: progress() });
   const pending = deferred<{ status: 'picked'; file: { uri: string; name: string; sizeBytes: number; release: () => void } }>();
   const release = jest.fn();
   const adapter: FileAdapter = {
