@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -11,7 +11,7 @@ import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { filterByPriority } from '../content/content-rules';
+import { filterByPriority, newsCategoryLabel } from '../content/content-rules';
 import { ContentChevron, ContentIconChip, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
 import { NewsDetail } from '../content/NewsDetail';
 import { previewNews } from '../content/preview-data';
@@ -29,7 +29,7 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
   const copy = campusMessages[locale];
   const categoryLabels = copy.newsCategoryLabels as Readonly<Record<string, string>>;
   const params = useLocalSearchParams<{ focus?: string }>();
-  const [selected, setSelected] = useState<string | null>(() => (typeof params.focus === 'string' ? params.focus : null));
+  const [selected, setSelected] = useState<string | null>(() => (typeof params.focus === 'string' && params.focus.trim() ? params.focus.trim() : null));
   const [filter, setFilter] = useState<{ priority?: string[] }>({});
   const priorities = filter.priority ?? [];
 
@@ -41,6 +41,10 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
     eager: priorities.length > 0,
     preview,
   });
+
+  useEffect(() => {
+    setSelected(typeof params.focus === 'string' && params.focus.trim() ? params.focus.trim() : null);
+  }, [params.focus]);
 
   if (selected) return <NewsDetail idOrSlug={selected} onBack={() => setSelected(null)} />;
 
@@ -77,6 +81,7 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
         )}
         renderItem={(item) => {
           const summaryText = item.summary ?? (item.content ? excerptOf(item.content) : null);
+          const category = newsCategoryLabel(categoryLabels, item.categoryId);
           return (
             <Pressable
               accessibilityRole="button"
@@ -98,8 +103,8 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
                       <UiText ellipsizeMode="tail" variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{summaryText}</UiText>
                     ) : null}
                     <View style={styles.meta}>
-                      {item.categoryId && categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]
-                        ? <StatusPill label={categoryLabels[item.categoryId.trim().toUpperCase().replace(/[ -]+/g, '_')]} tone="primary" />
+                      {category
+                        ? <StatusPill label={category} tone="primary" />
                         : <StatusChip code={item.priority} labels={copy.priorityLabels} />}
                       {item.publishAt ? <UiText variant="meta" tone="muted">{formatDate(item.publishAt)}</UiText> : null}
                     </View>

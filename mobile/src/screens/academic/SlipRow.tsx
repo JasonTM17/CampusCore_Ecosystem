@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { getFileAdapter } from '../../files/file-adapter';
@@ -13,18 +13,25 @@ export function SlipRow({ semesterId }: { semesterId: string | null }) {
   const { copy } = useAcademicCopy();
   const available = getFileAdapter().capability('save').available;
   const [state, setState] = useState<SlipState>(available ? { status: 'ready', notice: 'blank' } : { status: 'unavailable', notice: 'unavailable' });
+  const inFlight = useRef(false);
 
   const download = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setState({ status: 'busy' });
-    if (await isDeviceOffline()) {
-      setState({ status: 'failed', notice: 'offline' });
-      return;
+    try {
+      if (await isDeviceOffline()) {
+        setState({ status: 'failed', notice: 'offline' });
+        return;
+      }
+      const result = await saveRegistrationSlip(semesterId);
+      if (result.status === 'done') setState({ status: 'ready', notice: 'saved' });
+      else if (result.status === 'cancelled') setState({ status: 'ready', notice: 'blank' });
+      else if (result.status === 'unavailable') setState({ status: 'unavailable', notice: 'unavailable' });
+      else setState({ status: 'failed', notice: 'failed' });
+    } finally {
+      inFlight.current = false;
     }
-    const result = await saveRegistrationSlip(semesterId);
-    if (result.status === 'done') setState({ status: 'ready', notice: 'saved' });
-    else if (result.status === 'cancelled') setState({ status: 'ready', notice: 'blank' });
-    else if (result.status === 'unavailable') setState({ status: 'unavailable', notice: 'unavailable' });
-    else setState({ status: 'failed', notice: 'failed' });
   };
 
   const statusLabel = state.notice === 'blank' ? ' '
@@ -38,7 +45,7 @@ export function SlipRow({ semesterId }: { semesterId: string | null }) {
       name={copy.slipName}
       status={state.status}
       statusLabel={statusLabel}
-      actions={[{ key: 'download', label: copy.slipDownload, onPress: () => void download(), disabled: !available }]}
+      actions={[{ key: 'download', label: copy.slipDownload, onPress: () => void download(), disabled: !available || state.status === 'busy' }]}
     />
   );
 }
