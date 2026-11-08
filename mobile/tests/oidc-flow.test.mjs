@@ -79,6 +79,24 @@ test('callback parsing: state verified before code is accepted', () => {
   assert.deepEqual(denied, { kind: 'blocked', reason: 'Authorization was rejected.' });
 });
 
+test('callback parser preserves only the allowlisted password-change code', () => {
+  const passwordChange = parseCallbackUrl(
+    `${OIDC_REDIRECT_URI}?error=PASSWORD_CHANGE_REQUIRED&error_description=private-detail&state=S1`,
+    'S1',
+  );
+  assert.deepEqual(passwordChange, {
+    kind: 'blocked',
+    reason: 'Authorization was rejected.',
+    code: 'PASSWORD_CHANGE_REQUIRED',
+  });
+
+  const unknown = parseCallbackUrl(
+    `${OIDC_REDIRECT_URI}?error=PRIVATE_PROVIDER_CODE&error_description=private-detail&state=S1`,
+    'S1',
+  );
+  assert.deepEqual(unknown, { kind: 'blocked', reason: 'Authorization was rejected.' });
+});
+
 test('callback query is parsed separately from the fragment', () => {
   assert.deepEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}?state=S1&code=abc#ignored`, 'S1'), { kind: 'code', code: 'abc' });
   assert.deepEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}?code=abc&state=S1#ignored`, 'S1'), { kind: 'code', code: 'abc' });
@@ -152,7 +170,9 @@ test('role precedence is LECTURER → STUDENT → ADMIN-web-only (KM-8)', () => 
   assert.equal(roleFromClaims(['LECTURER', 'ADMIN']), 'lecturer');
   assert.equal(roleFromClaims(['STUDENT', 'ADMIN']), 'student');
   assert.equal(roleFromClaims(['STUDENT']), 'student');
-  assert.equal(roleFromClaims(['FACULTY']), 'lecturer');
+  assert.equal(roleFromClaims(['LECTURER']), 'lecturer');
+  assert.equal(roleFromClaims(['FACULTY']), null);
+  assert.equal(roleFromClaims(['TEACHER']), null);
   assert.equal(roleFromClaims(['ADMIN']), 'admin');
   assert.equal(roleFromClaims(['SUPER_ADMIN']), 'admin');
   assert.equal(roleFromClaims(['PARENT']), null);

@@ -109,7 +109,11 @@ function signinHarness(overrides = {}) {
     session: { markBlocked: (value) => blocked.push(value) },
     navigation: { completeSignIn: (...args) => completed.push(args) },
     copy: {
-      signIn: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+      signIn: {
+        unreachable: 'network', storage: 'storage', invalid: 'validation', noMobileSurface: 'no-mobile',
+        authorizationRejected: 'authorization rejected', passwordChangeRequired: 'password change required',
+        authorizationCancelled: 'authorization dismissed', authorizationTimeout: 'authorization timed out',
+      },
       errors: { issuerNotConfigured: 'issuer' },
     },
     signInFlight: { current: false },
@@ -128,12 +132,34 @@ test('sign-in storage failure is distinct from issuer transport failure', async 
   assert.equal(network.errors.at(-1), 'network');
 });
 
-test('sign-in validation failure never exposes raw provider text', async () => {
+test('sign-in blocked outcome uses a safe localized reason and never raw provider text', async () => {
   const validation = signinHarness({ signInWithOidc: async () => ({ kind: 'blocked', reason: 'private provider text' }) });
   await validation.run();
-  assert.equal(validation.errors.at(-1), 'validation');
-  assert.equal(validation.blocked.length, 0);
+  assert.deepEqual(validation.errors, [null]);
+  assert.deepEqual(validation.blocked, ['authorization rejected']);
   assert.equal(validation.completed.length, 0);
+});
+
+test('password-change, dismiss, and timeout outcomes use safe blocked reasons', async () => {
+  const password = signinHarness({
+    signInWithOidc: async () => ({ kind: 'blocked', code: 'password_change_required', reason: 'private provider text' }),
+  });
+  await password.run();
+  assert.deepEqual(password.blocked, ['password change required']);
+  assert.deepEqual(password.errors, [null]);
+
+  const dismissed = signinHarness({ signInWithOidc: async () => ({ kind: 'cancelled' }) });
+  await dismissed.run();
+  assert.deepEqual(dismissed.blocked, ['authorization dismissed']);
+
+  const timeout = signinHarness({ signInWithOidc: async () => {
+    const error = new Error('private timeout detail');
+    error.name = 'AbortError';
+    throw error;
+  } });
+  await timeout.run();
+  assert.deepEqual(timeout.blocked, ['authorization timed out']);
+  assert.deepEqual(timeout.errors, [null]);
 });
 
 test('one sign-in attempt cannot be duplicated while the browser is pending', async () => {
