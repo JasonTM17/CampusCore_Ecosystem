@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Field, UiText } from '../../components/Ui';
@@ -11,8 +12,10 @@ import type { AssistantChat } from './useAssistantChat';
 /** Message input pinned under the thread. The cap equals the server and web limit. */
 export function AssistantComposer({ chat }: { chat: AssistantChat }) {
   const { colors, window } = useTheme();
-  const { copy, draft, busy, notice } = chat;
+  const { copy, busy, notice } = chat;
+  const [draft, setDraft] = useState('');
   const landscape = window.landscape;
+  useEffect(() => chat.attachDraftSetter(setDraft), [chat.attachDraftSetter]);
   return (
     <View style={[styles.composer, { backgroundColor: colors.card, borderTopColor: colors.outlineVariant }]}>
       <ResponsiveContent>

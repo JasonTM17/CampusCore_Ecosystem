@@ -11,7 +11,7 @@ import { useShellCopy } from '../i18n/use-shell-copy';
 import { UiText } from './Ui';
 
 /** Expanded-window presentation of the same role-aware primary navigation. */
-export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: BottomNavigationProps) {
+export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCount, menuButtonRef }: BottomNavigationProps) {
   const styles = useThemedStyles(makeStyles);
   const { scheme } = useTheme();
   const chrome = chromeFor(scheme);
@@ -28,10 +28,13 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
       <View accessibilityRole="tablist" style={styles.tabList}>
         {items.map((item) => {
           const active = item.route === activeRoute;
+          const count = item.route === 'notifications' && unreadCount !== undefined && unreadCount > 0
+            ? unreadCount
+            : undefined;
           return (
             <Pressable
               key={item.route}
-              accessibilityLabel={navLabel(item.label)}
+              accessibilityLabel={count === undefined ? navLabel(item.label) : `${navLabel(item.label)}, ${count} ${copy.unread}`}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               onPress={() => onNavigate(item.route)}
@@ -39,6 +42,11 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
             >
               <View style={styles.icon}>
                 <MaterialCommunityIcons color={active ? chrome.gold : chrome.onSurfaceMuted} name={item.icon} size={20} />
+                {count === undefined ? null : (
+                  <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
+                    <UiText variant="meta" style={styles.badgeCount}>{count}</UiText>
+                  </View>
+                )}
               </View>
               <UiText variant="meta" style={[styles.label, { color: active ? chrome.onSurface : chrome.onSurfaceMuted }]}>
                 {navLabel(item.label)}
@@ -51,6 +59,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
         accessibilityLabel={copy.openMenu}
         accessibilityRole="button"
         onPress={onMenu}
+        ref={menuButtonRef}
         style={({ pressed }) => [styles.item, pressed ? { backgroundColor: chrome.overlay } : undefined]}
       >
         <View style={styles.icon}>
@@ -83,6 +92,8 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: tokens.radii.control,
   },
   icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 30, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 40 },
+  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
+  badgeCount: { color: colors.onPrimary, fontSize: 10, lineHeight: 12, textAlign: 'center' },
   activeIcon: { backgroundColor: colors.primaryFixed },
   label: { alignSelf: 'stretch', flexShrink: 1, textAlign: 'center' },
   pressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },

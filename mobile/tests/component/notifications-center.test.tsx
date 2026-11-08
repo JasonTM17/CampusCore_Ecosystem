@@ -423,4 +423,13 @@ describe('push opt-in denial recovery', () => {
     expect(screen.queryByText('25 chưa đọc')).toBeNull();
     expect(screen.getByText('25+ chưa đọc')).toBeOnTheScreen();
   });
+
+  test('shows an unknown unread count when no unread rows are loaded but more pages exist', async () => {
+    mockUnreadQuery.data = undefined;
+    mockUnreadQuery.error = '500 Internal Server Error';
+    showRows([row('read-1', 'Read notice', null, true)], { data: { items: [row('read-1', 'Read notice', null, true)], total: 40, hasMore: true } });
+    await renderThemed(<NotificationsScreen {...props} />);
+    expect(screen.getByText('Số thông báo chưa đọc chưa xác định')).toBeOnTheScreen();
+    expect(screen.queryByText('0+ chưa đọc')).toBeNull();
+  });
 });

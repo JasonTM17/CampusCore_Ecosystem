@@ -42,12 +42,13 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
   const { fontScale } = useWindowDimensions();
   const largeText = fontScale >= chromeFontScaleCap;
   const current = row.status ? statusLabel(copy, row.status) : copy.unmarked;
+  const accessibleName = row.studentCode ? `${row.name} (${row.studentCode})` : row.name;
 
   return (
     <Card style={styles.rosterCard}>
       <View
         accessible
-        accessibilityLabel={fillCopy(copy.statusOf, { name: row.name, status: current })}
+        accessibilityLabel={fillCopy(copy.statusOf, { name: accessibleName, status: current })}
         style={styles.directoryRow}
       >
         <Avatar decorative name={row.name} size="sm" />

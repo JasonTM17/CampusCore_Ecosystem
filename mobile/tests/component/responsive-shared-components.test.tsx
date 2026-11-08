@@ -127,10 +127,7 @@ describe('shared responsive components layout contracts', () => {
       ),
     );
     const retryButton = screen.getByRole('button', { name: 'Thử lại' });
-    let statePanelNode = retryButton.parent;
-    while (statePanelNode && statePanelNode.props.accessibilityRole !== 'alert') {
-      statePanelNode = statePanelNode.parent;
-    }
+    const statePanelNode = retryButton.parent;
     expect(statePanelNode).not.toBeNull();
     const panelStyle = StyleSheet.flatten(statePanelNode?.props.style);
     expect(panelStyle.flexDirection).toBe('column');

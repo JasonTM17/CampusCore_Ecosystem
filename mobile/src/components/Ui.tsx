@@ -492,8 +492,6 @@ export function StatePanel({ kind, title, description, actionLabel, onAction }: 
   const largeText = window.fontScale >= chromeFontScaleCap;
   return (
     <View
-      accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
-      accessibilityRole={kind === 'error' ? 'alert' : undefined}
       style={[
         styles.statePanel,
         kind === 'error' ? styles.statePanelError : undefined,
@@ -503,7 +501,13 @@ export function StatePanel({ kind, title, description, actionLabel, onAction }: 
       {kind === 'loading' ? (
         <ActivityIndicator color={colors.primary} size="small" />
       ) : <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={kind === 'error' ? 'alert-circle-outline' : 'inbox-outline'} color={kind === 'error' ? colors.error : colors.textMuted} size={24} />}
-      <View style={[styles.stateCopy, largeText ? { marginHorizontal: 0 } : undefined]}>
+      <View
+        accessible={kind === 'error'}
+        accessibilityLabel={kind === 'error' ? [title, description].filter(Boolean).join('. ') : undefined}
+        accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
+        accessibilityRole={kind === 'error' ? 'alert' : undefined}
+        style={[styles.stateCopy, largeText ? { marginHorizontal: 0 } : undefined]}
+      >
         <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
           {title}
         </UiText>

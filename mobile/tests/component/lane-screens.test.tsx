@@ -29,6 +29,8 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
     eventMark: jest.fn(),
     sendNotification: jest.fn(),
     notificationHistory: jest.fn(),
+    searchNotificationRecipients: jest.fn(),
+    enrollments: jest.fn(),
     creditApplications: jest.fn(),
     thesisRounds: jest.fn(),
     deanOverview: jest.fn(),
@@ -36,8 +38,9 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 }));
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
-import { AdminEventsScreen } from '../../src/screens/lanes/AdminLaneScreens';
-import { Pager, QueueCard } from '../../src/screens/lanes/lane-ui';
+import { AdminEnrollmentsScreen, AdminEventsScreen, AdminNotificationsScreen } from '../../src/screens/lanes/AdminLaneScreens';
+import { Pager, QueueCard, statusTone } from '../../src/screens/lanes/lane-ui';
+import { validateNotification } from '../../src/screens/lanes/lane-model';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
 import { lanesMessages } from '../../src/i18n/lanes-messages';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -50,6 +53,29 @@ const renderEnglish = async (element: ReactElement) =>
       <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
     </LocaleProvider>,
   );
+const renderInLocale = async (element: ReactElement, locale: 'vi' | 'en') =>
+  render(
+    <LocaleProvider initialLocale={locale}>
+      <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
+    </LocaleProvider>,
+  );
+const page = (items: unknown[]) => ({
+  items,
+  meta: { total: items.length, page: 1, limit: 20, totalPages: 1 },
+  hasMore: false,
+});
+
+async function selectNotificationRecipient() {
+  api.searchNotificationRecipients.mockResolvedValue({
+    items: [{ id: 'student-user-1', firstName: 'An', lastName: 'Nguyen', email: 'student@example.edu' }],
+    meta: { total: 1, page: 1, limit: 5, totalPages: 1 },
+    hasMore: false,
+  });
+  await fireEvent.changeText(screen.getByLabelText('Search by name or email'), 'student');
+  await fireEvent.press(screen.getByRole('button', { name: 'Search' }));
+  const result = await screen.findByRole('button', { name: /Nguyen An.*student@example.edu/ });
+  await fireEvent.press(result);
+}
 
 function setViewport(width: number, fontScale: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
@@ -160,60 +186,96 @@ describe('admin notifications', () => {
   });
 
   test('an invalid draft shows field errors and sends nothing', async () => {
-    await renderThemed(<LaneRoute id="admin.notifications" />);
-    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
-    await fireEvent.press(screen.getByText('Xem trước'));
-    expect(screen.getByText('Mã người nhận chưa hợp lệ')).toBeTruthy();
+    await renderInLocale(<LaneRoute id="admin.notifications" />, 'en');
+    await waitFor(() => expect(screen.getByText('Preview')).toBeTruthy());
+    await fireEvent.press(screen.getByText('Preview'));
+    expect(screen.getByText('Select a recipient from the account list')).toBeTruthy();
     expect(api.sendNotification).not.toHaveBeenCalled();
+  });
+
+  test('notification recipients accept a directory id up to the server limit', () => {
+    expect(validateNotification({ userId: 'student-user-1', title: 'Title', message: 'Message', type: 'INFO' })).toEqual([]);
+    expect(validateNotification({ userId: 'x'.repeat(121), title: 'Title', message: 'Message', type: 'INFO' })).toContain('recipient');
+  });
+
+  test('a directory selection previews and sends its account id', async () => {
+    api.sendNotification.mockResolvedValue({});
+    await renderEnglish(<LaneRoute id="admin.notifications" />);
+    await selectNotificationRecipient();
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Schedule update');
+    await fireEvent.changeText(screen.getByLabelText('Message'), 'Please check your schedule.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByText(/Sent to student-user-1/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Send notification' }));
+    await waitFor(() => expect(api.sendNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 'student-user-1' })));
+  });
+
+  test('free-text recipient input cannot preview or send without selecting a directory result', async () => {
+    await renderEnglish(<LaneRoute id="admin.notifications" />);
+    await fireEvent.changeText(screen.getByLabelText('Search by name or email'), 'student-user-1');
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Schedule update');
+    await fireEvent.changeText(screen.getByLabelText('Message'), 'Please check your schedule.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    expect(screen.getByText('Select a recipient from the account list')).toBeTruthy();
+    expect(screen.queryByText('Notification preview')).toBeNull();
+    expect(api.sendNotification).not.toHaveBeenCalled();
+    expect(api.searchNotificationRecipients).not.toHaveBeenCalled();
+  });
+
+  test('history failure keeps the compose fields visible with an inline retry', async () => {
+    api.notificationHistory.mockRejectedValue({ status: 500 });
+    await renderEnglish(<AdminNotificationsScreen />);
+    expect(await screen.findByText(lanesMessages.en.errorTitle)).toBeTruthy();
+    expect(screen.getByLabelText('Search by name or email')).toBeTruthy();
+    expect(screen.getByLabelText('Title')).toBeTruthy();
+    expect(screen.getByLabelText('Message')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   });
 
   test('a network failure on send is reported as unknown and never retried', async () => {
     api.sendNotification.mockRejectedValue({ status: 0 });
-    await renderThemed(<LaneRoute id="admin.notifications" />);
-    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
-    await fireEvent.changeText(screen.getByLabelText('Mã người nhận'), '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b');
-    await fireEvent.changeText(screen.getByLabelText('Tiêu đề'), 'Nhắc lịch');
-    await fireEvent.changeText(screen.getByLabelText('Nội dung'), 'Nội dung');
-    await fireEvent.press(screen.getByText('Xem trước'));
-    await fireEvent.press(screen.getByText('Gửi thông báo'));
-    await waitFor(() => expect(screen.getByText(/Chưa rõ thông báo đã gửi chưa/)).toBeTruthy());
+    await renderEnglish(<LaneRoute id="admin.notifications" />);
+    await selectNotificationRecipient();
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Schedule update');
+    await fireEvent.changeText(screen.getByLabelText('Message'), 'Please check your schedule.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Send notification' }));
+    await waitFor(() => expect(screen.getByText(lanesMessages.en.notifUnknown)).toBeTruthy());
     expect(api.sendNotification).toHaveBeenCalledTimes(1);
   });
 
   test('an unknown send reloads history and blocks a new send until resolved', async () => {
     api.sendNotification.mockRejectedValue({ status: 0 });
-    await renderThemed(<LaneRoute id="admin.notifications" />);
-    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
+    await renderEnglish(<LaneRoute id="admin.notifications" />);
     expect(api.notificationHistory).toHaveBeenCalledTimes(1);
-    await fireEvent.changeText(screen.getByLabelText('Mã người nhận'), '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b');
-    await fireEvent.changeText(screen.getByLabelText('Tiêu đề'), 'Nhắc lịch');
-    await fireEvent.changeText(screen.getByLabelText('Nội dung'), 'Nội dung');
-    await fireEvent.press(screen.getByText('Xem trước'));
-    await fireEvent.press(screen.getByText('Gửi thông báo'));
-    await waitFor(() => expect(screen.getByText(/Chưa rõ thông báo đã gửi chưa/)).toBeTruthy());
+    await selectNotificationRecipient();
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Schedule update');
+    await fireEvent.changeText(screen.getByLabelText('Message'), 'Please check your schedule.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Send notification' }));
+    await waitFor(() => expect(screen.getByText(lanesMessages.en.notifUnknown)).toBeTruthy());
     // The history is refreshed so the admin can check whether the send landed.
     await waitFor(() => expect(api.notificationHistory).toHaveBeenCalledTimes(2));
     // No new send may start while the outcome is unresolved.
-    const preview = screen.getByRole('button', { name: 'Xem trước' });
+    const preview = screen.getByRole('button', { name: 'Preview' });
     expect(preview.props.accessibilityState?.disabled).toBe(true);
     await fireEvent.press(preview);
-    expect(screen.queryByText('Xem trước thông báo')).toBeNull();
+    expect(screen.queryByText('Notification preview')).toBeNull();
     // The explicit acknowledgement re-enables the preview, nothing retries itself.
-    await fireEvent.press(screen.getByRole('button', { name: 'Đã kiểm tra lịch sử' }));
-    await fireEvent.press(screen.getByText('Xem trước'));
-    await waitFor(() => expect(screen.getByText('Xem trước thông báo')).toBeTruthy());
+    await fireEvent.press(screen.getByRole('button', { name: lanesMessages.en.notifCheckedHistory }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    await waitFor(() => expect(screen.getByText('Notification preview')).toBeTruthy());
     expect(api.sendNotification).toHaveBeenCalledTimes(1);
   });
 
   test('a maximum-length preview scrolls while the send action stays pinned', async () => {
     const message = 'x'.repeat(2000);
-    await renderThemed(<LaneRoute id="admin.notifications" />);
-    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
-    await fireEvent.changeText(screen.getByLabelText('Mã người nhận'), '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b');
-    await fireEvent.changeText(screen.getByLabelText('Tiêu đề'), 'Nhắc lịch');
-    await fireEvent.changeText(screen.getByLabelText('Nội dung'), message);
-    await fireEvent.press(screen.getByText('Xem trước'));
-    await waitFor(() => expect(screen.getByText('Xem trước thông báo')).toBeTruthy());
+    await renderEnglish(<LaneRoute id="admin.notifications" />);
+    await selectNotificationRecipient();
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Schedule update');
+    await fireEvent.changeText(screen.getByLabelText('Message'), message);
+    await fireEvent.press(screen.getByRole('button', { name: 'Preview' }));
+    await waitFor(() => expect(screen.getByText('Notification preview')).toBeTruthy());
     // The long body scrolls inside the sheet's own container…
     const nearestScroll = (start: { parent: unknown; type: string }) => {
       let node: { parent: unknown; type: string } | null = start;
@@ -225,10 +287,57 @@ describe('admin notifications', () => {
     };
     const bodyScroll = nearestScroll(screen.getByText(message));
     // …a different container than the one the pinned Back/Send actions sit in.
-    const actionsScroll = nearestScroll(screen.getByRole('button', { name: 'Gửi thông báo' }));
+    const actionsScroll = nearestScroll(screen.getByRole('button', { name: 'Send notification' }));
     expect(bodyScroll).toBeTruthy();
     expect(actionsScroll).toBeTruthy();
     expect(bodyScroll).not.toBe(actionsScroll);
+  });
+});
+
+describe('admin enrollment queue', () => {
+  const confirmedRow = {
+    id: 'enrollment-confirmed',
+    status: 'CONFIRMED',
+    student: { user: { firstName: 'An', lastName: 'Nguyễn' } },
+    section: { sectionNumber: '01', course: { code: 'CS101', name: 'Canonical course', nameEn: 'Software Engineering', nameVi: 'Kỹ thuật phần mềm' } },
+    semester: { name: 'Canonical term', nameEn: 'Fall 2026', nameVi: 'Học kỳ mùa thu 2026' },
+  };
+
+  beforeEach(() => {
+    api.enrollments.mockResolvedValue(page([confirmedRow]));
+  });
+
+  test('confirmed rows and filter options are localized and use a success tone', async () => {
+    for (const [locale, statusLabel, filterName] of [
+      ['vi', 'Đã xác nhận', 'Trạng thái: Tất cả'],
+      ['en', 'Confirmed', 'Status: All'],
+    ] as const) {
+      const view = await renderInLocale(<AdminEnrollmentsScreen />, locale);
+      await waitFor(() => expect(screen.getByText(statusLabel)).toBeTruthy());
+      expect(statusTone('CONFIRMED')).toBe('success');
+      await fireEvent.press(screen.getByRole('button', { name: filterName }));
+      expect(screen.getByRole('radio', { name: statusLabel })).toBeTruthy();
+      await view.unmount();
+    }
+  });
+
+  test('the enrollment search field sends a student code as search, not studentId', async () => {
+    await renderThemed(<AdminEnrollmentsScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Mã sinh viên'), '21110123');
+    await fireEvent.press(screen.getByRole('button', { name: 'Áp dụng' }));
+    await waitFor(() => expect(api.enrollments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '21110123' }),
+      expect.objectContaining({ page: 1, limit: 20 }),
+    ));
+    expect((api.enrollments.mock.calls.at(-1)?.[0] as Record<string, unknown>).studentId).toBeUndefined();
+  });
+
+  test('course and semester names use the English payload fields', async () => {
+    await renderEnglish(<AdminEnrollmentsScreen />);
+    expect(await screen.findByText(/Software Engineering/)).toBeTruthy();
+    expect(screen.getByText('Fall 2026')).toBeTruthy();
+    expect(screen.queryByText('Canonical course')).toBeNull();
+    expect(screen.queryByText('Canonical term')).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Linking, Platform, View } from 'react-native';
 
@@ -31,7 +31,9 @@ function stateCopy(state: CheckinState, c: CheckinCopy): StateCopy {
     case 'permissionBlocked': return { icon: 'map-marker-off-outline', tone: 'warning', title: c.blockedTitle, body: c.blockedBody };
     case 'servicesOff': return { icon: 'crosshairs-off', tone: 'warning', title: c.servicesOffTitle, body: c.servicesOffBody };
     case 'lowAccuracy': return { icon: 'map-marker-question-outline', tone: 'warning', title: c.lowAccuracyTitle, body: c.lowAccuracyBody };
-    case 'accepted': return { icon: 'check-circle-outline', tone: 'success', title: c.acceptedTitle, body: state.status === 'LATE' ? c.statusLate : c.statusPresent };
+    case 'reducedAccuracy': return { icon: 'map-marker-question-outline', tone: 'warning', title: c.reducedAccuracyTitle, body: c.reducedAccuracyBody };
+    case 'accepted': return { icon: 'check-circle-outline', tone: 'success', title: c.acceptedTitle,
+      body: state.status === 'PRESENT' ? c.statusPresent : state.status === 'LATE' ? c.statusLate : c.statusPreserved };
     case 'pendingReview': return { icon: 'clock-outline', tone: 'primary', title: c.pendingTitle };
     case 'alreadyCheckedIn': return { icon: 'check-circle-outline', tone: 'success', title: c.alreadyTitle };
     case 'sessionClosed': return { icon: 'lock-outline', tone: 'muted', title: c.closedTitle };
@@ -55,7 +57,7 @@ function stateCopy(state: CheckinState, c: CheckinCopy): StateCopy {
 
 /** Result states announce themselves to screen readers on arrival. */
 const RESULT_STATES = new Set(['accepted', 'pendingReview', 'alreadyCheckedIn', 'rejected', 'sessionClosed',
-  'notEnrolled', 'tooManyAttempts', 'networkError', 'authRecovery', 'error']);
+  'notEnrolled', 'tooManyAttempts', 'networkError', 'authRecovery', 'reducedAccuracy', 'error']);
 
 /**
  * apiClient and PreviewPill pull native modules at load time — they are
@@ -100,14 +102,14 @@ interface CheckinBodyProps {
   setCode: (value: string) => void;
   retryAfter: number;
   onRetry: () => void;
+  onBack: () => void;
 }
 
-function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRetry }: CheckinBodyProps) {
+function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRetry, onBack }: CheckinBodyProps) {
   const styles = useCheckinStyles();
   const { window } = useTheme();
   const stackSessionAction = window.class === 'compact' || window.fontScale >= 1.3;
   const { formatDateTime } = useLocale();
-  const router = useRouter();
   const state = snapshot.state;
 
   if (state.type === 'loadingSessions') {
@@ -165,7 +167,7 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
               <Button label={copy.consentAccept} onPress={() => { void machine.acceptConsent(); }} />
             </View>
             <View style={[styles.actionGrow, { minWidth: 120 }]} testID="checkin-consent-decline">
-              <Button label={copy.consentDecline} onPress={() => router.back()} variant="text" />
+              <Button label={copy.consentDecline} onPress={onBack} variant="text" />
             </View>
           </View>
         </View>
@@ -228,17 +230,18 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
       case 'needsPermission': return { label: copy.permissionAction, run: () => void machine.acquireLocation() };
       case 'permissionBlocked': return { label: copy.openSettings, run: () => openSettings('app') };
       case 'servicesOff': return { label: copy.openLocationSettings, run: () => openSettings('location') };
+      case 'reducedAccuracy': return { label: copy.openSettings, run: () => openSettings('app') };
       case 'lowAccuracy': return { label: copy.retry, run: () => void machine.acquireLocation() };
-      case 'rejected': return { label: copy.retry, run: () => void machine.acquireLocation() };
+      case 'rejected': return { label: copy.retry, run: () => { setCode(''); void machine.acquireLocation(); } };
       case 'tooManyAttempts': return { label: retryAfter > 0 ? fillCopy(copy.rateLimitWait, { seconds: retryAfter }) : copy.retry, run: onRetry, disabled: retryAfter > 0 };
       case 'networkError': case 'authRecovery': return { label: copy.retry, run: onRetry };
       case 'error': return state.code === 'INVALID_LINK' || state.code === 'INVALID_SESSION'
-        ? { label: copy.back, run: () => router.back() }
+        ? { label: copy.back, run: onBack }
         : { label: copy.retry, run: onRetry };
       case 'accepted': case 'pendingReview': case 'alreadyCheckedIn':
-        return { label: copy.done, run: () => router.back() };
+        return { label: copy.done, run: onBack };
       case 'sessionClosed': case 'notEnrolled':
-        return { label: copy.back, run: () => router.back() };
+        return { label: copy.back, run: onBack };
       default: return null;
     }
   })();
@@ -269,7 +272,7 @@ export type CheckinScreenProps = MobileScreenProps & {
   machine?: CheckinMachine;
 };
 
-export function CheckinScreen({ machine: injected }: CheckinScreenProps) {
+export function CheckinScreen({ machine: injected, navigation }: CheckinScreenProps) {
   const { locale } = useLocale();
   const copy = checkinMessages[locale];
   const preview = isPreviewMode();
@@ -297,7 +300,7 @@ export function CheckinScreen({ machine: injected }: CheckinScreenProps) {
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active') return;
       const state = machine.getSnapshot().state.type;
-      if (state === 'permissionBlocked' || state === 'servicesOff') {
+      if (state === 'permissionBlocked' || state === 'servicesOff' || state === 'reducedAccuracy') {
         void machine.acquireLocation();
       }
     });
@@ -365,6 +368,7 @@ export function CheckinScreen({ machine: injected }: CheckinScreenProps) {
         setCode={setCode}
         retryAfter={retryAfter}
         onRetry={reload}
+        onBack={navigation.goBack}
       />
     </ScreenShell>
   );

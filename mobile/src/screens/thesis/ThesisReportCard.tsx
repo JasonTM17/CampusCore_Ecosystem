@@ -29,6 +29,8 @@ type Notice = { tone: 'success' | 'error'; text: string } | null;
 export interface ThesisReportCardProps {
   group: ThesisGroup;
   isLeader: boolean;
+  roundStatus?: string | null;
+  reportDeadline?: string | null;
   /** Called after a change so the progress read can revalidate. */
   onChanged?: () => void;
 }
@@ -48,12 +50,15 @@ function seedsSameFields(left: ThesisReport | null | undefined, right: ThesisRep
  * adapter (graceful when the device cannot pick or save), cancellable upload,
  * and non-destructive edits. Only the leader writes; members read.
  */
-export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCardProps) {
+export function ThesisReportCard({ group, isLeader, roundStatus, reportDeadline, onChanged }: ThesisReportCardProps) {
   const { copy, locale } = useThesisUi();
   const approved = group.approvalStatus === 'APPROVED';
   const state = useThesisReport(group.id, approved);
   const { report, preview } = state;
-  const writable = canWriteReport(group, isLeader) && !preview;
+  const roundOpen = roundStatus === 'REGISTRATION_CLOSED';
+  const deadlinePassed = Boolean(reportDeadline && new Date(reportDeadline).getTime() <= Date.now());
+  const windowOpen = roundOpen && !deadlinePassed;
+  const writable = canWriteReport(group, isLeader) && windowOpen && !preview;
 
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -237,7 +242,17 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
     <Card style={styles.card}>
       <SectionHeading title={copy.report} />
       <QueryNotices state={{ ...state, preview: false }} copy={copy} />
-      {!state.loading && !state.error && !report ? (
+      {reportDeadline ? (
+        <UiText variant="bodySmall" tone="muted" style={styles.gap}>
+          {`${copy.reportDeadline}: ${locale.formatDate(reportDeadline)}`}
+        </UiText>
+      ) : null}
+      {!windowOpen ? (
+        <UiText variant="bodySmall" tone="muted" style={styles.gap}>
+          {copy.reportWindowClosed}
+        </UiText>
+      ) : null}
+      {!state.loading && !state.error && !report && windowOpen ? (
         <UiText variant="bodySmall" tone="muted" style={styles.gap}>
           {isLeader ? copy.reportNone : copy.reportOnlyLeader}
         </UiText>
@@ -264,7 +279,7 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
       {report?.url && report.url.toLowerCase().startsWith('https://') ? (
         <Button label={copy.reportOpenLink} onPress={() => { void Linking.openURL(report.url as string).catch(() => undefined); }} variant="text" />
       ) : null}
-      {hasStoredFile ? (
+      {hasStoredFile && report?.url ? (
         <View style={styles.actions}>
           {writable ? (
             <Button label={copy.reportRemoveFile} disabled={busy} onPress={() => setConfirmRemove(true)} variant="text" />

@@ -10,8 +10,9 @@ const mockApi = { mode: 'live' as 'preview' | 'live' };
 let mockApps: Array<Record<string, unknown>> = [];
 const mockSave = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSubmit = jest.fn<(...args: unknown[]) => Promise<unknown>>();
-const mockReload = jest.fn(async () => {
+const mockReload = jest.fn<(...args: unknown[]) => Promise<Array<Record<string, unknown>> | undefined>>(async () => {
   mockApps = mockApps.map((app) => ({ ...app, version: 2, essay: 'Server text after the reload' }));
+  return mockApps;
 });
 
 jest.mock('../../src/api/client', () => ({
@@ -31,6 +32,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
       isLoading: false,
       isStale: false,
       reload: async () => { await mockReload(); bump(); },
+      reloadData: async () => { const result = await mockReload(); bump(); return result; },
       setData: jest.fn(),
     };
   },
@@ -114,6 +116,7 @@ describe('admission conflict handling', () => {
 
     mockReload.mockImplementationOnce(async () => {
       mockApps = [application(2, typedEssay)];
+      return mockApps;
     });
     await fireEvent.press(screen.getByRole('button', { name: admissionsMessages.vi.reload }));
     await waitFor(() => expect(mockReload).toHaveBeenCalledTimes(1));
@@ -136,5 +139,48 @@ describe('admission conflict handling', () => {
     await fireEvent.press(reload);
     await waitFor(() => expect(mockReload).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByLabelText(admissionsMessages.vi.essay).props.value).toBe('Server text after the reload'));
+  });
+
+  test('an explicit reload re-seeds when the list already has the returned version', async () => {
+    mockSave.mockRejectedValueOnce(Object.assign(new Error('stale'), { status: 409, code: 'STALE_VERSION' }));
+    const view = await renderScreen(<AdmissionsScreen {...props} />);
+    await fireEvent.press(await screen.findByRole('button', { name: /2026-Q1/ }));
+    await fireEvent.changeText(screen.getByLabelText(admissionsMessages.vi.essay), typedEssay);
+    await fireEvent.press(screen.getByRole('button', { name: admissionsMessages.vi.save }));
+    await screen.findByText(admissionsMessages.vi.stale);
+
+    mockApps = [application(2, 'Server text from the background refresh')];
+    await view.rerender(
+      <ThemeProvider forcedScheme="light">
+        <LocaleProvider initialLocale="vi"><AdmissionsScreen {...props} /></LocaleProvider>
+      </ThemeProvider>,
+    );
+    mockReload.mockImplementationOnce(async () => {
+      mockApps = [application(2, 'Server text after the explicit reload')];
+      return mockApps;
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: admissionsMessages.vi.reload }));
+
+    await waitFor(() => expect(mockReload).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByLabelText(admissionsMessages.vi.essay).props.value).toBe('Server text after the explicit reload'));
+    expect(screen.queryByText(admissionsMessages.vi.stale)).toBeNull();
+    expect(screen.queryByText(admissionsMessages.vi.failed)).toBeNull();
+  });
+
+  test('a failed explicit reload keeps the stale notice and typed draft', async () => {
+    mockSave.mockRejectedValueOnce(Object.assign(new Error('stale'), { status: 409, code: 'STALE_VERSION' }));
+    await openApplication();
+    await fireEvent.changeText(screen.getByLabelText(admissionsMessages.vi.essay), typedEssay);
+    await fireEvent.press(screen.getByRole('button', { name: admissionsMessages.vi.save }));
+
+    await screen.findByText(admissionsMessages.vi.stale);
+    mockReload.mockImplementationOnce(async () => undefined);
+    await fireEvent.press(screen.getByRole('button', { name: admissionsMessages.vi.reload }));
+
+    await waitFor(() => expect(mockReload).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText(admissionsMessages.vi.essay).props.value).toBe(typedEssay);
+    expect(screen.getByText(admissionsMessages.vi.stale)).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.failed)).toBeOnTheScreen();
   });
 });

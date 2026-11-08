@@ -131,9 +131,21 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           flash={flash}
           stale={stale}
           formEpoch={formEpoch}
-          onReload={() => {
-            setStale(false);
-            void apps.reload().then(() => setFormEpoch((value) => value + 1));
+          onReload={async () => {
+            try {
+              const refreshed = await apps.reloadData();
+              const next = refreshed?.find((item) => item.id === selected.id);
+              if (!next || next.version < selected.version) {
+                setStale(true);
+                fail(copy.failed);
+                return;
+              }
+              setStale(false);
+              setFormEpoch((value) => value + 1);
+            } catch {
+              setStale(true);
+              fail(copy.failed);
+            }
           }}
           onBack={() => { setView({ kind: 'list' }); clear(); setStale(false); }}
           onSave={(form) => save(selected, form)}
@@ -147,8 +159,10 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     );
   }
 
-  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
-  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
+  // Simulated decisions stay labelled even when returned by the live API.
+  const banner = !live || apps.items.some((item) => item.decisionLabel === 'SIMULATED')
+    ? <DataNotice message={copy.simulatedBanner} />
+    : null;
 
   if (view.kind === 'new') {
     return (

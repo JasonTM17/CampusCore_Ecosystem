@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -171,14 +171,16 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
   });
 
-  test('error container announces the error, never the stale loading label (ux-m1-01)', async () => {
+  test('error announcement is separate from its retry action', async () => {
     mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false, errorStatus: 500 };
     await renderScreen();
-    const errorBox = screen.getByTestId('signin-news-error');
-    expect(errorBox.props.accessible).toBe(true);
-    expect(errorBox.props.accessibilityRole).toBe('alert');
-    expect(errorBox.props.accessibilityLabel).toBe('Không thể tải dữ liệu');
-    expect(errorBox.props.accessibilityLabel).not.toBe(shellMessages.vi.guest.loading);
+    const errorNotice = screen.getByRole('alert', { name: 'Không thể tải dữ liệu' });
+    expect(errorNotice.props.accessible).toBe(true);
+    expect(errorNotice.props.accessibilityRole).toBe('alert');
+    expect(errorNotice.props.accessibilityLabel).toBe('Không thể tải dữ liệu');
+    expect(errorNotice.props.accessibilityLabel).not.toBe(shellMessages.vi.guest.loading);
+    expect(within(errorNotice).queryByRole('button', { name: shellMessages.vi.guest.retry })).toBeNull();
+    expect(screen.getByRole('button', { name: shellMessages.vi.guest.retry })).toBeOnTheScreen();
   });
 
   test('a failed revalidate keeps data visible with a stale banner', async () => {

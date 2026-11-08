@@ -71,6 +71,9 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
   const unreadTotal = apiClient.mode === 'live'
     ? (unread.data ?? (list.hasMore ? `${loadedUnread}+` : loadedUnread))
     : countUnread(preview);
+  const unreadCountLabel = apiClient.mode === 'live' && unread.data == null && list.hasMore && loadedUnread === 0
+    ? copy.unreadCountUnknown
+    : fillCopy(copy.unreadCount, { n: unreadTotal });
   const hasUnread = apiClient.mode === 'live'
     ? (unread.data != null ? unread.data > 0 : (loadedUnread > 0 || list.hasMore))
     : countUnread(preview) > 0;
@@ -178,7 +181,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
             />
             {offline ? <Notice tone="info" message={center.offlineReadOnly} /> : null}
             <View style={styles.summary}>
-              <UiText variant="label" tone="primary" accessibilityLiveRegion="polite">{fillCopy(copy.unreadCount, { n: unreadTotal })}</UiText>
+              <UiText variant="label" tone="primary" accessibilityLiveRegion="polite">{unreadCountLabel}</UiText>
               <Button
                 label={copy.markAllRead}
                 variant="secondary"

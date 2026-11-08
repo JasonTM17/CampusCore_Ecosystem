@@ -117,6 +117,20 @@ describe('AssistantFab', () => {
     expect(screen.getByRole('button', { name: shellMessages.vi.screens['assistant.chat'] })).toBeOnTheScreen();
   });
 
+  test('does not label shared lecturer screens as the student workspace', async () => {
+    await render(wrap(<MenuPanel
+      activeRoute="lecturer.dashboard"
+      role="lecturer"
+      onClose={jest.fn()}
+      onNavigate={jest.fn()}
+      onSwitchRole={jest.fn()}
+      allowRoleSwitch={false}
+    />));
+
+    expect(screen.queryByRole('header', { name: shellMessages.vi.sections.student })).toBeNull();
+    expect(screen.getByRole('button', { name: shellMessages.vi.screens.profile })).toBeOnTheScreen();
+  });
+
   test('hides while the keyboard is open and restores when it closes', async () => {
     const listeners = new Map<string, () => void>();
     const addListener = jest.spyOn(Keyboard, 'addListener');

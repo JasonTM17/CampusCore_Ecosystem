@@ -58,8 +58,10 @@ npm test --prefix mobile
 The `npm test` script runs the discovery runner
 (`node scripts/run-node-tests.mjs`), which selects every top-level
 `tests/*.test.mjs` — including the screen-atlas registry — and is pinned by
-`--required` guards. `scripts/check-mobile-parity.mjs` verifies 59 registered
-native screens and the shared Stitch token anchors. Run
+`--required` guards. The registry contains 37 registered native screens.
+`scripts/check-mobile-parity.mjs` counts 59 web-to-native parity mappings
+across 46 unique native destinations; `tests/screen-atlas.test.mjs` checks the
+shared Stitch token anchors. Run
 `npm run typecheck --prefix mobile` from the repository root for the complete
 TypeScript gate.
 
@@ -88,9 +90,10 @@ session-store memory only;
 the refresh token persists solely in `expo-secure-store` (`cu.refresh`,
 `WHEN_UNLOCKED_THIS_DEVICE_ONLY`), and a two-layer install marker
 (`cu.install` + an AsyncStorage `installMarker` twin) wipes stale refresh
-material after reinstall. A live request that receives `401` attempts one issuer-side refresh rotation and
-retries once only after a complete replacement pair is stored, excluding
-login/refresh/logout paths to avoid auth loops. The old refresh credential is
+material after reinstall. Any API-client request that receives `401` is a
+refresh candidate and attempts one issuer-side rotation; OIDC issuer calls use
+the session store and bypass the API client. The request retries once only after
+a complete replacement pair is stored. The old refresh credential is
 deleted before dispatch. A definitive 400 or 401 rejection, or any ambiguous
 dispatched result such as timeout, response loss, body-read failure, malformed
 success, failure to save the replacement, 429, or 5xx, returns to sign-in
@@ -133,7 +136,9 @@ an operator keystore and valid signing credentials; debug identity is rejected:
 - `CAMPUSCORE_RELEASE_KEY_ALIAS`: key alias (required, non-empty; cannot be `androiddebugkey`).
 
 ```powershell
-cd mobile/android
+cd mobile
+npx expo prebuild --platform android --no-install
+cd android
 $env:JAVA_TOOL_OPTIONS='--enable-native-access=ALL-UNNAMED'
 $env:CAMPUSUTE_MOBILE_PROFILE='local'
 $env:EXPO_PUBLIC_API_MODE='live'
@@ -193,8 +198,9 @@ yet present.
 
 ## Screen atlas
 
-The registry contains 59 verified native screens (`nativeChecked: 59` in
-`scripts/check-mobile-parity.mjs`):
+The registry contains 37 registered native screens. The parity manifest has
+59 web-to-native mappings across 46 unique native destinations
+(`nativeChecked: 59` in `scripts/check-mobile-parity.mjs`):
 
 - Auth: sign in, forgot password, reset password, signed out.
 - Applicant: capability-routed sessions (`admissions:self` / `applicant.surface`)

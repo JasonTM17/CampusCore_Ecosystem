@@ -82,7 +82,7 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
  */
 export function roleFromClaims(claims: readonly string[]): UserRole | null {
   const normalized = new Set(claims.map((role) => role.toUpperCase()));
-  if (normalized.has('LECTURER') || normalized.has('FACULTY') || normalized.has('TEACHER')) {
+  if (normalized.has('LECTURER')) {
     return 'lecturer';
   }
   if (normalized.has('STUDENT')) {
@@ -142,7 +142,7 @@ export function buildAuthorizeUrl(request: AuthorizeRequest): string {
 
 export type CallbackParse =
   | { kind: 'code'; code: string }
-  | { kind: 'blocked'; reason: string }
+  | { kind: 'blocked'; reason: string; code?: 'PASSWORD_CHANGE_REQUIRED' }
   | { kind: 'state-mismatch' };
 
 /**
@@ -173,7 +173,11 @@ export function parseCallbackUrl(url: string, expectedState: string): CallbackPa
   }
   if (params.has('error')) {
     if (!params.get('error')?.trim() || params.has('code')) return invalid;
-    return { kind: 'blocked', reason: 'Authorization was rejected.' };
+    return {
+      kind: 'blocked',
+      reason: 'Authorization was rejected.',
+      ...(params.get('error') === 'PASSWORD_CHANGE_REQUIRED' ? { code: 'PASSWORD_CHANGE_REQUIRED' as const } : {}),
+    };
   }
   const code = params.get('code');
   if (!code?.trim()) {

@@ -183,9 +183,9 @@ export const contentApi = {
     apiClient.get<MobileLearningSubmission>(`/learning/submissions/${enc(submissionId)}`, { signal }),
   learningRevisions: (submissionId: string) => campusApi.learningRevisions(submissionId),
   learningFeedback: (submissionId: string) => campusApi.learningFeedback(submissionId),
-  learningOpenDraft: (assignment: Pick<MobileLearningAssignment, 'id'>) =>
+  learningOpenDraft: (assignment: Pick<MobileLearningAssignment, 'id'>, signal?: AbortSignal) =>
     keyed('learning-draft', assignment.id, (key) =>
-      apiClient.post<MobileLearningSubmission>(`/learning/assignments/${enc(assignment.id)}/draft`, {}, idempotent(key))),
+      apiClient.post<MobileLearningSubmission>(`/learning/assignments/${enc(assignment.id)}/draft`, {}, { ...idempotent(key), signal })),
   learningSaveDraft: (submissionId: string, input: SubmissionFormInput, signal?: AbortSignal) =>
     input.file
       ? parityApi.learningSaveDraftMultipart(submissionId, input, { signal })

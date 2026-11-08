@@ -23,6 +23,7 @@ function setup() {
   };
   const location = {
     ensurePermission: jest.fn<LocationProvider['ensurePermission']>().mockResolvedValue('granted'),
+    accuracyAuthorization: jest.fn<() => Promise<'full' | 'reduced'>>().mockResolvedValue('full'),
     isServicesEnabled: jest.fn<LocationProvider['isServicesEnabled']>().mockResolvedValue(true),
     getFreshFix: jest.fn<LocationProvider['getFreshFix']>().mockImplementation(async () => ({
       latitude: 10, longitude: 106, accuracyMeters: 20, capturedAt: new Date(clock).toISOString(), mocked: true,
@@ -130,6 +131,13 @@ test('disabled GPS prevents acquisition', async () => {
   const { machine, location } = setup(); location.isServicesEnabled.mockResolvedValue(false);
   await machine.loadSessions(); await machine.selectSession(id); await machine.acquireLocation();
   expect(machine.getSnapshot().state.type).toBe('servicesOff');
+  expect(location.getFreshFix).not.toHaveBeenCalled();
+});
+test('reduced iOS accuracy blocks position acquisition', async () => {
+  const { machine, location } = setup();
+  location.accuracyAuthorization.mockResolvedValue('reduced');
+  await machine.loadSessions(); await machine.selectSession(id); await machine.acquireLocation();
+  expect(machine.getSnapshot().state.type).toBe('reducedAccuracy');
   expect(location.getFreshFix).not.toHaveBeenCalled();
 });
 test('double submit is one physical request even across reset', async () => {

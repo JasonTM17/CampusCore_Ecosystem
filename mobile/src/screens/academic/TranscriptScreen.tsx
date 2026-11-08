@@ -23,6 +23,12 @@ import {
   useGpaFormat,
 } from './academic-ui';
 
+function letterTone(letter: string | null | undefined): 'success' | 'warning' | 'error' | 'neutral' {
+  if (letter === 'A+' || letter === 'A' || letter === 'B+' || letter === 'B') return 'success';
+  if (letter === 'D' || letter === 'D+' || letter === 'F') return 'error';
+  return letter ? 'warning' : 'neutral';
+}
+
 function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecord> }) {
   const term = entry.group;
   const { copy } = useAcademicCopy();
@@ -48,7 +54,9 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
         const published = isPublishedGrade(record);
         const result = published && record.finalGrade != null
           ? `${formatNumber(record.finalGrade, { maximumFractionDigits: 1 })} · ${record.letterGrade ?? '—'}`
-          : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
+          : published && record.letterGrade
+            ? record.letterGrade
+            : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
         const creditsLabel = fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) });
         const appealedLabel = published && record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
         return (
@@ -64,12 +72,14 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
               {published && record.finalGrade != null ? (
                 <View style={styles.gradeResult}>
                   <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
-                  <StatusPill label={record.letterGrade ?? '—'} tone="success" />
+                  <StatusPill label={record.letterGrade ?? '—'} tone={letterTone(record.letterGrade)} />
                   {record.gradeStatus === 'APPEALED' ? (
                     <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
                   ) : null}
                 </View>
-              ) : <StatusPill label={result} tone="warning" />}
+              ) : published && record.letterGrade
+                ? <StatusPill label={record.letterGrade} tone={letterTone(record.letterGrade)} />
+                : <StatusPill label={result} tone="warning" />}
             </View>
           </View>
           </GroupCard>

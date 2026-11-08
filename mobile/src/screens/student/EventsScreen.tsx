@@ -73,12 +73,18 @@ export function EventsScreen(_props: MobileScreenProps) {
       // the lock across them so a second tap cannot repeat the write.
       await refreshAll();
     } catch (error) {
-      fail(errorCode(error) === 'EVENT_FULL' ? copy.full : contentErrorMessage(common, error, failed));
+      const code = errorCode(error);
+      const conflictMessage = code === 'EVENT_STARTED' ? copy.eventStarted
+        : code === 'EVENT_WINDOW_CLOSED' ? copy.windowClosed
+          : code === 'EVENT_WINDOW_NOT_STARTED' ? copy.windowNotStarted
+            : code === 'EVENT_NOT_OPEN' ? copy.notOpen : null;
+      fail(code === 'EVENT_FULL' ? copy.full : conflictMessage ?? contentErrorMessage(common, error, failed));
+      if (conflictMessage) void refreshAll().catch(() => undefined);
     } finally {
       busyRef.current = false;
       setBusy(false);
     }
-  }, [busy, clear, common, copy.full, fail, refreshAll, success]);
+  }, [busy, clear, common, copy, fail, refreshAll, success]);
 
   const register = (event: MobileEvent) => void run(() => contentApi.registerEvent(event.id), copy.registered, copy.registerFailed);
   const cancel = (event: MobileEvent, registrationId: string) => ask({
@@ -191,29 +197,32 @@ export function EventsScreen(_props: MobileScreenProps) {
           emptyTitle={copy.noRegistrations}
           flash={flash}
           header={tabs}
-          renderItem={(entry) => (
-            <Card>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={joinMeta([entry.event.title, entry.attendanceStatus === 'ATTENDED' ? copy.attended : labels[entry.registrationStatus] ?? entry.registrationStatus, eventMeta(entry.event)])}
-                onPress={() => setSelectedId(entry.event.id)}
-                style={styles.rowMain}
-              >
-                <ContentIconChip icon="calendar-check-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{entry.event.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
-                  <View style={styles.chips}>
-                    <StatusChip code={entry.attendanceStatus === 'ATTENDED' ? 'ATTENDED' : entry.registrationStatus} labels={labels} />
+          renderItem={(entry) => {
+            const attendanceStatus = entry.attendanceStatus ?? entry.registrationStatus;
+            return (
+              <Card>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={joinMeta([entry.event.title, labels[attendanceStatus] ?? attendanceStatus, eventMeta(entry.event)])}
+                  onPress={() => setSelectedId(entry.event.id)}
+                  style={styles.rowMain}
+                >
+                  <ContentIconChip icon="calendar-check-outline" />
+                  <View style={styles.rowCopy}>
+                    <UiText variant="label">{entry.event.title}</UiText>
+                    <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
+                    <View style={styles.chips}>
+                      <StatusChip code={attendanceStatus} labels={labels} />
+                    </View>
                   </View>
-                </View>
-                <ContentChevron />
-              </Pressable>
-              {entry.registrationStatus === 'REGISTERED'
-                ? <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)}</View>
-                : null}
-            </Card>
-          )}
+                  <ContentChevron />
+                </Pressable>
+                {entry.registrationStatus === 'REGISTERED'
+                  ? <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)}</View>
+                  : null}
+              </Card>
+            );
+          }}
         />
       )}
       {dialog}

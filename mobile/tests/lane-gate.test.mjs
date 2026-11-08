@@ -37,7 +37,7 @@ const access = await load('lane-access');
 const lane = await load('lane-model');
 
 const { laneScreenRegistry } = routes;
-const { resolveGuard, lanePathFor, laneScreenForPath } = routeMap;
+const { resolveGuard, lanePathFor, laneScreenForPath, roleHomePath } = routeMap;
 const ALL_ON = { dean: true, staff: true, admin: true, checkin: true };
 const ALL_DESKS = { desks: ['applyReview', 'careersDesk', 'libraryDesk'] };
 const grant = (claims, lanes = ALL_ON, staffGrants = ALL_DESKS) => caps.resolveCapabilities({ claims, lanes, staffGrants });
@@ -87,6 +87,14 @@ test('check-in lane: flag, capability and role gate; preview opens only the flag
   assert.equal(allow('preview', 'admin', [], ALL_ON, 'attendance.checkin'), false);
   // Signed out never reaches it.
   assert.equal(allow('signedOut', 'student', studentCaps, ALL_ON, 'attendance.checkin'), false);
+});
+
+test('the authenticated router guard refuses a lane whose feature flag is off', () => {
+  const studentCaps = grant(['STUDENT']);
+  assert.deepEqual(
+    resolveGuard('authenticated', 'student', '/attendance/checkin/test-id', studentCaps, { ...ALL_ON, checkin: false }),
+    { action: 'redirect', to: 'dashboard.student', reason: 'lane-unavailable' },
+  );
 });
 
 test('check-in deep-link path resolves to the lane and stays guarded', () => {
@@ -225,7 +233,9 @@ test('notification drafts validate the recipient, lengths and exact body', () =>
   const ok = { userId: '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b', title: ' Hello ', message: ' Body ', type: 'INFO' };
   assert.deepEqual(lane.validateNotification(ok), []);
   assert.deepEqual(lane.notificationBody(ok), { userId: ok.userId, title: 'Hello', message: 'Body', type: 'INFO' });
-  assert.deepEqual(lane.validateNotification({ ...ok, userId: 'not-a-uuid' }), ['recipient']);
+  assert.deepEqual(lane.validateNotification({ ...ok, userId: '' }), ['recipient']);
+  assert.deepEqual(lane.validateNotification({ ...ok, userId: 'x'.repeat(121) }), ['recipient']);
+  assert.deepEqual(lane.validateNotification({ ...ok, userId: 'student-user-1' }), []);
   assert.deepEqual(lane.validateNotification({ ...ok, title: '   ' }), ['title']);
   assert.deepEqual(lane.validateNotification({ ...ok, title: 'x'.repeat(201) }), ['title']);
   assert.deepEqual(lane.validateNotification({ ...ok, message: '' }), ['message']);

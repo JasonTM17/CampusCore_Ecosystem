@@ -1,4 +1,6 @@
+import type { Ref } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import type { View as NativeView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
@@ -18,9 +20,11 @@ export interface BottomNavigationProps {
   role: UserRole;
   onNavigate(route: ScreenName): void;
   onMenu(): void;
+  unreadCount?: number;
+  menuButtonRef?: Ref<NativeView>;
 }
 
-export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: BottomNavigationProps) {
+export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unreadCount, menuButtonRef }: BottomNavigationProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const items = getBottomNavigation(role);
@@ -32,11 +36,14 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
         <View accessibilityRole="tablist" style={[styles.tabList, { flex: items.length }]}>
           {items.map((item) => {
             const active = item.route === activeRoute;
+            const count = item.route === 'notifications' && unreadCount !== undefined && unreadCount > 0
+              ? unreadCount
+              : undefined;
 
             return (
               <Pressable
                 key={item.route}
-                accessibilityLabel={navLabel(item.label)}
+                accessibilityLabel={count === undefined ? navLabel(item.label) : `${navLabel(item.label)}, ${count} ${copy.unread}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 onPress={() => onNavigate(item.route)}
@@ -48,6 +55,11 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
                     name={item.icon}
                     size={20}
                   />
+                  {count === undefined ? null : (
+                    <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
+                      <UiText variant="meta" tone="onPrimary" style={styles.badgeCount}>{count}</UiText>
+                    </View>
+                  )}
                 </View>
                 <UiText
                   adjustsFontSizeToFit={false}
@@ -68,6 +80,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
           accessibilityLabel={copy.openMenu}
           accessibilityRole="button"
           onPress={onMenu}
+          ref={menuButtonRef}
           style={({ pressed }) => [styles.item, pressed ? styles.pressed : undefined]}
         >
           <View style={styles.icon}>
@@ -94,6 +107,8 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   tabList: { alignItems: 'stretch', flexDirection: 'row', minWidth: 0 },
   item: { alignItems: 'center', flex: 1, justifyContent: 'flex-start', minHeight: tokens.layout.bottomNavigationHeight, minWidth: 0, paddingHorizontal: 2, paddingVertical: tokens.spacing.sm, borderTopWidth: 2, borderTopColor: 'transparent' },
   icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 28, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 44 },
+  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
+  badgeCount: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   label: { textAlign: 'center', alignSelf: 'stretch' },
   activeIcon: { backgroundColor: colors.primaryFixed },
   pressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },

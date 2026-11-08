@@ -183,8 +183,9 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
     );
   };
 
-  const startDraft = () => void run(async () => {
-    const created = await contentApi.learningOpenDraft(assignment);
+  const startDraft = () => void run(async (signal) => {
+    const created = await contentApi.learningOpenDraft(assignment, signal);
+    if (!mounted.current || signal.aborted) return;
     setSubmissionId(created.id);
   }, copy.saved);
 

@@ -46,3 +46,18 @@ test('preview catalogue search filters the displayed titles on submit', async ()
   expect(screen.getByText('Advanced databases')).toBeOnTheScreen();
   expect(screen.queryByText('Introduction to data structures')).toBeNull();
 });
+
+test('loan row accessibility label includes the requested and due dates', async () => {
+  await render(
+    <ThemeProvider forcedScheme="light">
+      <LocaleProvider initialLocale="en">
+        <LibraryScreen {...props} />
+      </LocaleProvider>
+    </ThemeProvider>,
+  );
+  await fireEvent.press(screen.getByRole('tab', { name: libraryMessages.en.myLoans }));
+
+  const loan = screen.getByLabelText(/Introduction to data structures/);
+  expect(loan.props.accessibilityLabel).toContain('Requested: Oct 1, 2026');
+  expect(loan.props.accessibilityLabel).toContain('Due: Oct 17, 2026');
+});

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { auditTree } from '../a11y/audit';
 
@@ -17,6 +19,7 @@ const mockProfileQuery = {
     reload: jest.fn(),
     setData: jest.fn(),
   },
+  calls: [] as unknown[][],
 };
 
 jest.mock('../../src/api/client', () => ({
@@ -30,7 +33,10 @@ jest.mock('../../src/api/client', () => ({
   ApiClientError: class ApiClientError extends Error {},
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: () => mockProfileQuery.value,
+  useScreenQuery: (...args: unknown[]) => {
+    mockProfileQuery.calls.push(args);
+    return mockProfileQuery.value;
+  },
 }));
 jest.mock('../../src/screens/account/account-api', () => ({
   accountApi: {
@@ -43,6 +49,7 @@ jest.mock('../../src/screens/account/account-api', () => ({
     confirmTwoFactorDisable: jest.fn(),
   },
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
 
 import { apiClient, campusApi } from '../../src/api/client';
 import { accountApi } from '../../src/screens/account/account-api';
@@ -52,6 +59,7 @@ import { ResetPasswordScreen } from '../../src/screens/account/ResetPasswordScre
 import { TwoFactorCard } from '../../src/screens/account/TwoFactorCard';
 import { setExitNotice } from '../../src/screens/account/exit-notice';
 import { ProfileScreen } from '../../src/screens/student/ProfileScreen';
+import { accountMessages } from '../../src/i18n/account-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 // Obviously fake, test-only values.
@@ -109,6 +117,7 @@ beforeEach(() => {
     reload: jest.fn(),
     setData: jest.fn(),
   };
+  mockProfileQuery.calls = [];
 });
 
 describe('forgot password', () => {
@@ -280,6 +289,29 @@ describe('two-factor card', () => {
     expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalledWith('fake-challenge', '123456');
   });
 
+  test('a confirmation that resolves after unmount still completes the sign-out handoff', async () => {
+    mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
+    mocked(accountApi.beginTwoFactorEnable).mockResolvedValue({ challengeId: 'fake-challenge' });
+    const pending = deferred<{ enabled: boolean }>();
+    mocked(accountApi.confirmTwoFactorEnable).mockImplementationOnce(() => pending.promise);
+    const onCompleted = jest.fn();
+    const view = await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={onCompleted} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
+    await fireEvent.changeText(await screen.findByLabelText('Mã xác thực'), '123456');
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await waitFor(() => expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalled());
+    await view.unmount();
+
+    await act(async () => {
+      pending.resolve({ enabled: true });
+      await pending.promise;
+    });
+    expect(onCompleted).toHaveBeenCalledWith('enable');
+  });
+
   test('a confirmed change does not leave a dead enable/disable button behind', async () => {
     mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
     mocked(accountApi.beginTwoFactorEnable).mockResolvedValue({ challengeId: 'fake-challenge' });
@@ -356,8 +388,96 @@ describe('two-factor card', () => {
 });
 
 describe('profile account security', () => {
+  test('profile phone and address stay disabled during a save and keep server limits', async () => {
+    const pending = deferred<unknown>();
+    mocked(campusApi.updateProfile).mockImplementationOnce(() => pending.promise);
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.phone), '0901234567');
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'Khu phố 1');
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+    await waitFor(() => expect(campusApi.updateProfile).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByLabelText(accountMessages.vi.profile.phone).props).toMatchObject({ editable: false, maxLength: 80 });
+    expect(screen.getByLabelText(accountMessages.vi.profile.address).props).toMatchObject({ editable: false, maxLength: 500 });
+    await act(async () => {
+      pending.resolve({});
+      await pending.promise;
+    });
+  });
+
+  test('profile validation and request failures are accessible errors and clear on edit', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.phone), 'not a phone');
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+
+    const invalidPhoneAlert = screen.getByRole('alert');
+    expect(invalidPhoneAlert).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByText(accountMessages.vi.profile.phoneInvalid).props.style)?.color).toBe(tokens.colors.error);
+
+    mocked(campusApi.updateProfile).mockRejectedValueOnce(new TypeError('Network request failed'));
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.phone), '0901234567');
+    expect(screen.queryByRole('alert')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+
+    const networkAlert = await screen.findByRole('alert');
+    expect(networkAlert).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.errors.network)).toBeOnTheScreen();
+    expect(screen.queryByText('Network request failed')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'Địa chỉ mới');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('an overlong address gets localized feedback and save success is polite', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'A'.repeat(501));
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+    expect(screen.getByText('Địa chỉ không được quá 500 ký tự.')).toBeOnTheScreen();
+    expect(campusApi.updateProfile).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'A'.repeat(500));
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+    const saved = await screen.findByText(accountMessages.vi.profile.saved);
+    expect(saved.props.accessibilityLiveRegion).toBe('polite');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('profile data, language setting and sign-out stay visible across an offline locale change', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      warning: 'Offline; showing the saved profile.',
+    };
+    const view = await renderApp(<ProfileScreen {...props} />);
+    await fireEvent.press(screen.getByText('English'));
+    expect(screen.getByText('Offline; showing the saved profile.')).toBeOnTheScreen();
+    expect(screen.getByText('Language')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: accountMessages.en.signOut.button })).toBeOnTheScreen();
+    const options = mockProfileQuery.calls.at(-1)?.[2] as { scope?: { locale?: string } } | undefined;
+    expect(options?.scope?.locale).toBe('neutral');
+    await view.unmount();
+  });
+
   beforeEach(() => {
     mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: false });
+  });
+
+  test('keeps sign-out and language controls available while the profile is loading', async () => {
+    mockProfileQuery.value = { ...mockProfileQuery.value, isLoading: true };
+    await renderApp(<ProfileScreen {...props} />);
+
+    const signOut = screen.getByRole('button', { name: 'Đăng xuất' });
+    expect(screen.getByText('Ngôn ngữ')).toBeOnTheScreen();
+    await fireEvent.press(signOut);
+    expect(screen.getByText('Đăng xuất khỏi thiết bị này?')).toBeOnTheScreen();
+  });
+
+  test('keeps sign-out and language controls available when the profile fails', async () => {
+    mockProfileQuery.value = { ...mockProfileQuery.value, error: 'Không tải được hồ sơ' };
+    await renderApp(<ProfileScreen {...props} />);
+
+    const signOut = screen.getByRole('button', { name: 'Đăng xuất' });
+    expect(screen.getByText('Ngôn ngữ')).toBeOnTheScreen();
+    await fireEvent.press(signOut);
+    expect(screen.getByText('Đăng xuất khỏi thiết bị này?')).toBeOnTheScreen();
   });
 
   test('sign-out needs confirmation and then ends the session', async () => {
@@ -458,8 +578,17 @@ describe('profile account security', () => {
 
   test('the profile detail card does not repeat the identity header name and ID', async () => {
     await renderApp(<ProfileScreen {...props} />);
-    expect(screen.getAllByText('Minh Nguyen')).toHaveLength(1);
+    expect(screen.getAllByText('Nguyen Minh')).toHaveLength(1);
     expect(screen.getAllByText('2022SE0417')).toHaveLength(1);
+  });
+
+  test('the profile displays Vietnamese names in family-name-first order', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, firstName: 'Đức Minh', lastName: 'Nguyễn' },
+    };
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByText('Nguyễn Đức Minh')).toBeOnTheScreen();
   });
 
   test('profile revalidation keeps an in-progress phone edit', async () => {

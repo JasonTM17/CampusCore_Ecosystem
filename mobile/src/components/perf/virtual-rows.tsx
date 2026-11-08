@@ -12,12 +12,18 @@ export function contentRows<T>(prefix: string, data: readonly T[], key: (item: T
 }
 
 export function cardRows<T>(prefix: string, data: readonly T[], key: (item: T, index: number) => string,
-  header: ReactElement, render: (item: T, index: number) => ReactElement | null,
+  header: ReactElement | null, render: (item: T, index: number) => ReactElement | null,
   options: { style?: StyleProp<ViewStyle>; footer?: ReactElement } = {}): VirtualRow[] {
   const hasFooter = Boolean(options.footer);
   return [
-    { key: `${prefix}:header`, render: () => <GroupCard edge={data.length || hasFooter ? 'start' : 'single'} style={options.style}>{header}</GroupCard> },
-    ...contentRows(prefix, data, key, (item, index) => <GroupCard edge={index === data.length - 1 && !hasFooter ? 'end' : 'middle'} style={options.style}>{render(item, index)}</GroupCard>),
+    ...(header ? [{ key: `${prefix}:header`, render: () => <GroupCard edge={data.length || hasFooter ? 'start' : 'single'} style={options.style}>{header}</GroupCard> }] : []),
+    ...contentRows(prefix, data, key, (item, index) => {
+      const lastWithoutFooter = index === data.length - 1 && !hasFooter;
+      const edge = header
+        ? lastWithoutFooter ? 'end' : 'middle'
+        : index === 0 && lastWithoutFooter ? 'single' : index === 0 ? 'start' : lastWithoutFooter ? 'end' : 'middle';
+      return <GroupCard edge={edge} style={options.style}>{render(item, index)}</GroupCard>;
+    }),
     ...(options.footer ? [{ key: `${prefix}:footer`, render: () => <GroupCard edge="end" style={options.style}>{options.footer}</GroupCard> }] : []),
   ];
 }

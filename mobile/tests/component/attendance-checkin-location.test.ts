@@ -67,6 +67,12 @@ test('requests permission when possible and proceeds on grant', async () => {
   expect(await provider.ensurePermission()).toBe('granted');
   expect(requestPermission).toHaveBeenCalledTimes(1);
 });
+test('exposes reduced iOS location accuracy authorization', async () => {
+  const { provider } = setup({
+    permission: async () => ({ granted: true, canAskAgain: true, ios: { accuracy: 'reduced' } }),
+  }, 'ios');
+  await expect(provider.accuracyAuthorization?.()).resolves.toBe('reduced');
+});
 test('services off is distinct from permission denied', async () => {
   const { provider, source } = setup({ servicesEnabled: async () => false });
   expect(await provider.isServicesEnabled()).toBe(false);

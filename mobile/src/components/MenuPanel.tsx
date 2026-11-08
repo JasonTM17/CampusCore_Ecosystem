@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { minTapTarget, tokens } from '../design/tokens';
@@ -35,6 +35,17 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
   const chrome = chromeFor(scheme);
   const { copy, screenTitle } = useShellCopy();
   const previousRoute = useRef(activeRoute);
+  const firstMenuItem = screenRegistry.find(
+    (screen) => menuSections.some((section) => section.families.some((family) => family === screen.family))
+      && screen.roles.includes(role)
+      && !PARAMETERISED_SCREENS.has(screen.name),
+  );
+  const firstMenuItemRef = useRef<View | null>(null);
+
+  useEffect(() => {
+    const target = findNodeHandle(firstMenuItemRef.current);
+    if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+  }, []);
 
   useEffect(() => {
     if (previousRoute.current === activeRoute) return;
@@ -100,9 +111,11 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
 
             return (
               <View key={section.title} style={styles.section}>
-                <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
-                  {section.title === 'Staff' ? copy.sections.staff : section.title === 'Assistant' ? copy.sections.assistant : copy.sections.student}
-                </UiText>
+                {section.title === 'Student workspace' && role !== 'student' ? null : (
+                  <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
+                    {section.title === 'Staff' ? copy.sections.staff : section.title === 'Assistant' ? copy.sections.assistant : copy.sections.student}
+                  </UiText>
+                )}
                 {screens.map((screen) => {
                   const active = screen.name === activeRoute;
 
@@ -113,6 +126,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       onPress={() => onNavigate(screen.name)}
+                      ref={screen.name === firstMenuItem?.name ? firstMenuItemRef : undefined}
                       style={({ pressed }) => [styles.menuItem, active ? styles.menuItemActive : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined]}
                     >
                       <View style={[styles.menuIcon, { backgroundColor: active ? colors.primaryFixed : colors.surfaceLow }]}>

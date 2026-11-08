@@ -52,6 +52,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     reload,
   } = useScreenQuery<AccountProfile | null>('profile', () => campusApi.profile(), {
     enabled: isLive,
+    scope: { locale: 'neutral' },
     errorMessage: copy.errors.unknown,
     mapError: (failure) => errorMessage(classifyError(failure), copy.errors),
   });
@@ -69,7 +70,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileMessage, setProfileMessage] = useState<{ text: string; kind: 'error' | 'success' } | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
@@ -80,10 +81,12 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const updatePhone = (value: string) => {
     phoneRef.current = value;
     setPhone(value);
+    setProfileMessage(null);
   };
   const updateAddress = (value: string) => {
     addressRef.current = value;
     setAddress(value);
+    setProfileMessage(null);
   };
 
   useEffect(() => {
@@ -128,7 +131,11 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     const submittedPhone = phone.trim();
     const submittedAddress = address.trim();
     if (!PHONE_PATTERN.test(submittedPhone)) {
-      setProfileMessage(copy.profile.phoneInvalid);
+      setProfileMessage({ text: copy.profile.phoneInvalid, kind: 'error' });
+      return;
+    }
+    if (submittedAddress.length > 500) {
+      setProfileMessage({ text: copy.profile.addressTooLong, kind: 'error' });
       return;
     }
     profileSaveFlight.current = true;
@@ -143,10 +150,10 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
         seededAddressRef.current = submittedAddress;
         updateAddress(submittedAddress);
       }
-      setProfileMessage(copy.profile.saved);
+      setProfileMessage({ text: copy.profile.saved, kind: 'success' });
       void reload();
-    } catch {
-      setProfileMessage(copy.profile.saveFailed);
+    } catch (failure) {
+      setProfileMessage({ text: errorMessage(classifyError(failure), copy.errors), kind: 'error' });
     } finally {
       profileSaveFlight.current = false;
       setIsSavingProfile(false);
@@ -198,7 +205,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const roleLabel = role === 'lecturer' ? copy.profile.roleLecturer : role === 'admin' ? copy.profile.roleAdmin : copy.profile.roleStudent;
   const displayName = !isLive
     ? 'Nguyễn Đức Minh'
-    : [account?.firstName, account?.lastName].filter(Boolean).join(' ') || roleLabel;
+    : [account?.lastName, account?.firstName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
 
@@ -211,6 +218,18 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
           description={error ?? undefined}
           actionLabel={error ? copy.common.retry : undefined}
           onAction={error ? () => void reload() : undefined}
+        />
+        <ScreenSpacer />
+        <LanguageSetting />
+        <ScreenSpacer />
+        <Button icon="logout" label={copy.signOut.button} onPress={() => setConfirmSignOut(true)} variant="destructive" style={styles.signOut} />
+        <SignOutDialog
+          visible={confirmSignOut}
+          onConfirm={() => {
+            setConfirmSignOut(false);
+            endSession('signedOut');
+          }}
+          onCancel={() => setConfirmSignOut(false)}
         />
       </ScreenShell>
     );
@@ -236,10 +255,14 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
         {isLive ? (
           <>
             <Divider />
-            <Field label={copy.profile.phone} value={phone} onChangeText={updatePhone} keyboardType="phone-pad" autoComplete="tel" />
-            <Field label={copy.profile.address} value={address} onChangeText={updateAddress} autoComplete="street-address" />
-            {profileMessage ? (
-              <UiText accessibilityLiveRegion="polite" variant="bodySmall" style={styles.cardCopy}>{profileMessage}</UiText>
+            <Field label={copy.profile.phone} value={phone} onChangeText={updatePhone} keyboardType="phone-pad" autoComplete="tel" editable={!isSavingProfile} maxLength={80} />
+            <Field label={copy.profile.address} value={address} onChangeText={updateAddress} autoComplete="street-address" editable={!isSavingProfile} maxLength={500} />
+            {profileMessage?.kind === 'error' ? (
+              <View accessible accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.cardCopy}>
+                <UiText variant="bodySmall" tone="error">{profileMessage.text}</UiText>
+              </View>
+            ) : profileMessage ? (
+              <UiText accessibilityLiveRegion="polite" variant="bodySmall" style={styles.cardCopy}>{profileMessage.text}</UiText>
             ) : null}
             <Button
               label={isSavingProfile ? copy.profile.saving : copy.profile.save}

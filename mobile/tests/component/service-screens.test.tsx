@@ -238,6 +238,23 @@ describe('service screens in live mode', () => {
     expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
   });
 
+  test('a simulated decision is labelled in the live list and detail', async () => {
+    mockApi.mode = 'live';
+    const application = { ...previewAdmissions('vi')[0], decisionLabel: 'SIMULATED' as const };
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? [application] : []),
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    expect(screen.getByText(admissionsMessages.vi.simulatedBanner)).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(application.cycle) }));
+    expect(screen.getByText(admissionsMessages.vi.simulatedBanner)).toBeOnTheScreen();
+  });
+
   test('learning shows its own error state when sections cannot be read', async () => {
     mockApi.mode = 'live';
     mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false };

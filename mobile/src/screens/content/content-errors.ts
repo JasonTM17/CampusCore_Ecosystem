@@ -31,7 +31,7 @@ export function contentErrorKind(error: unknown): ContentErrorKind {
   // lane owns the only sign-in route. The shared predicate also catches the
   // HTTP_401/UNAUTHENTICATED code shapes that carry no status.
   if (isResourceUnauthorizedError(error)) return 'generic';
-  if (status === 0 || errorCode(error) === 'NETWORK_ERROR') return 'offline';
+  if (status !== 408 && (status === 0 || errorCode(error) === 'NETWORK_ERROR')) return 'offline';
   if (status === 403) return 'denied';
   if (status === 404) return 'notFound';
   if (status === 409 || status === 412) return 'conflict';
