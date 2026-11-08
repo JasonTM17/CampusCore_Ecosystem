@@ -245,7 +245,13 @@ public class AcademicAttendanceReadRepository {
             Instant date) {
         StringBuilder where = new StringBuilder();
         appendFilter(where, "a.\"sectionId\" = :sectionId", "sectionId", sectionId, parameters);
-        appendFilter(where, "a.\"studentId\" = :studentId", "studentId", studentId, parameters);
+        appendFilter(
+                where,
+                "(a.\"studentId\" = :studentId OR EXISTS (SELECT 1 FROM " + STUDENT
+                        + " filter_student WHERE filter_student.\"id\" = a.\"studentId\" AND filter_student.\"studentId\" = :studentId))",
+                "studentId",
+                studentId,
+                parameters);
         if (date != null) {
             where.append(where.length() == 0 ? " WHERE " : " AND ");
             where.append("a.\"date\" >= :dayStart AND a.\"date\" < :dayEnd");

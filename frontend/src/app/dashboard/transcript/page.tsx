@@ -434,7 +434,9 @@ export default function TranscriptPage() {
                 <div>
                   <div className="text-sm text-muted-foreground">{transcriptMessages.cumulativeGpa}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {transcriptData.summary.cumulativeGpa.toFixed(2)}
+                    {typeof transcriptData.summary.cumulativeGpa === 'number'
+                      ? transcriptData.summary.cumulativeGpa.toFixed(2)
+                      : '—'}
                   </div>
                 </div>
                 <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${metricToneClass('info')}`}>
@@ -609,7 +611,7 @@ export default function TranscriptPage() {
                       {semester.records.length === 1 ? transcriptMessages.courseWord : transcriptMessages.coursesWord}{' '}
                       - {formatNumber(semester.creditsAttempted)} {transcriptMessages.creditsAttempted} -{' '}
                       {transcriptMessages.gradePointLabel}{' '}
-                      {semester.gpa.toFixed(2)}
+                      {typeof semester.gpa === 'number' ? semester.gpa.toFixed(2) : '—'}
                     </div>
                     <button
                       type="button"

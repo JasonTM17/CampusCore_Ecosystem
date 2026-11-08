@@ -305,8 +305,8 @@ public class MailController {
                 data.put("semester", "Học kỳ 2 Năm học 2025-2026");
                 data.put("studentName", "Nguyễn Tiến Sơn");
                 data.put("studentId", "22110001");
-                data.put("gpa4", 3.82);
-                data.put("gpa10", 9.15);
+                data.put("gpa4", 4.0);
+                data.put("gpa10", 9.0);
                 data.put("academicStanding", "XUẤT SẮC");
                 data.put("conductScore", 95);
                 data.put("conductRank", "XUẤT SẮC");
@@ -315,7 +315,7 @@ public class MailController {
                         new GradeItem("SE002", "Cấu trúc Dữ liệu & Giải thuật", 4, 9.0, "A+"),
                         new GradeItem("SE003", "Cơ sở Dữ liệu Quan hệ & NoSQL", 3, 8.8, "A"),
                         new GradeItem("SE004", "Công nghệ Phần mềm Nâng cao", 3, 9.2, "A+"),
-                        new GradeItem("SE005", "Mạng Máy tính & Truyền thông", 3, 8.5, "B+")
+                        new GradeItem("SE005", "Mạng Máy tính & Truyền thông", 3, 8.5, "A")
                 ));
             }
             default -> {

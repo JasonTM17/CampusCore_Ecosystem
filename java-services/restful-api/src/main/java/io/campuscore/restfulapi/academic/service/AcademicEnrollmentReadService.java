@@ -640,7 +640,7 @@ public class AcademicEnrollmentReadService {
     }
 
     private static BigDecimal gpa(BigDecimal points, int credits) {
-        return credits == 0 ? BigDecimal.ZERO : points.divide(BigDecimal.valueOf(credits), 2, RoundingMode.HALF_UP);
+        return credits == 0 ? null : points.divide(BigDecimal.valueOf(credits), 2, RoundingMode.HALF_UP);
     }
 
     private static String coalesce(String value, String fallback) {

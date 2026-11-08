@@ -152,6 +152,8 @@ export interface RegistrationCatalogSection {
   courseId?: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string | null;
+  courseNameVi?: string | null;
   credits?: number;
   capacity: number;
   enrolledCount: number;
