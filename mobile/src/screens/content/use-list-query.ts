@@ -16,7 +16,7 @@ export interface ListQueryOptions<T> {
   preview?: readonly T[];
 }
 
-export function useListQuery<T>({ key, fetchAll, enabled = true, preview }: ListQueryOptions<T>): PagedList<T> {
+export function useListQuery<T>({ key, fetchAll, enabled = true, preview }: ListQueryOptions<T>): PagedList<T> & { reloadData: () => Promise<T[] | undefined> } {
   const query = useContentQuery<T[]>(key, fetchAll, enabled);
   const [refreshing, setRefreshing] = useState(false);
   const mountedRef = useRef(true);
@@ -52,6 +52,7 @@ export function useListQuery<T>({ key, fetchAll, enabled = true, preview }: List
       loadMore: NOOP,
       refresh: NOOP,
       reload: async () => {},
+      reloadData: async () => undefined,
       patch: NOOP,
       preview: true,
     };
@@ -80,6 +81,7 @@ export function useListQuery<T>({ key, fetchAll, enabled = true, preview }: List
     loadMore: NOOP,
     refresh,
     reload,
+    reloadData: query.reloadData,
     patch,
     preview: false,
   };

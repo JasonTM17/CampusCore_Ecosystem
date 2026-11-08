@@ -57,6 +57,8 @@ export interface ScreenQueryResult<T> {
   /** HTTP status for denied/offline-aware copy (403 → denied, no retry). */
   errorStatus: number | null;
   reload(): Promise<void>;
+  /** Explicit refresh result for callers that must confirm a fresh row before replacing local state. */
+  reloadData(): Promise<T | undefined>;
   setData(next: T): void;
 }
 
@@ -161,9 +163,9 @@ export function useScreenQuery<T>(
     update({ data: next });
   }, [cacheKey, enabled, isCurrent, update]);
 
-  const reload = useCallback(async () => {
+  const reloadData = useCallback(async (): Promise<T | undefined> => {
     if (!enabled || boundary.inFlight || !isCurrent() || !canRevalidate(AppState.currentState)) {
-      return;
+      return undefined;
     }
     // Dedupe only this identity. A pending old resource must not suppress the
     // first request for the newly selected resource/account/locale/grants.
@@ -178,6 +180,7 @@ export function useScreenQuery<T>(
       if (!isCurrent() || superseded()) return;
       writeQueryCache(cacheKey, next);
       update({ data: next });
+      return next;
     } catch (nextError) {
       if (!isCurrent() || superseded()) return;
       const opts = optionsRef.current;
@@ -223,6 +226,8 @@ export function useScreenQuery<T>(
     }
   }, [cacheKey, enabled, boundary, isCurrent, update]);
 
+  const reload = useCallback(async () => { await reloadData(); }, [reloadData]);
+
   const revalidate = useCallback(() => {
     const opts = optionsRef.current;
     // maxAge remains an explicit retention override; it cannot be bypassed by freshness.
@@ -258,5 +263,5 @@ export function useScreenQuery<T>(
   }, [enabled, revalidate]);
 
   return { data: visible.data, isLoading: visible.isLoading, isStale: visible.isStale,
-    error: visible.error, warning: visible.warning, errorStatus: visible.errorStatus, reload, setData };
+    error: visible.error, warning: visible.warning, errorStatus: visible.errorStatus, reload, reloadData, setData };
 }
