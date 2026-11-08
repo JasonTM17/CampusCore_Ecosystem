@@ -144,7 +144,7 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'admissions', title: 'Admissions', family: 'student', roles: studentRoles, icon: 'account-edit-outline' },
   { name: 'library', title: 'Library', family: 'student', roles: studentRoles, icon: 'bookshelf' },
   { name: 'careers', title: 'Careers', family: 'student', roles: studentRoles, icon: 'briefcase-search-outline' },
-  { name: 'news', title: 'Campus news', family: 'student', roles: studentRoles, icon: 'newspaper-variant-outline' },
+  { name: 'news', title: 'Campus news', family: 'student', roles: allRoles, icon: 'newspaper-variant-outline' },
   { name: 'docs', title: 'Public documents', family: 'student', roles: allRoles, icon: 'file-document-outline' },
   { name: 'notifications', title: 'Notifications', family: 'student', roles: allRoles, icon: 'bell-outline' },
   { name: 'announcements', title: 'Academic announcements', family: 'student', roles: studentRoles, icon: 'bullhorn-outline' },

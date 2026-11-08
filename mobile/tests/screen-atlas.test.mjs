@@ -8,6 +8,9 @@ const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const routes = fs.readFileSync(path.join(mobileRoot, 'src/navigation/routes.ts'), 'utf8');
 const tokens = fs.readFileSync(path.join(mobileRoot, 'src/design/tokens.ts'), 'utf8');
 const readme = fs.readFileSync(path.join(mobileRoot, 'README.md'), 'utf8');
+const tour = fs.readFileSync(path.join(mobileRoot, '..', 'docs', 'MOBILE_APP_TOUR.md'), 'utf8');
+const deviceRunbook = fs.readFileSync(path.join(mobileRoot, '..', 'docs/ecosystem/device-runbook.md'), 'utf8');
+const appTour = fs.readFileSync(path.join(mobileRoot, '..', 'docs/MOBILE_APP_TOUR.md'), 'utf8');
 const navigator = fs.readFileSync(path.join(mobileRoot, 'src/navigation/MobileNavigator.tsx'), 'utf8');
 const bottomNavigation = fs.readFileSync(path.join(mobileRoot, 'src/components/BottomNavigation.tsx'), 'utf8');
 const signIn = fs.readFileSync(path.join(mobileRoot, 'src/screens/auth/SignInScreen.tsx'), 'utf8');
@@ -38,7 +41,10 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ]) {
     assert.match(routes, new RegExp(`name: '${requiredRoute.replace('.', '\\.')}'`));
   }
-  assert.match(readme, /59 verified native screens/);
+  assert.match(readme, /37 registered native screens/);
+  assert.match(readme, /59 web-to-native parity mappings\s+across 46 unique native destinations/);
+  assert.match(readme, /screen-atlas\.test\.mjs/);
+  assert.match(tour, /Số màn hình đã đăng ký \| 37; parity web-native gồm 59 ánh xạ đến 46 màn hình đích duy nhất/);
 });
 
 test('native tokens preserve the institutional portal contract', () => {
@@ -77,6 +83,29 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
   assert.match(client, /assistantConversationMessages: async \(conversationId: string\)/);
   assert.match(client, /deleteAssistantConversation: \(conversationId: string\)/);
   assert.match(client, /apiClient\.post<AssistantReply>\(/);
+});
+
+test('Android release README prebuilds before changing to android', () => {
+  const androidBlock = readme.indexOf('npx expo prebuild --platform android --no-install');
+  const androidDirectory = readme.indexOf('cd android', androidBlock);
+  assert.notEqual(androidBlock, -1);
+  assert.ok(androidDirectory > androidBlock);
+});
+
+test('device runbook prefixes the mobile typecheck command', () => {
+  assert.match(deviceRunbook, /npm run typecheck --prefix mobile/);
+  assert.doesNotMatch(deviceRunbook, /`npm run typecheck`/);
+});
+
+test('mobile README describes all API-client 401 responses as refresh candidates', () => {
+  assert.doesNotMatch(readme, /excluding login\/refresh\/logout/);
+  assert.match(readme, /Any API-client request that receives `401` is a\s+refresh candidate/);
+  assert.match(readme, /OIDC issuer calls use\s+the session store and bypass the API client/);
+});
+
+test('mobile tour describes access and refresh token storage accurately', () => {
+  assert.doesNotMatch(appTour, /token lưu trong SecureStore/);
+  assert.match(appTour, /access token được giữ trong bộ nhớ; refresh token được lưu trong SecureStore/i);
 });
 
 test('mobile role navigation rejects unauthorized routes and uses role-specific primary navigation', () => {
@@ -163,8 +192,9 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   assert.match(signIn, /signInWithOidc\(/);
   assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
   assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
-  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(outcome\.code === 'no_mobile_surface' \? copy\.signIn\.noMobileSurface : copy\.signIn\.invalid\)/);
-  assert.doesNotMatch(signIn, /campusApi\.login|password|setSessionTokens/);
+  assert.match(signIn, /if \(outcome\.code === 'no_mobile_surface'\) \{\s*setError\(copy\.signIn\.noMobileSurface\);/);
+  assert.match(signIn, /session\.markBlocked\(outcome\.code === 'password_change_required'/);
+  assert.doesNotMatch(signIn, /campusApi\.login|setSessionTokens|<TextInput\b|secureTextEntry/);
   assert.doesNotMatch(signIn, /navigation\.navigate\('dashboard\.student'\)/);
   assert.match(readme, /role-specific bottom bar/);
 });

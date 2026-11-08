@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, findNodeHandle, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
 
 import { apiClient } from '../api/client';
 import { sessionStore } from '../auth/mobile-session-store';
 import { clearQueryCache } from '../hooks/query-cache';
+import { useShellCopy } from '../i18n/use-shell-copy';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { MenuPanel } from '../components/MenuPanel';
 import { tokens } from '../design/tokens';
@@ -25,9 +26,27 @@ export function MobileNavigator() {
   const [sessionKind, setSessionKind] = useState<SessionKind>('signedOut');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedThesisTopicId, setSelectedThesisTopicId] = useState<string | null>(null);
+  const menuButtonRef = useRef<View | null>(null);
+  const previousMenuOpen = useRef(false);
+  const previousRoute = useRef(route);
+  const { screenTitle } = useShellCopy();
   const isPreviewSession = sessionKind === 'preview';
   const isAuthenticated = sessionKind === 'authenticated';
   const hasActiveSession = isPreviewSession || isAuthenticated;
+
+  useEffect(() => {
+    if (previousRoute.current === route) return;
+    previousRoute.current = route;
+    AccessibilityInfo.announceForAccessibility(screenTitle(route));
+  }, [route, screenTitle]);
+
+  useEffect(() => {
+    if (previousMenuOpen.current && !menuOpen) {
+      const target = findNodeHandle(menuButtonRef.current);
+      if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+    }
+    previousMenuOpen.current = menuOpen;
+  }, [menuOpen]);
 
   // A failed refresh clears the client tokens; without this bridge every screen
   // keeps showing retry states that can never succeed.
@@ -126,6 +145,7 @@ export function MobileNavigator() {
               role={role}
               onNavigate={navigation.navigate}
               onMenu={() => setMenuOpen(true)}
+              menuButtonRef={menuButtonRef}
             />
           ) : null}
         </View>

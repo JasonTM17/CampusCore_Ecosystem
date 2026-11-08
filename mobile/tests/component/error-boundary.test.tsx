@@ -24,6 +24,7 @@ jest.mock('expo-router', () => {
 jest.mock('../../src/session/SessionContext', () => ({ useSession: jest.fn() }));
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' } }));
 jest.mock('../../src/hooks/use-dashboard-prefetch', () => ({ useDashboardPrefetch: jest.fn() }));
+jest.mock('../../src/screens/content/use-content-query', () => ({ useContentQuery: jest.fn(() => ({ data: undefined })) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 function setWindow(width: number) {
@@ -32,10 +33,12 @@ function setWindow(width: number) {
 
 function setSession(role: UserRole = 'student') {
   jest.mocked(useSession).mockReturnValue({
-    kind: 'authenticated', role, switchRole: jest.fn(), epoch: 0, booted: true, accountId: null, blockedReason: null,
+    kind: 'authenticated', role, signingOut: false, switchRole: jest.fn(), epoch: 0, booted: true, accountId: null, blockedReason: null,
     enterPreview: () => true,
     completeSignIn: () => {},
+    beginSignOut: () => {},
     signOut: async () => {},
+    clearSigningOut: () => {},
     markBlocked: () => {},
     setRole: () => {},
   });
