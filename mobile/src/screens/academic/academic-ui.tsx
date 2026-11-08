@@ -39,6 +39,8 @@ export function academicErrorMessage(copy: AcademicCopy, error: unknown, fallbac
   const status = (error as { status?: number } | null)?.status;
   if (status === 0 || error instanceof TypeError) return copy.offline;
   if (status === 403) return copy.denied;
+  const code = (error as { code?: string } | null)?.code;
+  if (code && copy.studentErrors[code]) return copy.studentErrors[code];
   return fallback;
 }
 

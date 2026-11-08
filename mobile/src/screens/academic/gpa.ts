@@ -123,6 +123,12 @@ export interface BestAttemptSummary {
   completedCredits: number;
 }
 
+/** Lower index is the better band; unknown letters sort last. */
+function letterRank(letter: string | null | undefined): number {
+  const index = CONVERSION_TABLE.findIndex((row) => row.letter === letter);
+  return index === -1 ? CONVERSION_TABLE.length : index;
+}
+
 /** The best attempt per course (repeat-course policy), in first-seen order. */
 export function bestAttempts(records: readonly GradeRecordLike[]): GradeRecordLike[] {
   const best = new Map<string, GradeRecordLike>();
@@ -131,7 +137,16 @@ export function bestAttempts(records: readonly GradeRecordLike[]): GradeRecordLi
     const point = resolveGradePoint(record);
     if (!key || point === null) continue;
     const current = best.get(key);
-    if (!current || point > (resolveGradePoint(current) ?? -1)) best.set(key, record);
+    if (!current) {
+      best.set(key, record);
+      continue;
+    }
+    const currentPoint = resolveGradePoint(current) ?? -1;
+    const candidateFinal = isNum(record.finalGrade) ? record.finalGrade : -1;
+    const currentFinal = isNum(current.finalGrade) ? current.finalGrade : -1;
+    const candidateRank = letterRank(record.letterGrade);
+    const currentRank = letterRank(current.letterGrade);
+    if (point > currentPoint || (point === currentPoint && (candidateRank < currentRank || (candidateRank === currentRank && candidateFinal > currentFinal)))) best.set(key, record);
   }
   return [...best.values()];
 }

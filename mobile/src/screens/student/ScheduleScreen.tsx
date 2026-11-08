@@ -97,7 +97,7 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
     ? null
     : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
   const semestersFailed = !preview && semestersQuery.error !== null && (semestersQuery.data?.length ?? 0) === 0;
-  const termId = termChoice ?? (semestersFailed ? '' : defaultTermId(semesters, enrollments) ?? '');
+  const termId = termChoice ?? (defaultTermId(semesters, enrollments) ?? '');
   const semester = semesters.find((entry) => entry.id === termId);
   const termEnrollments = useMemo(
     () => enrollments.filter((item) => item.semesterId === termId),
