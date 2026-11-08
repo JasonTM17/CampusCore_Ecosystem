@@ -92,7 +92,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: tokens.radii.control,
   },
   icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 30, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 40 },
-  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.pill, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
+  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
   badgeCount: { color: colors.onPrimary, fontSize: 10, lineHeight: 12, textAlign: 'center' },
   activeIcon: { backgroundColor: colors.primaryFixed },
   label: { alignSelf: 'stretch', flexShrink: 1, textAlign: 'center' },

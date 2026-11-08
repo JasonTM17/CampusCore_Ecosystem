@@ -107,7 +107,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   tabList: { alignItems: 'stretch', flexDirection: 'row', minWidth: 0 },
   item: { alignItems: 'center', flex: 1, justifyContent: 'flex-start', minHeight: tokens.layout.bottomNavigationHeight, minWidth: 0, paddingHorizontal: 2, paddingVertical: tokens.spacing.sm, borderTopWidth: 2, borderTopColor: 'transparent' },
   icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 28, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 44 },
-  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.pill, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
+  badge: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 17, minWidth: 17, paddingHorizontal: 3, position: 'absolute', right: 0, top: -3 },
   badgeCount: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   label: { textAlign: 'center', alignSelf: 'stretch' },
   activeIcon: { backgroundColor: colors.primaryFixed },
