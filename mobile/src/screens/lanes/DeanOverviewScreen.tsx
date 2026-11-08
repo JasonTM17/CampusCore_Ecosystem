@@ -6,6 +6,7 @@ import { ChartSummary } from '../../components/ui/chart-summary';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import { laneApi } from './lane-api';
 import { LaneShell, QueueCard, laneStyles, useLaneRequest, useLanesCopy } from './lane-ui';
 
@@ -14,6 +15,7 @@ const GROUP_PAGE = 20;
 /** Faculty thesis overview for one round. Read-only; the server scopes it to the dean's own faculty. */
 export function DeanOverviewScreen() {
   const { copy } = useLanesCopy();
+  const { formatNumber } = useLocale();
   const rounds = useLaneRequest(() => laneApi.thesisRounds(), 'dean:rounds');
   const [picked, setPicked] = useState('');
   const roundList = rounds.data ?? [];
@@ -48,8 +50,8 @@ export function DeanOverviewScreen() {
             const row = entry.row;
             const groupCount = row.supervisedGroups ?? 0;
             const topicCount = row.supervisedTopics ?? 0;
-            const groupText = fillCopy(countForm(groupCount, copy.deanGroupCountOne, copy.deanGroupCount), { n: groupCount });
-            const topicText = fillCopy(countForm(topicCount, copy.deanTopicCountOne, copy.deanTopicCount), { n: topicCount });
+            const groupText = fillCopy(countForm(groupCount, copy.deanGroupCountOne, copy.deanGroupCount), { n: formatNumber(groupCount) });
+            const topicText = fillCopy(countForm(topicCount, copy.deanTopicCountOne, copy.deanTopicCount), { n: formatNumber(topicCount) });
             return <QueueCard
               title={row.displayName ?? row.lecturerId ?? ''}
               count={row.supervisedGroups ? groupText : undefined}
@@ -65,7 +67,7 @@ export function DeanOverviewScreen() {
                 status={group.approvalStatus}
                 lines={[
                   group.departmentName,
-                  fillCopy(countForm(group.members?.length ?? 0, copy.deanMembersOne, copy.deanMembers), { n: group.members?.length ?? 0 }),
+                  fillCopy(countForm(group.members?.length ?? 0, copy.deanMembersOne, copy.deanMembers), { n: formatNumber(group.members?.length ?? 0) }),
                   (group.supervisors ?? []).map((supervisor) => supervisor.displayName).filter(Boolean).join(', '),
                 ]}
                 copy={copy}
@@ -99,10 +101,10 @@ export function DeanOverviewScreen() {
           <View style={laneStyles.stack}>
             <StatStrip
               items={[
-                { icon: 'account-group-outline', label: copy.deanTotalGroups, value: String(stats?.totalGroups ?? 0) },
-                { icon: 'clock-outline', label: copy.deanPending, value: String(stats?.groupsPendingApproval ?? 0) },
-                { icon: 'check-circle-outline', label: copy.deanApproved, value: String(stats?.groupsApproved ?? 0) },
-                { icon: 'close-circle-outline', label: copy.deanRejected, value: String(stats?.groupsRejected ?? 0) },
+                { icon: 'account-group-outline', label: copy.deanTotalGroups, value: formatNumber(stats?.totalGroups ?? 0) },
+                { icon: 'clock-outline', label: copy.deanPending, value: formatNumber(stats?.groupsPendingApproval ?? 0) },
+                { icon: 'check-circle-outline', label: copy.deanApproved, value: formatNumber(stats?.groupsApproved ?? 0) },
+                { icon: 'close-circle-outline', label: copy.deanRejected, value: formatNumber(stats?.groupsRejected ?? 0) },
               ]}
             />
 
