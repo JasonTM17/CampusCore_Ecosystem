@@ -7,10 +7,15 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 const NOW = Date.parse('2026-11-09T12:00:00Z');
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 
-jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'preview' } }));
+const mockMode: { value: 'preview' | 'live' } = { value: 'preview' };
+const mockQuery: { value: Record<string, unknown> } = { value: {} };
+
+jest.mock('../../src/api/client', () => ({
+  get apiClient() { return { mode: mockMode.value }; },
+}));
 jest.mock('../../src/screens/content/content-api', () => ({ contentApi: {} }));
 jest.mock('../../src/screens/content/use-content-query', () => ({
-  useContentQuery: () => ({ data: undefined, isLoading: false, error: null, errorStatus: null, reload: async () => {} }),
+  useContentQuery: () => mockQuery.value,
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../../src/screens/content/preview-data', () => ({
@@ -30,6 +35,8 @@ jest.mock('../../src/screens/content/preview-data', () => ({
 import { NewsDetail } from '../../src/screens/content/NewsDetail';
 
 beforeEach(() => {
+  mockMode.value = 'preview';
+  mockQuery.value = { data: undefined, isLoading: false, error: null, errorStatus: null, reload: jest.fn(async () => {}) };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
 });
 
@@ -63,4 +70,20 @@ test('P-007: renders headings, bold text, lists, links and table cells from the 
   expect(screen.getByRole('link', { name: 'Liên kết' })).toBeOnTheScreen();
   expect(screen.getByText('Ô A')).toBeOnTheScreen();
   expect(screen.getByText('Ô B')).toBeOnTheScreen();
+});
+
+test('distinguishes a missing story from a load failure', async () => {
+  mockMode.value = 'live';
+  mockQuery.value = { data: undefined, isLoading: false, error: 'Không tìm thấy nội dung này.', errorStatus: 404, reload: jest.fn(async () => {}) };
+  await renderDetail();
+
+  expect(screen.getByText('Bài viết không khả dụng')).toBeOnTheScreen();
+  expect(screen.getByText('Bài viết này chưa xuất bản hoặc không còn tồn tại.')).toBeOnTheScreen();
+  expect(screen.queryByText('Không thể tải dữ liệu')).toBeNull();
+
+  mockQuery.value = { data: undefined, isLoading: false, error: 'Máy chủ đang gặp sự cố.', errorStatus: 500, reload: jest.fn(async () => {}) };
+  await renderDetail();
+
+  expect(screen.getByText('Bảng tin chưa khả dụng')).toBeOnTheScreen();
+  expect(screen.getByText('Không tải được bảng tin. Vui lòng thử lại.')).toBeOnTheScreen();
 });

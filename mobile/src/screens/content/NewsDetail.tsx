@@ -19,7 +19,7 @@ export interface NewsDetailProps {
 
 /** One public announcement. Reads with the public auth policy, so it works signed out too. */
 export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
-  const { locale, copy: shared, t } = useContentCopy();
+  const { locale, t } = useContentCopy();
   const copy = campusMessages[locale];
   const preview = isPreviewMode();
   const query = useContentQuery<MobilePublicAnnouncement>(
@@ -39,15 +39,19 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : !preview && query.error ? (
-        <StatePanel
-          kind="error"
-          title={shared.errorTitle}
-          description={query.error}
-          actionLabel={t('retry')}
-          onAction={() => void query.reload()}
-        />
+        query.errorStatus === 404 ? (
+          <StatePanel kind="empty" title={copy.newsNotFoundTitle} description={copy.newsNotFoundBody} />
+        ) : (
+          <StatePanel
+            kind="error"
+            title={copy.newsLoadErrorTitle}
+            description={copy.newsLoadError}
+            actionLabel={t('retry')}
+            onAction={() => void query.reload()}
+          />
+        )
       ) : !item ? (
-        <StatePanel kind="empty" title={shared.notFound} />
+        <StatePanel kind="empty" title={copy.newsNotFoundTitle} description={copy.newsNotFoundBody} />
       ) : (
         <Card>
           <ContentHero
