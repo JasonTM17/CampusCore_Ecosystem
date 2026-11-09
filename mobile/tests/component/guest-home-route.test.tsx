@@ -28,6 +28,29 @@ jest.mock('expo-router', () => ({
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => mockSession,
 }));
+// The public teasers read the anonymous feed; the route contract is unrelated.
+jest.mock('../../src/screens/content/content-api', () => ({
+  contentApi: { news: jest.fn(), docs: jest.fn() },
+}));
+jest.mock('../../src/screens/content/use-paged-list', () => ({
+  usePagedList: () => ({
+    items: [],
+    total: 0,
+    hasMore: false,
+    loading: false,
+    loadingMore: false,
+    refreshing: false,
+    error: null,
+    warning: null,
+    loadMoreError: null,
+    errorStatus: null,
+    loadMore: jest.fn(),
+    refresh: jest.fn(),
+    reload: jest.fn(async () => {}),
+    patch: jest.fn(),
+    preview: false,
+  }),
+}));
 
 import Index from '../../app/index';
 import { ThemeProvider } from '../../src/design/theme';
