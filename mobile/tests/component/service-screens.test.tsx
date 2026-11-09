@@ -50,6 +50,7 @@ jest.mock('../../src/api/parity-api', () => ({
 
 import { AdmissionsScreen } from '../../src/screens/student/AdmissionsScreen';
 import { CareersScreen } from '../../src/screens/student/CareersScreen';
+import { ApplicationDetail } from '../../src/screens/content/CareerDetail';
 import { CertificatesScreen } from '../../src/screens/content/CertificatesScreen';
 import { DocsScreen } from '../../src/screens/student/DocsScreen';
 import { EventsScreen } from '../../src/screens/student/EventsScreen';
@@ -66,7 +67,7 @@ import { learningMessages } from '../../src/i18n/learning-messages';
 import { libraryMessages } from '../../src/i18n/library-messages';
 import { recordsMessages } from '../../src/i18n/records-messages';
 import { contentMessages } from '../../src/i18n/content-messages';
-import { previewAdmissions } from '../../src/screens/content/preview-data';
+import { previewAdmissions, previewCareerApplications } from '../../src/screens/content/preview-data';
 
 const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student' } as MobileScreenProps;
@@ -463,5 +464,21 @@ describe('service screens in live mode', () => {
 
     const pill = screen.getByText(careersMessages.vi.statusLabels.SUBMITTED).parent;
     expect(pill).toHaveStyle({ backgroundColor: tokens.colors.warningFixed });
+  });
+
+  test('career application detail keeps the withdraw action reachable', async () => {
+    await renderThemed(
+      <ApplicationDetail
+        application={previewCareerApplications('vi')[0]}
+        busy={false}
+        preview={false}
+        flash={null}
+        onBack={jest.fn()}
+        onWithdraw={jest.fn()}
+        onUploaded={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: careersMessages.vi.withdraw })).toBeOnTheScreen();
   });
 });

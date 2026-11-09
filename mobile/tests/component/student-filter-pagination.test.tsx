@@ -4,7 +4,6 @@ import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
-import { campusMessages } from '../../src/i18n/campus-messages';
 import { eventsMessages } from '../../src/i18n/events-messages';
 import { libraryMessages } from '../../src/i18n/library-messages';
 import { uiMessages } from '../../src/i18n/locale';
@@ -68,7 +67,7 @@ afterEach(() => {
 });
 
 describe('filtered student lists with more server pages', () => {
-  test('news can continue paging when no loaded row matches the priority filter', async () => {
+  test('news can continue paging without a client priority filter', async () => {
     const loadMore = jest.fn();
     mockPagedLists['content.news'] = {
       loadMore,
@@ -76,8 +75,6 @@ describe('filtered student lists with more server pages', () => {
       items: loadedRows({ id: 'news-normal', title: 'Thông báo thường', priority: 'NORMAL' }),
     };
     await renderThemed(<NewsScreen {...props} />);
-
-    await fireEvent.press(screen.getByRole('button', { name: campusMessages.vi.priorityLabels.URGENT }));
 
     const more = screen.getByRole('button', { name: uiMessages.vi.loadMore });
     await fireEvent.press(more);
