@@ -154,6 +154,17 @@ export const academicApi = {
     return { semesterId, semester, enrollments, creditLimit: summary?.creditLimit ?? null };
   },
 
+  /** Open-section catalogue for curriculum availability; a closed window is "nothing open", not an error. */
+  async registrationSections(): Promise<BrowseSection[]> {
+    try {
+      return (await campusApi.registrationSections()) as unknown as BrowseSection[];
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code && CLOSED_CODES.includes(code)) return [];
+      throw error;
+    }
+  },
+
   /** Catalog, rounds, eligibility and enrollments. A closed window is data, any other failure throws. */
   async registrationWorkspace(): Promise<RegistrationWorkspace> {
     const enrollments = await academicApi.enrollments();

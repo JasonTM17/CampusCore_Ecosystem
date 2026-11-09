@@ -736,17 +736,47 @@ describe('curriculum', () => {
       data: {
         curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
         courses: [
-          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED', finalGrade: 8.5, letterGrade: 'B' },
           { courseId: 'b', code: 'CS201', name: 'Cấu trúc dữ liệu', credits: 3, year: 1, semester: 2, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['MA101'] },
         ],
       },
     };
+    mockQueries['academic.registrationSections'] = { data: [{ id: 's1', courseId: 'b', status: 'OPEN' }] };
     await render(wrap(<CurriculumScreen {...props} />));
-    expect(screen.getByText('Tiên quyết: MA101')).toBeOnTheScreen();
-    expect(screen.getByText('Năm 1 · Học kỳ 2')).toBeOnTheScreen();
+    expect(screen.getByText('Đã hoàn tất 8,5 (B)')).toBeOnTheScreen();
+    expect(screen.getByText('Năm học 1')).toBeOnTheScreen();
+    expect(screen.getByText('Học kỳ 2 - 1 môn')).toBeOnTheScreen();
+    expect(screen.getAllByText('Tiên quyết:').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('✓ MA101').length).toBeGreaterThan(0);
+    expect(screen.getByText('Là tiên quyết của:')).toBeOnTheScreen();
+    expect(screen.getByText('Có thể đăng ký ngay')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Đăng ký: CS201' }));
+    expect(navigate).toHaveBeenCalledWith('registration');
     await fireEvent.press(screen.getByRole('button', { name: 'Đăng ký học phần' }));
     expect(navigate).toHaveBeenCalledWith('registration');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
+  });
+
+  test('ready-to-register filter lists unblocked courses with open sections', async () => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'b', code: 'CS201', name: 'Cấu trúc dữ liệu', credits: 3, year: 1, semester: 2, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['MA101'] },
+          { courseId: 'd', code: 'CS301', name: 'Mạng máy tính', credits: 3, year: 2, semester: 1, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['CS201'] },
+        ],
+      },
+    };
+    mockQueries['academic.registrationSections'] = { data: [{ id: 's1', courseId: 'b', status: 'OPEN' }] };
+    await render(wrap(<CurriculumScreen {...props} />));
+
+    expect(screen.getByText('Đang mở 1 lớp trong kỳ này')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Trạng thái: Tất cả' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Có thể đăng ký' }));
+
+    expect(screen.getAllByText('Cấu trúc dữ liệu').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Mạng máy tính')).toBeNull();
   });
 
   test('formats credit amounts inside Vietnamese progress copy', async () => {
