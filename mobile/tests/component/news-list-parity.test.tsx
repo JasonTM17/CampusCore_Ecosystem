@@ -66,11 +66,11 @@ function announcement(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('P-001: renders the priority chip and the category pill together', async () => {
+test('P-001: shows the priority badge once and keeps the category pill', async () => {
   mockState.items = [announcement({ priority: 'URGENT', categoryId: 'cat-academic-affairs' })];
   await renderThemed(<NewsScreen {...props} />);
 
-  expect(screen.getAllByText('Khẩn').length).toBeGreaterThan(1);
+  expect(screen.getAllByText('Khẩn')).toHaveLength(1);
   expect(screen.getByText('Học vụ')).toBeOnTheScreen();
 });
 
@@ -80,7 +80,7 @@ test('P-002: uses the web title, subtitle, empty and priority copy', async () =>
 
   expect(screen.getByRole('header', { name: 'Tin tức trường' })).toBeOnTheScreen();
   expect(screen.getByText('Thông báo đã xuất bản của nhà trường.')).toBeOnTheScreen();
-  expect(screen.getAllByText('Bình thường').length).toBeGreaterThan(1);
+  expect(screen.getAllByText('Bình thường')).toHaveLength(1);
 
   mockState.items = [];
   await renderThemed(<NewsScreen {...props} />);

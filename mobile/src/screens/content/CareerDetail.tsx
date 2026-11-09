@@ -122,12 +122,9 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
               onUploaded={onUploaded}
             />
           ) : null}
-        </>}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <><View style={{ gap: 12 }}>
-        {active ? (
+        </>}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: active ? (
           <Button label={copy.withdraw} variant="secondary" loading={busy} disabled={busy || preview} onPress={() => onWithdraw(application)} />
-        ) : null}
-      </View>
-    </> }}
+        ) : null }}
     >
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />

@@ -38,8 +38,8 @@ jest.mock('../../src/screens/content/use-paged-list', () => ({
 import { DocsScreen } from '../../src/screens/student/DocsScreen';
 
 const props = { navigation: { navigate: jest.fn() }, role: 'student' } as unknown as MobileScreenProps;
-const renderThemed = (element: ReactElement) => render(
-  <ThemeProvider forcedScheme="light"><LocaleProvider initialLocale="vi">{element}</LocaleProvider></ThemeProvider>,
+const renderThemed = (element: ReactElement, locale: 'vi' | 'en' = 'vi') => render(
+  <ThemeProvider forcedScheme="light"><LocaleProvider initialLocale={locale}>{element}</LocaleProvider></ThemeProvider>,
 );
 
 const NOW = Date.parse('2026-11-09T12:00:00Z');
@@ -93,6 +93,16 @@ test('P-011: uses the public-documents title and empty copy', async () => {
 
   expect(screen.getByRole('header', { name: 'Tài liệu công khai' })).toBeOnTheScreen();
   expect(screen.getByText('Không có tài liệu nào phù hợp.')).toBeOnTheScreen();
+});
+
+test('shows the web documents subtitle in Vietnamese', async () => {
+  await renderThemed(<DocsScreen {...props} />);
+  expect(screen.getByText('Quy định, hướng dẫn và tài liệu tham khảo đã xuất bản.')).toBeOnTheScreen();
+});
+
+test('shows the web documents subtitle in English', async () => {
+  await renderThemed(<DocsScreen {...props} />, 'en');
+  expect(screen.getByText('Published regulations, guides, and reference material.')).toBeOnTheScreen();
 });
 
 test('the search button submits the typed query', async () => {
