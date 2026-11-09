@@ -368,3 +368,91 @@ describe('assistant large-font and expanded-window layout', () => {
     expect(screen.getByText(`${longTitle.slice(0, 80)}…`)).toBeOnTheScreen();
   });
 });
+
+describe('assistant copy and status parity with the web workspace', () => {
+  test('the specialized empty state shows the web sentence and its four curated suggestions', async () => {
+    setWidth(360);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: copy.scopeSpecialized }));
+    expect(await screen.findByText('Đặt câu hỏi chuyên môn về lập trình, cơ sở dữ liệu, kiến trúc phần mềm, kiểm thử, DevOps, an toàn thông tin và lộ trình nghề nghiệp.')).toBeOnTheScreen();
+    for (const suggestion of [
+      'SOLID và design pattern ứng dụng thế nào?',
+      'Chuẩn hóa CSDL và tối ưu truy vấn SQL',
+      'Viết unit test và TDD hiệu quả',
+      'Lộ trình nghề nghiệp kỹ thuật phần mềm',
+    ]) {
+      expect(screen.getByText(suggestion)).toBeOnTheScreen();
+    }
+  });
+
+  test('the specialized scope shows the web title and tagline', async () => {
+    setWidth(360);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: copy.scopeSpecialized }));
+    expect(await screen.findByText('Trợ lý chuyên sâu')).toBeOnTheScreen();
+    expect(screen.getByText('Hỏi đáp chuyên môn: lập trình, CSDL, kiến trúc, kiểm thử, nghề nghiệp.')).toBeOnTheScreen();
+  });
+
+  test('the composer uses the web scope placeholder and send label', async () => {
+    setWidth(360);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: copy.scopeSpecialized }));
+    expect(screen.getByPlaceholderText('Hỏi về lập trình, cơ sở dữ liệu, kiểm thử hoặc kỹ thuật phần mềm…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Gửi tin nhắn' })).toBeOnTheScreen();
+  });
+
+  test('an answered reply carries the web provenance badge', async () => {
+    setWidth(360);
+    mockChat.mockResolvedValue(reply());
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Học phí?');
+    expect(await screen.findByText('Trả lời dựa trên hướng dẫn đã duyệt')).toBeOnTheScreen();
+  });
+
+  test('a degraded reply uses the web degraded sentence', async () => {
+    setWidth(360);
+    mockChat.mockResolvedValue(reply({ answer: 'Hướng dẫn đã duyệt.', degraded: true, reasonCode: 'NO_MATCH' }));
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Học phí?');
+    expect(await screen.findByText('Đang dùng hướng dẫn đã duyệt trong lúc AI tạm thời chưa sẵn sàng')).toBeOnTheScreen();
+  });
+
+  test('a session failure offers the web sign-in action', async () => {
+    setWidth(360);
+    mockChat.mockRejectedValue(Object.assign(new Error('unauthorized'), { code: 'UNAUTHORIZED', status: 401 }));
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await ask('Học phí?');
+    await waitFor(() => expect(screen.getByText('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')).toBeOnTheScreen());
+    expect(screen.getByLabelText(copy.composerLabel).props.editable).toBe(false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Đăng nhập lại' }));
+    expect(navigation.navigate).toHaveBeenCalledWith('auth.signIn');
+  });
+
+  test('the history sheet uses the web conversation vocabulary', async () => {
+    setWidth(360);
+    mockConversations.mockResolvedValue({ data: [], nextCursor: null });
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Lịch sử hội thoại' }));
+    expect(await screen.findByText('Chưa có hội thoại nào được lưu.')).toBeOnTheScreen();
+  });
+
+  test('history messages show the web day and month time', async () => {
+    setWidth(360);
+    mockConversations.mockResolvedValue({
+      data: [{ id: 'c9', title: 'Hỏi học phí', locale: 'vi', createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-02T00:00:00Z' }],
+      nextCursor: null,
+    });
+    mockMessages.mockResolvedValue({
+      data: [
+        { id: 'm1', role: 'user', content: 'Học phí bao nhiêu?', createdAt: '2026-10-02T00:00:00Z' },
+        { id: 'm2', role: 'assistant', content: 'Theo biểu phí hiện hành.', createdAt: '2026-10-02T00:00:01Z', citations: [] },
+      ],
+      nextCursor: null,
+    });
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: copy.history }));
+    await fireEvent.press(await screen.findByRole('button', { name: /^Hỏi học phí,/ }));
+    expect(await screen.findByText('Theo biểu phí hiện hành.')).toBeOnTheScreen();
+    expect(screen.getAllByText('02/10 07:00').length).toBeGreaterThan(0);
+  });
+});

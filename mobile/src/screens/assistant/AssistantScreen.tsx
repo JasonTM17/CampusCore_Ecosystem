@@ -18,11 +18,6 @@ import { KeyboardSafeView } from './KeyboardSafeView';
 import { MessageBubble } from './MessageBubble';
 import { useAssistantChat, type ChatMessage } from './useAssistantChat';
 
-function suggestionLabels(text: string, locale: string): string[] {
-  const separator = locale === 'vi' ? /\s*,\s*|\s+(?:hoặc|và)\s+/i : /\s*,\s*|\s+(?:or|and)\s+/i;
-  return text.replace(/[.!?]+$/u, '').split(separator).map((part) => part.trim()).filter(Boolean);
-}
-
 /** Assistant chat: scope switch, history, guarded composer, citations, feedback, cancel and retry. */
 export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const { colors } = useTheme();
@@ -42,7 +37,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
 
   const empty = messages.length === 0 && !chat.busy && !failure;
   const specialized = chat.scope === 'specialized';
-  const suggestions = suggestionLabels(specialized ? copy.emptySpecializedBody : copy.emptyAcademicBody, locale);
+  const suggestions = specialized ? copy.specializedSuggestions : copy.academicSuggestions;
   const onRate = useStableCallback((...args: Parameters<typeof chat.rate>) => { void chat.rate(...args); });
   const feedbackBusyId = chat.feedbackBusyId;
   const renderMessage = useCallback(({ item }: { item: ChatMessage }) => (
@@ -70,7 +65,10 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             showsVerticalScrollIndicator={false}
             header={<>
           <View style={styles.titleRow}>
-            <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{copy.title}</UiText>
+            <View style={styles.titleColumn}>
+              <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{specialized ? copy.specializedTitle : copy.title}</UiText>
+              {specialized ? <UiText variant="bodySmall" tone="muted">{copy.specializedTagline}</UiText> : null}
+            </View>
           </View>
           <View style={styles.toolbar}>
             <View style={styles.scope}>
@@ -105,6 +103,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
               <StatePanel
                 kind="empty"
                 title={specialized ? copy.emptySpecializedTitle : copy.emptyAcademicTitle}
+                description={specialized ? copy.specializedEmpty : undefined}
               />
               <View style={styles.suggestions}>
                 {suggestions.map((suggestion) => (
@@ -135,8 +134,12 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
               kind="error"
               title={failureTitle(msg, failure, copy.errorTitle)}
               description={failure.kind === 'generic' ? copy.errorBody : undefined}
-              actionLabel={failure.resubmittable && chat.canRetry ? msg.retryAction : undefined}
-              onAction={failure.resubmittable && chat.canRetry ? () => void chat.retry() : undefined}
+              actionLabel={failure.kind === 'session'
+                ? copy.signInAction
+                : failure.resubmittable && chat.canRetry ? msg.retryAction : undefined}
+              onAction={failure.kind === 'session'
+                ? () => navigation.navigate('auth.signIn')
+                : failure.resubmittable && chat.canRetry ? () => void chat.retry() : undefined}
             />
           ) : null}
           {chat.feedbackError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{copy.feedbackFailed}</UiText> : null}
@@ -159,7 +162,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
           </>}
           />
         </ResponsiveContent>
-        <AssistantComposer chat={chat} />
+        <AssistantComposer chat={chat} locked={failure?.kind === 'session'} />
       </KeyboardSafeView>
       <AssistantHistorySheet chat={chat} copy={copy} />
     </View>
@@ -173,6 +176,7 @@ const styles = StyleSheet.create({
   contentWrap: { flex: 1 },
   content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md, paddingBottom: tokens.spacing.md },
   titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
+  titleColumn: { flexShrink: 1 },
   title: { flexShrink: 1 },
   toolbar: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
   scope: { flexGrow: 1, minWidth: 200 },
