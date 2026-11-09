@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Divider, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
@@ -6,7 +7,8 @@ import { tokens } from '../../design/tokens';
 import { countForm } from '../../i18n/locale';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { isRegistrationOpen, supervisorName } from './thesis-model';
+import { thesisApi } from './thesis-api';
+import { isRegistrationOpen, supervisorName, thesisErrorMessage } from './thesis-model';
 import { AskAssistantButton, QueryNotices, ThesisStatusBadge, useThesisUi } from './thesis-ui';
 import { useThesisGroup, useThesisRounds, useThesisTopic, useTopicSupervisors } from './use-thesis';
 
@@ -22,6 +24,24 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
   const group = useThesisGroup(topic?.roundId ?? null);
   const chosen = Boolean(topic && group.group?.topicId === topic.id);
   const canRegister = Boolean(topic) && isRegistrationOpen(round) && group.loaded && !group.loading && !group.error && !group.isStale && !group.cancelled && !chosen;
+  const hasGroupWithoutTopic = Boolean(group.group && !group.group.topicId);
+  const [choosing, setChoosing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const onChooseTopic = async () => {
+    if (!group.group || !topic || choosing) return;
+    setChoosing(true);
+    setActionError(null);
+    try {
+      const updated = await thesisApi.assignTopic(group.group.id, topic.id);
+      group.applyGroup(updated);
+    } catch (error) {
+      setActionError(thesisErrorMessage(copy, error));
+      void group.reload();
+    } finally {
+      setChoosing(false);
+    }
+  };
 
   return (
     <ScreenShell title={copy.detailTitle}>
@@ -81,7 +101,23 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
           ) : null}
           <View style={styles.actions}>
             {canRegister ? (
-              <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />
+              hasGroupWithoutTopic ? (
+                <>
+                  <Button
+                    label={copy.topicChoose}
+                    loading={choosing}
+                    disabled={choosing}
+                    onPress={() => void onChooseTopic()}
+                  />
+                  {actionError ? (
+                    <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={styles.line}>
+                      {actionError}
+                    </UiText>
+                  ) : null}
+                </>
+              ) : (
+                <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />
+              )
             ) : null}
             {chosen ? (
               <Button label={copy.myGroup} onPress={() => navigation.navigate('thesis.progress')} variant="secondary" />
