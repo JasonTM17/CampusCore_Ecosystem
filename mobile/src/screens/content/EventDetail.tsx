@@ -43,7 +43,7 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
             <MetaRow label={copy.endsAt} value={formatDateTime(event.endsAt)} />
             <MetaRow label={copy.opensAt} value={event.registrationOpensAt ? formatDateTime(event.registrationOpensAt) : null} />
             <MetaRow label={copy.closesAt} value={event.registrationClosesAt ? formatDateTime(event.registrationClosesAt) : null} />
-            <MetaRow label={copy.capacity} value={`${event.registeredCount}/${event.capacity} · ${fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}`} />
+            <MetaRow label={copy.capacity} value={`${event.registeredCount}/${event.capacity} · ${fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { remaining: Math.max(0, event.seatsRemaining), capacity: event.capacity })}`} />
             {event.myAttendanceStatus ? <MetaRow label={copy.attendance} value={copy.statusLabels[event.myAttendanceStatus]} /> : null}
           </View>
         </Card>

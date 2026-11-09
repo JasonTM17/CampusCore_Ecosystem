@@ -54,7 +54,7 @@ test('English count copy uses the singular noun for one', () => {
   assert.equal(fillCopy(en.operations.scoresSavedOne, { n: 1 }), 'Scores saved for 1 student');
   assert.equal(fillCopy(en.operations.exportReadyOne, { n: 1 }), 'CSV sheet, 1 row');
   assert.equal(fillCopy(en.checkin.entryDetailOne, { n: 1 }), '1 open check-in session');
-  assert.equal(fillCopy(en.events.seatsOne, { n: 1 }), '1 seat left');
+  assert.equal(fillCopy(en.events.seatsOne, { remaining: 1, capacity: 5 }), 'Seat left: 1/5');
 });
 
 test('English count copy keeps the plural noun beyond one', () => {
@@ -73,7 +73,7 @@ test('English count copy keeps the plural noun beyond one', () => {
   assert.equal(fillCopy(en.operations.scoresSaved, { n: 2 }), 'Scores saved for 2 students');
   assert.equal(fillCopy(en.operations.exportReady, { n: 2 }), 'CSV sheet, 2 rows');
   assert.equal(fillCopy(en.checkin.entryDetail, { n: 2 }), '2 open check-in sessions');
-  assert.equal(fillCopy(en.events.seats, { n: 2 }), '2 seats left');
+  assert.equal(fillCopy(en.events.seats, { remaining: 2, capacity: 5 }), 'Seats left: 2/5');
 });
 
 test('Vietnamese count copy does not inflect', () => {
@@ -93,7 +93,7 @@ test('Vietnamese count copy does not inflect', () => {
   assert.equal(fillCopy(vi.operations.scoresSavedOne, { n: 1 }), 'Đã lưu điểm của 1 sinh viên');
   assert.equal(fillCopy(vi.operations.exportReadyOne, { n: 1 }), 'Bảng CSV 1 dòng');
   assert.equal(fillCopy(vi.checkin.entryDetailOne, { n: 1 }), '1 buổi điểm danh đang mở');
-  assert.equal(fillCopy(vi.events.seatsOne, { n: 1 }), 'Còn 1 chỗ');
+  assert.equal(fillCopy(vi.events.seatsOne, { remaining: 1, capacity: 5 }), 'Còn trống: 1/5');
 });
 
 test('English operations count copy uses the singular noun for one', () => {

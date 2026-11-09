@@ -22,7 +22,9 @@ import { usePagedList } from '../content/use-paged-list';
 
 type Tab = 'catalog' | 'mine';
 
-const eventStatusCode = (event: MobileEvent) => event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status;
+const eventStatusCodes = (event: MobileEvent) => event.myRegistrationStatus === 'REGISTERED'
+  ? [event.status, 'REGISTERED']
+  : [event.status];
 
 /** Student events: published catalogue, own registrations, register and cancel. The server owns every transition. */
 export function EventsScreen(_props: MobileScreenProps) {
@@ -120,10 +122,18 @@ export function EventsScreen(_props: MobileScreenProps) {
     if (action === 'register') return <Button icon="calendar-plus-outline" label={copy.register} accessibilityLabel={`${copy.register}: ${event.title}`} variant="secondary" disabled={busy || catalog.preview} onPress={() => register(event)} />;
     const id = registrationId ?? event.myRegistrationId;
     if (action === 'cancel' && id) return <Button icon="calendar-remove-outline" label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${event.title}`} variant="text" disabled={busy || catalog.preview} onPress={() => cancel(event, id)} />;
-    if (action === 'full') return <UiText variant="meta" tone="warning">{copy.full}</UiText>;
+    if (action === 'full') return <Button icon="calendar-plus-outline" label={copy.register} accessibilityLabel={`${copy.register}: ${event.title}`} variant="secondary" disabled onPress={() => undefined} />;
     return null;
   };
-  const eventMeta = (event: MobileEvent) => joinMeta([event.organizer, event.location, formatDateTime(event.startsAt)]);
+  const seatsText = (event: MobileEvent) => {
+    const remaining = Math.max(0, event.seatsRemaining);
+    return fillCopy(countForm(remaining, copy.seatsOne, copy.seats), { remaining, capacity: event.capacity });
+  };
+  const eventMeta = (event: MobileEvent) => joinMeta([
+    event.organizer,
+    event.location,
+    `${formatDateTime(event.startsAt)} → ${formatDateTime(event.endsAt)}`,
+  ]);
 
   const tabs = (
     <View style={styles.header}>
@@ -165,28 +175,31 @@ export function EventsScreen(_props: MobileScreenProps) {
           emptyFilteredTitle={copy.emptyFiltered}
           flash={flash}
           header={tabs}
-          renderItem={(event) => (
-            <Card>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={joinMeta([event.title, labels[eventStatusCode(event)] ?? eventStatusCode(event), eventMeta(event), fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })])}
-                onPress={() => setSelectedId(event.id)}
-                style={styles.rowMain}
-              >
-                <ContentIconChip icon="calendar-star-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{event.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
-                  <View style={styles.chips}>
-                    <StatusChip code={eventStatusCode(event)} labels={labels} />
-                    <UiText variant="meta" tone="muted">{fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}</UiText>
+          renderItem={(event) => {
+            const statusCodes = eventStatusCodes(event);
+            return (
+              <Card>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={joinMeta([event.title, ...statusCodes.map((code) => labels[code] ?? code), eventMeta(event), seatsText(event)])}
+                  onPress={() => setSelectedId(event.id)}
+                  style={styles.rowMain}
+                >
+                  <ContentIconChip icon="calendar-star-outline" />
+                  <View style={styles.rowCopy}>
+                    <UiText variant="label">{event.title}</UiText>
+                    <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
+                    <View style={styles.chips}>
+                      {statusCodes.map((code) => <StatusChip key={code} code={code} labels={labels} />)}
+                      <UiText variant="meta" tone="muted">{seatsText(event)}</UiText>
+                    </View>
                   </View>
-                </View>
-                <ContentChevron />
-              </Pressable>
-              <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton(event)}</View>
-            </Card>
-          )}
+                  <ContentChevron />
+                </Pressable>
+                <View style={[styles.actionRow, largeText ? styles.actionRowLargeText : undefined]}>{actionButton(event)}</View>
+              </Card>
+            );
+          }}
         />
       ) : (
         <ListFrame
@@ -199,17 +212,20 @@ export function EventsScreen(_props: MobileScreenProps) {
           header={tabs}
           renderItem={(entry) => {
             const attendanceStatus = entry.attendanceStatus ?? entry.registrationStatus;
+            const eventStatus = labels[entry.event.status] ?? entry.event.status;
+            const registeredAt = formatDateTime(entry.registeredAt);
             return (
               <Card>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={joinMeta([entry.event.title, labels[attendanceStatus] ?? attendanceStatus, eventMeta(entry.event)])}
+                  accessibilityLabel={joinMeta([entry.event.title, labels[attendanceStatus] ?? attendanceStatus, eventStatus, registeredAt, eventMeta(entry.event)])}
                   onPress={() => setSelectedId(entry.event.id)}
                   style={styles.rowMain}
                 >
                   <ContentIconChip icon="calendar-check-outline" />
                   <View style={styles.rowCopy}>
                     <UiText variant="label">{entry.event.title}</UiText>
+                    <UiText variant="bodySmall" tone="muted">{joinMeta([registeredAt, eventStatus])}</UiText>
                     <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
                     <View style={styles.chips}>
                       <StatusChip code={attendanceStatus} labels={labels} />

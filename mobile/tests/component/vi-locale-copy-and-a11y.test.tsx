@@ -113,7 +113,7 @@ describe('Vietnamese preview data localization and accessibility names', () => {
 
   test('LearningScreen renders Vietnamese course name for preview learning sections', async () => {
     const view = await renderInLocale(<LearningScreen {...props} />, 'vi');
-    expect(await view.findByLabelText(/CS101 · Nhập môn lập trình/)).toBeTruthy();
+    expect(await view.findByLabelText(/CS101 · 01 · Nhập môn lập trình/)).toBeTruthy();
     expect(view.queryByLabelText(/Introduction to Programming/)).toBeNull();
   });
 

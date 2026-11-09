@@ -284,11 +284,11 @@ export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error'
 
 const TONES: Record<string, StatusTone> = {
   URGENT: 'error', HIGH: 'warning', NORMAL: 'primary', LOW: 'neutral',
-  REGISTRATION_OPEN: 'primary', PUBLISHED: 'primary', IN_REVIEW: 'primary', REVIEWING: 'primary', INTERVIEW: 'primary',
+  REGISTRATION_OPEN: 'success', PUBLISHED: 'primary', IN_REVIEW: 'primary', REVIEWING: 'primary', INTERVIEW: 'primary',
   REQUESTED: 'warning', APPROVED: 'primary', ISSUED: 'primary', SUBMITTED: 'primary', RESUBMITTED: 'primary', DRAFT: 'neutral',
-  RETURNED: 'warning', PENDING: 'warning', REGISTRATION_CLOSED: 'warning',
-  ACCEPTED: 'success', OFFER: 'success', REVIEWED: 'success', REGISTERED: 'success', ATTENDED: 'success', COMPLETED: 'success',
-  REJECTED: 'error', CANCELLED: 'error', ABSENT: 'error', WITHDRAWN: 'neutral', CLOSED: 'neutral', ARCHIVED: 'neutral',
+  RETURNED: 'warning', PENDING: 'warning', REGISTRATION_CLOSED: 'primary',
+  ACCEPTED: 'success', OFFER: 'success', REVIEWED: 'success', REGISTERED: 'success', ATTENDED: 'success', COMPLETED: 'primary',
+  REJECTED: 'error', CANCELLED: 'error', ABSENT: 'error', WITHDRAWN: 'neutral', CLOSED: 'warning', ARCHIVED: 'neutral',
 };
 
 export function statusTone(code: string | null | undefined): StatusTone {

@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { tokens } from '../../src/design/tokens';
+import { formatDateTime } from '../../src/i18n/locale';
 
 const mockApi = { mode: 'preview' as 'preview' | 'live' };
 type QueryField<T> = T | ((key: string) => T);
@@ -154,6 +156,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
     expect(screen.getByRole('header', { name: learningMessages.vi.title })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
     await fireEvent.press(screen.getByRole('button', { name: new RegExp('Bài thực hành 1') }));
     expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
     expect(screen.queryByRole('button', { name: learningMessages.vi.startDraft })).toBeNull();
@@ -286,6 +289,86 @@ describe('service screens in live mode', () => {
     expect(screen.getByText(learningMessages.vi.errorTitle)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: learningMessages.vi.retry })).toBeOnTheScreen();
     expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
+  });
+
+  test('learning section picker shows the course code and section number', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => key === 'content.learning.sections'
+        ? [{ sectionId: 'section-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction' }]
+        : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<LearningScreen {...props} />);
+    expect(screen.getByRole('tab', { name: /CS101 · 01/ })).toBeOnTheScreen();
+  });
+
+  test('learning opens on materials and lists materials before assignments', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => key === 'content.learning.sections'
+        ? [{ sectionId: 'section-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction' }]
+        : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<LearningScreen {...props} />);
+
+    const names = screen.getAllByRole('tab').map((tab) => String(tab.props.accessibilityLabel ?? ''));
+    expect(names.indexOf(learningMessages.vi.materials)).toBeLessThan(names.indexOf(learningMessages.vi.assignments));
+    expect(screen.getByRole('tab', { name: learningMessages.vi.materials }).props.accessibilityState?.selected).toBe(true);
+    expect(screen.getByRole('tab', { name: learningMessages.vi.assignments }).props.accessibilityState?.selected).toBe(false);
+  });
+
+  test('learning keeps the assignment lifecycle chip beside the submission chip', async () => {
+    mockApi.mode = 'live';
+    const assignment = {
+      id: 'assignment-1', sectionId: 'section-1', title: 'Lab report', status: 'CLOSED',
+      mySubmissionStatus: 'SUBMITTED', version: 1, deadlineAt: '2026-12-01T00:00:00Z',
+    };
+    mockQuery.value = {
+      data: (key: string) => key === 'content.learning.sections'
+        ? [{ sectionId: 'section-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction' }]
+        : key.startsWith('content.learning.assignments.') ? [assignment] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<LearningScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
+
+    expect(screen.getByText(learningMessages.vi.statusLabels.CLOSED)).toBeOnTheScreen();
+    expect(screen.getByText(learningMessages.vi.statusLabels.SUBMITTED)).toBeOnTheScreen();
+  });
+
+  test('learning shows the assignment description and a muted deadline', async () => {
+    mockApi.mode = 'live';
+    const assignment = {
+      id: 'assignment-1', sectionId: 'section-1', title: 'Lab report', status: 'PUBLISHED',
+      mySubmissionStatus: null, version: 1, deadlineAt: '2026-12-01T00:00:00Z',
+      description: 'Write the lab report',
+    };
+    mockQuery.value = {
+      data: (key: string) => key === 'content.learning.sections'
+        ? [{ sectionId: 'section-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction' }]
+        : key.startsWith('content.learning.assignments.') ? [assignment] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<LearningScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
+
+    expect(screen.getByText('Write the lab report')).toBeOnTheScreen();
+    const deadline = screen.getByText(formatDateTime(assignment.deadlineAt, 'vi'));
+    expect(StyleSheet.flatten(deadline.props.style).color).toBe(tokens.colors.textMuted);
   });
 
   test('an empty live list shows the empty state', async () => {
