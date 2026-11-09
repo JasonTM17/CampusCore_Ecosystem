@@ -1,8 +1,14 @@
-import { createContext, useContext, useMemo, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { AccessibilityInfo, useColorScheme, useWindowDimensions } from 'react-native';
 
+import { defaultStorage } from '../i18n/locale-provider';
+import type { KeyValueStorage } from '../i18n/locale';
 import { tokens } from './tokens';
+import { DEFAULT_THEME_PREFERENCE, loadThemePreference, resolveThemeScheme, saveThemePreference } from './theme-preference';
+import type { ThemePreference } from './theme-preference';
+
+export type { ThemePreference } from './theme-preference';
 
 export type ThemeScheme = 'light' | 'dark';
 export type ThemeColors = { [K in keyof typeof tokens.colors]: string };
@@ -24,6 +30,10 @@ export interface RoleColorPair {
 
 export interface Theme {
   scheme: ThemeScheme;
+  /** Persisted choice; `system` follows the OS scheme. */
+  preference: ThemePreference;
+  /** Saves the choice and applies it immediately. */
+  setPreference: (next: ThemePreference) => void;
   colors: ThemeColors;
   roleColors: Record<RoleName, RoleColorPair>;
   spacing: typeof tokens.spacing;
@@ -49,9 +59,17 @@ function rolePairs(scheme: ThemeScheme): Record<RoleName, RoleColorPair> {
   return out;
 }
 
-function buildTheme(scheme: ThemeScheme, reducedMotion: boolean, window: WindowInfo): Theme {
+function buildTheme(
+  scheme: ThemeScheme,
+  preference: ThemePreference,
+  setPreference: (next: ThemePreference) => void,
+  reducedMotion: boolean,
+  window: WindowInfo,
+): Theme {
   return {
     scheme,
+    preference,
+    setPreference,
     colors: scheme === 'dark' ? tokens.colorsDark : tokens.colors,
     roleColors: rolePairs(scheme),
     spacing: tokens.spacing,
@@ -70,22 +88,54 @@ const ThemeContext = createContext<Theme | undefined>(undefined);
 
 export interface ThemeProviderProps {
   children: ReactNode;
-  /** Test/preview hook: pin a scheme instead of following the system. */
+  /** Test/preview hook: pin a scheme instead of following the preference. */
   forcedScheme?: ThemeScheme;
+  /** Test/preview hook: skip reading the saved preference. */
+  initialPreference?: ThemePreference;
+  /** Injectable storage; defaults to AsyncStorage. */
+  storage?: KeyValueStorage;
 }
 
-export function ThemeProvider({ children, forcedScheme }: ThemeProviderProps) {
+const noopSetPreference = () => {};
+
+export function ThemeProvider({ children, forcedScheme, initialPreference, storage }: ThemeProviderProps) {
   const systemScheme = useColorScheme();
-  const scheme: ThemeScheme = forcedScheme ?? (systemScheme === 'dark' ? 'dark' : 'light');
+  const [preference, setPreferenceState] = useState<ThemePreference>(initialPreference ?? DEFAULT_THEME_PREFERENCE);
+  const store = useMemo(() => storage ?? defaultStorage(), [storage]);
+
+  useEffect(() => {
+    if (initialPreference !== undefined) return;
+    let active = true;
+    loadThemePreference(store).then((saved) => {
+      if (!active) return;
+      setPreferenceState(saved);
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialPreference, store]);
+
+  const setPreference = useCallback(
+    (next: ThemePreference) => {
+      setPreferenceState(next);
+      void saveThemePreference(store, next);
+    },
+    [store],
+  );
+
+  const scheme: ThemeScheme = forcedScheme ?? resolveThemeScheme(preference, systemScheme);
   const reducedMotion = useReducedMotion();
   const window = useWindowClass();
-  const value = useMemo(() => buildTheme(scheme, reducedMotion, window), [scheme, reducedMotion, window]);
+  const value = useMemo(
+    () => buildTheme(scheme, preference, setPreference, reducedMotion, window),
+    [scheme, preference, setPreference, reducedMotion, window],
+  );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 /**
  * Returns the active theme. Without a ThemeProvider it follows the system
- * scheme live; the app is locked to light until M05 flips userInterfaceStyle.
+ * scheme live and reports the implicit `system` preference.
  */
 export function useTheme(): Theme {
   const provided = useContext(ThemeContext);
@@ -93,7 +143,13 @@ export function useTheme(): Theme {
   const reducedMotion = useReducedMotion(provided === undefined);
   const window = useWindowClass();
   return useMemo(
-    () => provided ?? buildTheme(systemScheme === 'dark' ? 'dark' : 'light', reducedMotion, window),
+    () => provided ?? buildTheme(
+      resolveThemeScheme(DEFAULT_THEME_PREFERENCE, systemScheme),
+      DEFAULT_THEME_PREFERENCE,
+      noopSetPreference,
+      reducedMotion,
+      window,
+    ),
     [provided, systemScheme, reducedMotion, window],
   );
 }
