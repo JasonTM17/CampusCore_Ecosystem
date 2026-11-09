@@ -271,6 +271,23 @@ export function Skeleton({ width = '100%', height = 16, borderRadius = tokens.ra
   );
 }
 
+/** Caps placeholder growth so long copy fits at accessibility font scale without clipping mid-phrase. */
+export const searchFieldFontScaleCap = 1.15;
+
+/** Shared one-line shrink-to-fit label props for chrome, segments, and credits. */
+export const compactSingleLineFit = {
+  numberOfLines: 1 as const,
+  adjustsFontSizeToFit: true,
+  minimumFontScale: 0.75,
+};
+
+/** Brand wordmark beside logo + toggles at large system font scale. */
+export const brandWordmarkFit = {
+  numberOfLines: 1 as const,
+  adjustsFontSizeToFit: true,
+  minimumFontScale: 0.7,
+};
+
 /* ---------- SearchBar ---------- */
 export interface SearchBarProps extends Omit<TextInputProps, 'style'> {
   value: string;
@@ -284,16 +301,17 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
   const { t } = useLocale();
   const clear = onClear ?? (() => onChangeText(''));
   return (
-    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, minWidth: 0, paddingLeft: spacing.sm }, style]}>
+    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, minWidth: 0, paddingLeft: spacing.xs }, style]}>
       <TextInput
         {...input}
         multiline={false}
+        maxFontSizeMultiplier={searchFieldFontScaleCap}
         value={value}
         onChangeText={onChangeText}
         accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
         placeholder={placeholder}
         placeholderTextColor={colors.outline}
-        style={{ color: colors.text, flex: 1, flexShrink: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, minWidth: 0, paddingVertical: spacing.sm }}
+        style={{ color: colors.text, flex: 1, flexShrink: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, minWidth: 0, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm }}
       />
       {value.length > 0 ? (
         <Pressable
@@ -342,13 +360,20 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
             disabled={disabled}
             onPress={() => onChange(opt.value)}
             style={({ pressed }) => [
-              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
+              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: minTapTarget, minWidth: 0, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm },
               selected ? { backgroundColor: colors.primary, borderColor: colors.primary, borderWidth: 1 } : undefined,
               pressed && !disabled ? { opacity: 0.85 } : undefined,
               disabled ? { opacity: 0.5 } : undefined,
             ]}
           >
-            <UiText variant="label" tone={selected ? 'onPrimary' : 'muted'}>{opt.label}</UiText>
+            <UiText
+              {...compactSingleLineFit}
+              variant="label"
+              tone={selected ? 'onPrimary' : 'muted'}
+              style={{ flexShrink: 1, minWidth: 0, textAlign: 'center' }}
+            >
+              {opt.label}
+            </UiText>
           </Pressable>
         );
       })}

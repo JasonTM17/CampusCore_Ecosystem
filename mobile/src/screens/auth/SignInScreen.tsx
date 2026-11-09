@@ -10,7 +10,9 @@ import { apiClient } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
 import { sessionStore } from '../../auth/mobile-session-store';
 import { tokens } from '../../design/tokens';
+import { brandWordmarkFit } from '../../components/ui/primitives';
 import { chromeFor } from '../../design/chrome';
+import { chromeFontScaleCap } from '../../design/font-scale';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
 import { useSession } from '../../session/SessionContext';
@@ -105,7 +107,14 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
           <View style={styles.brandRow}>
             <Image accessibilityLabel={copy.signIn.institutionName} accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
             <View style={styles.brandCopy}>
-              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
+              <UiText
+                {...brandWordmarkFit}
+                maxFontSizeMultiplier={chromeFontScaleCap}
+                variant="headlineMedium"
+                style={{ color: chrome.onSurface, flexShrink: 1, minWidth: 0 }}
+              >
+                CampusUTE
+              </UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
             <LanguageToggleButton />
