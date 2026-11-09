@@ -4,30 +4,37 @@ import { View } from 'react-native';
 
 import { Card, DataNotice, Divider, IconChip, InlineError, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
+import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
-import { academicApi, type AttendanceSummaryRow } from '../academic/academic-api';
+import { academicApi, type AttendanceRecordRow, type AttendanceSummaryRow } from '../academic/academic-api';
 import { localizedName, termOptions } from '../academic/academic-model';
 import { previewAttendance } from '../academic/academic-preview';
 import { AcademicShell, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
 
-/** Attendance counts late sessions as attended, matching the lecturer summary. */
+/** Present rate: PRESENT sessions ÷ recorded sessions, matching the web card and the API rate. */
 export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
   const total = rows.reduce((sum, row) => sum + row.total, 0);
   if (total === 0) return 0;
-  return Math.round(rows.reduce((sum, row) => sum + row.present + row.late, 0) * 100 / total);
+  return Math.round(rows.reduce((sum, row) => sum + row.present, 0) * 100 / total);
 }
 
-const tone = (status: string) => (status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : 'warning');
-const rateTone = (rate: number) => (rate >= 80 ? 'success' : rate >= 60 ? 'warning' : 'error');
-const attendedRate = (row: AttendanceSummaryRow) => row.total > 0 ? Math.round((row.present + row.late) * 100 / row.total) : 0;
+const tone = (status: string) => status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : status === 'EXCUSED' ? 'primary' : status === 'LATE' ? 'warning' : 'neutral';
+const rateTone = (rate: number) => (rate >= 90 ? 'success' : rate >= 70 ? 'warning' : 'error');
+
+const recordSectionLabel = (record: AttendanceRecordRow) => {
+  const code = record.section?.course?.code ?? '';
+  const sectionNumber = record.section?.sectionNumber ?? '';
+  return [code, sectionNumber].filter(Boolean).join(' · ');
+};
 
 export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const { formatDate, formatNumber } = useLocale();
+  const { colors } = useTheme();
   const preview = isPreviewMode();
   const [term, setTerm] = useState('');
   const [sectionId, setSectionId] = useState('');
@@ -48,12 +55,15 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
     .filter((record) => !sectionId || record.sectionId === sectionId)
     .sort((left, right) => right.date.localeCompare(left.date));
   const sum = (key: 'present' | 'absent' | 'late' | 'excused') => rows.reduce((total, row) => total + row[key], 0);
+  const overall = overallRate(rows);
 
   return (
     <AcademicShell
       title={copy.attendanceTitle}
       loading={!preview && summaryQuery.isLoading}
       error={preview ? null : summaryQuery.error}
+      errorTitle={copy.attendanceErrorTitle}
+      errorDescription={copy.attendanceErrorDescription}
       warning={preview ? null : [summaryQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null}
       onRetry={() => { void Promise.all([semestersQuery.reload(), summaryQuery.reload(), recordsQuery.reload()]); }}
       onRefresh={preview ? undefined : pull.onRefresh}
@@ -67,9 +77,23 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
                   <StatusPill label={row.courseCode} tone="primary" />
                   <UiText variant="bodyMedium">{localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}</UiText>
                 </View>
-                <StatusPill label={`${attendedRate(row)}%`} tone={rateTone(attendedRate(row))} />
+                <StatusPill label={`${row.attendanceRate}%`} tone={rateTone(row.attendanceRate)} />
               </View>
-              <ProgressBar value={attendedRate(row)} label={fillCopy(copy.presentOf, { present: row.present + row.late, total: row.total })} tone={attendedRate(row) >= 80 ? 'success' : 'warning'} />
+              <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone={rateTone(row.attendanceRate)} />
+              <View style={[styles.courseStats, { borderTopColor: colors.outlineVariant }]}>
+                {[
+                  { label: copy.sessions, value: row.total },
+                  { label: copy.present, value: row.present },
+                  { label: copy.late, value: row.late },
+                  { label: copy.absent, value: row.absent },
+                  { label: copy.excused, value: row.excused },
+                ].map((stat) => (
+                  <View key={stat.label} accessible accessibilityLabel={`${stat.label}: ${formatNumber(stat.value)}`} style={styles.courseStat}>
+                    <UiText variant="meta" tone="muted">{stat.label}</UiText>
+                    <UiText variant="label">{formatNumber(stat.value)}</UiText>
+                  </View>
+                ))}
+              </View>
             </Card>
           ))),
 { key: "static-1", render: () => <>{summary.length === 0 ? null : (<><View>
@@ -82,19 +106,22 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
           {!recordsLoading && !recordsError && visibleRecords.length === 0 ? (
             <StatePanel kind="empty" title={copy.noRecords} />
           ) : null}</View></>)}</> },
-...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), null, (record, index) => (
-                <View key={record.id} accessible accessibilityLabel={[formatDate(record.date), record.section?.course?.code, record.notes, copy.attendanceStatus[record.status] ?? record.status].filter(Boolean).join(', ')}>
+...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), null, (record, index) => {
+                const sectionLabel = recordSectionLabel(record);
+                return (
+                <View key={record.id} accessible accessibilityLabel={[formatDate(record.date), sectionLabel, record.notes, copy.attendanceStatus[record.status] ?? record.status].filter(Boolean).join(', ')}>
                   {index > 0 ? <Divider /> : null}
                   <View style={academicStyles.row}>
                     <View style={academicStyles.rowCopy}>
                       <UiText variant="bodyMedium">{formatDate(record.date)}</UiText>
-                      {record.section?.course?.code ? <UiText variant="bodySmall" tone="muted">{record.section.course.code}</UiText> : null}
+                      {sectionLabel ? <UiText variant="bodySmall" tone="muted">{sectionLabel}</UiText> : null}
                       {record.notes ? <UiText variant="meta" tone="muted">{record.notes}</UiText> : null}
                     </View>
                     <StatusPill label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
                   </View>
                 </View>
-              ), {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
+                );
+              }, {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
     </> }}
     >
       <CheckinEntryCard navigation={navigation} />
@@ -105,7 +132,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
       ) : null}
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyAttendance} />
+        <StatePanel kind="empty" title={copy.attendanceEmptyTitle} description={copy.attendanceEmptyDescription} />
       ) : (<><View>
           <ChoiceField
             label={copy.courseFilter}
@@ -119,10 +146,10 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
               <IconChip icon="chart-donut" />
               <View style={styles.summaryCopy}>
                 <UiText variant="label" tone="muted">{copy.overall}</UiText>
-                <UiText variant="display" tone="primary">{overallRate(rows)}%</UiText>
+                <UiText variant="display" tone="primary">{overall}%</UiText>
               </View>
             </View>
-            <ProgressBar label={copy.overall} value={overallRate(rows)} tone={overallRate(rows) >= 80 ? 'success' : 'warning'} />
+            <ProgressBar label={copy.overall} value={overall} tone={rateTone(overall)} />
           </Card>
           <ScreenSpacer />
           <View style={academicStyles.metrics}>
@@ -140,4 +167,6 @@ const styles = {
   summaryHeader: { alignItems: 'center' as const, flexDirection: 'row' as const, gap: 12 },
   summaryCopy: { flex: 1, minWidth: 0 },
   courseHeader: { alignItems: 'flex-start' as const, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  courseStats: { borderTopWidth: 1, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 12, paddingTop: 12 },
+  courseStat: { flexBasis: 56, flexGrow: 1, gap: 2, minWidth: 56 },
 };

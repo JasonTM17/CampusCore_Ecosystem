@@ -82,7 +82,7 @@ import { CoursesScreen } from '../../src/screens/student/CoursesScreen';
 import { GradesScreen } from '../../src/screens/student/GradesScreen';
 import { RegistrationScreen } from '../../src/screens/student/RegistrationScreen';
 import { ScheduleScreen } from '../../src/screens/student/ScheduleScreen';
-import { AttendanceScreen } from '../../src/screens/student/AttendanceScreen';
+import { AttendanceScreen, overallRate } from '../../src/screens/student/AttendanceScreen';
 import { TranscriptScreen } from '../../src/screens/academic/TranscriptScreen';
 import { parseTranscript } from '../../src/screens/academic/gpa';
 import { CurriculumScreen } from '../../src/screens/academic/CurriculumScreen';
@@ -543,11 +543,17 @@ describe('schedule and attendance', () => {
     }
   });
 
-  test('attendance treats late sessions as attended in the card label', async () => {
-    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 3, present: 1, absent: 1, late: 1, excused: 0, attendanceRate: 67 }] };
+  test('the overall present rate counts only present sessions', () => {
+    const rows = [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 4, present: 1, absent: 1, late: 1, excused: 1, attendanceRate: 25 }];
+    expect(overallRate(rows)).toBe(25);
+  });
+
+  test('attendance cards show the API present rate and count only present sessions', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 4, present: 1, absent: 1, late: 1, excused: 1, attendanceRate: 25 }] };
     mockQueries['academic.attendance.records'] = { data: [] };
     await render(wrap(<AttendanceScreen {...props} />));
-    expect(screen.getByText('2/3 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
+    expect(screen.getByText('1/4 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
+    expect(screen.getAllByText('25%').length).toBeGreaterThan(0);
   });
 
   test('timetable share turns an adapter rejection into a failed outcome', async () => {
@@ -637,20 +643,26 @@ describe('schedule and attendance', () => {
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
 
-  test('attendance shows the summary rate per course', async () => {
+  test('attendance shows the summary rate per course and each status count', async () => {
     mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 10, present: 9, absent: 1, late: 0, excused: 0, attendanceRate: 90 }] };
-    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { course: { code: 'CS101' } } }] };
+    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { sectionNumber: '02', course: { code: 'CS101' } } }] };
     await render(wrap(<AttendanceScreen {...props} />));
     expect(screen.getAllByText('90%').length).toBeGreaterThan(0);
     expect(screen.getByText('9/10 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
-    const record = screen.getByLabelText(/Vắng/);
+    expect(screen.getByLabelText('Số phiên: 10')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Có mặt: 9')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Đi muộn: 0')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Vắng: 1')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Có phép: 0')).toBeOnTheScreen();
+    expect(screen.getByText('CS101 · 02')).toBeOnTheScreen();
+    const record = screen.getByLabelText(/Điểm danh bù đã duyệt/);
     expect(record).toBeOnTheScreen();
-    expect(record.props.accessibilityLabel).toContain('CS101');
+    expect(record.props.accessibilityLabel).toContain('CS101 · 02');
     expect(record.props.accessibilityLabel).toContain('Điểm danh bù đã duyệt');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
 
-  test('low attendance rates do not use the success progress color', async () => {
+  test('low attendance rates use the danger progress color', async () => {
     mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 10, present: 4, absent: 6, late: 0, excused: 0, attendanceRate: 40 }] };
     mockQueries['academic.attendance.records'] = { data: [] };
     await render(wrap(<AttendanceScreen {...props} />));
@@ -659,9 +671,54 @@ describe('schedule and attendance', () => {
       ? [node, ...(node.children ?? []).filter((child): child is JsonNode => typeof child !== 'string').flatMap(descendants)]
       : [];
     const nodes = descendants(screen.toJSON() as JsonNode | null);
-    const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === '4/10 buổi đã tham dự');
-    const fill = progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '40%');
+    const fillFor = (label: string) => {
+      const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === label);
+      return progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '40%');
+    };
+    expect(StyleSheet.flatten(fillFor('4/10 buổi đã tham dự')?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.error);
+    expect(StyleSheet.flatten(fillFor('Tỷ lệ có mặt')?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.error);
+  });
+
+  test('rates from 70 to 89 use the warning progress color', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 20, present: 17, absent: 1, late: 2, excused: 0, attendanceRate: 85 }] };
+    mockQueries['academic.attendance.records'] = { data: [] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    type JsonNode = { type: string; props: { accessibilityLabel?: string; accessibilityRole?: string; accessibilityValue?: { now?: number }; style?: unknown }; children: Array<JsonNode | string> | null };
+    const descendants = (node: JsonNode | null): JsonNode[] => node
+      ? [node, ...(node.children ?? []).filter((child): child is JsonNode => typeof child !== 'string').flatMap(descendants)]
+      : [];
+    const nodes = descendants(screen.toJSON() as JsonNode | null);
+    const progress = nodes.find((node) => node.props.accessibilityRole === 'progressbar' && node.props.accessibilityLabel === '17/20 buổi đã tham dự');
+    const fill = progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '85%');
     expect(StyleSheet.flatten(fill?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.warning);
+  });
+
+  test('excused records use the primary status tone', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 3, present: 2, absent: 0, late: 0, excused: 1, attendanceRate: 67 }] };
+    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'EXCUSED', sectionId: 's1', section: { course: { code: 'CS101' } } }] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    const pillColors = screen.getAllByText('Có phép').map((pill) =>
+      StyleSheet.flatten(pill.parent?.props.style as StyleProp<ViewStyle>)?.backgroundColor,
+    );
+    expect(pillColors).toContain(tokens.colors.primaryFixed);
+    expect(pillColors).not.toContain(tokens.colors.warningFixed);
+  });
+
+  test('empty attendance uses the web empty copy', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [] };
+    mockQueries['academic.attendance.records'] = { data: [] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('Chưa có bản ghi điểm danh')).toBeOnTheScreen();
+    expect(screen.getByText('Khi giảng viên bắt đầu điểm danh cho các lớp của bạn, bảng tổng hợp theo môn và lịch sử phiên học sẽ xuất hiện tại đây.')).toBeOnTheScreen();
+  });
+
+  test('attendance load failure uses the web error copy', async () => {
+    mockQueries['academic.attendance.summary'] = { error: 'Không có kết nối.' };
+    mockQueries['academic.attendance.records'] = { data: [] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('Chưa tải được dữ liệu điểm danh')).toBeOnTheScreen();
+    expect(screen.getByText('Không tải được dữ liệu điểm danh. Vui lòng kiểm tra kết nối và thử lại.')).toBeOnTheScreen();
+    expect(screen.queryByText('Không thể tải dữ liệu')).toBeNull();
   });
 });
 
