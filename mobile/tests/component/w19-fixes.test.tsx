@@ -493,21 +493,26 @@ describe('dashboard next meetings', () => {
     });
     try {
       mockRuntime.queries = {
-        'academic.enrollments': {
-          data: [
-            enrollmentAt('a', 'A101', 2, '07:00', '08:30'), // Monday, still ahead
-            enrollmentAt('b', 'B202', 7, '10:00', '11:30'), // Saturday, next
-            enrollmentAt('c', 'C303', 7, '11:00', '12:30'), // Saturday, after B
-            enrollmentAt('d', 'D404', 1, '09:00', '10:30'), // Sunday, third
-          ],
+        'academic.dashboard': {
+          data: {
+            semesterId: 'sem-1',
+            semester: { id: 'sem-1', name: 'Học kỳ 1', nameVi: 'Học kỳ 1', status: 'IN_PROGRESS' },
+            creditLimit: null,
+            enrollments: [
+              enrollmentAt('a', 'A101', 2, '07:00', '08:30'), // Monday, still ahead
+              enrollmentAt('b', 'B202', 7, '10:00', '11:30'), // Saturday, next
+              enrollmentAt('c', 'C303', 7, '11:00', '12:30'), // Saturday, after B
+              enrollmentAt('d', 'D404', 1, '09:00', '10:30'), // Sunday, third
+            ],
+          },
         },
         announcements: { data: { data: [] } },
       };
 
       await render(themed(<StudentDashboardScreen {...props} />, 'en'));
 
-      expect(screen.getByText('D404')).toBeOnTheScreen();
-      expect(screen.queryByText('A101')).toBeNull();
+      expect(screen.getByText('D404 — D404')).toBeOnTheScreen();
+      expect(screen.queryByText('A101 — A101')).toBeNull();
     } finally {
       jest.useRealTimers();
     }

@@ -49,6 +49,9 @@ const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const EMPTY = '—';
 const CAMPUS_TIME_OFFSET_MS = 7 * 60 * 60 * 1000;
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAYS_VI = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+const MONTHS_LONG_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 interface DateParts { y: number; m: number; d: number; hh: number; mm: number }
 
@@ -81,6 +84,17 @@ function datePart(p: DateParts, locale: AppLocale): string {
 export function formatDate(value: string | number | Date | null | undefined, locale: AppLocale): string {
   const p = toParts(value);
   return p ? datePart(p, locale) : EMPTY;
+}
+
+/** Web dashboard chip format: weekday, day month, year. */
+export function formatLongDate(value: string | number | Date | null | undefined, locale: AppLocale): string {
+  const p = toParts(value);
+  if (!p) return EMPTY;
+  const weekday = new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay();
+  if (locale === 'vi') {
+    return `${WEEKDAYS_VI[weekday]}, ${p.d} tháng ${p.m}, ${p.y}`;
+  }
+  return `${WEEKDAYS_EN[weekday]}, ${MONTHS_LONG_EN[p.m - 1]} ${p.d}, ${p.y}`;
 }
 
 export function formatDateTime(value: string | number | Date | null | undefined, locale: AppLocale): string {

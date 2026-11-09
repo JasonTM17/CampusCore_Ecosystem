@@ -166,6 +166,8 @@ export interface AgendaItem {
   startTime: string;
   endTime: string;
   room: string;
+  building: string;
+  roomNumber: string;
   lecturer: string;
   credits: number;
 }
@@ -193,6 +195,8 @@ export function buildAgenda(enrollments: readonly AcademicEnrollment[], locale: 
         startTime: slot.startTime,
         endTime: slot.endTime,
         room: roomLabel(slot),
+        building: slot.classroom?.building ?? '',
+        roomNumber: slot.classroom?.roomNumber ?? '',
         lecturer: lecturerName(section),
         credits: section?.course?.credits ?? 0,
       });
@@ -241,7 +245,13 @@ const minutesOfDay = (value: string): number => {
 };
 
 /** The next weekly meetings at or after `now`, ordered by their next occurrence. */
-export function nextMeetings(agenda: readonly AgendaItem[], now: Date, limit: number): AgendaItem[] {
+export interface UpcomingMeeting {
+  item: AgendaItem;
+  /** 0 = today, 1 = tomorrow, up to 6. */
+  daysUntil: number;
+}
+
+export function upcomingMeetings(agenda: readonly AgendaItem[], now: Date, limit: number): UpcomingMeeting[] {
   if (limit <= 0) return [];
   const today = dayOfWeekOf(now);
   const nowMinutes = campusMinutesOfDay(now);
@@ -252,5 +262,24 @@ export function nextMeetings(agenda: readonly AgendaItem[], now: Date, limit: nu
     })
     .sort((left, right) => left.days - right.days || minutesOfDay(left.item.startTime) - minutesOfDay(right.item.startTime))
     .slice(0, limit)
-    .map(({ item }) => item);
+    .map(({ item, days }) => ({ item, daysUntil: days }));
+}
+
+export function nextMeetings(agenda: readonly AgendaItem[], now: Date, limit: number): AgendaItem[] {
+  return upcomingMeetings(agenda, now, limit).map(({ item }) => item);
+}
+
+export type MeetingShift = 'morning' | 'afternoon' | 'evening';
+
+/** Web dashboard shift cue: before 12 = morning, before 17 = afternoon, else evening. */
+export function meetingShift(startTime: string): MeetingShift {
+  const hour = parseInt(startTime.split(':')[0], 10);
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'evening';
+}
+
+/** Monday-first badge index (0..6) for a backend day number (1 = Sunday … 7 = Saturday). */
+export function dayShortIndex(day: number): number {
+  return (normalizeDay(day) + 5) % 7;
 }
