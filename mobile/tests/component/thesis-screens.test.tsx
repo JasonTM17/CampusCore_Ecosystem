@@ -529,6 +529,19 @@ describe('topic detail', () => {
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
   });
 
+  test('assigns topic directly when the student belongs to a group with no topic yet', async () => {
+    setWidth(360);
+    seed({ group: group({ topicId: null }), progress: progress({ currentMilestone: 'GROUP_CREATED' }) });
+    mockApi.assignTopic.mockResolvedValueOnce(group({ topicId: 't1' }));
+
+    await renderThemed(detail());
+    expect(await screen.findByRole('button', { name: copy.topicChoose })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: copy.topicChoose }));
+    expect(mockApi.assignTopic).toHaveBeenCalledWith('g1', 't1');
+    expect(navigate).not.toHaveBeenCalledWith('thesis.registration', expect.anything());
+  });
+
   test('does not show a department identifier without a readable department name', async () => {
     setWidth(360);
     mockApi.topic.mockResolvedValueOnce(topic('topic-test', 'Visible topic', {
