@@ -13,6 +13,7 @@ import type { UserRole } from '../navigation/routes';
 import { PreviewPill } from './PreviewPill';
 import { LanguageToggleButton } from './LanguageToggleButton';
 import { ThemeToggleButton } from './ThemeToggleButton';
+import { brandWordmarkFit, compactSingleLineFit } from './ui/primitives';
 import { UiText } from './ui/UiText';
 import { unreadBadgeLabel } from './unread-badge';
 
@@ -70,17 +71,29 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
           />
         </View>
         <View style={styles.copy}>
-          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
+          <UiText
+            {...brandWordmarkFit}
+            variant={brandVariant}
+            maxFontSizeMultiplier={chromeFontScaleCap}
+            style={{ color: chrome.onSurface }}
+          >
             CampusUTE
           </UiText>
-          {roleLabel && largeChrome ? <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
+          {roleLabel && largeChrome ? (
+            <UiText
+              {...compactSingleLineFit}
+              variant="meta"
+              maxFontSizeMultiplier={chromeFontScaleCap}
+              style={{ color: chrome.onSurfaceMuted, flexShrink: 1, minWidth: 0 }}
+            >
+              {roleLabel}
+            </UiText>
+          ) : null}
         </View>
         {roleLabel && !largeChrome && !preview ? (
           <View style={[styles.rolePill, { backgroundColor: chrome.overlay }]}>
             <UiText
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
+              {...compactSingleLineFit}
               variant="meta"
               maxFontSizeMultiplier={chromeFontScaleCap}
               style={{ color: chrome.onSurface, flexShrink: 1, minWidth: 0 }}
