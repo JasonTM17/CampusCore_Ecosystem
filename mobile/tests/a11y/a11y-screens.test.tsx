@@ -79,6 +79,8 @@ describe('a11y audit over screenComponents', () => {
     'admin.lecturers/dark/w1000/fs1.5': 4,
     'lecturer.dashboard/light/w360/fs1': 3,
     'lecturer.dashboard/dark/w1000/fs1.5': 3,
+    'schedule/light/w360/fs1': 2,
+    'schedule/dark/w1000/fs1.5': 2,
   };
   const failures = new Map<string, string>();
   const coverage = new Set<string>();

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { UiText } from '../../components/ui/UiText';
 import { minTapTarget, tokens } from '../../design/tokens';
@@ -7,6 +7,9 @@ import { civilDayOf, civilKey } from './academic-model';
 import { useLocale } from '../../i18n/locale-provider';
 import { academicMessages } from '../../i18n/academic-messages';
 
+const weekStripFontScaleCap = 1.2;
+const shrinkLabel = { numberOfLines: 1 as const, adjustsFontSizeToFit: true, maxFontSizeMultiplier: weekStripFontScaleCap };
+
 export interface WeekStripProps {
   days: Date[];
   selectedIndex: number;
@@ -14,15 +17,16 @@ export interface WeekStripProps {
   labels: readonly string[];
   todayLabel?: string;
   onSelect(index: number): void;
+  style?: StyleProp<ViewStyle>;
 }
 
-export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, onSelect }: WeekStripProps) {
+export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, onSelect, style }: WeekStripProps) {
   const { colors } = useTheme();
   const { locale } = useLocale();
   const copy = academicMessages[locale];
   const resolvedToday = todayLabel ?? copy.today;
   return (
-    <View testID="week-strip" style={styles.dayStrip}>
+    <View testID="week-strip" style={[styles.dayStrip, style]}>
       {days.map((date, index) => {
         const selected = index === selectedIndex;
         const isToday = civilKey(date) === todayKey;
@@ -37,11 +41,15 @@ export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, o
             onPress={() => onSelect(index)}
             style={[styles.dayCell, { backgroundColor: selected ? colors.primaryFixed : 'transparent' }]}
           >
-            <UiText variant="meta" tone="muted">{labels[index]}</UiText>
-            <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate}>
+            <UiText variant="meta" tone="muted" {...shrinkLabel}>{labels[index]}</UiText>
+            <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate} {...shrinkLabel}>
               {civilDayOf(date)}
             </UiText>
-            {isToday ? <UiText variant="meta" tone="primary" style={styles.todayBadge}>{resolvedToday}</UiText> : null}
+            {isToday ? (
+              <UiText variant="meta" tone="primary" style={styles.todayBadge} {...shrinkLabel}>
+                {resolvedToday}
+              </UiText>
+            ) : null}
           </Pressable>
         );
       })}
@@ -50,16 +58,16 @@ export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, o
 }
 
 const styles = StyleSheet.create({
-  dayStrip: { flexDirection: 'row', flexWrap: 'wrap', marginTop: tokens.spacing.sm },
+  dayStrip: { flexDirection: 'row', flexWrap: 'nowrap', flex: 1, minWidth: 0 },
   dayCell: {
     alignItems: 'center',
     borderRadius: tokens.radii.control,
-    flexBasis: minTapTarget,
-    flexGrow: 1,
-    flexShrink: 0,
+    flex: 1,
+    flexShrink: 1,
     justifyContent: 'center',
     minHeight: minTapTarget,
-    minWidth: minTapTarget,
+    minWidth: 0,
+    paddingHorizontal: tokens.spacing.xs / 2,
     paddingVertical: tokens.spacing.xs,
   },
   dayDate: { fontVariant: ['tabular-nums'] },
