@@ -83,7 +83,8 @@ describe('screen render boundary', () => {
     mockRoute.value = <CrashingScreen />;
     await renderThemed(<AppGroupLayout />);
 
-    expect(screen.getByText(uiMessages.vi.errorGeneric)).toBeOnTheScreen();
+    expect(screen.getByText(uiMessages.vi.sectionErrorTitle)).toBeOnTheScreen();
+    expect(screen.getByText(uiMessages.vi.sectionErrorDescription)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: uiMessages.vi.retry })).toBeOnTheScreen();
     // The session shell around the failed route stays mounted and usable.
     expect(screen.getByTestId('app-chrome')).toBeOnTheScreen();
@@ -95,13 +96,13 @@ describe('screen render boundary', () => {
     setWindow(360);
     mockRoute.value = <CrashingScreen />;
     await renderThemed(<AppGroupLayout />);
-    expect(screen.getByText(uiMessages.vi.errorGeneric)).toBeOnTheScreen();
+    expect(screen.getByText(uiMessages.vi.sectionErrorTitle)).toBeOnTheScreen();
 
     mockRoute.value = <HealthyScreen />;
     await fireEvent.press(screen.getByRole('button', { name: uiMessages.vi.retry }));
 
     expect(screen.getByTestId('healthy-screen')).toBeOnTheScreen();
-    expect(screen.queryByText(uiMessages.vi.errorGeneric)).toBeNull();
+    expect(screen.queryByText(uiMessages.vi.sectionErrorTitle)).toBeNull();
     expect(screen.getByTestId('app-chrome')).toBeOnTheScreen();
   });
 
@@ -109,7 +110,7 @@ describe('screen render boundary', () => {
     setWindow(360);
     mockRoute.value = <CrashingScreen />;
     await renderThemed(<AppGroupLayout />);
-    expect(screen.getByText(uiMessages.vi.errorGeneric)).toBeOnTheScreen();
+    expect(screen.getByText(uiMessages.vi.sectionErrorTitle)).toBeOnTheScreen();
 
     // The user navigates away instead of retrying: the new route identity
     // clears the caught error and the new screen mounts.
@@ -122,7 +123,7 @@ describe('screen render boundary', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Đóng' }));
 
     expect(screen.getByTestId('healthy-screen')).toBeOnTheScreen();
-    expect(screen.queryByText(uiMessages.vi.errorGeneric)).toBeNull();
+    expect(screen.queryByText(uiMessages.vi.sectionErrorTitle)).toBeNull();
   });
 
   test('the boundary keeps siblings mounted and rethrows nothing to the caller', async () => {
@@ -163,7 +164,7 @@ describe('screen render boundary', () => {
         </ErrorBoundary>
       </View>,
     );
-    expect(screen.getByText(uiMessages.vi.errorGeneric)).toBeOnTheScreen();
+    expect(screen.getByText(uiMessages.vi.sectionErrorTitle)).toBeOnTheScreen();
     expect(screen.getByTestId('shell-marker')).toBeOnTheScreen();
 
     broken.value = false;

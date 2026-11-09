@@ -19,14 +19,14 @@ import { useShellCopy } from '../i18n/use-shell-copy';
 import { useLocale } from '../i18n/locale-provider';
 import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
-import type { TextTone } from './ui/UiText';
 import { Avatar as UiAvatar } from './ui/avatar';
 import { alpha } from './ui/avatar-utils';
 import { Button } from './ui/Button';
 import { Skeleton } from './ui/primitives';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
-import { IconChip } from './ui/institutional';
+import { IconChip, StatusPill } from './ui/institutional';
+import type { StatusTone } from './ui/institutional';
 import { ASSISTANT_FAB_SCROLL_INSET } from './assistant-fab-insets';
 
 export { UiText } from './ui/UiText';
@@ -83,7 +83,6 @@ function buildStyles(colors: ThemeColors) {
     actionIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
     chevron: { marginLeft: tokens.spacing.xs },
     fieldGroup: { marginBottom: tokens.spacing.md },
-    badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, flexShrink: 1, flexWrap: 'wrap', maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
     metricCard: { flex: 1, justifyContent: 'space-between', minHeight: 104, minWidth: 0, padding: tokens.spacing.md },
     metricValue: { marginVertical: tokens.spacing.xs },
     sectionHeading: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
@@ -200,28 +199,11 @@ export function Field({ label, helperText, style, ...props }: FieldProps) {
 
 export interface BadgeProps {
   label: string;
-  tone?: 'neutral' | 'primary' | 'success' | 'warning' | 'error';
+  tone?: StatusTone;
 }
 
 export function Badge({ label, tone = 'neutral' }: BadgeProps) {
-  const styles = useUiStyles();
-  const { colors } = useTheme();
-  const bg = {
-    neutral: colors.surface,
-    primary: colors.primaryFixed,
-    success: colors.successFixed,
-    warning: colors.warningFixed,
-    error: colors.errorFixed,
-  } as const;
-  const textTone: TextTone =
-    tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
-  return (
-    <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
-      <UiText variant="meta" tone={textTone} maxFontSizeMultiplier={compactFontScaleCap} style={{ flexShrink: 1 }}>
-        {label}
-      </UiText>
-    </View>
-  );
+  return <StatusPill label={label} tone={tone} />;
 }
 
 export interface MetricCardProps {

@@ -195,11 +195,11 @@ export function statusTone(status: string | null | undefined): ThesisTone {
     case 'APPROVED':
     case 'COMPLETED':
     case 'RESULTS_PUBLISHED':
+    case 'PROPOSALS_PUBLISHED':
       return 'success';
     case 'REGISTRATION_OPEN':
     case 'SUBMITTED':
     case 'ASSIGNED':
-    case 'PROPOSALS_PUBLISHED':
       return 'primary';
     case 'REJECTED':
     case 'CANCELLED':
