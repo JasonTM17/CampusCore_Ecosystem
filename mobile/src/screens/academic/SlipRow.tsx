@@ -44,7 +44,7 @@ export function SlipRow({ semesterId }: { semesterId: string | null }) {
     <FileRow
       name={copy.slipName}
       status={state.status}
-      statusLabel={statusLabel}
+      statusLabel={state.status === 'busy' ? copy.slipDownloading : statusLabel}
       actions={[{ key: 'download', label: copy.slipDownload, onPress: () => void download(), disabled: !available || state.status === 'busy' }]}
     />
   );

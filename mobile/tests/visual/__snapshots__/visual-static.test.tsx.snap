@@ -5209,9 +5209,20 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "c": [
                         {
                           "c": [
+                            "CỔNG SINH VIÊN",
+                          ],
+                          "s": {
+                            "color": "#98BDD7",
+                            "fontSize": 12,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
                             {
                               "c": [
-                                "Học phần",
+                                "Môn học của tôi",
                               ],
                               "role": "header",
                               "s": {
@@ -5229,6 +5240,17 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -5245,6 +5267,115 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                 },
                 {
                   "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Phiếu đăng ký học phần",
+                              ],
+                              "s": {
+                                "color": "#EDF0F2",
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Chưa thể tải xuống trên thiết bị này",
+                                      ],
+                                      "s": {
+                                        "color": "#EED1A0",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flex": 1,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Xuất phiếu đăng ký (PDF)",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 14,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Xuất phiếu đăng ký (PDF): Phiếu đăng ký học phần",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flexDirection": "row",
+                            "gap": 4,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "alignItems": "center",
+                        "backgroundColor": "#1E2229",
+                        "borderColor": "#33363D",
+                        "borderRadius": 8,
+                        "flexDirection": "row",
+                        "gap": 8,
+                        "padding": 16,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
                     {
                       "c": [
                         {
@@ -5459,10 +5590,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "c": [
                                         {
                                           "c": [
-                                            "Đang học",
+                                            "Đã đăng ký",
                                           ],
                                           "s": {
-                                            "color": "#98BDD7",
+                                            "color": "#9BD4BA",
                                             "fontSize": 12,
                                           },
                                           "t": "Text",
@@ -5470,7 +5601,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       ],
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#1C314A",
+                                        "backgroundColor": "#203C2F",
                                         "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
@@ -5520,6 +5651,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                   },
                                   "t": "Text",
                                 },
+                                {
+                                  "c": [
+                                    "Thứ Ba 08:00–09:30 · Phòng A2 204",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Giảng viên",
+                                    ": ",
+                                    "Dr. Le Minh",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
                                 "flex": 1,
@@ -5546,7 +5699,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
+                  "label": "CS204 Kiến trúc phần mềm, Đã đăng ký, 3 tín chỉ, Lớp học phần: 01",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5619,10 +5772,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "c": [
                                         {
                                           "c": [
-                                            "Đang học",
+                                            "Đã đăng ký",
                                           ],
                                           "s": {
-                                            "color": "#98BDD7",
+                                            "color": "#9BD4BA",
                                             "fontSize": 12,
                                           },
                                           "t": "Text",
@@ -5630,7 +5783,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       ],
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#1C314A",
+                                        "backgroundColor": "#203C2F",
                                         "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
@@ -5680,6 +5833,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                   },
                                   "t": "Text",
                                 },
+                                {
+                                  "c": [
+                                    "Thứ Năm 13:30–15:00 · Phòng B1 108",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Giảng viên",
+                                    ": ",
+                                    "Assoc. Prof. Tran Ha",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
                                 "flex": 1,
@@ -5706,7 +5881,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
+                  "label": "BA312 Phân tích kinh doanh, Đã đăng ký, 3 tín chỉ, Lớp học phần: 02",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -5796,9 +5971,20 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                       "c": [
                         {
                           "c": [
+                            "CỔNG SINH VIÊN",
+                          ],
+                          "s": {
+                            "color": "#98BDD7",
+                            "fontSize": 12,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
                             {
                               "c": [
-                                "Học phần",
+                                "Môn học của tôi",
                               ],
                               "role": "header",
                               "s": {
@@ -5816,6 +6002,17 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -5832,6 +6029,115 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                 },
                 {
                   "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Phiếu đăng ký học phần",
+                              ],
+                              "s": {
+                                "color": "#EDF0F2",
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Chưa thể tải xuống trên thiết bị này",
+                                      ],
+                                      "s": {
+                                        "color": "#EED1A0",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flex": 1,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Xuất phiếu đăng ký (PDF)",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 14,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Xuất phiếu đăng ký (PDF): Phiếu đăng ký học phần",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flexDirection": "row",
+                            "gap": 4,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "alignItems": "center",
+                        "backgroundColor": "#1E2229",
+                        "borderColor": "#33363D",
+                        "borderRadius": 8,
+                        "flexDirection": "row",
+                        "gap": 8,
+                        "padding": 16,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
                     {
                       "c": [
                         {
@@ -6048,10 +6354,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "c": [
                                             {
                                               "c": [
-                                                "Đang học",
+                                                "Đã đăng ký",
                                               ],
                                               "s": {
-                                                "color": "#98BDD7",
+                                                "color": "#9BD4BA",
                                                 "fontSize": 12,
                                               },
                                               "t": "Text",
@@ -6059,7 +6365,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           ],
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1C314A",
+                                            "backgroundColor": "#203C2F",
                                             "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
@@ -6109,6 +6415,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                       },
                                       "t": "Text",
                                     },
+                                    {
+                                      "c": [
+                                        "Thứ Ba 08:00–09:30 · Phòng A2 204",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                    {
+                                      "c": [
+                                        "Giảng viên",
+                                        ": ",
+                                        "Dr. Le Minh",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
                                     "flex": 1,
@@ -6135,7 +6463,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
+                      "label": "CS204 Kiến trúc phần mềm, Đã đăng ký, 3 tín chỉ, Lớp học phần: 01",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -6203,10 +6531,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "c": [
                                             {
                                               "c": [
-                                                "Đang học",
+                                                "Đã đăng ký",
                                               ],
                                               "s": {
-                                                "color": "#98BDD7",
+                                                "color": "#9BD4BA",
                                                 "fontSize": 12,
                                               },
                                               "t": "Text",
@@ -6214,7 +6542,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           ],
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1C314A",
+                                            "backgroundColor": "#203C2F",
                                             "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
@@ -6264,6 +6592,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                       },
                                       "t": "Text",
                                     },
+                                    {
+                                      "c": [
+                                        "Thứ Năm 13:30–15:00 · Phòng B1 108",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                    {
+                                      "c": [
+                                        "Giảng viên",
+                                        ": ",
+                                        "Assoc. Prof. Tran Ha",
+                                      ],
+                                      "s": {
+                                        "color": "#A9B1BC",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
                                     "flex": 1,
@@ -6290,7 +6640,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
+                      "label": "BA312 Phân tích kinh doanh, Đã đăng ký, 3 tín chỉ, Lớp học phần: 02",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -6393,9 +6743,20 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "c": [
                         {
                           "c": [
+                            "CỔNG SINH VIÊN",
+                          ],
+                          "s": {
+                            "color": "#003F87",
+                            "fontSize": 12,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
                             {
                               "c": [
-                                "Học phần",
+                                "Môn học của tôi",
                               ],
                               "role": "header",
                               "s": {
@@ -6413,6 +6774,17 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -6429,6 +6801,115 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                 },
                 {
                   "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Phiếu đăng ký học phần",
+                              ],
+                              "s": {
+                                "color": "#17243A",
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Chưa thể tải xuống trên thiết bị này",
+                                      ],
+                                      "s": {
+                                        "color": "#946200",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flex": 1,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Xuất phiếu đăng ký (PDF)",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 14,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Xuất phiếu đăng ký (PDF): Phiếu đăng ký học phần",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flexDirection": "row",
+                            "gap": 4,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "alignItems": "center",
+                        "backgroundColor": "#FFFFFF",
+                        "borderColor": "#C9D5E4",
+                        "borderRadius": 8,
+                        "flexDirection": "row",
+                        "gap": 8,
+                        "padding": 16,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
                     {
                       "c": [
                         {
@@ -6643,10 +7124,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "c": [
                                         {
                                           "c": [
-                                            "Đang học",
+                                            "Đã đăng ký",
                                           ],
                                           "s": {
-                                            "color": "#003F87",
+                                            "color": "#247A4A",
                                             "fontSize": 12,
                                           },
                                           "t": "Text",
@@ -6654,7 +7135,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       ],
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#E6F0FF",
+                                        "backgroundColor": "#DFF4E4",
                                         "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
@@ -6704,6 +7185,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                   },
                                   "t": "Text",
                                 },
+                                {
+                                  "c": [
+                                    "Thứ Ba 08:00–09:30 · Phòng A2 204",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Giảng viên",
+                                    ": ",
+                                    "Dr. Le Minh",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
                                 "flex": 1,
@@ -6730,7 +7233,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
+                  "label": "CS204 Kiến trúc phần mềm, Đã đăng ký, 3 tín chỉ, Lớp học phần: 01",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6803,10 +7306,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "c": [
                                         {
                                           "c": [
-                                            "Đang học",
+                                            "Đã đăng ký",
                                           ],
                                           "s": {
-                                            "color": "#003F87",
+                                            "color": "#247A4A",
                                             "fontSize": 12,
                                           },
                                           "t": "Text",
@@ -6814,7 +7317,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       ],
                                       "s": {
                                         "alignItems": "center",
-                                        "backgroundColor": "#E6F0FF",
+                                        "backgroundColor": "#DFF4E4",
                                         "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
@@ -6864,6 +7367,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                   },
                                   "t": "Text",
                                 },
+                                {
+                                  "c": [
+                                    "Thứ Năm 13:30–15:00 · Phòng B1 108",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Giảng viên",
+                                    ": ",
+                                    "Assoc. Prof. Tran Ha",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 12,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
                               "s": {
                                 "flex": 1,
@@ -6890,7 +7415,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "t": "View",
                     },
                   ],
-                  "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
+                  "label": "BA312 Phân tích kinh doanh, Đã đăng ký, 3 tín chỉ, Lớp học phần: 02",
                   "role": "button",
                   "s": {
                     "width": "100%",
@@ -6980,9 +7505,20 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                       "c": [
                         {
                           "c": [
+                            "CỔNG SINH VIÊN",
+                          ],
+                          "s": {
+                            "color": "#003F87",
+                            "fontSize": 12,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
                             {
                               "c": [
-                                "Học phần",
+                                "Môn học của tôi",
                               ],
                               "role": "header",
                               "s": {
@@ -7000,6 +7536,17 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 14,
+                            "marginTop": 4,
+                          },
+                          "t": "Text",
+                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -7016,6 +7563,115 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                 },
                 {
                   "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Phiếu đăng ký học phần",
+                              ],
+                              "s": {
+                                "color": "#17243A",
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Chưa thể tải xuống trên thiết bị này",
+                                      ],
+                                      "s": {
+                                        "color": "#946200",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "flexDirection": "row",
+                                "gap": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flex": 1,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Xuất phiếu đăng ký (PDF)",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 14,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Xuất phiếu đăng ký (PDF): Phiếu đăng ký học phần",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "flexDirection": "row",
+                            "gap": 4,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "alignItems": "center",
+                        "backgroundColor": "#FFFFFF",
+                        "borderColor": "#C9D5E4",
+                        "borderRadius": 8,
+                        "flexDirection": "row",
+                        "gap": 8,
+                        "padding": 16,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
                     {
                       "c": [
                         {
@@ -7232,10 +7888,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "c": [
                                             {
                                               "c": [
-                                                "Đang học",
+                                                "Đã đăng ký",
                                               ],
                                               "s": {
-                                                "color": "#003F87",
+                                                "color": "#247A4A",
                                                 "fontSize": 12,
                                               },
                                               "t": "Text",
@@ -7243,7 +7899,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           ],
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#E6F0FF",
+                                            "backgroundColor": "#DFF4E4",
                                             "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
@@ -7293,6 +7949,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                       },
                                       "t": "Text",
                                     },
+                                    {
+                                      "c": [
+                                        "Thứ Ba 08:00–09:30 · Phòng A2 204",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                    {
+                                      "c": [
+                                        "Giảng viên",
+                                        ": ",
+                                        "Dr. Le Minh",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
                                     "flex": 1,
@@ -7319,7 +7997,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "CS204 Kiến trúc phần mềm, Đang học, 3 tín chỉ, Lớp học phần: 01",
+                      "label": "CS204 Kiến trúc phần mềm, Đã đăng ký, 3 tín chỉ, Lớp học phần: 01",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -7387,10 +8065,10 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "c": [
                                             {
                                               "c": [
-                                                "Đang học",
+                                                "Đã đăng ký",
                                               ],
                                               "s": {
-                                                "color": "#003F87",
+                                                "color": "#247A4A",
                                                 "fontSize": 12,
                                               },
                                               "t": "Text",
@@ -7398,7 +8076,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           ],
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#E6F0FF",
+                                            "backgroundColor": "#DFF4E4",
                                             "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
@@ -7448,6 +8126,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                       },
                                       "t": "Text",
                                     },
+                                    {
+                                      "c": [
+                                        "Thứ Năm 13:30–15:00 · Phòng B1 108",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
+                                    {
+                                      "c": [
+                                        "Giảng viên",
+                                        ": ",
+                                        "Assoc. Prof. Tran Ha",
+                                      ],
+                                      "s": {
+                                        "color": "#526174",
+                                        "fontSize": 12,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
                                     "flex": 1,
@@ -7474,7 +8174,7 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "View",
                         },
                       ],
-                      "label": "BA312 Phân tích kinh doanh, Đang học, 3 tín chỉ, Lớp học phần: 02",
+                      "label": "BA312 Phân tích kinh doanh, Đã đăng ký, 3 tín chỉ, Lớp học phần: 02",
                       "role": "button",
                       "s": {
                         "width": "48.5%",
@@ -14511,7 +15211,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -14533,7 +15233,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204 - Kiến trúc phần mềm, Đang học",
+                              "label": "CS204 - Kiến trúc phần mềm, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -14594,7 +15294,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -14616,7 +15316,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312 - Phân tích kinh doanh, Đang học",
+                              "label": "BA312 - Phân tích kinh doanh, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -14677,7 +15377,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -14699,7 +15399,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "EN201 - Tiếng Anh học thuật, Đang học",
+                              "label": "EN201 - Tiếng Anh học thuật, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -16266,7 +16966,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -16288,7 +16988,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204 - Kiến trúc phần mềm, Đang học",
+                              "label": "CS204 - Kiến trúc phần mềm, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -16349,7 +17049,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -16371,7 +17071,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312 - Phân tích kinh doanh, Đang học",
+                              "label": "BA312 - Phân tích kinh doanh, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -16432,7 +17132,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -16454,7 +17154,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "EN201 - Tiếng Anh học thuật, Đang học",
+                              "label": "EN201 - Tiếng Anh học thuật, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -18025,7 +18725,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -18047,7 +18747,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204 - Kiến trúc phần mềm, Đang học",
+                              "label": "CS204 - Kiến trúc phần mềm, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -18108,7 +18808,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -18130,7 +18830,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312 - Phân tích kinh doanh, Đang học",
+                              "label": "BA312 - Phân tích kinh doanh, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -18191,7 +18891,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -18213,7 +18913,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "EN201 - Tiếng Anh học thuật, Đang học",
+                              "label": "EN201 - Tiếng Anh học thuật, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -19780,7 +20480,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -19802,7 +20502,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "CS204 - Kiến trúc phần mềm, Đang học",
+                              "label": "CS204 - Kiến trúc phần mềm, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -19863,7 +20563,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -19885,7 +20585,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "BA312 - Phân tích kinh doanh, Đang học",
+                              "label": "BA312 - Phân tích kinh doanh, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",
@@ -19946,7 +20646,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "c": [
                                     {
                                       "c": [
-                                        "Đang học",
+                                        "Đã đăng ký",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -19968,7 +20668,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "t": "View",
                                 },
                               ],
-                              "label": "EN201 - Tiếng Anh học thuật, Đang học",
+                              "label": "EN201 - Tiếng Anh học thuật, Đã đăng ký",
                               "role": "button",
                               "s": {
                                 "alignItems": "center",

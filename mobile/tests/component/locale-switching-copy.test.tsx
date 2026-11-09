@@ -111,7 +111,7 @@ describe('localized academic state', () => {
   test('registration slip feedback follows a locale switch', async () => {
     mockSaveRegistrationSlip.mockClear();
     await render(withLocale(<SlipRow semesterId="semester-1" />));
-    await fireEvent.press(screen.getByRole('button', { name: /Tải phiếu/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /Xuất phiếu/ }));
     expect(await screen.findByText('Đã lưu phiếu đăng ký')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Switch to English' }));
     expect(screen.getByText('Registration slip saved')).toBeOnTheScreen();

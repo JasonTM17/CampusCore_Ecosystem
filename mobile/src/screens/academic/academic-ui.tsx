@@ -53,10 +53,20 @@ export function useAcademicQuery<T>(key: string, fetcher: () => Promise<T>, copy
   });
 }
 
+/** Web enrollment-status tone: ENROLLED/CONFIRMED success, PENDING warning, DROPPED danger, COMPLETED info (= primary on mobile). */
+export function enrollmentStatusTone(status: string): 'success' | 'warning' | 'error' | 'primary' | 'neutral' {
+  if (status === 'ENROLLED' || status === 'CONFIRMED') return 'success';
+  if (status === 'PENDING') return 'warning';
+  if (status === 'DROPPED' || status === 'CANCELLED' || status === 'WITHDRAWN') return 'error';
+  if (status === 'COMPLETED') return 'primary';
+  return 'neutral';
+}
+
 export interface AcademicShellProps<T = unknown> {
   list?: PerformanceListProps<T>;
   title: string;
   eyebrow?: string;
+  subtitle?: string;
   loading?: boolean;
   loadingLabel?: string;
   error?: string | null;
@@ -70,7 +80,7 @@ export interface AcademicShellProps<T = unknown> {
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function AcademicShell<T>({ title, eyebrow, loading = false, loadingLabel, error, errorTitle, errorDescription, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
+export function AcademicShell<T>({ title, eyebrow, subtitle, loading = false, loadingLabel, error, errorTitle, errorDescription, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
   const { colors } = useTheme();
   const refreshControl = onRefresh
@@ -78,7 +88,7 @@ export function AcademicShell<T>({ title, eyebrow, loading = false, loadingLabel
     : undefined;
   const frameList = list ? { ...list, ...(refreshControl ? { refreshControl } : {}) } : undefined;
   return (
-    <ScreenShell title={title} eyebrow={eyebrow} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
+    <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
       {warning ? <View style={academicStyles.card}><DataNotice message={warning} /></View> : null}
       {loading ? (
         <StatePanel kind="loading" title={loadingLabel ?? copy.loading} />
@@ -166,6 +176,7 @@ export const academicStyles = StyleSheet.create({
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
   metric: { flexBasis: 140, flexGrow: 1 },
   actions: { gap: tokens.spacing.sm, marginTop: tokens.spacing.sm },
+  result: { marginTop: tokens.spacing.sm },
 });
 
 const styles = StyleSheet.create({
