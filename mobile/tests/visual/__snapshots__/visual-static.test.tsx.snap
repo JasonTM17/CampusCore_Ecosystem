@@ -9922,6 +9922,17 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
+                                    "Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B8CE",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "3/3 mục",
                                   ],
                                   "s": {
@@ -9956,7 +9967,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả",
+                                        "Tất cả thông báo",
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
@@ -9965,7 +9976,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả",
+                                  "label": "Tất cả thông báo",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -10214,6 +10225,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -10375,6 +10430,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -10490,10 +10589,29 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
                           "role": "button",
                           "s": {
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã đọc",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
                           },
                           "t": "View",
                         },
@@ -10616,6 +10734,17 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
+                                    "Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B8CE",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "3/3 mục",
                                   ],
                                   "s": {
@@ -10650,7 +10779,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả",
+                                        "Tất cả thông báo",
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
@@ -10659,7 +10788,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả",
+                                  "label": "Tất cả thông báo",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -10908,6 +11037,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -11069,6 +11242,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -11184,10 +11401,29 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
                           "role": "button",
                           "s": {
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã đọc",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
                           },
                           "t": "View",
                         },
@@ -11312,6 +11548,17 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
+                                    "Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.",
+                                  ],
+                                  "s": {
+                                    "color": "#C9D8F0",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "3/3 mục",
                                   ],
                                   "s": {
@@ -11346,7 +11593,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả",
+                                        "Tất cả thông báo",
                                       ],
                                       "s": {
                                         "color": "#003F87",
@@ -11355,7 +11602,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả",
+                                  "label": "Tất cả thông báo",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -11604,6 +11851,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -11765,6 +12056,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -11880,10 +12215,29 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
                           "role": "button",
                           "s": {
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã đọc",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
                           },
                           "t": "View",
                         },
@@ -12006,6 +12360,17 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
+                                    "Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.",
+                                  ],
+                                  "s": {
+                                    "color": "#C9D8F0",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "3/3 mục",
                                   ],
                                   "s": {
@@ -12040,7 +12405,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả",
+                                        "Tất cả thông báo",
                                       ],
                                       "s": {
                                         "color": "#003F87",
@@ -12049,7 +12414,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả",
+                                  "label": "Tất cả thông báo",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -12298,6 +12663,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -12459,6 +12868,50 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "c": [
                             {
                               "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        "Đánh dấu đã đọc",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 13,
+                                      },
+                                      "t": "Text",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "label": "Đánh dấu đã đọc",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "transparent",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "paddingHorizontal": 8,
+                                "paddingVertical": 8,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
                                 "󰩺",
                               ],
                               "s": {
@@ -12574,10 +13027,29 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
                           "role": "button",
                           "s": {
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã đọc",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "flexDirection": "row",
                           },
                           "t": "View",
                         },

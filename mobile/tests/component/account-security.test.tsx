@@ -12,7 +12,7 @@ import { auditTree } from '../a11y/audit';
 
 const mockProfileQuery = {
   value: {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
     error: null as string | null,
     warning: null as string | null,
     isLoading: false,
@@ -110,7 +110,7 @@ const expectAccessible = () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockProfileQuery.value = {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
     error: null,
     warning: null,
     isLoading: false,
@@ -431,7 +431,7 @@ describe('profile account security', () => {
     await renderApp(<ProfileScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'A'.repeat(501));
     await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
-    expect(screen.getByText('Địa chỉ không được quá 500 ký tự.')).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.profile.addressTooLong)).toBeOnTheScreen();
     expect(campusApi.updateProfile).not.toHaveBeenCalled();
 
     await fireEvent.changeText(screen.getByLabelText(accountMessages.vi.profile.address), 'A'.repeat(500));
@@ -506,16 +506,16 @@ describe('profile account security', () => {
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu hiện tại'), 'Old-pass-1234');
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), 'short1');
     await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu mới'), 'short1');
-    await fireEvent.press(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.submit }));
     expect(screen.getByText('Mật khẩu cần có ít nhất 8 ký tự.')).toBeOnTheScreen();
     expect(campusApi.changePassword).not.toHaveBeenCalled();
 
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
     await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu mới'), FAKE_PASSWORD);
-    await fireEvent.press(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
-    expect(screen.getByText('Đổi mật khẩu?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.submit }));
+    expect(screen.getByText(accountMessages.vi.password.confirmTitle)).toBeOnTheScreen();
     expect(campusApi.changePassword).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getAllByRole('button', { name: 'Đổi mật khẩu' }).at(-1)!);
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.confirmAction }));
     await waitFor(() => expect(navigation.signOut).toHaveBeenCalledTimes(1));
     expect(campusApi.changePassword).toHaveBeenCalledWith('Old-pass-1234', FAKE_PASSWORD);
   });
@@ -527,9 +527,9 @@ describe('profile account security', () => {
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu hiện tại'), 'Old-pass-1234');
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
     await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu mới'), FAKE_PASSWORD);
-    await fireEvent.press(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.submit }));
 
-    const confirm = screen.getAllByRole('button', { name: 'Đổi mật khẩu' }).at(-1)!;
+    const confirm = screen.getByRole('button', { name: accountMessages.vi.password.confirmAction });
     try {
       await pressTwiceBeforeCommit(confirm);
       expect(campusApi.changePassword).toHaveBeenCalledTimes(1);
@@ -548,8 +548,8 @@ describe('profile account security', () => {
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu hiện tại'), 'Wrong-pass-1');
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
     await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu mới'), FAKE_PASSWORD);
-    await fireEvent.press(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
-    await fireEvent.press(screen.getAllByRole('button', { name: 'Đổi mật khẩu' }).at(-1)!);
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.submit }));
+    await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.password.confirmAction }));
     await screen.findByText('Mật khẩu hiện tại không đúng.');
     expect(navigation.signOut).not.toHaveBeenCalled();
   });
@@ -566,7 +566,7 @@ describe('profile account security', () => {
     await fireEvent.changeText(screen.getByLabelText('Số điện thoại'), '0901234567');
 
     try {
-      await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+      await pressTwiceBeforeCommit(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
       expect(campusApi.updateProfile).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => {
@@ -589,6 +589,45 @@ describe('profile account security', () => {
     };
     await renderApp(<ProfileScreen {...props} />);
     expect(screen.getByText('Nguyễn Đức Minh')).toBeOnTheScreen();
+  });
+
+  test('the profile shows the date of birth in a disabled field', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    const birthday = screen.getByLabelText(accountMessages.vi.profile.dateOfBirth);
+    expect(birthday.props.value).toBe('17/05/2002');
+    expect(birthday.props.editable).toBe(false);
+  });
+
+  test('first and last name render as labelled read-only fields', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    const lastName = screen.getByLabelText(accountMessages.vi.profile.lastName);
+    const firstName = screen.getByLabelText(accountMessages.vi.profile.firstName);
+    expect(lastName.props.value).toBe('Nguyen');
+    expect(firstName.props.value).toBe('Minh');
+    expect(lastName.props.editable).toBe(false);
+    expect(firstName.props.editable).toBe(false);
+  });
+
+  test('the profile heading, eyebrow and description use the web copy', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByRole('header', { name: accountMessages.vi.profile.title })).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.profile.eyebrow.toUpperCase())).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.profile.description)).toBeOnTheScreen();
+  });
+
+  test('the password card carries the web title, description and policy hint', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByRole('header', { name: accountMessages.vi.password.title })).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.password.description)).toBeOnTheScreen();
+    expect(screen.getByText(accountMessages.vi.password.hint)).toBeOnTheScreen();
+  });
+
+  test('the what-changes card explains school-managed fields', async () => {
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByRole('header', { name: accountMessages.vi.profile.whatChangesTitle })).toBeOnTheScreen();
+    for (const paragraph of accountMessages.vi.profile.whatChanges) {
+      expect(screen.getByText(paragraph)).toBeOnTheScreen();
+    }
   });
 
   test('profile revalidation keeps an in-progress phone edit', async () => {

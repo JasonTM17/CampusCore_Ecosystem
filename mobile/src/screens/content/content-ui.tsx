@@ -168,12 +168,16 @@ export function ContentIconAction({
 /** Locally composed brand summary, preserving the title's header role. */
 export function ContentHero({
   title,
+  eyebrow,
+  description,
   detail,
   detailLive = false,
   icon,
   children,
 }: {
   title: string;
+  eyebrow?: string;
+  description?: string;
   detail?: string;
   detailLive?: boolean;
   icon?: ContentIconName;
@@ -185,7 +189,9 @@ export function ContentHero({
     <View style={[styles.hero, { backgroundColor: chrome.surface }]}>
       {icon ? <ContentIconChip icon={icon} onBrand /> : null}
       <View style={styles.heroCopy}>
+        {eyebrow ? <UiText variant="meta" style={{ color: chrome.accent }}>{eyebrow}</UiText> : null}
         <UiText accessibilityRole="header" variant="headlineMedium" style={{ color: chrome.onSurface }}>{title}</UiText>
+        {description ? <UiText variant="bodySmall" style={[styles.heroDetail, { color: chrome.onSurfaceMuted }]}>{description}</UiText> : null}
         {detail ? <UiText accessibilityLiveRegion={detailLive ? 'polite' : undefined} variant="bodySmall" style={[styles.heroDetail, { color: chrome.onSurfaceMuted }]}>{detail}</UiText> : null}
         {children}
       </View>
@@ -197,10 +203,15 @@ export function ContentHero({
 
 export interface ListFrameProps<T> {
   title: string;
+  eyebrow?: string;
+  description?: string;
   list: PagedList<T>;
   keyOf: (item: T) => string;
   renderItem: (item: T) => ReactElement | null;
   emptyTitle: string;
+  emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
   /** Replaces the empty title when a filter is active. */
   emptyFilteredTitle?: string;
   filtered?: boolean;
@@ -215,10 +226,15 @@ export interface ListFrameProps<T> {
 /** One list screen: header, filters, notices and a paged, refreshable list. */
 export function ListFrame<T>({
   title,
+  eyebrow,
+  description,
   list,
   keyOf,
   renderItem,
   emptyTitle,
+  emptyDescription,
+  emptyActionLabel,
+  onEmptyAction,
   emptyFilteredTitle,
   filtered = false,
   items,
@@ -238,7 +254,7 @@ export function ListFrame<T>({
 
   const head = (
     <View style={styles.head}>
-      <ContentHero title={title} detail={count ?? undefined} detailLive={count !== null} icon={icon} />
+      <ContentHero title={title} eyebrow={eyebrow} description={description} detail={count ?? undefined} detailLive={count !== null} icon={icon} />
       {list.warning ? <Notice tone="warning" message={list.warning} /> : null}
       <FlashNotice flash={flash ?? null} />
       {header}
@@ -264,6 +280,9 @@ export function ListFrame<T>({
           loadingMore={list.loadingMore}
           onLoadMore={list.loadMore}
           emptyTitle={filtered && emptyFilteredTitle ? emptyFilteredTitle : emptyTitle}
+          emptyDescription={emptyDescription}
+          emptyActionLabel={emptyActionLabel}
+          onEmptyAction={onEmptyAction}
           header={head}
           accessibilityLabel={accessibilityLabel ?? title}
         />
