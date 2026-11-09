@@ -12,7 +12,6 @@ export const campusMessages = {
     "newsNotFoundBody": "Bài viết này chưa xuất bản hoặc không còn tồn tại.",
     "publishedAt": "Phát hành",
     "publishedOn": "Xuất bản {date}",
-    "priority": "Mức ưu tiên",
     "priorityLabels": {
       "URGENT": "Khẩn",
       "HIGH": "Quan trọng",
@@ -27,9 +26,9 @@ export const campusMessages = {
       "ACADEMIC_AFFAIRS": "Học vụ",
       "CAREER_OPPORTUNITIES": "Cơ hội Việc làm"
     } as Record<string, string>,
-    "newsDetailTitle": "Chi tiết tin",
     "semester": "Học kỳ",
     "docsTitle": "Tài liệu công khai",
+    "docsSubtitle": "Quy định, hướng dẫn và tài liệu tham khảo đã xuất bản.",
     "search": "Tìm kiếm",
     "searchPlaceholder": "Tìm tài liệu (tiếng Việt hoặc tiếng Anh)…",
     "emptyDocs": "Không có tài liệu nào phù hợp.",
@@ -45,7 +44,6 @@ export const campusMessages = {
     "supersededNote": "Bạn đang xem phiên bản cũ. Phiên bản đã xuất bản hiện tại là {current}.",
     "openCurrent": "Xem phiên bản hiện hành",
     "permalinkLabel": "Liên kết tới phiên bản này",
-    "docDetailTitle": "Chi tiết tài liệu",
     "docsNotFoundTitle": "Tài liệu không khả dụng",
     "docsNotFoundBody": "Tài liệu này chưa xuất bản hoặc không còn tồn tại.",
     "docsLoadErrorTitle": "Tài liệu chưa khả dụng",
@@ -70,7 +68,6 @@ export const campusMessages = {
     "newsNotFoundBody": "This story is not published or no longer exists.",
     "publishedAt": "Published",
     "publishedOn": "Published {date}",
-    "priority": "Priority",
     "priorityLabels": {
       "URGENT": "Urgent",
       "HIGH": "Important",
@@ -85,9 +82,9 @@ export const campusMessages = {
       "ACADEMIC_AFFAIRS": "Academic Affairs",
       "CAREER_OPPORTUNITIES": "Career & Industry"
     } as Record<string, string>,
-    "newsDetailTitle": "News detail",
     "semester": "Semester",
     "docsTitle": "Public documents",
+    "docsSubtitle": "Published regulations, guides, and reference material.",
     "search": "Search",
     "searchPlaceholder": "Search documents (Vietnamese or English)…",
     "emptyDocs": "No published documents match.",
@@ -103,7 +100,6 @@ export const campusMessages = {
     "supersededNote": "You are viewing an older revision. The current published revision is {current}.",
     "openCurrent": "View current revision",
     "permalinkLabel": "Permalink to this revision",
-    "docDetailTitle": "Document detail",
     "docsNotFoundTitle": "Document unavailable",
     "docsNotFoundBody": "This document is not published or no longer exists.",
     "docsLoadErrorTitle": "Documents unavailable",

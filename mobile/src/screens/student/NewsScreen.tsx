@@ -1,9 +1,9 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Card, UiText } from '../../components/Ui';
-import { FilterChip, StatusPill } from '../../components/ui/index';
+import { StatusPill } from '../../components/ui/index';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { chromeFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
@@ -11,7 +11,7 @@ import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { filterByPriority, newsCategoryLabel, publisherName } from '../content/content-rules';
+import { newsCategoryLabel, publisherName } from '../content/content-rules';
 import { ContentChevron, ContentIconChip, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
 import { NewsDetail } from '../content/NewsDetail';
 import { previewNews } from '../content/preview-data';
@@ -20,9 +20,7 @@ import { excerptOf } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
 import { summaryRowAccessibilityLabel } from './summary-label';
 
-const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
-
-/** Public campus news: paged feed, priority filter and a detail view. */
+/** Public campus news: paged feed and a detail view. */
 export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
   const { locale } = useContentCopy();
   const { window } = useTheme();
@@ -31,15 +29,12 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
   const categoryLabels = copy.newsCategoryLabels as Readonly<Record<string, string>>;
   const params = useLocalSearchParams<{ focus?: string }>();
   const [selected, setSelected] = useState<string | null>(() => (typeof params.focus === 'string' && params.focus.trim() ? params.focus.trim() : null));
-  const [filter, setFilter] = useState<{ priority?: string[] }>({});
-  const priorities = filter.priority ?? [];
 
   const preview = useMemo(() => previewNews(locale), [locale]);
   const list = usePagedList<MobilePublicAnnouncement>({
     key: 'content.news',
     fetchPage: (page, limit, signal) => contentApi.news({ page, limit, signal }),
     keyOf: (item) => item.id,
-    eager: priorities.length > 0,
     preview,
   });
 
@@ -49,12 +44,6 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
 
   if (selected) return <NewsDetail idOrSlug={selected} onBack={() => setSelected(null)} />;
 
-  const rows = filterByPriority(list.items, priorities);
-  const togglePriority = (value: string) => setFilter((current) => {
-    const currentValues = current.priority ?? [];
-    return { priority: currentValues.includes(value) ? currentValues.filter((item) => item !== value) : [...currentValues, value] };
-  });
-
   return (
     <>
       <ListFrame
@@ -62,27 +51,10 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
         description={copy.newsSubtitle}
         icon="newspaper-variant-outline"
         list={list}
-        items={rows}
-        filtered={priorities.length > 0}
         keyOf={(item) => item.id}
         emptyTitle={copy.emptyFeed}
         errorTitle={copy.newsLoadErrorTitle}
         errorDescription={copy.newsLoadError}
-        header={(
-          <View style={styles.filters}>
-            <UiText variant="meta" tone="muted">{copy.priority}</UiText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
-              {PRIORITIES.map((value) => (
-                <FilterChip
-                  key={value}
-                  label={copy.priorityLabels[value] ?? value}
-                  selected={priorities.includes(value)}
-                  onPress={() => togglePriority(value)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
         renderItem={(item) => {
           const summaryText = item.summary ?? (item.content ? excerptOf(item.content) : null);
           const category = newsCategoryLabel(categoryLabels, item.categoryId);
@@ -137,6 +109,4 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   publisher: { flexShrink: 1 },
   readMore: { marginLeft: 'auto' },
-  filters: { gap: tokens.spacing.xs },
-  filterChips: { flexDirection: 'row', gap: tokens.spacing.sm, paddingVertical: 1 },
 });

@@ -64,6 +64,7 @@ export function DocsScreen(_props: MobileScreenProps) {
   return (
     <ListFrame
       title={copy.docsTitle}
+      description={copy.docsSubtitle}
       icon="file-document-outline"
       list={list}
       filtered={search.length > 0}
