@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Divider, IconChip, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { minTapTarget } from '../../design/tokens';
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { groupedRows, type GroupedRow } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
@@ -11,7 +12,17 @@ import { fillCopy } from '../../i18n/academic-messages';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
-import { cumulativeTrend, isPublishedGrade, parseTranscript, type TranscriptRecord, type TranscriptTerm } from './gpa';
+import {
+  cumulativeTrend,
+  gradeDistribution,
+  isPublishedGrade,
+  letterTone,
+  parseTranscript,
+  transcriptCourseCounts,
+  type TranscriptRecord,
+  type TranscriptTerm,
+} from './gpa';
+import { GradeDetailSheet } from './GradeDetailSheet';
 import {
   AcademicShell,
   GradeScale,
@@ -23,13 +34,12 @@ import {
   useGpaFormat,
 } from './academic-ui';
 
-function letterTone(letter: string | null | undefined): 'success' | 'warning' | 'error' | 'neutral' {
-  if (letter === 'A+' || letter === 'A' || letter === 'B+' || letter === 'B') return 'success';
-  if (letter === 'D' || letter === 'D+' || letter === 'F') return 'error';
-  return letter ? 'warning' : 'neutral';
+interface SelectedRecord {
+  record: TranscriptRecord;
+  semesterLabel: string;
 }
 
-function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecord> }) {
+function TermCard({ entry, onSelect }: { entry: GroupedRow<TranscriptTerm, TranscriptRecord>; onSelect: (record: TranscriptRecord, semesterLabel: string) => void }) {
   const term = entry.group;
   const { copy } = useAcademicCopy();
   const { formatNumber } = useLocale();
@@ -40,14 +50,16 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
         <IconChip icon="calendar-month-outline" />
         <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termName}>{term.name}</UiText>
       </View>
+      <UiText variant="bodySmall" tone="muted">{copy.clickToViewDetail}</UiText>
       <UiText variant="bodySmall" tone="muted">
-        {fillCopy(copy.termResult, { gpa: gpa(term.gpa), earned: formatNumber(term.creditsEarned), attempted: formatNumber(term.creditsAttempted) })}
+        {fillCopy(copy.termSummary, {
+          count: `${formatNumber(term.records.length)} ${countForm(term.records.length, copy.courseWord, copy.coursesWord)}`,
+          credits: formatNumber(term.creditsAttempted),
+          unit: copy.creditsAttempted,
+          label: copy.gradePointLabel,
+          gpa: gpa(term.gpa),
+        })}
       </UiText>
-      <ProgressBar
-        label={`${copy.creditsEarned} / ${copy.creditsAttempted}`}
-        value={term.creditsAttempted > 0 ? (term.creditsEarned / term.creditsAttempted) * 100 : 0}
-        tone="success"
-      />
     </GroupCard>
   );
   const record = entry.item;
@@ -59,9 +71,15 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
             : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
         const creditsLabel = fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) });
         const appealedLabel = published && record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
+        const openLabel = fillCopy(copy.openBreakdown, { courseCode: record.courseCode, courseName: record.courseName });
         return (
           <GroupCard edge={entry.last ? 'end' : 'middle'} style={academicStyles.card}>
-          <View key={record.id} accessible accessibilityLabel={`${record.courseCode} ${record.courseName}, ${creditsLabel}, ${result}${appealedLabel}`}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${openLabel}, ${record.courseName}, ${creditsLabel}, ${result}${appealedLabel}`}
+            onPress={() => onSelect(record, term.name)}
+            style={styles.rowPress}
+          >
             <Divider />
             <View style={academicStyles.row}>
               <View style={academicStyles.rowCopy}>
@@ -81,7 +99,7 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
                 ? <StatusPill label={record.letterGrade} tone={letterTone(record.letterGrade)} />
                 : <StatusPill label={result} tone="warning" />}
             </View>
-          </View>
+          </Pressable>
           </GroupCard>
         );
 }
@@ -93,18 +111,27 @@ export function TranscriptScreen(_props: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.transcript', () => academicApi.transcript(), copy);
+  const curriculumQuery = useAcademicQuery('academic.curriculum', () => academicApi.curriculum(), copy);
   const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
+  const [selected, setSelected] = useState<SelectedRecord | null>(null);
 
   const model = useMemo(() => (query.data === undefined ? null : parseTranscript(query.data, locale)), [query.data, locale]);
+  const curriculum = curriculumQuery.data && Array.isArray(curriculumQuery.data.courses) ? curriculumQuery.data : null;
   const malformed = !preview && query.data !== undefined && model === null;
   const visibleTerms = model ? model.terms.filter((entry) => !term || entry.semesterId === term) : [];
   const trend = model ? cumulativeTrend(model.terms, model.cumulativeGpa, copy.trendTermPrefix) : [];
+  const distribution = model ? gradeDistribution(visibleTerms) : [];
+  const counts = model ? transcriptCourseCounts(model.terms, curriculum?.courses) : { completedCourses: 0, inProgressCourses: 0 };
+  const requiredCredits = curriculum?.curriculum?.totalCredits;
 
   return (
+    <>
     <AcademicShell
       title={copy.transcriptTitle}
       loading={!preview && query.isLoading}
+      loadingLabel={copy.loadingTranscript}
+      errorTitle={copy.transcriptUnavailable}
       error={preview ? null : malformed ? copy.generic : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
@@ -112,7 +139,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(visibleTerms, (entry) => entry.semesterId, (entry) => entry.records, (record) => record.id), keyExtractor: (entry) => entry.key,
-        renderItem: ({ item: entry }) => <TermCard entry={entry} />,
+        renderItem: ({ item: entry }) => <TermCard entry={entry} onSelect={(record, semesterLabel) => setSelected({ record, semesterLabel })} />,
         footer: <>{!model || model.terms.length === 0 ? null : (<View>
           <SectionHeading title={copy.scaleTitle} />
           <GradeScale />
@@ -127,20 +154,35 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       ) : (<View>
           <View style={academicStyles.metrics}>
             <MetricCard icon="chart-donut" label={copy.cumulativeGpa} value={gpa(model.cumulativeGpa)} style={academicStyles.metric} />
-            <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(model.totalCreditsEarned)} style={academicStyles.metric} />
-            <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(model.totalCreditsAttempted)} style={academicStyles.metric} />
+            <MetricCard
+              icon="book-check-outline"
+              label={copy.creditsEarned}
+              value={requiredCredits != null ? `${formatNumber(model.totalCreditsEarned)} / ${formatNumber(requiredCredits)}` : formatNumber(model.totalCreditsEarned)}
+              style={academicStyles.metric}
+            />
+            <MetricCard icon="school-outline" label={copy.completedCourses} value={formatNumber(counts.completedCourses)} style={academicStyles.metric} />
+            <MetricCard icon="file-document-outline" label={copy.inProgressCourses} value={formatNumber(counts.inProgressCourses)} style={academicStyles.metric} />
           </View>
           {model.basisNote ? <UiText variant="bodySmall" tone="muted">{model.basisNote}</UiText> : null}
           <ScreenSpacer />
           <ChartSummary title={copy.gpaTrend} series={trend} />
           <ScreenSpacer />
+          <ChartSummary title={copy.distribution} series={distribution.map((bucket) => ({ label: bucket.letter, value: bucket.count }))} />
+          <ScreenSpacer />
           <TermField options={model.terms.map((entry) => ({ value: entry.semesterId, label: entry.name }))} value={term} onChange={setTerm} />
           </View>)}</AcademicShell>
+    <GradeDetailSheet
+      record={selected?.record ?? null}
+      semesterLabel={selected?.semesterLabel}
+      onClose={() => setSelected(null)}
+    />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   termHeader: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 4 },
   termName: { flex: 1, minWidth: 0 },
+  rowPress: { minHeight: minTapTarget },
   gradeResult: { alignItems: 'flex-start', gap: 4, maxWidth: '100%' },
 });
