@@ -121,6 +121,14 @@ test('a retaken course reaches the grades cards once for GPA and the 10-point av
   assert.equal(summary.countedCourses, 1);
 });
 
+test('completed credits exclude failed attempts while attempted credits keep them', () => {
+  const records = [record('CS101', 3, 'F', 2.5), record('CS102', 3, 'A', 9)];
+  const summary = gpa.summarizeBestAttempts(records);
+  const attemptedCredits = records.reduce((sum, entry) => sum + entry.credits, 0);
+  assert.equal(attemptedCredits, 6);
+  assert.equal(summary.completedCredits, 3);
+});
+
 test('the grades summary keeps the best attempt for both GPA and the 10-point average', () => {
   const records = [record('CS101', 3, 'F', 3), record('CS101', 3, 'A', 9)];
   const counted = gpa.bestAttempts(records);
@@ -195,6 +203,28 @@ test('cumulative trend is chronological, ends on the server value and matches th
   assert.equal(mine.at(-1).value, 3.42);
   const web = webCharts.buildCumulativeGpaTrendPoints(transcriptPayload.semesters, 'vi', 3.42);
   assert.deepEqual(mine.map((point) => point.value), web.map((point) => point.gpa));
+});
+
+test('grade distribution matches the web buckets and letter order', () => {
+  const parsed = gpa.parseTranscript(transcriptPayload, 'vi');
+  assert.deepEqual(gpa.gradeDistribution(parsed.terms), webCharts.buildGradeDistribution(transcriptPayload.semesters));
+});
+
+test('letter tone bands copy the web mapping', () => {
+  assert.deepEqual(
+    ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F', null].map(gpa.letterTone),
+    ['success', 'success', 'primary', 'primary', 'warning', 'warning', 'warning', 'warning', 'error', 'neutral'],
+  );
+});
+
+test('transcript course counts prefer curriculum statuses and fall back to graded records', () => {
+  const parsed = gpa.parseTranscript(transcriptPayload, 'vi');
+  assert.deepEqual(gpa.transcriptCourseCounts(parsed.terms, null), { completedCourses: 4, inProgressCourses: 0 });
+  const courses = [
+    { status: 'COMPLETED' }, { status: 'COMPLETED' }, { status: 'COMPLETED' },
+    { status: 'IN_PROGRESS' }, { status: 'IN_PROGRESS' }, { status: 'NOT_STARTED' },
+  ];
+  assert.deepEqual(gpa.transcriptCourseCounts(parsed.terms, courses), { completedCourses: 3, inProgressCourses: 2 });
 });
 
 /* ---------- enrollments and timetable ---------- */

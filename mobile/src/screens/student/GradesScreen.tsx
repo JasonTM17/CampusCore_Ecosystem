@@ -1,9 +1,10 @@
 import { groupedRows } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { minTapTarget } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -11,11 +12,11 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AcademicGradeRecord } from '../academic/academic-api';
 import { previewGrades } from '../academic/academic-preview';
-import { publishedOnly, summarizeBestAttempts } from '../academic/gpa';
+import { letterTone, publishedOnly, summarizeBestAttempts } from '../academic/gpa';
 import { localizedName } from '../academic/academic-model';
+import { GradeDetailSheet } from '../academic/GradeDetailSheet';
 import {
   AcademicShell,
-  GradeScale,
   TermField,
   academicStyles,
   isPreviewMode,
@@ -31,12 +32,6 @@ function termOf(record: AcademicGradeRecord, locale: 'vi' | 'en'): { value: stri
   return { value: record.semesterId, label };
 }
 
-function letterTone(letter: string | null | undefined): 'success' | 'warning' | 'error' | 'neutral' {
-  if (letter === 'A+' || letter === 'A' || letter === 'B+' || letter === 'B') return 'success';
-  if (letter === 'D' || letter === 'D+' || letter === 'F') return 'error';
-  return letter ? 'warning' : 'neutral';
-}
-
 /** Published grades by term. The cumulative record is the transcript, never mixed in here. */
 export function GradesScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
@@ -44,21 +39,26 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.grades', () => academicApi.grades(), copy);
+  const semesters = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
   const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
+  const [selected, setSelected] = useState<AcademicGradeRecord | null>(null);
 
   const records = useMemo(() => publishedOnly(preview ? previewGrades : query.data ?? []), [preview, query.data]);
   const options = useMemo(() => {
     const seen = new Map<string, string>();
+    for (const semester of semesters.data ?? []) {
+      seen.set(semester.id, localizedName(semester, locale, semester.name ?? semester.id));
+    }
     for (const record of records) {
       const entry = termOf(record, locale);
       if (entry && !seen.has(entry.value)) seen.set(entry.value, entry.label);
     }
     return [...seen.entries()].map(([value, label]) => ({ value, label }));
-  }, [records, locale]);
+  }, [records, semesters.data, locale]);
   const visible = records.filter((record) => !term || record.semesterId === term);
   const summary = summarizeBestAttempts(visible);
-  const credits = visible.reduce((sum, record) => sum + (record.credits ?? 0), 0);
+  const gradedCount = visible.filter((record) => Boolean(record.letterGrade)).length;
   const grouped = useMemo(() => {
     const groups = new Map<string, { label: string; records: AcademicGradeRecord[] }>();
     for (const record of visible) {
@@ -72,9 +72,12 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   }, [visible, locale, copy.publishedGrades]);
 
   return (
+    <>
     <AcademicShell
       title={copy.gradesTitle}
       loading={!preview && query.isLoading}
+      loadingLabel={copy.loadingGrades}
+      errorTitle={copy.gradesUnavailable}
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
@@ -85,6 +88,8 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
         renderItem: ({ item: entry }) => { const item = entry.group;  const [groupKey, group] = item;
 if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "start"} style={academicStyles.card}>
             <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>{group.label}</UiText>
+            <UiText variant="meta" tone="muted">{copy.componentSummary}</UiText>
+            <UiText variant="meta" tone="muted">{`${formatNumber(group.records.length)} ${countForm(group.records.length, copy.courseWord, copy.coursesWord)} - ${formatNumber(group.records.reduce((sum, record) => sum + (record.credits ?? 0), 0))} ${copy.creditsWord}`}</UiText>
             </GroupCard>;
 const record = entry.item; const index = entry.index;
 const courseName = localizedName({ name: record.courseName, nameEn: record.courseNameEn, nameVi: record.courseNameVi }, locale) || record.courseName;
@@ -93,11 +98,14 @@ const componentScores = record.processScore != null || record.finalExamScore != 
   ? `${copy.processScore} ${formatNumber(record.processScore, { maximumFractionDigits: 1 })} · ${copy.finalExam} ${formatNumber(record.finalExamScore, { maximumFractionDigits: 1 })}`
   : null;
 const appealedLabel = record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
+const openLabel = fillCopy(copy.openBreakdown, { courseCode: record.courseCode, courseName });
 return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
-              <View
+              <Pressable
                 key={record.id}
-                accessible
-                accessibilityLabel={`${record.courseCode} ${courseName}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}, ${creditsLabel}${componentScores ? `, ${componentScores}` : ''}${appealedLabel}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${openLabel}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}, ${creditsLabel}${componentScores ? `, ${componentScores}` : ''}${appealedLabel}`}
+                onPress={() => setSelected(record)}
+                style={styles.rowPress}
               >
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.gradeRow}>
@@ -120,11 +128,9 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                     ) : null}
                   </View>
                 </View>
-              </View>
+              </Pressable>
             )}</GroupCard>; },
-        footer: <>{visible.length === 0 ? null : (null)}
-      <ScreenSpacer />
-      <GradeScale />
+        footer: visible.length === 0 ? null : <>
       <ScreenSpacer />
       <Button label={copy.openTranscript} onPress={() => openRoute(navigation, 'transcript')} variant="secondary" />
     </>,
@@ -133,19 +139,27 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
       <TermField options={options} value={term} onChange={setTerm} />
       <View style={academicStyles.metrics}>
         <MetricCard icon="chart-donut" label={term ? copy.termGpa : copy.listedGpa} value={gpa(summary.gpa)} style={academicStyles.metric} />
-        <MetricCard icon="chart-line" label={copy.average10} value={formatNumber(summary.average10, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} style={academicStyles.metric} />
-        <MetricCard icon="book-check-outline" label={copy.records} value={formatNumber(summary.countedCourses)} style={academicStyles.metric} />
-        <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(credits)} style={academicStyles.metric} />
+        <MetricCard icon="book-check-outline" label={copy.completedCredits} value={formatNumber(summary.completedCredits)} style={academicStyles.metric} />
+        <MetricCard icon="book-open-outline" label={copy.gradedCourses} value={`${formatNumber(gradedCount)}/${formatNumber(visible.length)}`} style={academicStyles.metric} />
       </View>
       <SectionHeading title={copy.publishedGrades} />
       {visible.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyGrades} />
+        <StatePanel
+          kind="empty"
+          title={copy.emptyGrades}
+          description={copy.emptyGradesDescription}
+          actionLabel={copy.openTranscript}
+          onAction={() => openRoute(navigation, 'transcript')}
+        />
       ) : (null)}</AcademicShell>
+      <GradeDetailSheet record={selected} onClose={() => setSelected(null)} />
+      </>
   );
 }
 
 const styles = StyleSheet.create({
   termTitle: { marginBottom: 4 },
+  rowPress: { minHeight: minTapTarget },
   gradeRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 8 },
   gradeCopy: { flex: 1, gap: 4, minWidth: 160 },
   gradeResult: { alignItems: 'flex-start', gap: 4, maxWidth: '100%' },

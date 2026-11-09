@@ -19,6 +19,17 @@ export const GRADE_POINTS: Record<string, number> = {
   'A+': 4, A: 4, 'A-': 3.7, 'B+': 3.5, B: 3, 'B-': 2.7, 'C+': 2.5, C: 2, 'C-': 1.7, 'D+': 1.5, D: 1, 'D-': 0.7, F: 0,
 };
 
+/** Letter chip tones, mirroring the web grade bands: A green, B brand, C/D amber, F red. */
+export type GradeLetterTone = 'success' | 'primary' | 'warning' | 'error' | 'neutral';
+
+export function letterTone(letter: string | null | undefined): GradeLetterTone {
+  if (!letter) return 'neutral';
+  if (letter.startsWith('A')) return 'success';
+  if (letter.startsWith('B')) return 'primary';
+  if (letter.startsWith('C') || letter.startsWith('D')) return 'warning';
+  return 'error';
+}
+
 export interface GradeConversionRow {
   letter: string;
   min: number;
@@ -166,7 +177,15 @@ export interface TranscriptRecord extends GradeRecordLike {
   id: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string | null;
+  courseNameVi?: string | null;
   credits: number;
+  sectionCode?: string | null;
+  lecturerName?: string | null;
+  semesterNameEn?: string | null;
+  semesterNameVi?: string | null;
+  processScore?: number | null;
+  finalExamScore?: number | null;
 }
 
 export interface TranscriptTerm {
@@ -187,6 +206,54 @@ export interface TranscriptModel {
   terms: TranscriptTerm[];
 }
 
+export interface TranscriptCourseCounts {
+  completedCourses: number;
+  inProgressCourses: number;
+}
+
+/** Web transcript cards: curriculum statuses when available, otherwise graded vs ungraded records. */
+export function transcriptCourseCounts(
+  terms: readonly Pick<TranscriptTerm, 'records'>[],
+  curriculumCourses: readonly { status?: string | null }[] | null | undefined,
+): TranscriptCourseCounts {
+  if (curriculumCourses) {
+    return {
+      completedCourses: curriculumCourses.filter((course) => course.status === 'COMPLETED').length,
+      inProgressCourses: curriculumCourses.filter((course) => course.status === 'IN_PROGRESS').length,
+    };
+  }
+  const records = terms.flatMap((term) => term.records);
+  return {
+    completedCourses: records.filter((record) => Boolean(record.letterGrade)).length,
+    inProgressCourses: records.filter((record) => !record.letterGrade).length,
+  };
+}
+
+const LETTER_ORDER = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'F'];
+
+export interface GradeDistributionBucket {
+  letter: string;
+  count: number;
+}
+
+/** Published letter counts in the web's standard A..F order; unknown letters sort last. */
+export function gradeDistribution(terms: readonly Pick<TranscriptTerm, 'records'>[]): GradeDistributionBucket[] {
+  const counts = new Map<string, number>();
+  for (const term of terms) {
+    for (const record of term.records) {
+      if (!record.letterGrade) continue;
+      counts.set(record.letterGrade, (counts.get(record.letterGrade) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([letter, count]) => ({ letter, count }))
+    .sort((a, b) => {
+      const aIndex = LETTER_ORDER.indexOf(a.letter);
+      const bIndex = LETTER_ORDER.indexOf(b.letter);
+      return (aIndex === -1 ? LETTER_ORDER.length : aIndex) - (bIndex === -1 ? LETTER_ORDER.length : bIndex);
+    });
+}
+
 type Json = Record<string, unknown>;
 const asObject = (value: unknown): Json | null => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Json) : null);
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
@@ -205,7 +272,15 @@ function parseRecord(raw: unknown, index: number, locale: 'vi' | 'en'): Transcri
     id: text(row.id) ?? `${courseCode || 'record'}-${index}`,
     courseCode,
     courseName: pickName(row, locale, 'courseName', 'courseNameEn', 'courseNameVi') || courseCode,
+    courseNameEn: text(row.courseNameEn),
+    courseNameVi: text(row.courseNameVi),
     credits: num(row.credits) ?? 0,
+    sectionCode: text(row.sectionCode),
+    lecturerName: text(row.lecturerName),
+    semesterNameEn: text(row.semesterNameEn),
+    semesterNameVi: text(row.semesterNameVi),
+    processScore: num(row.processScore),
+    finalExamScore: num(row.finalExamScore),
     finalGrade: num(row.finalGrade),
     letterGrade: text(row.letterGrade),
     gradePoint: num(row.gradePoint),

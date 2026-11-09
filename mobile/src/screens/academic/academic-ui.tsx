@@ -58,6 +58,7 @@ export interface AcademicShellProps<T = unknown> {
   title: string;
   eyebrow?: string;
   loading?: boolean;
+  loadingLabel?: string;
   error?: string | null;
   errorTitle?: string;
   errorDescription?: string;
@@ -69,7 +70,7 @@ export interface AcademicShellProps<T = unknown> {
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function AcademicShell<T>({ title, eyebrow, loading = false, error, errorTitle, errorDescription, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
+export function AcademicShell<T>({ title, eyebrow, loading = false, loadingLabel, error, errorTitle, errorDescription, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
   const { colors } = useTheme();
   const refreshControl = onRefresh
@@ -80,7 +81,7 @@ export function AcademicShell<T>({ title, eyebrow, loading = false, error, error
     <ScreenShell title={title} eyebrow={eyebrow} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
       {warning ? <View style={academicStyles.card}><DataNotice message={warning} /></View> : null}
       {loading ? (
-        <StatePanel kind="loading" title={copy.loading} />
+        <StatePanel kind="loading" title={loadingLabel ?? copy.loading} />
       ) : error ? (
         <StatePanel kind="error" title={errorTitle ?? copy.errorTitle} description={errorDescription ?? error} actionLabel={copy.retry} onAction={onRetry} />
       ) : (
@@ -118,6 +119,7 @@ export function GradeScale() {
           <UiText variant="bodySmall">{row.point}</UiText>
         </View>
       ))}
+      <UiText variant="meta" tone="muted" style={styles.scaleNote}>{copy.scaleFailingNote}</UiText>
     </Card>
   );
 }
@@ -171,6 +173,7 @@ const styles = StyleSheet.create({
   tab: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, flexGrow: 1, justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.sm },
   tabText: { textAlign: 'center' },
   scaleHeader: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },
+  scaleNote: { marginTop: tokens.spacing.sm },
   scaleRow: { alignItems: 'center', flexDirection: 'row', minHeight: 32 },
   scaleLetter: { width: 48 },
   scaleRange: { flex: 1 },
