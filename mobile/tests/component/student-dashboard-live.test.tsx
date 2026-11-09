@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider, useLocale } from '../../src/i18n/locale-provider';
@@ -479,10 +480,31 @@ describe('student dashboard live mode', () => {
     const tiles = within(screen.getByTestId('quick-access')).getAllByRole('button');
     expect(tiles.map((tile) => tile.props.accessibilityLabel)).toEqual(labels);
 
+    const quickAccess = within(screen.getByTestId('quick-access'));
     const targets = ['registration', 'schedule', 'grades', 'transcript', 'thesis.topics', 'announcements'];
     for (let index = 0; index < labels.length; index += 1) {
-      await fireEvent.press(screen.getByRole('button', { name: labels[index] }));
+      await fireEvent.press(quickAccess.getByRole('button', { name: labels[index] }));
       expect(navigation.navigate).toHaveBeenLastCalledWith(targets[index]);
+    }
+  });
+
+  test('the header keeps registration beside the date chip without wrapping at 360dp and fontScale 1.3', async () => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 360, height: 800, scale: 2, fontScale: 1.3 } as ReturnType<typeof Dimensions.get>);
+    jest.useFakeTimers({
+      now: new Date('2026-11-09T02:00:00Z'),
+      doNotFake: ['setTimeout', 'setInterval', 'setImmediate', 'nextTick', 'queueMicrotask'],
+    });
+    try {
+      mockApi.mode = 'live';
+      mockQueries['academic.dashboard'] = { data: dashboardValue([]) };
+      mockQueries.announcements = { data: { data: [] } };
+      await renderScreen('vi');
+      const headerActions = screen.getByTestId('dashboard-header-actions');
+      expect(StyleSheet.flatten(headerActions.props.style)?.flexWrap).toBe('nowrap');
+      expect(within(headerActions).getByRole('button', { name: 'Đăng ký học phần' })).toBeOnTheScreen();
+      expect(screen.getByText('Thứ Hai, 9 tháng 11, 2026')).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
     }
   });
 
