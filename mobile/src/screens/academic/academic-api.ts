@@ -29,6 +29,20 @@ export interface AcademicGradeRecord extends GradeRecordLike {
   finalExamScore?: number | null;
 }
 
+export interface GradeBreakdownLine {
+  id?: string;
+  gradeItemId?: string;
+  gradeItemName?: string;
+  gradeItemType?: string | null;
+  score?: number;
+  maxScore?: number;
+  weight?: number;
+}
+
+export interface GradeBreakdown {
+  grades?: GradeBreakdownLine[];
+}
+
 export interface AttendanceSummaryRow {
   sectionId: string;
   courseCode: string;
@@ -129,6 +143,8 @@ export const academicApi = {
     (await campusApi.enrollments(semesterId ?? undefined)) as unknown as AcademicEnrollment[],
   grades: async (semesterId?: string | null): Promise<AcademicGradeRecord[]> =>
     (await campusApi.grades(semesterId ?? undefined)) as unknown as AcademicGradeRecord[],
+  gradeBreakdown: (enrollmentId: string): Promise<GradeBreakdown> =>
+    apiClient.get<GradeBreakdown>(`/grades/student-grades/enrollment/${encodeURIComponent(enrollmentId)}`),
   transcript: (): Promise<unknown> => campusApi.transcript(),
   curriculum: (): Promise<MyCurriculum> => apiClient.get<MyCurriculum>('/me/curriculum'),
   attendanceSummary: async (semesterId?: string | null): Promise<AttendanceSummaryRow[]> =>

@@ -109,7 +109,7 @@ describe('student screens (preview mode)', () => {
     setWidth(360);
     await renderThemed(<GradesScreen {...props} />);
     expect(screen.getByRole('header', { name: 'Điểm học kỳ' })).toBeOnTheScreen();
-    expect(screen.getByText('Điểm trung bình (hệ 10)')).toBeOnTheScreen();
+    expect(screen.getByText('Tín chỉ hoàn tất')).toBeOnTheScreen();
     expect(screen.getByText('CS204')).toBeOnTheScreen();
   });
 
