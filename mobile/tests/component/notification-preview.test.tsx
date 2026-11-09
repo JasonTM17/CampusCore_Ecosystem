@@ -14,8 +14,20 @@ const mockContentQuery = {
   setData: jest.fn(),
 };
 
+const mockUnreadQuery = {
+  data: undefined as unknown,
+  error: null as string | null,
+  warning: null,
+  isLoading: false,
+  isStale: false,
+  errorStatus: null,
+  reload: jest.fn(async () => undefined),
+  reloadData: jest.fn(async () => undefined),
+  setData: jest.fn(),
+};
+
 jest.mock('../../src/screens/content/use-content-query', () => ({
-  useContentQuery: () => mockContentQuery,
+  useContentQuery: (key: string) => (key === 'content.notifications.unread-count' ? mockUnreadQuery : mockContentQuery),
 }));
 jest.mock('../../src/screens/content/content-api', () => ({
   contentApi: {
@@ -30,13 +42,18 @@ jest.mock('../../src/api/client', () => ({
 import { NotificationPreview } from '../../src/components/NotificationPreview';
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { recordsMessages } from '../../src/i18n/records-messages';
 import { shellMessages } from '../../src/i18n/shell-messages';
+import { contentApi } from '../../src/screens/content/content-api';
 
 afterEach(() => {
   jest.clearAllMocks();
   mockContentQuery.data = undefined;
   mockContentQuery.error = null;
   mockContentQuery.isLoading = false;
+  mockUnreadQuery.data = undefined;
+  mockUnreadQuery.error = null;
+  mockUnreadQuery.isLoading = false;
 });
 
 function wrap(ui: ReactElement) {
@@ -109,5 +126,18 @@ describe('header notification preview', () => {
     expect(screen.getByText(shellMessages.vi.notifications.loadFailed)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.notifications.retry }));
     expect(mockContentQuery.reload).toHaveBeenCalledTimes(1);
+  });
+
+  test('reloads the unread count and shows inline feedback when marking read fails', async () => {
+    mockContentQuery.data = rows(1);
+    jest.mocked(contentApi.markNotificationRead).mockRejectedValueOnce({ status: 400 });
+    const props = handlers();
+    await render(wrap(<NotificationPreview unreadCount={1} {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tiêu đề 0' }));
+
+    await waitFor(() => expect(screen.getByText(recordsMessages.vi.updateFailed)).toBeOnTheScreen());
+    expect(mockUnreadQuery.reload).toHaveBeenCalledTimes(1);
+    expect(props.onMarkedRead).not.toHaveBeenCalled();
   });
 });
