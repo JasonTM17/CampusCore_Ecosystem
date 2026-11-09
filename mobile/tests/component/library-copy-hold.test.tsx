@@ -107,8 +107,8 @@ test('the loan row keeps the barcode, the cancel reason and the time of day', as
   const row = screen.getByLabelText(/Sách thử nghiệm/);
   const label = String(row.props.accessibilityLabel);
   expect(label).toContain('BAR-9');
-  expect(label).toContain('Giữ chỗ đến: 02/10/2026 16:30');
-  expect(label).toContain('Hạn trả: 17/10/2026 17:15');
+  expect(label).toContain('Giữ chỗ đến: 16:30 02/10/2026');
+  expect(label).toContain('Hạn trả: 17:15 17/10/2026');
   expect(label).toContain('Bạn đọc hủy');
 });
 

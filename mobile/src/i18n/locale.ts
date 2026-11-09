@@ -97,9 +97,20 @@ export function formatLongDate(value: string | number | Date | null | undefined,
   return `${WEEKDAYS_EN[weekday]}, ${MONTHS_LONG_EN[p.m - 1]} ${p.d}, ${p.y}`;
 }
 
+/** Time-only half of a date-time string, in the locale's clock convention. */
+function timePart(p: DateParts, locale: AppLocale): string {
+  if (locale === 'vi') return `${pad(p.hh)}:${pad(p.mm)}`;
+  const hour12 = p.hh % 12 === 0 ? 12 : p.hh % 12;
+  const meridiem = p.hh < 12 ? 'AM' : 'PM';
+  return `${pad(hour12)}:${pad(p.mm)} ${meridiem}`;
+}
+
+/** Web date-time format: vi prints time-first 24-hour, en prints 12-hour AM/PM. */
 export function formatDateTime(value: string | number | Date | null | undefined, locale: AppLocale): string {
   const p = toParts(value);
-  return p ? `${datePart(p, locale)} ${pad(p.hh)}:${pad(p.mm)}` : EMPTY;
+  if (!p) return EMPTY;
+  const time = timePart(p, locale);
+  return locale === 'vi' ? `${time} ${datePart(p, locale)}` : `${datePart(p, locale)}, ${time}`;
 }
 
 /** An instant's fixed UTC+07 calendar day, encoded at UTC midnight for zone-free day math. */
