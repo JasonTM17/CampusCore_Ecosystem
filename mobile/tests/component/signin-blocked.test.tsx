@@ -94,7 +94,7 @@ describe('sign-in blocked outcome', () => {
     expect(accountMessages.en.signIn.noMobileSurface).toBeTruthy();
 
     await renderScreen('en');
-    await fireEvent.press(screen.getByRole('button', { name: 'Sign in with your campus account' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Sign in with your campus account to continue.' }));
 
     expect(await screen.findByText(accountMessages.en.signIn.noMobileSurface)).toBeOnTheScreen();
     expect(screen.queryByText(accountMessages.en.signIn.invalid)).toBeNull();
@@ -117,7 +117,7 @@ describe('sign-in blocked outcome', () => {
 
     await renderScreen(locale);
     await fireEvent.press(screen.getByRole('button', {
-      name: locale === 'vi' ? 'Đăng nhập bằng tài khoản campus' : 'Sign in with your campus account',
+      name: locale === 'vi' ? 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' : 'Sign in with your campus account to continue.',
     }));
 
     expect(mockSession.markBlocked).toHaveBeenCalledWith(reason);

@@ -9,10 +9,10 @@ import { chromeFor } from '../design/chrome';
 import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { nextThemePreference } from '../design/theme-preference';
-import { useLocale } from '../i18n/locale-provider';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import type { UserRole } from '../navigation/routes';
 import { PreviewPill } from './PreviewPill';
+import { LanguageToggleButton } from './LanguageToggleButton';
 import { UiText } from './ui/UiText';
 import { unreadBadgeLabel } from './unread-badge';
 
@@ -44,7 +44,6 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
   const { copy } = useShellCopy();
-  const { locale, setLocale } = useLocale();
   const roleLabel = applicant ? copy.roles.applicant : role ? copy.roles[role] : null;
   const preview = apiClient.mode === 'preview';
   const brandVariant = window.fontScale >= 1.3 ? 'meta' : 'headlineSmall';
@@ -95,16 +94,7 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
           </View>
         ) : null}
         <PreviewPill />
-        <Pressable
-          accessibilityLabel={copy.language}
-          accessibilityRole="button"
-          onPress={() => setLocale(locale === 'vi' ? 'en' : 'vi')}
-          style={({ pressed }) => [styles.language, { backgroundColor: pressed ? chrome.surfaceStrong : chrome.overlay }]}
-        >
-          <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
-            {locale.toUpperCase()}
-          </UiText>
-        </Pressable>
+        <LanguageToggleButton />
         <Pressable
           accessibilityLabel={themeLabel}
           accessibilityRole="button"
@@ -170,7 +160,6 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0 },
   rolePill: { borderRadius: tokens.spacing.xs, paddingHorizontal: tokens.spacing.sm, paddingVertical: 4, flexShrink: 1 },
   iconButton: { alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
-  language: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.xs },
   badge: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 16, minWidth: 16, paddingHorizontal: 3, position: 'absolute', right: 2, top: 2 },
   badgeCount: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   signIn: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: tokens.spacing.md },

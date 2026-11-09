@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, TextInput, type ViewStyle } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import type { ReactElement } from 'react';
@@ -45,6 +45,14 @@ function scrollAncestor(node: ReturnType<typeof screen.getByText>) {
 afterEach(() => { jest.restoreAllMocks(); });
 
 describe('signed-out responsive frames', () => {
+  test('the shared account frame lets guests switch language from its header', async () => {
+    await show(<AccountFrame title="Khôi phục"><TextInput /></AccountFrame>);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Ngôn ngữ' }));
+
+    expect(screen.getByText('Campus academic portal')).toBeOnTheScreen();
+  });
+
   test.each<[string, number]>([['account', 1], ['account', 1.3], ['account', 2], ['sign-in', 1], ['sign-in', 1.3], ['sign-in', 2]])('keeps the %s frame inside landscape side insets at font scale %s', async (frame, fontScale) => {
     setWindow(839, 393, fontScale);
     const element = frame === 'account' ? <AccountFrame title="Khôi phục"><TextInput /></AccountFrame> : <SignInScreen {...props} />;
@@ -81,7 +89,7 @@ describe('signed-out responsive frames', () => {
       expect(style.flexGrow).toBe(1);
       expect(style.width).toBe('100%');
       expect(style.maxWidth).toBe(tokens.windowClasses.contentMaxWidth.medium);
-      expect(scrollAncestor(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' }))).toBeTruthy();
+      expect(scrollAncestor(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' }))).toBeTruthy();
     },
   );
 });

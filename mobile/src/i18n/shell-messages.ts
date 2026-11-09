@@ -193,6 +193,28 @@ const vi = {
     title: 'Cổng Thông Tin Đào Tạo & Học Vụ Trực Tuyến',
     description: 'Hệ thống quản lý học vụ số tập trung dành cho Sinh viên, Giảng viên và Cán bộ Quản trị.',
     signIn: 'Đăng nhập',
+    identityBoard: {
+      eyebrow: 'Truy cập học vụ trực tiếp',
+      tabs: { student: 'Sinh viên', lecturer: 'Giảng viên', admin: 'Quản trị' },
+      portalActions: { student: 'Vào Cổng Sinh viên', lecturer: 'Vào Cổng Giảng viên', admin: 'Vào Cổng Quản trị' },
+      rows: {
+        student: [
+          { title: 'Đăng ký học phần trong đợt mở', description: 'Chọn lớp theo chương trình đào tạo của bạn.' },
+          { title: 'Thời khóa biểu, điểm và bảng điểm', description: 'Theo dõi kết quả từng học kỳ đã công bố.' },
+          { title: 'Tiến độ đồ án – khóa luận', description: 'Nhóm, đề tài và các mốc cần lưu ý.' },
+        ],
+        lecturer: [
+          { title: 'Lớp học phần đang giảng dạy', description: 'Danh sách lớp và lịch dạy theo học kỳ.' },
+          { title: 'Nhập điểm và công bố', description: 'Cập nhật điểm thành phần rồi công bố cho sinh viên.' },
+          { title: 'Nhóm hướng dẫn', description: 'Theo dõi nhóm đồ án và tiến độ thực hiện.' },
+        ],
+        admin: [
+          { title: 'Người dùng và danh mục', description: 'Tài khoản, môn học, lớp học phần, học kỳ.' },
+          { title: 'Thông báo chính thức', description: 'Đăng và lưu hành thông báo của nhà trường, khoa.' },
+          { title: 'Đợt luận văn', description: 'Khởi tạo đợt, hội đồng và công bố kết quả.' },
+        ],
+      },
+    },
     roles: {
       student: {
         title: 'Cổng Sinh viên',
@@ -476,6 +498,28 @@ const en: ShellCopy = {
     title: 'Academic Portal & Student Management',
     description: 'Centralized academic management system for students, lecturers, and university administrators.',
     signIn: 'Sign in',
+    identityBoard: {
+      eyebrow: 'Direct campus access',
+      tabs: { student: 'Student', lecturer: 'Lecturer', admin: 'Admin' },
+      portalActions: { student: 'Enter Student Portal', lecturer: 'Enter Lecturer Portal', admin: 'Enter Admin Portal' },
+      rows: {
+        student: [
+          { title: 'Course registration in open rounds', description: 'Pick classes that follow your curriculum.' },
+          { title: 'Timetable, grades and transcript', description: 'Track published results for every term.' },
+          { title: 'Thesis and capstone progress', description: 'Your group, topic and the milestones ahead.' },
+        ],
+        lecturer: [
+          { title: 'Classes you teach', description: 'Section rosters and the teaching timetable.' },
+          { title: 'Enter and publish grades', description: 'Update components, then publish to students.' },
+          { title: 'Supervised groups', description: 'Follow each thesis group and its progress.' },
+        ],
+        admin: [
+          { title: 'People and catalog', description: 'Accounts, courses, sections and terms.' },
+          { title: 'Official announcements', description: 'Publish university and faculty notices.' },
+          { title: 'Thesis rounds', description: 'Open rounds, councils and published results.' },
+        ],
+      },
+    },
     roles: {
       student: {
         title: 'Student Portal',

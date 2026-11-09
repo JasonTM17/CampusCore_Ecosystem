@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -76,7 +76,7 @@ describe('sign-in hero and card copy', () => {
     await renderScreen('vi');
     expect(screen.queryByText(/Tiếp tục trong trình duyệt/)).toBeNull();
     expect(screen.getByRole('header', { name: 'Đăng nhập cổng học vụ' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
   });
 
   test('the English live hero and card drop the same tagline and helper', async () => {
@@ -84,7 +84,20 @@ describe('sign-in hero and card copy', () => {
     expect(screen.queryByText('Welcome back')).toBeNull();
     expect(screen.queryByText(/Continue in your browser/)).toBeNull();
     expect(screen.getByText('Campus academic portal')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Sign in with your campus account' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Sign in with your campus account to continue.' })).toBeOnTheScreen();
+  });
+
+  test('Vietnamese sign-in notes use the web-issued account wording', async () => {
+    await renderScreen('vi');
+    expect(screen.getByText('Tài khoản campus do Phòng Đào tạo cấp.')).toBeOnTheScreen();
+  });
+
+  test('a guest can switch language from the sign-in header', async () => {
+    await renderScreen('vi');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Ngôn ngữ' }));
+
+    expect(screen.getByText('Campus academic portal')).toBeOnTheScreen();
   });
 
   test('the sign-in card explains that accounts are issued by the Academic Office', async () => {
