@@ -25,6 +25,8 @@ export interface DataListProps<T> {
   onLoadMore?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
   header?: ReactElement | null;
   accessibilityLabel?: string;
   testID?: string;
@@ -46,6 +48,8 @@ export function DataList<T>({
   onLoadMore,
   emptyTitle,
   emptyDescription,
+  emptyActionLabel,
+  onEmptyAction,
   header,
   accessibilityLabel,
   testID,
@@ -70,7 +74,7 @@ export function DataList<T>({
   } else if (empty && error) {
     emptyComponent = errorBanner;
   } else if (empty) {
-    emptyComponent = <EmptyState title={emptyTitle ?? t('empty')} description={emptyDescription} />;
+    emptyComponent = <EmptyState title={emptyTitle ?? t('empty')} description={emptyDescription} actionLabel={emptyActionLabel} onAction={onEmptyAction} />;
   }
 
   const footer = loadingMore ? (

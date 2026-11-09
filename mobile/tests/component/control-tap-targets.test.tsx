@@ -89,10 +89,11 @@ describe('48dp controls', () => {
     await waitFor(() => {
       expect(screen.getByText('Chưa bật')).toBeOnTheScreen();
     });
-    const title = screen.getByRole('header', { name: 'Xác thực hai yếu tố' });
+    const title = screen.getByRole('header', { name: 'Xác thực hai yếu tố (2FA)' });
     expect(flattened(title.props.style)?.flex).toBeUndefined();
     const titleRow = title.parent;
     const pill = screen.getByText('Chưa bật');
     expect(pill.parent).not.toBe(titleRow);
+    expect(screen.getByText('Khi bật, mỗi lần đăng nhập sẽ yêu cầu thêm mã OTP gửi về email của bạn.')).toBeOnTheScreen();
   });
 });

@@ -446,3 +446,51 @@ describe('push opt-in denial recovery', () => {
     expect(screen.queryByText('0+ chưa đọc')).toBeNull();
   });
 });
+
+describe('notifications centre parity', () => {
+  test('the filter names all notifications and the page explains the inbox', async () => {
+    showRows([row('n1', 'Thông báo chung', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    expect(screen.getByRole('tab', { name: recordsMessages.vi.tabAll })).toBeOnTheScreen();
+    expect(screen.getByText(recordsMessages.vi.notificationsDescription)).toBeOnTheScreen();
+  });
+
+  test('an unread row offers mark as read and shows the read state afterwards', async () => {
+    jest.mocked(contentApi.unreadCount).mockResolvedValue(0);
+    showRows([row('mark-1', 'Cần đánh dấu', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: recordsMessages.vi.markRead }));
+    await waitFor(() => expect(contentApi.markNotificationRead).toHaveBeenCalledWith('mark-1'));
+    expect(await screen.findByText(recordsMessages.vi.read)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: recordsMessages.vi.markRead })).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  test('a read row states that it is read', async () => {
+    showRows([row('read-1', 'Đã xử lý', null, true)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    expect(screen.getByText(recordsMessages.vi.read)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: recordsMessages.vi.markRead })).toBeNull();
+  });
+
+  test('the empty inbox uses the web copy and opens the dashboard', async () => {
+    showRows([]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    expect(screen.getByText(recordsMessages.vi.notificationsEmpty)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: recordsMessages.vi.openDashboard }));
+    expect(navigate).toHaveBeenCalledWith('dashboard.student');
+  });
+
+  test('the empty unread filter uses the web copy and the same exit', async () => {
+    showRows([]);
+    await renderThemed(<NotificationsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: recordsMessages.vi.tabUnread }));
+    expect(screen.getByText(recordsMessages.vi.notificationsUnreadEmpty)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: recordsMessages.vi.openDashboard })).toBeOnTheScreen();
+  });
+});
