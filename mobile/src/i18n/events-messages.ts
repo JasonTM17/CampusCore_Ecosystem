@@ -3,7 +3,6 @@ export const eventsMessages = {
   "vi": {
     "title": "Sự kiện & Hoạt động Đoàn–Hội",
     "unavailable": "Không thể tải sự kiện.",
-    "mineUnavailable": "Không thể tải đăng ký của bạn.",
     "full": "Sự kiện đã hết chỗ.",
     "eventStarted": "Sự kiện đã bắt đầu, không thể đăng ký.",
     "windowClosed": "Thời gian đăng ký đã kết thúc.",
@@ -53,7 +52,6 @@ export const eventsMessages = {
   "en": {
     "title": "Events & Union Activities",
     "unavailable": "Events are unavailable.",
-    "mineUnavailable": "Your registrations are unavailable.",
     "full": "This event is full.",
     "eventStarted": "This event has started, so registration is closed.",
     "windowClosed": "The registration window has closed.",
