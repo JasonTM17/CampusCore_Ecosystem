@@ -6,7 +6,10 @@ import { campusDayOfWeek } from '../../i18n/locale';
 
 export type MarkStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
 
-export const MARK_STATUSES: readonly MarkStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
+export const MARK_STATUSES: readonly MarkStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+
+/** Mirrors the web field and the attendance request DTO. */
+export const ATTENDANCE_NOTE_MAX = 1000;
 
 const isMarkStatus = (value: unknown): value is MarkStatus =>
   typeof value === 'string' && (MARK_STATUSES as readonly string[]).includes(value);
@@ -128,6 +131,8 @@ export interface AttendanceBaseline {
   marks: Record<string, string>;
   /** Stored note per marked student, so a note edited elsewhere also makes the sheet stale. */
   notes?: Record<string, string>;
+  /** Present-by-default rows the lecturer has not saved yet; never part of the server baseline. */
+  defaults?: Record<string, string>;
 }
 
 export function baselineOf(roster: readonly RosterEntryLike[], marks: readonly MarkLike[]): AttendanceBaseline {
@@ -182,6 +187,18 @@ export const setRowStatus = (rows: readonly RosterRow[], studentId: string, stat
 export const setAllStatus = (rows: readonly RosterRow[], status: MarkStatus, ids?: ReadonlySet<string>): RosterRow[] =>
   rows.map((row) => (!ids || ids.has(row.studentId) ? { ...row, status } : row));
 
+/** The web roll-call default: rows with no stored mark start Present but stay unsaved. */
+export function defaultUnmarkedStatus(rows: readonly RosterRow[], status: MarkStatus): {
+  rows: RosterRow[];
+  defaults: Record<string, string>;
+} {
+  const defaults: Record<string, string> = {};
+  for (const row of rows) {
+    if (!row.status) defaults[row.studentId] = status;
+  }
+  return { rows: setAllStatus(rows, status, new Set(Object.keys(defaults))), defaults };
+}
+
 export interface AttendanceSaveRecord {
   studentId: string;
   status: MarkStatus | 'RESET';
@@ -201,9 +218,13 @@ export function buildAttendanceRecords(rows: readonly RosterRow[]): AttendanceSa
   return records;
 }
 
-/** Rows whose mark differs from the stored one. */
+/** Rows whose mark or note differs from the loaded server state and roll-call defaults. */
 export function attendanceChangeCount(rows: readonly RosterRow[], baseline: AttendanceBaseline): number {
-  return rows.filter((row) => (row.status ?? '') !== (baseline.marks[row.studentId] ?? '')).length;
+  return rows.filter((row) => {
+    const expectedStatus = baseline.marks[row.studentId] ?? baseline.defaults?.[row.studentId] ?? '';
+    const expectedNote = baseline.notes?.[row.studentId] ?? '';
+    return (row.status ?? '') !== expectedStatus || row.notes.trim() !== expectedNote;
+  }).length;
 }
 
 export interface AttendanceMetrics {
@@ -249,6 +270,7 @@ export interface GradeRowLike {
   enrollmentId: string;
   studentName?: string;
   studentCode?: string;
+  email?: string;
   processScore?: number | null;
   finalExamScore?: number | null;
   gradeStatus?: string;
@@ -317,7 +339,7 @@ export function parseScore(text: string): number | null | undefined {
 
 export const scoreText = (value: number | null | undefined): string => (value === null || value === undefined ? '' : String(value));
 
-export const isLockedGrade = (row: GradeRowLike): boolean => row.gradeStatus === 'PUBLISHED' || row.gradeStatus === 'APPEALED';
+export const isLockedGrade = (row: GradeRowLike): boolean => row.gradeStatus === 'PUBLISHED';
 
 export interface GradeDraft {
   changes: GradeChange[];

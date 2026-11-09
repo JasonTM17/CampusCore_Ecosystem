@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/Ui';
+import { ChoiceField } from '../../components/ui/choice-field';
 import { DateField } from '../../components/ui/date-field';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -21,11 +22,14 @@ import {
   buildRosterRows,
   commitRows,
   courseTitle,
+  defaultUnmarkedStatus,
   filterRoster,
+  filterSections,
   isStaleAttendance,
   savedBaseline,
   setAllStatus,
   setRowStatus,
+  termOptions,
   windowOf,
   type AttendanceBaseline,
   type MarkStatus,
@@ -49,9 +53,12 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const params = useLocalSearchParams<{ sectionId?: string }>();
   const sectionsQuery = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const sections = useMemo(() => (preview ? previewSchedule : sectionsQuery.data ?? []), [preview, sectionsQuery.data]);
+  const [term, setTerm] = useState('');
+  const termList = useMemo(() => termOptions(sections), [sections]);
+  const visibleSections = useMemo(() => filterSections(sections, '', term, locale), [sections, term, locale]);
 
   const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
-  const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
+  const sectionId = visibleSections.some((section) => section.sectionId === picked) ? picked : visibleSections[0]?.sectionId ?? '';
   const section = sections.find((item) => item.sectionId === sectionId);
   const today = campusIsoDate();
   const [date, setDate] = useState(today);
@@ -65,6 +72,13 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     copy,
     Boolean(sectionId),
   );
+  const summaryQuery = useOpsQuery(
+    `lecturer:attendance-summary:${sectionId}`,
+    () => lecturerApi.sectionSummary(sectionId),
+    copy,
+    Boolean(sectionId),
+  );
+  const summary = preview ? undefined : summaryQuery.data;
 
   const sheet: AttendanceSheet | undefined = useMemo(() => {
     if (preview) return { sectionId, date, roster: previewRoster, marks: [] };
@@ -89,8 +103,9 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
   const applySheet = (next: AttendanceSheet) => {
     delete draftsRef.current[`${next.sectionId}:${next.date}`];
-    setRows(buildRosterRows(next.roster, next.marks));
-    setBaseline(baselineOf(next.roster, next.marks));
+    const defaulted = defaultUnmarkedStatus(buildRosterRows(next.roster, next.marks), 'PRESENT');
+    setRows(defaulted.rows);
+    setBaseline({ ...baselineOf(next.roster, next.marks), defaults: defaulted.defaults });
     setLoadedKey(`${next.sectionId}:${next.date}`);
     setRemoteChanged(false);
   };
@@ -140,6 +155,12 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     if (nextDate !== date) setDate(nextDate);
   });
 
+  const changeTerm = (nextTerm: string) => {
+    setTerm(nextTerm);
+    const nextSectionId = filterSections(sections, '', nextTerm, locale)[0]?.sectionId ?? '';
+    if (nextSectionId !== sectionId) switchSheet(nextSectionId, date);
+  };
+
   const lastRouteSection = useRef(params.sectionId);
   useEffect(() => {
     if (typeof params.sectionId === 'string' && params.sectionId && params.sectionId !== lastRouteSection.current) {
@@ -152,6 +173,13 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     const activeSheetKey = currentSheetKey.current;
     editRevisionByKey.current[activeSheetKey] = (editRevisionByKey.current[activeSheetKey] ?? 0) + 1;
     setRows((current) => setRowStatus(current, studentId, status));
+    setSave({ kind: 'idle' });
+  });
+
+  const changeNote = useStableCallback((studentId: string, notes: string) => {
+    const activeSheetKey = currentSheetKey.current;
+    editRevisionByKey.current[activeSheetKey] = (editRevisionByKey.current[activeSheetKey] ?? 0) + 1;
+    setRows((current) => current.map((row) => (row.studentId === studentId ? { ...row, notes } : row)));
     setSave({ kind: 'idle' });
   });
 
@@ -195,7 +223,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const refreshAll = () => {
     if (refreshing) return;
     setRefreshing(true);
-    void Promise.all([sectionsQuery.reload(), sheetQuery.reload()]).finally(() => setRefreshing(false));
+    void Promise.all([sectionsQuery.reload(), sheetQuery.reload(), summaryQuery.reload()]).finally(() => setRefreshing(false));
   };
 
   const saveAttendance = async () => {
@@ -221,6 +249,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
         setRemoteChanged(false);
       }
       void sheetQuery.reload();
+      void summaryQuery.reload();
     } catch (error) {
       if (currentSheetKey.current !== savingKey) return;
       if (error instanceof StaleAttendanceError) {
@@ -248,6 +277,11 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
   const queryError = preview ? null : sectionsQuery.error ?? sheetQuery.error;
   const loading = !preview && (sectionsQuery.isLoading || (Boolean(sectionId) && !ready && !queryError));
+  const marked = metrics.total - metrics.unmarked;
+  const presentToday = marked > 0 ? `${Math.round((metrics.present / marked) * 100)}${copy.statPresentTodaySuffix}` : undefined;
+  const excusedDetail = metrics.excused > 0 ? `${formatNumber(metrics.excused)} ${copy.statExcusedSuffix}` : undefined;
+  const termRate = summary?.attendanceRate === undefined ? '—' : `${formatNumber(summary.attendanceRate, { maximumFractionDigits: 0 })}%`;
+  const sessionsHeld = summary?.totalSessions === undefined ? undefined : `${formatNumber(summary.totalSessions)} ${copy.statSessionsHeldSuffix}`;
 
   return (
     <OpsShell
@@ -261,7 +295,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.studentId),
         renderItem: ({ item: row }) => (
-                  <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} disabled={busy} />
+                  <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} onNote={changeNote} disabled={busy} />
                 ),
         footer: <>{sections.length === 0 ? null : (<View>{rows.length === 0 ? null : (<View><View style={[styles.stack, { marginTop: 12 }]}>
                 {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
@@ -279,7 +313,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
                   icon="content-save-outline"
                   label={copy.save}
                   loading={busy}
-                  disabled={preview || changes === 0 || remoteChanged}
+                  disabled={preview || remoteChanged}
                   onPress={() => void saveAttendance()}
                 />
                 <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
@@ -292,7 +326,16 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (<View>
-          <SectionPicker sections={sections} value={sectionId} onChange={(next) => switchSheet(next, date)} />
+          {termList.length > 1 ? (
+            <ChoiceField
+              label={copy.semester}
+              display="sheet"
+              options={[{ value: '', label: copy.allTerms }, ...termList]}
+              value={term}
+              onChange={changeTerm}
+            />
+          ) : null}
+          <SectionPicker sections={visibleSections} value={sectionId} onChange={(next) => switchSheet(next, date)} />
           <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && switchSheet(sectionId, next)} />
           {rows.length === 0 ? (
             <StatePanel kind="empty" title={copy.rosterEmpty} />
@@ -300,10 +343,10 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
               <StatStrip
                 style={styles.stats}
                 items={[
-                  { icon: 'account-check-outline', label: copy.statusPresent, value: formatNumber(metrics.present) },
-                  { icon: 'account-remove-outline', label: copy.statusAbsent, value: formatNumber(metrics.absent) },
-                  { icon: 'clock-alert-outline', label: copy.statusLate, value: formatNumber(metrics.late) },
-                  { icon: 'percent-outline', label: copy.rateLabel, value: `${formatNumber(metrics.rate, { maximumFractionDigits: 0 })}%` },
+                  { icon: 'account-group-outline', label: copy.statsTotalStudents, value: formatNumber(metrics.total) },
+                  { icon: 'account-check-outline', label: copy.statusPresent, value: formatNumber(metrics.present), detail: presentToday },
+                  { icon: 'account-remove-outline', label: copy.statusAbsent, value: formatNumber(metrics.absent), detail: excusedDetail },
+                  { icon: 'percent-outline', label: copy.rateLabel, value: termRate, detail: sessionsHeld },
                 ]}
               />
               {remoteChanged ? (

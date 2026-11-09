@@ -144,7 +144,7 @@ describe('lecturer attendance header copy', () => {
     await renderThemed(
       <LecturerAttendanceScreen navigation={nav} role="lecturer" selectedThesisTopicId={null} />,
     );
-    expect(screen.getByRole('header', { name: 'Điểm danh' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Điểm danh học phần' })).toBeOnTheScreen();
     expect(screen.queryByText(/CS204 · 20\d{2}-/)).toBeNull();
     expect(screen.queryByText('Kiến trúc phần mềm')).toBeNull();
   });

@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button, Card, Notice, ProgressBar, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { ChoiceField } from '../../components/ui/choice-field';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { campusIsoDate, countForm } from '../../i18n/locale';
@@ -16,10 +17,12 @@ import {
   changedGradeRows,
   courseTitle,
   dirtyGradeCount,
+  filterSections,
   gradedPercent,
   mergeGradeEdits,
   normalizeOperationsSearch,
   sameGradeSheet,
+  termOptions,
   windowOf,
   type GradeDraft,
   type ScoreEdit,
@@ -42,9 +45,12 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const params = useLocalSearchParams<{ sectionId?: string }>();
   const sectionsQuery = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
   const sections = useMemo(() => (preview ? previewGrading : sectionsQuery.data ?? []), [preview, sectionsQuery.data]);
+  const [term, setTerm] = useState('');
+  const termList = useMemo(() => termOptions(sections), [sections]);
+  const visibleSections = useMemo(() => filterSections(sections, '', term, locale), [sections, term, locale]);
 
   const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
-  const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
+  const sectionId = visibleSections.some((section) => section.sectionId === picked) ? picked : visibleSections[0]?.sectionId ?? '';
   const currentSectionId = useRef(sectionId);
   currentSectionId.current = sectionId;
   const section = sections.find((item) => item.sectionId === sectionId);
@@ -154,7 +160,12 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     }
     setPicked(next);
   };
-  const locked = rows.length > 0 && rows.every((row) => row.gradeStatus === 'PUBLISHED' || row.gradeStatus === 'APPEALED');
+  const changeTerm = (nextTerm: string) => {
+    setTerm(nextTerm);
+    const nextSectionId = filterSections(sections, '', nextTerm, locale)[0]?.sectionId ?? '';
+    if (nextSectionId !== sectionId) switchSection(nextSectionId);
+  };
+  const locked = rows.length > 0 && rows.every((row) => row.gradeStatus === 'PUBLISHED');
   const needle = normalizeOperationsSearch(search.trim());
   const visible = needle
     ? rows.filter((row) => normalizeOperationsSearch(`${row.studentName ?? ''} ${row.studentCode ?? ''}`).includes(needle))
@@ -163,7 +174,22 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
 
   const enrolled = section?.enrolledCount ?? rows.length;
   const graded = section?.gradedCount ?? rows.filter((row) => row.finalGrade != null).length;
-  const status = section?.gradeStatus === 'PUBLISHED' || locked ? 'PUBLISHED' : 'DRAFT';
+  const gradeStatus = section?.gradeStatus;
+  const status = gradeStatus === 'PUBLISHED' || locked
+    ? 'PUBLISHED'
+    : gradeStatus === 'PARTIAL'
+      ? 'PARTIAL'
+      : gradeStatus === 'APPEALED'
+        ? 'APPEALED'
+        : 'DRAFT';
+  const statusLabel = status === 'PUBLISHED'
+    ? copy.published
+    : status === 'PARTIAL'
+      ? copy.partial
+      : status === 'APPEALED'
+        ? copy.appealed
+        : copy.draft;
+  const statusTone = status === 'PUBLISHED' ? 'success' : status === 'DRAFT' ? 'neutral' : 'warning';
 
   const edit = useStableCallback((enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => {
     const activeSectionId = currentSectionId.current;
@@ -402,7 +428,16 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (<View>
-          <SectionPicker sections={sections} value={sectionId} onChange={switchSection} />
+          {termList.length > 1 ? (
+            <ChoiceField
+              label={copy.semester}
+              display="sheet"
+              options={[{ value: '', label: copy.allTerms }, ...termList]}
+              value={term}
+              onChange={changeTerm}
+            />
+          ) : null}
+          <SectionPicker sections={visibleSections} value={sectionId} onChange={switchSection} />
           <Card style={styles.gradingHero}>
             <View style={styles.courseHeader}>
               <View style={styles.topicCopy}>
@@ -410,8 +445,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                 <UiText variant="display" tone="primary">{Math.max(enrolled - graded, 0)}</UiText>
               </View>
               <StatusPill
-                label={status === 'PUBLISHED' ? copy.published : copy.draft}
-                tone={status === 'PUBLISHED' ? 'success' : 'warning'}
+                label={statusLabel}
+                tone={statusTone}
                 icon={status === 'PUBLISHED' ? 'check-decagram' : 'file-document-edit-outline'}
               />
             </View>

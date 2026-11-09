@@ -311,12 +311,12 @@ describe('a STALE_VERSION conflict keeps the draft and reconciles explicitly', (
 });
 
 describe('publish confirmation copy', () => {
-  test('one enrolled student is named in the singular', async () => {
+  test('the release confirmation uses the web copy', async () => {
     await render(themed(<LecturerGradingScreen {...props} />));
     await fireEvent.press(screen.getByRole('button', { name: operationsMessages.en.publishGrades }));
 
     expect(await screen.findByText(
-      'Students see their grades right away and they cannot be edited afterwards. Section 01, 1 student.',
+      'Release these grades now? Students will see the results immediately, so confirm that everything is ready.',
     )).toBeOnTheScreen();
   });
 });

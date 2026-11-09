@@ -151,9 +151,9 @@ test('grade CSV reports a rejected share and releases the busy action', async ()
   expect(screen.getByRole('button', { name: /Export CSV/ })).toBeEnabled();
 });
 
-test('the 50% score field is labelled Coursework', async () => {
+test('the 50% score field is labelled Coursework (50%)', async () => {
   await render(screenElement(<LecturerGradingScreen {...props} />));
-  expect(await screen.findByLabelText('Scores for Alpha, Coursework')).toBeOnTheScreen();
+  expect(await screen.findByLabelText('Scores for Alpha, Coursework (50%)')).toBeOnTheScreen();
   expect(screen.queryByLabelText('Scores for Alpha, Process')).toBeNull();
-  expect(operationsMessages.en.process).toBe('Coursework');
+  expect(operationsMessages.en.process).toBe('Coursework (50%)');
 });

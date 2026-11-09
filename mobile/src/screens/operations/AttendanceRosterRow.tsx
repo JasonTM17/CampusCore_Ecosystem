@@ -1,13 +1,13 @@
 import { memo } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 
-import { Card, StatusPill, UiText } from '../../components/Ui';
+import { Card, Field, StatusPill, UiText } from '../../components/Ui';
 import { Avatar } from '../../components/ui/avatar';
 import { chromeFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
-import { MARK_STATUSES, type MarkStatus, type RosterRow } from './lecturer-model';
+import { ATTENDANCE_NOTE_MAX, MARK_STATUSES, type MarkStatus, type RosterRow } from './lecturer-model';
 import { useOpsStyles } from './shared/styles';
 
 export const statusLabel = (copy: OperationsCopy, status: MarkStatus): string => ({
@@ -32,11 +32,12 @@ export interface AttendanceRosterRowProps {
   copy: OperationsCopy;
   /** Tapping the chosen status again clears the mark. */
   onChange: (studentId: string, status: MarkStatus | null) => void;
+  onNote?: (studentId: string, notes: string) => void;
   disabled?: boolean;
 }
 
-/** One student: avatar initials, name, code and four status choices with >=48dp targets that wrap cleanly. */
-function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps) {
+/** One student: avatar initials, name, code, four status choices and the optional note. */
+function Row({ row, copy, onChange, onNote, disabled = false }: AttendanceRosterRowProps) {
   const styles = useOpsStyles();
   const { colors } = useTheme();
   const { fontScale } = useWindowDimensions();
@@ -121,6 +122,19 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
           </UiText>
         </Pressable>
       </View>
+      {onNote ? (
+        <Field
+          label={copy.notes}
+          accessibilityLabel={`${copy.notesPlaceholder} — ${row.name}`}
+          value={row.notes}
+          onChangeText={(text) => onNote(row.studentId, text)}
+          placeholder={copy.notesPlaceholder}
+          maxLength={ATTENDANCE_NOTE_MAX}
+          multiline={false}
+          editable={!disabled}
+          style={styles.noteField}
+        />
+      ) : null}
     </Card>
   );
 }

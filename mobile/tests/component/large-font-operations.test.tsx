@@ -87,7 +87,7 @@ describe('lecturer rows at large text sizes', () => {
 
     const fields = [
       screen.getByLabelText(/Coursework/),
-      screen.getByLabelText(/Final exam/),
+      screen.getByLabelText(/Final \(50%\)/),
     ];
     const rowStyle = StyleSheet.flatten(fields[0].parent?.parent?.props.style);
     expect(rowStyle.flexWrap).toBe('wrap');
