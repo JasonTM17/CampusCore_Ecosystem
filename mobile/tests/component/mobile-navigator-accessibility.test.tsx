@@ -57,7 +57,7 @@ test('announces the localized destination after a route change, once', async () 
     .toHaveBeenCalledWith(shellMessages.vi.screens['dashboard.student']));
 
   jest.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
-  await fireEvent.press(screen.getByRole('tab', { name: 'Lịch học' }));
+  await fireEvent.press(screen.getByRole('tab', { name: shellMessages.vi.nav.schedule }));
   await waitFor(() => expect(AccessibilityInfo.announceForAccessibility)
     .toHaveBeenCalledTimes(1));
   expect(AccessibilityInfo.announceForAccessibility)

@@ -133,7 +133,7 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'dashboard.student', title: 'Dashboard', family: 'student', roles: studentRoles, icon: 'home-variant' },
   { name: 'schedule', title: 'Schedule', family: 'student', roles: studentRoles, icon: 'calendar-week' },
   { name: 'courses', title: 'Courses', family: 'student', roles: studentRoles, icon: 'book-open-page-variant' },
-  { name: 'grades', title: 'Grades', family: 'student', roles: studentRoles, icon: 'chart-box-outline' },
+  { name: 'grades', title: 'Grades', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'transcript', title: 'Transcript', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'curriculum', title: 'Curriculum', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
   { name: 'enrollments', title: 'Enrollments', family: 'student', roles: studentRoles, icon: 'clipboard-list-outline' },
@@ -151,7 +151,7 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'conduct', title: 'Conduct score', family: 'student', roles: studentRoles, icon: 'medal-outline' },
   { name: 'certificates', title: 'Certificates', family: 'student', roles: studentRoles, icon: 'certificate-outline' },
   { name: 'profile', title: 'Profile', family: 'student', roles: allRoles, icon: 'account-circle-outline' },
-  { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'lightbulb-on-outline' },
+  { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'script-text-outline' },
   { name: 'thesis.detail', title: 'Topic detail', family: 'thesis', roles: studentRoles, icon: 'text-box-search-outline' },
   { name: 'thesis.registration', title: 'Thesis registration', family: 'thesis', roles: studentRoles, icon: 'account-group-outline' },
   { name: 'thesis.progress', title: 'Thesis progress', family: 'thesis', roles: studentRoles, icon: 'chart-timeline-variant' },
@@ -185,7 +185,7 @@ const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigatio
     { route: 'dashboard.student', label: 'Home', icon: 'home-variant' },
     { route: 'schedule', label: 'Schedule', icon: 'calendar-week' },
     { route: 'registration', label: 'Register', icon: 'book-plus-outline' },
-    { route: 'notifications', label: 'Alerts', icon: 'bell-outline' },
+    { route: 'grades', label: 'Grades', icon: 'file-document-outline' },
   ],
   lecturer: [
     { route: 'lecturer.dashboard', label: 'Home', icon: 'home-variant' },
@@ -264,20 +264,63 @@ export const stitchMobileReferences: Readonly<
   ],
 };
 
-export const menuSections = [
+export type MenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus' | 'more' | 'assistant' | 'staff';
+
+export interface MenuSectionDefinition {
+  key: MenuSectionKey;
+  screens: readonly ScreenName[];
+}
+
+/** Web-sidebar groups first, in the portal order; mobile-only routes in the last group. */
+const studentMenuSections: readonly MenuSectionDefinition[] = [
+  { key: 'overview', screens: ['dashboard.student'] },
   {
-    title: 'Student workspace',
-    families: ['student', 'thesis'] as const,
+    key: 'academic',
+    screens: [
+      'registration',
+      'enrollments',
+      'learning',
+      'curriculum',
+      'schedule',
+      'grades',
+      'transcript',
+      'conduct',
+      'attendance',
+    ],
   },
   {
-    title: 'Assistant',
-    families: ['assistant'] as const,
+    key: 'campus',
+    screens: ['thesis.topics', 'certificates', 'events', 'announcements', 'notifications'],
   },
   {
-    title: 'Staff',
-    families: ['staff'] as const,
+    key: 'more',
+    screens: ['courses', 'thesis.progress', 'admissions', 'library', 'careers', 'news', 'docs'],
   },
-] as const;
+  { key: 'assistant', screens: ['assistant.chat'] },
+];
+
+const lecturerMenuSections: readonly MenuSectionDefinition[] = [
+  { key: 'overview', screens: ['lecturer.dashboard'] },
+  {
+    key: 'teaching',
+    screens: ['lecturer.schedule', 'lecturer.grading', 'lecturer.attendance'],
+  },
+  { key: 'campus', screens: ['notifications'] },
+  { key: 'more', screens: ['news', 'docs'] },
+  { key: 'assistant', screens: ['assistant.chat'] },
+];
+
+const adminMenuSections: readonly MenuSectionDefinition[] = [
+  { key: 'staff', screens: ['admin.dashboard', 'admin.students', 'admin.lecturers'] },
+  { key: 'more', screens: ['notifications', 'news', 'docs'] },
+  { key: 'assistant', screens: ['assistant.chat'] },
+];
+
+export function getMenuSections(role: UserRole): readonly MenuSectionDefinition[] {
+  if (role === 'student') return studentMenuSections;
+  if (role === 'lecturer') return lecturerMenuSections;
+  return adminMenuSections;
+}
 
 export function getScreenDefinition(route: ScreenName) {
   return screenRegistry.find((screen) => screen.name === route);

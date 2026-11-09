@@ -9,6 +9,7 @@ import { getBottomNavigation } from '../navigation/routes';
 import type { BottomNavigationProps } from './BottomNavigation';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { UiText } from './Ui';
+import { unreadBadgeLabel } from './unread-badge';
 
 /** Expanded-window presentation of the same role-aware primary navigation. */
 export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCount, menuButtonRef }: BottomNavigationProps) {
@@ -17,6 +18,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCo
   const chrome = chromeFor(scheme);
   const items = getBottomNavigation(role);
   const { copy, navLabel } = useShellCopy();
+  const menuUnread = unreadCount !== undefined && unreadCount > 0 ? unreadCount : undefined;
 
   return (
     <ScrollView
@@ -44,7 +46,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCo
                 <MaterialCommunityIcons color={active ? chrome.gold : chrome.onSurfaceMuted} name={item.icon} size={20} />
                 {count === undefined ? null : (
                   <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
-                    <UiText variant="meta" style={styles.badgeCount}>{count}</UiText>
+                    <UiText variant="meta" style={styles.badgeCount}>{unreadBadgeLabel(count)}</UiText>
                   </View>
                 )}
               </View>
@@ -56,7 +58,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCo
         })}
       </View>
       <Pressable
-        accessibilityLabel={copy.openMenu}
+        accessibilityLabel={menuUnread === undefined ? copy.openMenu : `${copy.openMenu}, ${menuUnread} ${copy.unread}`}
         accessibilityRole="button"
         onPress={onMenu}
         ref={menuButtonRef}
@@ -64,6 +66,11 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu, unreadCo
       >
         <View style={styles.icon}>
           <MaterialCommunityIcons color={chrome.onSurfaceMuted} name="menu" size={20} />
+          {menuUnread === undefined ? null : (
+            <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
+              <UiText variant="meta" style={styles.badgeCount}>{unreadBadgeLabel(menuUnread)}</UiText>
+            </View>
+          )}
         </View>
         <UiText variant="meta" style={[styles.label, { color: chrome.onSurfaceMuted }]}>{copy.menu}</UiText>
       </Pressable>

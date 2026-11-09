@@ -14,6 +14,7 @@ import {
 } from '../navigation/routes';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { UiText } from './Ui';
+import { unreadBadgeLabel } from './unread-badge';
 
 export interface BottomNavigationProps {
   activeRoute: ScreenName;
@@ -29,6 +30,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unread
   const { colors } = useTheme();
   const items = getBottomNavigation(role);
   const { copy, navLabel } = useShellCopy();
+  const menuUnread = unreadCount !== undefined && unreadCount > 0 ? unreadCount : undefined;
 
   return (
     <View testID="bottom-navigation" style={styles.navigation}>
@@ -57,7 +59,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unread
                   />
                   {count === undefined ? null : (
                     <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
-                      <UiText variant="meta" tone="onPrimary" style={styles.badgeCount}>{count}</UiText>
+                      <UiText variant="meta" tone="onPrimary" style={styles.badgeCount}>{unreadBadgeLabel(count)}</UiText>
                     </View>
                   )}
                 </View>
@@ -77,7 +79,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unread
           })}
         </View>
         <Pressable
-          accessibilityLabel={copy.openMenu}
+          accessibilityLabel={menuUnread === undefined ? copy.openMenu : `${copy.openMenu}, ${menuUnread} ${copy.unread}`}
           accessibilityRole="button"
           onPress={onMenu}
           ref={menuButtonRef}
@@ -85,6 +87,11 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unread
         >
           <View style={styles.icon}>
             <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
+            {menuUnread === undefined ? null : (
+              <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={styles.badge}>
+                <UiText variant="meta" tone="onPrimary" style={styles.badgeCount}>{unreadBadgeLabel(menuUnread)}</UiText>
+              </View>
+            )}
           </View>
           <UiText variant="meta" tone="muted" maxFontSizeMultiplier={chromeFontScaleCap} style={styles.label}>
             {copy.menu}

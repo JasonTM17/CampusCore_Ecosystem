@@ -157,6 +157,7 @@ export function MobileNavigator() {
             onNavigate={navigation.navigate}
             onSwitchRole={navigation.switchRole}
             allowRoleSwitch={isPreviewSession}
+            onSignOut={navigation.signOut}
           />
         ) : null}
       </View>

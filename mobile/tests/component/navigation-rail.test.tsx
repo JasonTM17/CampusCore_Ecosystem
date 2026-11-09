@@ -127,9 +127,9 @@ describe('adaptive app navigation', () => {
 
   test('pressing the already-active tab does not stack a duplicate screen', async () => {
     setWindow(700);
-    jest.mocked(usePathname).mockReturnValue('/notifications');
+    jest.mocked(usePathname).mockReturnValue('/grades');
     await renderLayout();
-    const tab = screen.getByRole('tab', { name: localizedNavLabel('vi', 'Alerts') });
+    const tab = screen.getByRole('tab', { name: localizedNavLabel('vi', 'Grades') });
     expect(tab).toBeSelected();
     await fireEvent.press(tab);
     expect(push).not.toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('adaptive app navigation', () => {
     setWindow(1000);
     jest.mocked(usePathname).mockReturnValue('/schedule');
     await renderLayout();
-    expect(screen.getByRole('tab', { name: 'Lịch học' })).toBeSelected();
+    expect(screen.getByRole('tab', { name: localizedNavLabel('vi', 'Schedule') })).toBeSelected();
     expect(screen.getByRole('tab', { name: 'Trang chủ' })).not.toBeSelected();
   });
 
@@ -152,7 +152,7 @@ describe('adaptive app navigation', () => {
       expect(screen.queryAllByRole('tab')).toHaveLength(0);
       expect(screen.getByTestId('app-chrome', { includeHiddenElements: true }).props.importantForAccessibility)
         .toBe('no-hide-descendants');
-      await fireEvent.press(screen.getByRole('button', { name: 'Lịch học' }));
+      await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.screens.schedule }));
       expect(push).toHaveBeenLastCalledWith(pathFor('schedule'));
       expect(screen.queryByRole('header', { name: shellMessages.vi.menuTitle })).toBeNull();
       expect(screen.getByRole('tab', { name: 'Trang chủ' })).toBeOnTheScreen();
@@ -190,15 +190,15 @@ describe('adaptive app navigation', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
   });
 
-  test.each([360, 1000])('w%s shows unread notifications in the accessible Alerts tab', async (width) => {
+  test.each([360, 1000])('w%s shows the unread count on the menu and header bell', async (width) => {
     setWindow(width);
     setSession('student', 'authenticated');
     mockUnreadCount.value = 3;
     await renderLayout();
 
-    const alerts = screen.getByRole('tab', { name: 'Thông báo, 3 Chưa đọc' });
-    expect(alerts).toBeOnTheScreen();
-    expect(screen.getByText('3', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Mở danh mục, 3 Chưa đọc' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Thông báo, 3 Chưa đọc' })).toBeOnTheScreen();
+    expect(screen.getAllByText('3', { includeHiddenElements: true }).length).toBeGreaterThan(0);
   });
 
   test.each([360, 1000])('w%s moves accessibility focus into and back out of the menu', async (width) => {

@@ -42,7 +42,7 @@ describe('NavigationRail accessibility and theme', () => {
         }
         // Audit rule e permits a redundant visual label to truncate when an
         // accessibilityLabel exists. Rail labels must wrap visually as well.
-        for (const label of [...items.map((item) => localizedNavLabel('vi', item.label)), 'Danh mục']) {
+        for (const label of [...items.map((item) => localizedNavLabel('vi', item.label)), shellMessages.vi.menu]) {
           const text = screen.getByText(label);
           expect(text.props.numberOfLines).toBeUndefined();
           expect(text.props.adjustsFontSizeToFit).not.toBe(true);

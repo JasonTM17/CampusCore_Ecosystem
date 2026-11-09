@@ -87,6 +87,54 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
               "c": [
                 {
                   "c": [
+                    "VI",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 12,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Ngôn ngữ",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.10)",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰂜",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Thông báo",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰭕",
                   ],
                   "s": {
@@ -111,7 +159,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
           "s": {
             "alignItems": "center",
             "flexDirection": "row",
-            "gap": 16,
+            "gap": 8,
             "paddingVertical": 8,
           },
           "t": "View",
@@ -244,7 +292,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Lịch học",
+                                "TKB",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -253,7 +301,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Lịch học",
+                          "label": "TKB",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -316,7 +364,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "c": [
                                 {
                                   "c": [
-                                    "󰂜",
+                                    "󰧮",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -336,7 +384,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Thông báo",
+                                "Điểm",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -345,7 +393,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Thông báo",
+                          "label": "Điểm",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -391,7 +439,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                         },
                         {
                           "c": [
-                            "Danh mục",
+                            "Menu",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -533,6 +581,54 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
               "c": [
                 {
                   "c": [
+                    "VI",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 12,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Ngôn ngữ",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.10)",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰂜",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Thông báo",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰭕",
                   ],
                   "s": {
@@ -557,7 +653,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
           "s": {
             "alignItems": "center",
             "flexDirection": "row",
-            "gap": 16,
+            "gap": 8,
             "paddingVertical": 8,
           },
           "t": "View",
@@ -653,7 +749,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Lịch học",
+                                "TKB",
                               ],
                               "s": {
                                 "color": "#A9B8CE",
@@ -662,7 +758,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Lịch học",
+                          "label": "TKB",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -725,7 +821,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "c": [
                                 {
                                   "c": [
-                                    "󰂜",
+                                    "󰧮",
                                   ],
                                   "s": {
                                     "color": "#A9B8CE",
@@ -745,7 +841,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Thông báo",
+                                "Điểm",
                               ],
                               "s": {
                                 "color": "#A9B8CE",
@@ -754,7 +850,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Thông báo",
+                          "label": "Điểm",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -798,7 +894,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                         },
                         {
                           "c": [
-                            "Danh mục",
+                            "Menu",
                           ],
                           "s": {
                             "color": "#A9B8CE",
@@ -974,6 +1070,54 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
               "c": [
                 {
                   "c": [
+                    "VI",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 12,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Ngôn ngữ",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.14)",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰂜",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Thông báo",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰭕",
                   ],
                   "s": {
@@ -998,7 +1142,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
           "s": {
             "alignItems": "center",
             "flexDirection": "row",
-            "gap": 16,
+            "gap": 8,
             "paddingVertical": 8,
           },
           "t": "View",
@@ -1131,7 +1275,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Lịch học",
+                                "TKB",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -1140,7 +1284,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Lịch học",
+                          "label": "TKB",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1203,7 +1347,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "c": [
                                 {
                                   "c": [
-                                    "󰂜",
+                                    "󰧮",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -1223,7 +1367,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Thông báo",
+                                "Điểm",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -1232,7 +1376,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Thông báo",
+                          "label": "Điểm",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1278,7 +1422,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                         },
                         {
                           "c": [
-                            "Danh mục",
+                            "Menu",
                           ],
                           "s": {
                             "color": "#526174",
@@ -1420,6 +1564,54 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
               "c": [
                 {
                   "c": [
+                    "VI",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 12,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Ngôn ngữ",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.14)",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰂜",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Thông báo",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰭕",
                   ],
                   "s": {
@@ -1444,7 +1636,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
           "s": {
             "alignItems": "center",
             "flexDirection": "row",
-            "gap": 16,
+            "gap": 8,
             "paddingVertical": 8,
           },
           "t": "View",
@@ -1540,7 +1732,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Lịch học",
+                                "TKB",
                               ],
                               "s": {
                                 "color": "#C9D8F0",
@@ -1549,7 +1741,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Lịch học",
+                          "label": "TKB",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1612,7 +1804,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "c": [
                                 {
                                   "c": [
-                                    "󰂜",
+                                    "󰧮",
                                   ],
                                   "s": {
                                     "color": "#C9D8F0",
@@ -1632,7 +1824,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Thông báo",
+                                "Điểm",
                               ],
                               "s": {
                                 "color": "#C9D8F0",
@@ -1641,7 +1833,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Thông báo",
+                          "label": "Điểm",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1685,7 +1877,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                         },
                         {
                           "c": [
-                            "Danh mục",
+                            "Menu",
                           ],
                           "s": {
                             "color": "#C9D8F0",
@@ -3974,7 +4166,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Lịch học",
+                    "TKB",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -3983,7 +4175,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Lịch học",
+              "label": "TKB",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4046,7 +4238,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "c": [
                     {
                       "c": [
-                        "󰂜",
+                        "󰧮",
                       ],
                       "s": {
                         "color": "#A9B1BC",
@@ -4066,7 +4258,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Thông báo",
+                    "Điểm",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -4075,7 +4267,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Thông báo",
+              "label": "Điểm",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4121,7 +4313,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Danh mục",
+                "Menu",
               ],
               "s": {
                 "color": "#A9B1BC",
@@ -4237,7 +4429,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Lịch học",
+                    "TKB",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -4246,7 +4438,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Lịch học",
+              "label": "TKB",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4309,7 +4501,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "c": [
                     {
                       "c": [
-                        "󰂜",
+                        "󰧮",
                       ],
                       "s": {
                         "color": "#A9B1BC",
@@ -4329,7 +4521,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Thông báo",
+                    "Điểm",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -4338,7 +4530,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Thông báo",
+              "label": "Điểm",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4384,7 +4576,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Danh mục",
+                "Menu",
               ],
               "s": {
                 "color": "#A9B1BC",
@@ -4500,7 +4692,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Lịch học",
+                    "TKB",
                   ],
                   "s": {
                     "color": "#526174",
@@ -4509,7 +4701,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Lịch học",
+              "label": "TKB",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4572,7 +4764,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "c": [
                     {
                       "c": [
-                        "󰂜",
+                        "󰧮",
                       ],
                       "s": {
                         "color": "#526174",
@@ -4592,7 +4784,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Thông báo",
+                    "Điểm",
                   ],
                   "s": {
                     "color": "#526174",
@@ -4601,7 +4793,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Thông báo",
+              "label": "Điểm",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4647,7 +4839,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Danh mục",
+                "Menu",
               ],
               "s": {
                 "color": "#526174",
@@ -4763,7 +4955,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Lịch học",
+                    "TKB",
                   ],
                   "s": {
                     "color": "#526174",
@@ -4772,7 +4964,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Lịch học",
+              "label": "TKB",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4835,7 +5027,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "c": [
                     {
                       "c": [
-                        "󰂜",
+                        "󰧮",
                       ],
                       "s": {
                         "color": "#526174",
@@ -4855,7 +5047,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Thông báo",
+                    "Điểm",
                   ],
                   "s": {
                     "color": "#526174",
@@ -4864,7 +5056,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Thông báo",
+              "label": "Điểm",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -4910,7 +5102,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
             },
             {
               "c": [
-                "Danh mục",
+                "Menu",
               ],
               "s": {
                 "color": "#526174",
