@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Field, StatusPill, UiText } from '../../components/Ui';
@@ -26,6 +26,7 @@ export function CreditLimitCard({ roundId, eligibility, application, onSubmitted
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   const creditLimit = typeof eligibility?.creditLimit === 'number' && eligibility.creditLimit > 0 ? eligibility.creditLimit : null;
   const approvedLimit = application?.status === 'APPROVED' && typeof application.requestedLimit === 'number' ? application.requestedLimit : null;
@@ -43,11 +44,13 @@ export function CreditLimitCard({ roundId, eligibility, application, onSubmitted
         : null;
 
   const submit = async () => {
+    if (busyRef.current) return;
     const trimmed = reason.trim();
     if (!roundId || trimmed.length < 20) {
       setError(copy.applicationReasonInvalid);
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -60,6 +63,7 @@ export function CreditLimitCard({ roundId, eligibility, application, onSubmitted
       const code = (cause as { code?: string } | null)?.code;
       setError(code === 'CREDIT_LIMIT_APPLICATION_EXISTS' ? copy.applicationAlreadyExists : copy.generic);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
