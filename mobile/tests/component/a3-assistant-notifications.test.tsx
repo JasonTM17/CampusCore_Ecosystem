@@ -78,7 +78,7 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     await renderThemed(<AssistantChatScreen {...props} />);
     const input = screen.getByLabelText('Câu hỏi của bạn');
     await fireEvent.changeText(input, 'Lịch thi?');
-    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
     await waitFor(() => expect(screen.getByText('Trả lời mẫu.')).toBeOnTheScreen());
   });
 
@@ -87,7 +87,7 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     mockAssistantChat.mockRejectedValueOnce(new TypeError('network')).mockResolvedValueOnce(REPLY);
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'Học phí?');
-    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
     await waitFor(() => expect(screen.getByText('Trả lời mẫu.')).toBeOnTheScreen());
     expect(mockAssistantChat).toHaveBeenCalledTimes(2);
     const first = mockAssistantChat.mock.calls[0][0] as { clientRequestId: string };
@@ -102,7 +102,7 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     mockAssistantChat.mockResolvedValue(REPLY);
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'Học phí?');
-    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
     await waitFor(() => expect(screen.getByText('Kết nối bị gián đoạn. Câu trả lời chưa được xác nhận.')).toBeOnTheScreen());
     const before = mockAssistantChat.mock.calls.length;
     await fireEvent.press(screen.getByRole('button', { name: 'Thử lại yêu cầu này' }));
@@ -117,8 +117,8 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     mockAssistantChat.mockImplementation(() => new Promise(() => {}));
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'Điểm?');
-    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
-    const stop = await screen.findByRole('button', { name: 'Dừng trả lời' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
+    const stop = await screen.findByRole('button', { name: 'Dừng' });
     await fireEvent.press(stop);
     await waitFor(() => expect(mockCancelAssistantRequest).toHaveBeenCalledWith('req-fixed-1'));
   });
@@ -128,7 +128,7 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     mockAssistantChat.mockRejectedValue(Object.assign(new Error('u'), { code: 'STREAMING_UNSUPPORTED', status: 0 }));
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'X?');
-    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
     await waitFor(() => expect(screen.getByText(assistantMessages.vi.interruptedStatus)).toBeOnTheScreen());
   });
 });

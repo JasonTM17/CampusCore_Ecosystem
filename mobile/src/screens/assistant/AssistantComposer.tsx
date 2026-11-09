@@ -10,11 +10,13 @@ import { fillAssistantCopy } from '../../i18n/assistant-messages';
 import type { AssistantChat } from './useAssistantChat';
 
 /** Message input pinned under the thread. The cap equals the server and web limit. */
-export function AssistantComposer({ chat }: { chat: AssistantChat }) {
+export function AssistantComposer({ chat, locked = false }: { chat: AssistantChat; locked?: boolean }) {
   const { colors, window } = useTheme();
   const { copy, busy, notice } = chat;
   const [draft, setDraft] = useState('');
   const landscape = window.landscape;
+  const placeholder = chat.scope === 'specialized' ? copy.specializedPlaceholder : copy.composerPlaceholder;
+  const disabled = busy || locked;
   useEffect(() => chat.attachDraftSetter(setDraft), [chat.attachDraftSetter]);
   return (
     <View style={[styles.composer, { backgroundColor: colors.card, borderTopColor: colors.outlineVariant }]}>
@@ -25,16 +27,16 @@ export function AssistantComposer({ chat }: { chat: AssistantChat }) {
         <Field
           label={copy.composerLabel}
           multiline
-          editable={!busy}
+          editable={!disabled}
           maxLength={ASSISTANT_MAX_MESSAGE_CHARS}
           onChangeText={chat.setDraft}
-          placeholder={copy.composerPlaceholder}
+          placeholder={placeholder}
           value={draft}
           helperText={fillAssistantCopy(copy.characters, { count: draft.length, max: ASSISTANT_MAX_MESSAGE_CHARS })}
           style={[styles.field, landscape ? styles.fieldLandscape : undefined]}
         />
         <View style={styles.actions}>
-          <Button icon="send-outline" label={copy.send} loading={busy} disabled={!draft.trim()} onPress={() => void chat.send()} style={styles.button} />
+          <Button icon="send-outline" label={copy.send} loading={busy} disabled={!draft.trim() || locked} onPress={() => void chat.send()} style={styles.button} />
           {busy ? <Button label={copy.stop} onPress={() => void chat.stop()} variant="secondary" style={styles.button} /> : null}
         </View>
       </ResponsiveContent>
