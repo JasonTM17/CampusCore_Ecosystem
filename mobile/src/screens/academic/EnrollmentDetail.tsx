@@ -10,7 +10,7 @@ import {
   type AcademicEnrollment,
 } from './academic-model';
 import { SlipRow } from './SlipRow';
-import { academicStyles, useAcademicCopy } from './academic-ui';
+import { academicStyles, enrollmentStatusTone, useAcademicCopy } from './academic-ui';
 import { isPublishedGrade } from './gpa';
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -46,7 +46,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
           <View style={styles.detailCopy}>
             <StatusPill label={enrollmentCourseCode(enrollment)} tone="primary" />
             <UiText accessibilityRole="header" variant="headlineSmall">{enrollmentCourseName(enrollment, locale)}</UiText>
-            <StatusPill label={copy.status[enrollment.status] ?? copy.status.UNKNOWN} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
+            <StatusPill label={copy.status[enrollment.status] ?? copy.status.UNKNOWN} tone={enrollmentStatusTone(enrollment.status)} />
             {enrollment.gradeStatus === 'APPEALED' ? (
               <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
             ) : null}
@@ -71,7 +71,7 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
               {index > 0 ? <Divider /> : null}
               <Field
                 label={copy.dayLong[slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek] ?? ''}
-                value={[`${slot.startTime} – ${slot.endTime}`, roomLabel(slot) ? `${copy.room} ${roomLabel(slot)}` : ''].filter(Boolean).join(' · ')}
+                value={`${slot.startTime} – ${slot.endTime} · ${roomLabel(slot) ? `${copy.room} ${roomLabel(slot)}` : copy.roomPending}`}
               />
             </View>
           ))

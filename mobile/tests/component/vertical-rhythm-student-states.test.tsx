@@ -265,8 +265,9 @@ describe('vertical rhythm in student transient states and notices', () => {
     const view = await renderScreen(<RegistrationScreen {...props} />);
     const selectBtn = await screen.findByRole('button', { name: new RegExp(`^Chọn.*${previewSections[0].courseCode}`) });
     await fireEvent.press(selectBtn);
-    const registerBtn = await screen.findByRole('button', { name: new RegExp('^Đăng ký') });
+    const registerBtn = await screen.findByRole('button', { name: new RegExp('^Đăng ký các lớp đã chọn') });
     await fireEvent.press(registerBtn);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Đăng ký' }));
     expect(await screen.findByText('Không có kết nối. Chưa thể đăng ký hoặc rút lớp.')).toBeTruthy();
 
     const problems: string[] = [];

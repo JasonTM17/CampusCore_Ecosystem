@@ -197,6 +197,7 @@ test('a second select during the post-register refresh cannot send another enrol
 
   await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
   await fireEvent.press(screen.getByRole('button', { name: copy.registerSelected }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.register }));
   await act(async () => { post.resolve({ id: 'enr-new' }); await post.promise; });
 
   // The enroll succeeded but the workspace has not refreshed yet: the row must
@@ -208,6 +209,10 @@ test('a second select during the post-register refresh cannot send another enrol
   const register = screen.queryByRole('button', { name: copy.registerSelected });
   if (register) {
     await fireEvent.press(register);
+    const confirmRegister = screen.queryByRole('button', { name: copy.register });
+    if (confirmRegister) {
+      await fireEvent.press(confirmRegister);
+    }
     await act(async () => { await Promise.resolve(); });
   }
   expect(mockPost).toHaveBeenCalledTimes(1);
@@ -224,6 +229,7 @@ test('selection controls stay disabled while registration checks connectivity', 
 
   await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
   await fireEvent.press(screen.getByRole('button', { name: copy.registerSelected }));
+  await fireEvent.press(screen.getByRole('button', { name: copy.register }));
   await act(async () => { await Promise.resolve(); });
 
   const unselect = screen.getByRole('button', { name: `${copy.unselect}: CS201 Lớp 01` });
@@ -244,9 +250,11 @@ test('two rapid registration submissions send one enrollment request', async () 
 
   await fireEvent.press(screen.getByRole('button', { name: `${copy.select}: CS201 Lớp 01` }));
   const submit = screen.getByRole('button', { name: copy.registerSelected });
+  await fireEvent.press(submit);
+  const confirm = screen.getByRole('button', { name: copy.register });
   await act(async () => {
-    await fireEvent.press(submit);
-    await fireEvent.press(submit);
+    await fireEvent.press(confirm);
+    await fireEvent.press(confirm);
   });
 
   expect(mockPost).toHaveBeenCalledTimes(1);

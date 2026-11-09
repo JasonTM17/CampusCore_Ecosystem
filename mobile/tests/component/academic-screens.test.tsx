@@ -471,7 +471,7 @@ describe('enrollments and courses', () => {
   test('courses is the same workspace, in English on request', async () => {
     mockQueries['academic.enrollments'] = { data: enrollments };
     await render(wrap(<CoursesScreen {...props} />, 'en'));
-    expect(screen.getByRole('header', { name: 'Courses' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'My courses' })).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: 'Active (1)' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Course registration' }));
     expect(navigate).toHaveBeenCalledWith('registration');
@@ -709,7 +709,7 @@ describe('schedule and attendance', () => {
     await render(wrap(<SlipRow semesterId="semester-1" />));
 
     try {
-      const button = screen.getByRole('button', { name: /Tải phiếu/ });
+      const button = screen.getByRole('button', { name: /Xuất phiếu/ });
       await act(async () => {
         fireEvent.press(button);
         fireEvent.press(button);
@@ -754,6 +754,8 @@ describe('schedule and attendance', () => {
   });
 
   test('renders seven accessible week day buttons with one selected day', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { data: semesters };
     await render(wrap(<ScheduleScreen {...props} />));
     const dayCells = screen.getAllByTestId(/^day-/);
 
@@ -764,11 +766,13 @@ describe('schedule and attendance', () => {
   });
 
   test('week day button conveys today in its accessible label', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { data: semesters };
     await render(wrap(<ScheduleScreen {...props} />));
     const dayCells = screen.getAllByTestId(/^day-/);
     const todayCells = dayCells.filter((cell) =>
       typeof cell.props.accessibilityLabel === 'string' &&
-      (cell.props.accessibilityLabel.includes('hôm nay') || cell.props.accessibilityLabel.includes('today'))
+      (cell.props.accessibilityLabel.includes('HÔM NAY') || cell.props.accessibilityLabel.includes('TODAY'))
     );
     expect(todayCells).toHaveLength(1);
   });
@@ -1017,7 +1021,10 @@ describe('curriculum', () => {
 
 describe('registration', () => {
   const pressSelect = async (code: string) => fireEvent.press(screen.getByRole('button', { name: `Chọn lớp: ${code} Lớp 01` }));
-  const pressRegister = async () => fireEvent.press(screen.getByRole('button', { name: 'Đăng ký các lớp đã chọn' }));
+  const pressRegister = async () => {
+    await fireEvent.press(screen.getByRole('button', { name: 'Đăng ký các lớp đã chọn' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Đăng ký' }));
+  };
   const conflict = Object.assign(new Error('conflict'), { status: 409, code: 'SCHEDULE_CONFLICT' });
 
   test('does not recompute section availability when only the browse query changes', async () => {
@@ -1089,7 +1096,7 @@ describe('registration', () => {
     await render(wrap(<RegistrationScreen {...props} />));
     await pressSelect('CSA1');
     await pressRegister();
-    expect(await screen.findByText('Lớp trùng lịch với học phần đã đăng ký.')).toBeOnTheScreen();
+    expect(await screen.findByText('Trùng lịch với lớp đã đăng ký.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Bỏ chọn: CSA1 Lớp 01' })).toBeOnTheScreen();
     expect(screen.getByText('Lựa chọn của bạn vẫn được giữ lại.')).toBeOnTheScreen();
   });
