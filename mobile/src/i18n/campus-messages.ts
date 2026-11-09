@@ -42,7 +42,6 @@ export const campusMessages = {
       "regulations": "Quy chế"
     } as Record<string, string>,
     "supersededNote": "Bạn đang xem phiên bản cũ. Phiên bản đã xuất bản hiện tại là {current}.",
-    "openCurrent": "Xem phiên bản hiện hành",
     "permalinkLabel": "Liên kết tới phiên bản này",
     "docsNotFoundTitle": "Tài liệu không khả dụng",
     "docsNotFoundBody": "Tài liệu này chưa xuất bản hoặc không còn tồn tại.",
@@ -98,7 +97,6 @@ export const campusMessages = {
       "regulations": "Regulations"
     } as Record<string, string>,
     "supersededNote": "You are viewing an older revision. The current published revision is {current}.",
-    "openCurrent": "View current revision",
     "permalinkLabel": "Permalink to this revision",
     "docsNotFoundTitle": "Document unavailable",
     "docsNotFoundBody": "This document is not published or no longer exists.",

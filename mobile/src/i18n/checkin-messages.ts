@@ -12,7 +12,6 @@ const vi = {
   noSessions: 'Không có buổi điểm danh đang mở',
   closesAt: 'Đóng lúc {time}',
   area: 'Khu vực',
-  codeRequired: 'Cần mã 6 số',
 
   consentTitle: 'Cho phép dùng vị trí',
   consentChanged: 'Thông báo vị trí đã thay đổi. Vui lòng đồng ý lại.',
@@ -105,7 +104,6 @@ const en: CheckinCopy = {
   noSessions: 'No open check-in sessions',
   closesAt: 'Closes at {time}',
   area: 'Area',
-  codeRequired: '6-digit code required',
 
   consentTitle: 'Location consent',
   consentChanged: 'The location notice has changed. Please accept it again.',

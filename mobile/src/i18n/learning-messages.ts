@@ -3,7 +3,6 @@ export const learningMessages = {
   "vi": {
     "title": "Học liệu & Bài tập",
     "unavailable": "Không thể tải học liệu.",
-    "sectionsUnavailable": "Không thể tải lớp học phần.",
     "loading": "Đang tải học liệu…",
     "errorTitle": "Không thể tải học liệu",
     "retry": "Thử lại",
@@ -17,7 +16,6 @@ export const learningMessages = {
     "noDeadline": "Không có hạn nộp",
     "maxScore": "Điểm tối đa",
     "version": "Phiên bản {n}",
-    "openWork": "Mở bài tập",
     "startDraft": "Bản nháp của bạn",
     "yourAnswer": "Câu trả lời của bạn",
     "answerPlaceholder": "Nhập câu trả lời…",
@@ -57,7 +55,6 @@ export const learningMessages = {
   "en": {
     "title": "Materials & Assignments",
     "unavailable": "Learning materials are unavailable.",
-    "sectionsUnavailable": "Your sections are unavailable.",
     "loading": "Loading materials…",
     "errorTitle": "Learning materials unavailable",
     "retry": "Try again",
@@ -71,7 +68,6 @@ export const learningMessages = {
     "noDeadline": "No deadline",
     "maxScore": "Maximum score",
     "version": "Version {n}",
-    "openWork": "Open assignment",
     "startDraft": "Your draft",
     "yourAnswer": "Your answer",
     "answerPlaceholder": "Type your answer…",
