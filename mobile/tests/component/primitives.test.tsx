@@ -108,6 +108,19 @@ describe('EmptyState', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
     expect(onAction).toHaveBeenCalledTimes(1);
   });
+
+  test('matches the shared state panel empty geometry', async () => {
+    await render(<EmptyState title="Chưa có dữ liệu" description="Kéo để tải lại" />);
+    const title = screen.getByRole('header', { name: 'Chưa có dữ liệu' });
+    const container = title.parent?.parent;
+    const style = StyleSheet.flatten(container?.props.style);
+    expect(style.borderStyle).toBe('dashed');
+    expect(style.minHeight).toBe(220);
+    expect(style.flexDirection).toBe('column');
+    expect(style.justifyContent).toBe('center');
+    expect(style.backgroundColor).toBe(tokens.colors.background);
+    expect(JSON.stringify(screen.toJSON())).toContain('"width":40,"height":40');
+  });
 });
 
 describe('InlineError', () => {
