@@ -23,8 +23,14 @@ export interface SectionLike {
   courseName?: string;
   courseNameEn?: string;
   courseNameVi?: string;
+  departmentName?: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
+  semester?: string;
   semesterId?: string;
   semesterName?: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
 }
 
 /** Course title in the active language, falling back across the available names. */
@@ -33,6 +39,43 @@ export function courseTitle(section: SectionLike, locale: 'vi' | 'en'): string {
     ? [section.courseNameEn, section.courseName, section.courseNameVi]
     : [section.courseNameVi, section.courseName, section.courseNameEn];
   return names.find((name) => typeof name === 'string' && name.trim() !== '')?.trim() ?? '';
+}
+
+/** Department title in the active language, falling back across the available names. */
+export function departmentTitle(section: SectionLike, locale: 'vi' | 'en'): string {
+  const names = locale === 'en'
+    ? [section.departmentNameEn, section.departmentName, section.departmentNameVi]
+    : [section.departmentNameVi, section.departmentName, section.departmentNameEn];
+  return names.find((name) => typeof name === 'string' && name.trim() !== '')?.trim() ?? '';
+}
+
+/** Semester title in the active language, falling back across the available names. */
+export function termTitle(section: SectionLike, locale: 'vi' | 'en'): string {
+  const names = locale === 'en'
+    ? [section.semesterNameEn, section.semester, section.semesterNameVi, section.semesterName]
+    : [section.semesterNameVi, section.semester, section.semesterNameEn, section.semesterName];
+  return names.find((name) => typeof name === 'string' && name.trim() !== '')?.trim() ?? '';
+}
+
+export interface DashboardMetrics {
+  sections: number;
+  students: number;
+  readyToPublish: number;
+  freshNotices: number;
+}
+
+/** The web dashboard's four metric values, computed from the same sources. */
+export function dashboardMetrics(
+  sections: readonly { enrolledCount?: number }[],
+  gradingSections: readonly { canPublish?: boolean }[],
+  announcementsTotal: number,
+): DashboardMetrics {
+  return {
+    sections: sections.length,
+    students: sections.reduce((total, section) => total + (section.enrolledCount ?? 0), 0),
+    readyToPublish: gradingSections.filter((section) => section.canPublish).length,
+    freshNotices: announcementsTotal,
+  };
 }
 
 export const normalizeOperationsSearch = (value: string) =>
