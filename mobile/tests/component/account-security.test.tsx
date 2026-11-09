@@ -124,7 +124,7 @@ beforeEach(() => {
 describe('forgot password', () => {
   test('the email field is single-line like the web input', async () => {
     await renderApp(<ForgotPasswordScreen {...props} />);
-    expect(screen.getByLabelText('Email').props.multiline).toBe(false);
+    expect(screen.getByLabelText('Địa chỉ email').props.multiline).toBe(false);
   });
 
   test('rejects an invalid address locally without calling the API', async () => {
