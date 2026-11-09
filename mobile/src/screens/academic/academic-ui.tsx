@@ -59,6 +59,8 @@ export interface AcademicShellProps<T = unknown> {
   eyebrow?: string;
   loading?: boolean;
   error?: string | null;
+  errorTitle?: string;
+  errorDescription?: string;
   warning?: string | null;
   onRetry?: () => void;
   onRefresh?: () => void;
@@ -67,7 +69,7 @@ export interface AcademicShellProps<T = unknown> {
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
+export function AcademicShell<T>({ title, eyebrow, loading = false, error, errorTitle, errorDescription, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
   const { colors } = useTheme();
   const refreshControl = onRefresh
@@ -80,7 +82,7 @@ export function AcademicShell<T>({ title, eyebrow, loading = false, error, warni
       {loading ? (
         <StatePanel kind="loading" title={copy.loading} />
       ) : error ? (
-        <StatePanel kind="error" title={copy.errorTitle} description={error} actionLabel={copy.retry} onAction={onRetry} />
+        <StatePanel kind="error" title={errorTitle ?? copy.errorTitle} description={errorDescription ?? error} actionLabel={copy.retry} onAction={onRetry} />
       ) : (
         children
       )}

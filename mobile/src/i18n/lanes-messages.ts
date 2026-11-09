@@ -43,7 +43,7 @@ const vi = {
     REQUESTED: 'Chờ duyệt', APPROVED: 'Đã duyệt', ISSUED: 'Đã phát', CANCELLED: 'Đã hủy', EXPIRED: 'Hết hạn',
     DRAFT: 'Nháp', PUBLISHED: 'Đã đăng', REGISTRATION_OPEN: 'Đang mở đăng ký', REGISTRATION_CLOSED: 'Đã đóng đăng ký', COMPLETED: 'Hoàn tất',
     PENDING: 'Chờ xét', CONFIRMED: 'Đã xác nhận', ENROLLED: 'Đang học', DROPPED: 'Đã rút',
-    PRESENT: 'Có mặt', ABSENT: 'Vắng', LATE: 'Trễ', EXCUSED: 'Có phép', ATTENDED: 'Có mặt',
+    PRESENT: 'Có mặt', ABSENT: 'Vắng', LATE: 'Đi muộn', EXCUSED: 'Có phép', ATTENDED: 'Có mặt',
     ASSIGNED: 'Đã phân công', REGISTERED: 'Đã đăng ký',
   } as Record<string, string>,
 
