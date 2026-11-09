@@ -47,7 +47,7 @@ export function FileRow({ name, sizeBytes, status = 'ready', statusLabel, progre
       style={[styles.row, { backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, minHeight: layout.touchTarget, padding: spacing.md }]}
     >
       <View style={styles.info}>
-        <UiText variant="bodyMedium">{name}</UiText>
+        <UiText ellipsizeMode="middle" numberOfLines={1} style={styles.fileName} variant="bodyMedium">{name}</UiText>
         <View style={[styles.meta, { gap: spacing.sm }]}>
           {size ? <UiText variant="meta" tone="muted">{size}</UiText> : null}
           <View accessibilityLiveRegion={status === 'failed' ? 'assertive' : 'polite'} style={styles.meta}>
@@ -87,7 +87,8 @@ export function FileRow({ name, sizeBytes, status = 'ready', statusLabel, progre
 
 const styles = StyleSheet.create({
   row: { alignItems: 'center', borderWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  info: { flex: 1, minWidth: 160 },
+  info: { flex: 1, minWidth: 0 },
+  fileName: { flexShrink: 1, minWidth: 0 },
   meta: { alignItems: 'center', flexDirection: 'row' },
   track: { borderRadius: 2, height: 4, overflow: 'hidden' },
   actions: { flexDirection: 'row', flexWrap: 'wrap' },

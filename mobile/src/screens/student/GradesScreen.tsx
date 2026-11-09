@@ -1,9 +1,10 @@
 import { groupedRows } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { compactSingleLineFit } from '../../components/ui/primitives';
 import { minTapTarget } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
@@ -151,22 +152,22 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
       {progressCards.length > 0 ? (
         <View accessibilityLabel={copy.progressStripAriaLabel} style={styles.progressSection}>
           <SectionHeading title={copy.progressStripTitle} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.progressRow}>
+          <View style={styles.progressRow}>
             {progressCards.map((card) => (
               <Card key={card.semesterId} style={styles.progressCard}>
-                <UiText variant="label" numberOfLines={2} style={styles.progressTerm}>{card.name}</UiText>
+                <UiText variant="label" numberOfLines={3} style={styles.progressTerm}>{card.name}</UiText>
                 <View style={styles.progressValues}>
                   <UiText variant="headlineSmall" style={styles.progressGpa}>
                     {card.gpa === null ? '—' : gpa(card.gpa)}
                   </UiText>
-                  <UiText variant="meta" tone="muted">
+                  <UiText {...compactSingleLineFit} variant="meta" tone="muted" style={styles.progressCredits}>
                     {`${formatNumber(card.creditsEarned)} ${copy.creditsWord}`}
                   </UiText>
                 </View>
                 <UiText variant="meta" tone="muted" style={styles.progressGpaLabel}>{copy.gradePointLabel}</UiText>
               </Card>
             ))}
-          </ScrollView>
+          </View>
         </View>
       ) : null}
       <SectionHeading title={copy.publishedGrades} />
@@ -186,10 +187,11 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
 
 const styles = StyleSheet.create({
   progressSection: { gap: 8, marginBottom: 8 },
-  progressRow: { gap: 12, paddingVertical: 4 },
-  progressCard: { gap: 6, minWidth: 148, paddingHorizontal: 12, paddingVertical: 10 },
-  progressTerm: { maxWidth: 148 },
-  progressValues: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between' },
+  progressRow: { flexDirection: 'row', gap: 12, paddingVertical: 4 },
+  progressCard: { flex: 1, gap: 6, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10 },
+  progressTerm: { minWidth: 0 },
+  progressValues: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'space-between', minWidth: 0 },
+  progressCredits: { flexShrink: 1, minWidth: 0 },
   progressGpa: { fontVariant: ['tabular-nums'] },
   progressGpaLabel: { letterSpacing: 0.8, textTransform: 'uppercase' },
   termTitle: { marginBottom: 4 },

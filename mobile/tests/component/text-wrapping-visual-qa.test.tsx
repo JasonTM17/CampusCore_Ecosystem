@@ -5,7 +5,7 @@ import { Dimensions, StyleSheet } from 'react-native';
 
 import { AppBar } from '../../src/components/AppBar';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
-import { SearchBar } from '../../src/components/ui/primitives';
+import { SearchBar, searchFieldFontScaleCap } from '../../src/components/ui/primitives';
 import { chromeFontScaleCap } from '../../src/design/font-scale';
 import { ThemeProvider } from '../../src/design/theme';
 import { campusMessages } from '../../src/i18n/campus-messages';
@@ -148,10 +148,10 @@ describe('Q-008 lecturer tab label', () => {
 });
 
 describe('Q-004 grades term title', () => {
-  test('allows the progress strip term name to wrap to two lines', async () => {
+  test('allows the progress strip term name to wrap to three lines', async () => {
     await render(wrap(<GradesScreen {...gradesProps} />));
     const term = screen.getByText('Học kỳ 2 năm học 2026-2027');
-    expect(term.props.numberOfLines).toBe(2);
+    expect(term.props.numberOfLines).toBe(3);
   });
 });
 
@@ -160,6 +160,7 @@ describe('Q-005 search placeholder', () => {
     const placeholder = campusMessages.vi.searchPlaceholder;
     await render(wrap(<SearchBar value="" onChangeText={() => {}} placeholder={placeholder} />));
     const input = screen.getByLabelText(placeholder);
+    expect(input.props.maxFontSizeMultiplier).toBe(searchFieldFontScaleCap);
     const style = StyleSheet.flatten(input.props.style);
     expect(style.flexShrink).toBe(1);
     expect(style.minWidth).toBe(0);
