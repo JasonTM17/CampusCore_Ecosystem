@@ -148,6 +148,28 @@ test('every producer link opens its mapped screen for the right session', () => 
   assert.equal(Object.keys(expected).length, NOTIFICATION_PRODUCER_ROUTES.filter((entry) => entry.route !== null).length);
 });
 
+test('seeded lecturer notifications resolve to the matching existing mobile screens', () => {
+  const migration = fs.readFileSync(
+    path.join(repoRoot, 'java-services/restful-api/src/main/resources/db/migration/V26__enrich_demo_campus_population.sql'),
+    'utf8',
+  );
+  const seeded = [
+    { type: 'ACADEMIC', link: '/vi/dashboard/lecturer/grades', href: '/lecturer/grading', screen: 'lecturer.grading' },
+    { type: 'REGISTRATION', link: '/vi/dashboard/lecturer', href: '/lecturer/dashboard', screen: 'lecturer.dashboard' },
+    { type: 'EVENT', link: '/vi/dashboard/lecturer', href: '/lecturer/dashboard', screen: 'lecturer.dashboard' },
+  ];
+
+  for (const notification of seeded) {
+    assert.ok(migration.includes(`'${notification.type}', '${notification.link}'`), `${notification.type} seed link`);
+    assert.deepEqual(resolveNotificationRoute(notification.link, lecturer), {
+      action: 'open',
+      href: notification.href,
+      screen: notification.screen,
+      lane: null,
+    }, notification.type);
+  }
+});
+
 test('lecturer thesis link is web-only and refused with the role home', () => {
   assert.deepEqual(resolveNotificationRoute('/dashboard/lecturer/thesis', lecturer), {
     action: 'refuse',
@@ -162,6 +184,7 @@ test('unknown, malformed and foreign targets are refused to the safe fallback', 
   const refused = [
     '/no-such-screen',
     '/dashboard/unknown',
+    '/vi/dashboard/lecturer/unknown',
     '/auth/callback',
     'campuscore://auth/callback',
     '/../admin/audit',

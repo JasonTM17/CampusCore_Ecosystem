@@ -252,6 +252,27 @@ describe('notifications centre opens only allowlisted routes', () => {
     await waitFor(() => expect(contentApi.markNotificationRead).toHaveBeenCalledWith('n1'));
   });
 
+  test('seeded lecturer notifications open their matching screens without a refusal', async () => {
+    setWidth(360);
+    mockSession.value = { kind: 'authenticated', role: 'lecturer', capabilities: [] };
+    showRows([
+      { ...row('lecturer-gradebook', 'Kỳ nhập điểm giữa kỳ đang mở', '/vi/dashboard/lecturer/grades'), type: 'ACADEMIC' },
+      { ...row('lecturer-roster', 'Danh sách lớp có cập nhật', '/vi/dashboard/lecturer'), type: 'REGISTRATION' },
+      { ...row('lecturer-training', 'Lịch tập huấn cổng học vụ', '/vi/dashboard/lecturer', true), type: 'EVENT' },
+    ]);
+    await renderThemed(<NotificationsScreen {...props} role="lecturer" />);
+
+    await fireEvent.press(rowButton('Kỳ nhập điểm giữa kỳ đang mở'));
+    await fireEvent.press(rowButton('Danh sách lớp có cập nhật'));
+    await fireEvent.press(rowButton('Lịch tập huấn cổng học vụ'));
+
+    expect(navigate).toHaveBeenNthCalledWith(1, 'lecturer.grading', undefined);
+    expect(navigate).toHaveBeenNthCalledWith(2, 'lecturer.dashboard', undefined);
+    expect(navigate).toHaveBeenNthCalledWith(3, 'lecturer.dashboard', undefined);
+    expect(navigateLane).not.toHaveBeenCalled();
+    expect(screen.queryByText(vi.openFailed)).toBeNull();
+  });
+
   test('the unread count reaches the shared cache even when the screen is already gone', async () => {
     setWidth(360);
     showRows([row('n1', 'Điểm đã công bố', '/dashboard/transcript')]);
