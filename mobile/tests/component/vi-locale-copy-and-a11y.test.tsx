@@ -40,7 +40,7 @@ import { RegistrationScreen } from '../../src/screens/student/RegistrationScreen
 import { AttendanceScreen } from '../../src/screens/student/AttendanceScreen';
 import { LearningScreen } from '../../src/screens/student/LearningScreen';
 import { MenuPanel } from '../../src/components/MenuPanel';
-import { SignInScreen } from '../../src/screens/auth/SignInScreen';
+import { GuestHomeScreen } from '../../src/screens/guest/GuestHomeScreen';
 
 const navigation = {
   navigate: jest.fn(),
@@ -137,9 +137,9 @@ describe('Vietnamese preview data localization and accessibility names', () => {
     expect(logo.props?.importantForAccessibility).toBe('no');
   });
 
-  test('SignInScreen news cover image is hidden from accessibility tree', async () => {
-    const view = await renderInLocale(<SignInScreen {...props} />, 'vi');
-    const images = findNodes(view.toJSON() as JsonNode, (n) => n.type === 'Image' && n.props?.testID === 'signin-news-cover');
+  test('GuestHomeScreen news cover image is hidden from accessibility tree', async () => {
+    const view = await renderInLocale(<GuestHomeScreen {...props} />, 'vi');
+    const images = findNodes(view.toJSON() as JsonNode, (n) => n.type === 'Image' && n.props?.testID === 'guest-news-cover');
     expect(images.length).toBe(1);
     const cover = images[0];
     expect(cover.props?.accessible).toBe(false);

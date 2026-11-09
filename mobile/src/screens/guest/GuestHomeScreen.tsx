@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, UiText } from '../../components/Ui';
 import { LanguageToggleButton } from '../../components/LanguageToggleButton';
+import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 import { IconChip, StatusPill } from '../../components/ui/institutional';
 import type { UiIconName } from '../../components/ui/institutional';
 import { chromeFor } from '../../design/chrome';
@@ -120,6 +121,7 @@ export function GuestHomeScreen({ navigation }: MobileScreenProps) {
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.brandSubtitle}</UiText>
             </View>
             <LanguageToggleButton />
+            <ThemeToggleButton />
           </View>
           <UiText variant="meta" style={[styles.heroEyebrow, { color: chrome.accent }]}>{copy.eyebrow}</UiText>
           <UiText variant="meta" style={[styles.heroSchool, { color: chrome.onSurfaceMuted }]}>{copy.schoolName}</UiText>
