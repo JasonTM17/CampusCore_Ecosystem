@@ -95,6 +95,10 @@ function setWidth(w: number, fontScale = 1) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale } as ReturnType<typeof Dimensions.get>);
 }
 
+async function browseAllTopics(label = 'Xem tất cả đề tài đợt này') {
+  await fireEvent.press(await screen.findByRole('button', { name: label }));
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -179,8 +183,8 @@ describe('topics, round and advisors', () => {
     expect(screen.getByText('Visible topic')).toBeOnTheScreen();
     expect(screen.getByText('Visible description')).toBeOnTheScreen();
     expect(screen.getByText('Đã công bố')).toBeOnTheScreen();
-    expect(screen.getByText('Tối đa 3 nhóm')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Xem đề tài: Visible topic' })).toBeOnTheScreen();
+    expect(screen.getByText('3 nhóm đề tài')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Chi tiết đề tài: Visible topic' })).toBeOnTheScreen();
     expect(screen.queryByText('department-demo')).toBeNull();
   });
 
@@ -189,6 +193,7 @@ describe('topics, round and advisors', () => {
     async (width, fontScale, columns) => {
       setWidth(width, fontScale);
       await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+      await browseAllTopics();
       await screen.findByText(TOPIC_A.title);
       let cell = screen.getByRole('button', { name: `${copy.openTopic}: ${TOPIC_A.title}` }).parent;
       const expectedWidth = columns === 2 ? '48.5%' : '100%';
@@ -197,13 +202,37 @@ describe('topics, round and advisors', () => {
     },
   );
 
-  test('opens on the registration round and lists its published topics', async () => {
+  test('opens on the registration round and waits for a search before listing topics', async () => {
     setWidth(360);
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText('Tìm kiếm để xem danh mục đề tài')).toBeOnTheScreen();
+    expect(screen.queryByText('Trợ lý học vụ')).toBeNull();
+    expect(mockApi.topics).not.toHaveBeenCalled();
+    await browseAllTopics();
     expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
     expect(screen.getByText('Thư viện di động')).toBeOnTheScreen();
     expect(mockApi.topics).toHaveBeenCalledWith('r2', { page: 0, limit: 20 });
     expect(screen.getByText('Đợt 2')).toBeOnTheScreen();
+  });
+
+  test('the catalogue gate offers the seven suggested fields and searches without the parenthetical', async () => {
+    setWidth(360);
+    const pills = [
+      'Trí tuệ nhân tạo (AI)',
+      'Phần mềm & Web',
+      'Cơ điện tử & Robot',
+      'Hệ thống thông tin',
+      'IoT & Viễn thông',
+      'Kỹ thuật Ô tô',
+      'Xây dựng',
+    ];
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText('Bạn có thể nhập từ khóa, chọn chuyên ngành gợi ý hoặc bấm "Xem tất cả đề tài đợt này".')).toBeOnTheScreen();
+    for (const pill of pills) expect(screen.getByRole('button', { name: pill })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Trí tuệ nhân tạo (AI)' }));
+    await waitFor(() => expect(mockApi.topics).toHaveBeenLastCalledWith('r2', { page: 0, limit: 20, search: 'Trí tuệ nhân tạo' }));
+    expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
   });
 
   test('search asks the server and renders a match that is not on the first page', async () => {
@@ -213,6 +242,7 @@ describe('topics, round and advisors', () => {
       return options.page ? page([topic('t9', 'Trợ lý học vụ nâng cao')], false, 2) : page([topic('t8', 'Trợ lý học vụ cơ bản')], true, 2);
     });
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     await screen.findByText('Thư viện di động');
     await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'tro ly');
     expect(await screen.findByText('Trợ lý học vụ cơ bản')).toBeOnTheScreen();
@@ -229,6 +259,7 @@ describe('topics, round and advisors', () => {
       options.search ? page([], false, 0) : page([TOPIC_A, TOPIC_B], false, 2)
     ));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     await screen.findByText('Trợ lý học vụ');
     await fireEvent.changeText(screen.getByLabelText(copy.searchLabel), 'khong co');
     expect(await screen.findByText(copy.emptyTopicsFiltered)).toBeOnTheScreen();
@@ -239,6 +270,7 @@ describe('topics, round and advisors', () => {
     setWidth(360);
     mockApi.topics.mockResolvedValueOnce(page([TOPIC_A, TOPIC_B], true, 3)).mockResolvedValueOnce(page([TOPIC_B, TOPIC_C], false, 3));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     await fireEvent.press(await screen.findByRole('button', { name: copy.loadMore }));
     expect(await screen.findByText('Phân tích điểm danh')).toBeOnTheScreen();
     expect(screen.getAllByText('Thư viện di động')).toHaveLength(1);
@@ -250,6 +282,7 @@ describe('topics, round and advisors', () => {
     setWidth(360);
     mockApi.topics.mockResolvedValueOnce(page([]));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     expect(await screen.findByText(copy.emptyTopics)).toBeOnTheScreen();
   });
 
@@ -257,6 +290,7 @@ describe('topics, round and advisors', () => {
     setWidth(360);
     mockApi.topics.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 503 })).mockResolvedValueOnce(page([TOPIC_A]));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     expect(await screen.findByText(copy.errors.unavailable)).toBeOnTheScreen();
     expect(screen.queryByText('boom')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
@@ -269,6 +303,7 @@ describe('topics, round and advisors', () => {
       .mockRejectedValueOnce(Object.assign(new Error('unauthorized'), { status: 401, code: 'HTTP_401' }))
       .mockResolvedValueOnce(page([TOPIC_A]));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     expect(await screen.findByText(copy.errors.generic)).toBeOnTheScreen();
     expect(screen.queryByText(/Phiên đã hết hạn/)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
@@ -294,6 +329,7 @@ describe('topics, round and advisors', () => {
     setWidth(360);
     mockApi.topics.mockImplementation(async (roundId: string) => page(roundId === 'r1' ? [topic('old', 'Đề tài cũ', { roundId: 'r1' })] : [TOPIC_A]));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     await screen.findByText('Trợ lý học vụ');
     await fireEvent.press(screen.getByRole('button', { name: copy.roundChange }));
     await fireEvent.press(await screen.findByRole('button', { name: /^Đợt 1,/ }));
@@ -302,15 +338,30 @@ describe('topics, round and advisors', () => {
     expect(mockApi.topics).toHaveBeenCalledWith('r1', { page: 0, limit: 20 });
   });
 
-  test('the round view shows the dates and the advisor view groups lecturers across topics', async () => {
+  test('the round view shows the dates and students see the staff-only advisor state', async () => {
     setWidth(360);
     mockApi.supervisors.mockImplementation(async (topicId: string) => (
       topicId === 't1' ? SUPERVISORS : [...SUPERVISORS, { lecturerId: 'l2', supervisorOrder: 2, firstName: 'Lan', lastName: 'Võ', email: null }]
     ));
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
-    await screen.findByText('Trợ lý học vụ');
     await fireEvent.press(screen.getByRole('tab', { name: copy.tabRound }));
     expect(await screen.findByText(copy.roundRegistration)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('tab', { name: copy.tabAdvisors }));
+    expect(await screen.findByText('Mục này dành cho giảng viên và quản trị viên')).toBeOnTheScreen();
+    expect(screen.getByText('Thông tin người hướng dẫn theo từng đề tài có trong Danh mục đề tài — nơi bạn chọn đề tài và xem giảng viên phụ trách.')).toBeOnTheScreen();
+    expect(screen.queryByText('Phạm Nam')).toBeNull();
+    expect(mockApi.supervisors).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục đề tài' }));
+    expect(await screen.findByText('Tìm kiếm để xem danh mục đề tài')).toBeOnTheScreen();
+  });
+
+  test('a lecturer sees the derived advisor directory', async () => {
+    setWidth(360);
+    mockApi.supervisors.mockImplementation(async (topicId: string) => (
+      topicId === 't1' ? SUPERVISORS : [...SUPERVISORS, { lecturerId: 'l2', supervisorOrder: 2, firstName: 'Lan', lastName: 'Võ', email: null }]
+    ));
+    await renderThemed(<ThesisTopicsScreen {...baseProps} role="lecturer" />);
+    await screen.findByText('Đợt 2');
     await fireEvent.press(screen.getByRole('tab', { name: copy.tabAdvisors }));
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
     expect(screen.getByText('Võ Lan')).toBeOnTheScreen();
@@ -329,8 +380,8 @@ describe('topics, round and advisors', () => {
       const index = Number(topicId.slice('advisor-'.length));
       return [{ lecturerId: `lecturer-${index}`, supervisorOrder: 1, firstName: `Advisor ${index}`, lastName: 'Lecturer', email: null }];
     });
-    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
-    await screen.findByText('Topic 0');
+    await renderThemed(<ThesisTopicsScreen {...baseProps} role="lecturer" />);
+    await screen.findByText('Đợt 2');
     await fireEvent.press(screen.getByRole('tab', { name: copy.tabAdvisors }));
 
     expect(await screen.findByText('Lecturer Advisor 0')).toBeOnTheScreen();
@@ -352,7 +403,7 @@ describe('topics, round and advisors', () => {
       const index = Number(topicId.slice('advisor-'.length));
       return [{ lecturerId: `lecturer-${index}`, supervisorOrder: 1, firstName: `Advisor ${index}`, lastName: 'Lecturer', email: null }];
     });
-    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} role="lecturer" />);
     await screen.findByText('Lecturer Advisor 0');
 
     expect(screen.getAllByText(/^Lecturer Advisor \d+$/).length).toBeLessThanOrEqual(8);
@@ -361,7 +412,7 @@ describe('topics, round and advisors', () => {
   test('a forbidden supervisor read shows access denied instead of an empty directory', async () => {
     setWidth(360);
     mockApi.supervisors.mockRejectedValue(Object.assign(new Error('denied'), { status: 403 }));
-    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} role="lecturer" />);
 
     expect(await screen.findByText(copy.errors.forbidden)).toBeOnTheScreen();
     expect(screen.queryByText(copy.advisorsEmpty)).toBeNull();
@@ -379,7 +430,7 @@ describe('topics, round and advisors', () => {
         ? SUPERVISORS
         : [{ lecturerId: 'l2', supervisorOrder: 1, firstName: 'Lan', lastName: 'Võ', email: null }];
     });
-    await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} role="lecturer" />);
 
     expect(await screen.findByText(copy.advisorsLoadFailed)).toBeOnTheScreen();
     expect(screen.getByText('Võ Lan')).toBeOnTheScreen();
@@ -392,15 +443,16 @@ describe('topics, round and advisors', () => {
     setWidth(360);
     seed({ topics: [topic('t1', 'Solo topic', { maxGroups: 1 })] });
     await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics('Browse all topics in this round');
     expect(await screen.findByText('1 topic')).toBeOnTheScreen();
-    expect(screen.getByText('Up to 1 group')).toBeOnTheScreen();
+    expect(screen.getByText('1 thesis group')).toBeOnTheScreen();
   });
 
   test('a single advisor topic keeps the singular English noun', async () => {
     setWidth(360);
     seed({ topics: [TOPIC_A] });
-    await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
-    await screen.findByText('Trợ lý học vụ');
+    await renderEnglish(<ThesisTopicsScreen {...baseProps} role="lecturer" />);
+    await screen.findByText('Đợt 2');
     await fireEvent.press(screen.getByRole('tab', { name: thesisMessages.en.tabAdvisors }));
     expect(await screen.findByText('1 topic')).toBeOnTheScreen();
   });
@@ -411,15 +463,39 @@ describe('topics, round and advisors', () => {
     expect(await screen.findByText(copy.roundRegistration)).toBeOnTheScreen();
   });
 
-  test('the standalone advisor screen renders for a route registered later', async () => {
+  test('a proposal round uses the web status name', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r1', 'Đợt 1', 'PROPOSAL_OPEN')] });
+    await renderThemed(<ThesisRoundScreen {...baseProps} />);
+    expect((await screen.findAllByText('Giai đoạn đề tài')).length).toBeGreaterThan(0);
+  });
+
+  test('an open registration round uses the web status name', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN')] });
+    await renderThemed(<ThesisRoundScreen {...baseProps} />);
+    expect((await screen.findAllByText('Đang mở đăng ký')).length).toBeGreaterThan(0);
+  });
+
+  test('the standalone advisor screen shows students the staff-only state', async () => {
     setWidth(360);
     await renderThemed(<ThesisAdvisorsScreen {...baseProps} />);
+    expect(await screen.findByText('Mục này dành cho giảng viên và quản trị viên')).toBeOnTheScreen();
+    expect(screen.queryByText('Phạm Nam')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở danh mục đề tài' }));
+    expect(navigate).toHaveBeenCalledWith('thesis.topics');
+  });
+
+  test('the standalone advisor screen renders the directory for a lecturer', async () => {
+    setWidth(360);
+    await renderThemed(<ThesisAdvisorsScreen {...baseProps} role="lecturer" />);
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
   });
 
   test('opening a topic passes its id to the detail route', async () => {
     setWidth(360);
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    await browseAllTopics();
     await fireEvent.press(await screen.findByRole('button', { name: `${copy.openTopic}: Trợ lý học vụ` }));
     expect(navigate).toHaveBeenCalledWith('thesis.detail', { thesisTopicId: 't1' });
   });
@@ -433,6 +509,8 @@ describe('topic detail', () => {
     await renderThemed(detail());
     expect(await screen.findByText('Mô tả Trợ lý học vụ')).toBeOnTheScreen();
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
+    expect(screen.getByText('Xem mô tả, số nhóm, bộ môn và trạng thái chọn.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Chọn đề tài' })).toBeOnTheScreen();
     await fireEvent.press(await screen.findByRole('button', { name: copy.register }));
     expect(navigate).toHaveBeenCalledWith('thesis.registration', { thesisTopicId: 't1' });
     await fireEvent.press(screen.getByRole('button', { name: copy.askAssistantTopic }));
@@ -467,6 +545,22 @@ describe('topic detail', () => {
     seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')] });
     await renderThemed(detail());
     await screen.findByText('Mô tả Trợ lý học vụ');
+    expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
+  });
+
+  test('a student without a group is told the prerequisite when choosing is unavailable', async () => {
+    setWidth(360);
+    seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_CLOSED')] });
+    await renderThemed(detail());
+    expect(await screen.findByText('Bạn chưa có nhóm trong đợt này.')).toBeOnTheScreen();
+    expect(screen.getByText('Tạo nhóm khi đợt đăng ký mở.')).toBeOnTheScreen();
+  });
+
+  test('a student whose group was cancelled sees why the topic is not chosen', async () => {
+    setWidth(360);
+    seed({ group: group({ status: 'CANCELLED' }), progress: progress({ groupStatus: 'CANCELLED' }) });
+    await renderThemed(detail());
+    expect(await screen.findByText('Nhóm của bạn đã bị hủy và không tiếp tục trong đợt này.')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: copy.register })).toBeNull();
   });
 
@@ -568,6 +662,13 @@ describe('registration', () => {
     expect(create.props.accessibilityState?.disabled).toBe(true);
     await fireEvent.press(create);
     expect(mockApi.createGroup).not.toHaveBeenCalled();
+  });
+
+  test('the membership rule names the exactly-one-leader requirement', async () => {
+    setWidth(360);
+    seed({ group: group(), progress: progress() });
+    await renderThemed(screenUnderTest());
+    expect(await screen.findByText('Nhóm khóa luận cần từ 3 đến 5 thành viên, với đúng một nhóm trưởng, trước khi được xét duyệt. Nhóm nháp có 1 hoặc 2 thành viên có thể tiếp tục bổ sung trước khi duyệt. (3/5)')).toBeOnTheScreen();
   });
 
   test('waits for the selected topic round before enabling group creation', async () => {
@@ -773,6 +874,36 @@ describe('progress and report', () => {
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
   });
 
+  test('milestone labels are the web catalogue labels', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    for (const label of [
+      'Đã chọn đợt',
+      'Đã tạo nhóm',
+      'Đã được gán đề tài',
+      'Nhóm đã được duyệt',
+      'Đã nộp báo cáo',
+      'Đã phân công hội đồng',
+      'Đã chốt điểm',
+      'Đã công bố kết quả',
+    ]) {
+      expect(screen.getByText(label)).toBeOnTheScreen();
+    }
+    expect(screen.getAllByText('Đã xong').length).toBeGreaterThan(0);
+  });
+
+  test('the progress header names the current stage and the attention heading', async () => {
+    setWidth(360);
+    seed({
+      group: group({ status: 'REJECTED', approvalStatus: 'REJECTED' }),
+      progress: progress({ attentionState: 'GROUP_REJECTED' }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Giai đoạn hiện tại: Đã được gán đề tài')).toBeOnTheScreen();
+    expect(screen.getByText('Cần lưu ý')).toBeOnTheScreen();
+  });
+
   test('a rejected group never renders a stale final score', async () => {
     setWidth(360);
     seed({
@@ -827,8 +958,8 @@ describe('progress and report', () => {
     expect(outcomeText).toBeOnTheScreen();
     expect(outcomeText.props.accessibilityRole).toBe('alert');
     expect(screen.getAllByText('Không áp dụng')).toHaveLength(2);
-    expect(screen.getByLabelText('Có hội đồng: Không áp dụng')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Có điểm: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Đã phân công hội đồng: Không áp dụng')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Đã chốt điểm: Không áp dụng')).toBeOnTheScreen();
     expect(screen.queryByText(new RegExp(`^${copy.finalScore}:`))).toBeNull();
     expect(screen.queryByText(/^0([.,]0+)?$/)).toBeNull();
     expect(screen.queryByText(copy.attention.RESULT_NOT_AVAILABLE)).toBeNull();
@@ -969,7 +1100,8 @@ describe('progress and report', () => {
     await fireEvent.changeText(screen.getByLabelText(copy.reportUrl), 'https://example.edu/r');
     await fireEvent.press(screen.getByRole('button', { name: copy.reportSubmit }));
     await waitFor(() => expect(mockApi.submitReportLink).toHaveBeenCalledWith('g1', { url: 'https://example.edu/r', title: 'Báo cáo', note: undefined }));
-    expect(await screen.findByText(copy.reportSubmitted)).toBeOnTheScreen();
+    const submitted = await screen.findAllByText(copy.reportSubmitted);
+    expect(submitted.some((node) => node.props.accessibilityRole === 'alert')).toBe(true);
   });
 
   test('same-frame repeated report submission sends one request', async () => {
@@ -1232,6 +1364,7 @@ describe('preview mode', () => {
     mockClient.mode = 'preview';
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
     expect(screen.queryByText(copy.previewNotice)).toBeNull();
+    await browseAllTopics();
     expect(screen.getByText('Trợ lý học vụ có kiểm chứng nguồn')).toBeOnTheScreen();
     for (const fn of Object.values(mockApi)) expect(fn).not.toHaveBeenCalled();
   });
