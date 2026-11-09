@@ -116,7 +116,7 @@ const noop = () => {};
 studentScreens.push(
   { name: 'check-in', render: () => <CheckinScreen {...props} /> },
   { name: 'reset form', render: () => <ResetPasswordScreen {...props} initialToken="fake-reset-token_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" /> },
-  { name: 'enrollment detail', render: () => <ScreenShell title="Enrollment"><EnrollmentDetail enrollment={previewEnrollments[0]} onBack={noop} /></ScreenShell> },
+  { name: 'enrollment detail', render: () => <ScreenShell title="Enrollment"><EnrollmentDetail enrollment={previewEnrollments[0]} onBack={noop} onDrop={noop} /></ScreenShell> },
   { name: 'admission detail', render: () => <AdmissionDetail application={previewAdmissions('vi')[0]} busy={false} preview flash={null} onBack={noop} onSave={noop} onSubmit={noop} onWithdraw={noop} onUploaded={noop} onDeleteFile={noop} /> },
   { name: 'assignment detail', render: () => <AssignmentDetail assignment={previewAssignments('vi')[0]} onBack={noop} onChanged={noop} /> },
   { name: 'event detail', render: () => <EventDetail event={previewEvents('vi')[0]} busy={false} flash={null} onBack={noop} onRegister={noop} onCancel={noop} /> },

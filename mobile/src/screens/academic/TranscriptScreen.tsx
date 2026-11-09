@@ -13,6 +13,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import {
+  computeAverage10,
   cumulativeTrend,
   gradeDistribution,
   isPublishedGrade,
@@ -121,6 +122,16 @@ export function TranscriptScreen(_props: MobileScreenProps) {
   const malformed = !preview && query.data !== undefined && model === null;
   const visibleTerms = model ? model.terms.filter((entry) => !term || entry.semesterId === term) : [];
   const trend = model ? cumulativeTrend(model.terms, model.cumulativeGpa, copy.trendTermPrefix) : [];
+  const tenScaleTrend = model
+    ? [...model.terms]
+      .reverse()
+      .filter((term) => term.records.some((record) => typeof record.finalGrade === 'number'))
+      .map((term, index) => {
+        const graded = term.records.filter((record) => typeof record.finalGrade === 'number');
+        const average = computeAverage10(graded) ?? 0;
+        return { label: `${copy.trendTermPrefix}${index + 1}`, value: Math.round(average * 10) / 10 };
+      })
+    : [];
   const distribution = model ? gradeDistribution(visibleTerms) : [];
   const counts = model ? transcriptCourseCounts(model.terms, curriculum?.courses) : { completedCourses: 0, inProgressCourses: 0 };
   const requiredCredits = curriculum?.curriculum?.totalCredits;
@@ -168,6 +179,8 @@ export function TranscriptScreen(_props: MobileScreenProps) {
           {model.basisNote ? <UiText variant="bodySmall" tone="muted">{model.basisNote}</UiText> : null}
           <ScreenSpacer />
           <ChartSummary title={copy.gpaTrend} series={trend} />
+          <ScreenSpacer />
+          <ChartSummary title={copy.avgTenScale} series={tenScaleTrend} />
           <ScreenSpacer />
           <ChartSummary title={copy.distribution} series={distribution.map((bucket) => ({ label: bucket.letter, value: bucket.count }))} />
           <ScreenSpacer />
