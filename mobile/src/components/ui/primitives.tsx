@@ -23,7 +23,7 @@ import { chromeFontScaleCap } from '../../design/font-scale';
 import { useLocale } from '../../i18n/locale-provider';
 import { alpha } from './avatar-utils';
 import { Button } from './Button';
-import { IconButton } from './institutional';
+import { IconButton, IconChip } from './institutional';
 import { UiText } from './UiText';
 import type { TextTone } from './UiText';
 
@@ -366,20 +366,20 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({ title, description, actionLabel, onAction, loading = false }: EmptyStateProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t } = useLocale();
   return (
     <View
       accessibilityLiveRegion="polite"
-      style={{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, borderWidth: 1, minHeight: layout.touchTarget * 2, padding: spacing.lg }}
+      style={{ alignItems: 'center', backgroundColor: colors.background, borderColor: colors.outlineVariant, borderRadius: radii.card, borderStyle: 'dashed', borderWidth: 1, flexDirection: 'column', gap: spacing.md, justifyContent: 'center', minHeight: 220, padding: spacing.lg }}
     >
-      {loading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
-      <UiText accessibilityRole="header" variant="headlineSmall" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{title ?? t('empty')}</UiText>
-      {description ? <UiText variant="bodySmall" tone="muted" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{description}</UiText> : null}
+      {loading ? <ActivityIndicator color={colors.primary} size="small" /> : <IconChip icon="inbox-outline" size={40} />}
+      <View style={{ alignItems: 'center', minWidth: 0, width: '100%' }}>
+        <UiText accessibilityRole="header" variant="headlineSmall" style={{ textAlign: 'center' }}>{title ?? t('empty')}</UiText>
+        {description ? <UiText variant="bodySmall" tone="muted" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{description}</UiText> : null}
+      </View>
       {actionLabel && onAction ? (
-        <View style={{ marginTop: spacing.md }}>
-          <Button label={actionLabel} onPress={onAction} variant="secondary" />
-        </View>
+        <Button label={actionLabel} onPress={onAction} variant="secondary" />
       ) : null}
     </View>
   );

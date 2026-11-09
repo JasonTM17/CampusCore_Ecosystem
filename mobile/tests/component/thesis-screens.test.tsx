@@ -69,6 +69,7 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { thesisMessages } from '../../src/i18n/thesis-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { selectThesisRound } from '../../src/screens/thesis/thesis-selection';
+import { statusTone } from '../../src/screens/thesis/thesis-model';
 import { TopicCard } from '../../src/screens/thesis/thesis-ui';
 import {
   ThesisAdvisorsScreen,
@@ -475,6 +476,16 @@ describe('topics, round and advisors', () => {
     seed({ rounds: [round('r2', 'Đợt 2', 'REGISTRATION_OPEN')] });
     await renderThemed(<ThesisRoundScreen {...baseProps} />);
     expect((await screen.findAllByText('Đang mở đăng ký')).length).toBeGreaterThan(0);
+  });
+
+  test('round status tones follow the web status roles', () => {
+    expect(statusTone('PROPOSALS_PUBLISHED')).toBe('success');
+    expect(statusTone('REGISTRATION_OPEN')).toBe('primary');
+    expect(statusTone('REGISTRATION_CLOSED')).toBe('warning');
+    expect(statusTone('RESULTS_PUBLISHED')).toBe('success');
+    expect(statusTone('REJECTED')).toBe('error');
+    expect(statusTone('CANCELLED')).toBe('error');
+    expect(statusTone('PENDING')).toBe('warning');
   });
 
   test('the standalone advisor screen shows students the staff-only state', async () => {
