@@ -67,7 +67,7 @@ export function ConductScreen(_props: MobileScreenProps) {
   ];
 
   return (
-    <ScreenShell title={copy.conductTitle}
+    <ScreenShell title={copy.conductTitle} eyebrow={copy.conductEyebrow} subtitle={copy.conductDescription}
       list={{ data: [...((!preview && query.isLoading) ? [] : (failure) ? [] : (!model || (model.terms.length === 0 && model.cumulativeAverage === null)) ? [] : (term) ? cardRows("section-1", (term.activities.length === 0) ? [] : term.activities, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{semesterLabel(term.semesterName)}</UiText>
               <UiText variant="bodyMedium" tone="primary">

@@ -189,6 +189,8 @@ describe('transcript', () => {
     };
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getByRole('header', { name: 'Bảng điểm' })).toBeOnTheScreen();
+    expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
+    expect(screen.getByText('GPA hệ 4 và tín chỉ tính tích lũy toàn khóa; chọn học kỳ để xem kết quả từng môn học.')).toBeOnTheScreen();
     expect(screen.getAllByText('3,42').length).toBeGreaterThan(0);
     expect(screen.getByText('GPA hệ 4 tích lũy toàn khóa')).toBeOnTheScreen();
     expect(screen.getByText('Tín chỉ đã đạt')).toBeOnTheScreen();
@@ -236,7 +238,7 @@ describe('transcript', () => {
     const row = screen.getByLabelText(/CS101 Nhập môn lập trình/);
     const label = row.props.accessibilityLabel as string;
     expect(label).toContain('3 tín chỉ');
-    expect(label).toContain('Đang phúc khảo');
+    expect(label).toContain('Đang xem xét');
   });
 
   test('shows a failing transcript grade with the error tone', async () => {
@@ -321,7 +323,25 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getByText('8,5')).toBeOnTheScreen();
     expect(screen.getAllByText('A').length).toBeGreaterThan(0);
-    expect(screen.getByText('Đang phúc khảo')).toBeOnTheScreen();
+    expect(screen.getByText('Đang xem xét')).toBeOnTheScreen();
+  });
+
+  test('uses the web grade-status vocabulary for draft and ungraded records', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 0, totalCreditsEarned: 0, totalCreditsAttempted: 6 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 0, creditsEarned: 0, creditsAttempted: 6,
+          records: [
+            { id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: null, letterGrade: null, gradeStatus: 'DRAFT' },
+            { id: 'r2', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: null, letterGrade: null, gradeStatus: 'NOT_GRADED' },
+          ],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+    expect(screen.getByText('Bản nháp')).toBeOnTheScreen();
+    expect(screen.getByText('Chưa chấm điểm')).toBeOnTheScreen();
   });
 
   test('letter chips use the web tone bands for B and D grades', async () => {
@@ -562,6 +582,7 @@ describe('grades', () => {
     };
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getByText('MA101')).toBeOnTheScreen();
+    expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
     expect(screen.queryByText('CS101')).toBeNull();
     expect(screen.queryByText('Thang điểm')).toBeNull();
     expect(screen.queryByLabelText('B, 7,0 - 7,9, 3,0')).toBeNull();
@@ -676,9 +697,9 @@ describe('grades', () => {
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getByText('CS101')).toBeOnTheScreen();
     expect(screen.getByText('CS102')).toBeOnTheScreen();
-    expect(screen.getAllByText('Đang phúc khảo').length).toBe(2);
+    expect(screen.getAllByText('Đang xem xét').length).toBe(2);
     expect(screen.getAllByText('2,00').length).toBeGreaterThan(0);
-    expect(screen.getByLabelText(/CS101 Nhập môn/).props.accessibilityLabel).toContain('Đang phúc khảo');
+    expect(screen.getByLabelText(/CS101 Nhập môn/).props.accessibilityLabel).toContain('Đang xem xét');
   });
 
   test('accessible grade rows announce credits and both displayed component scores', async () => {
@@ -833,7 +854,16 @@ describe('schedule and attendance', () => {
     mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 10, present: 9, absent: 1, late: 0, excused: 0, attendanceRate: 90 }] };
     mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { sectionNumber: '02', course: { code: 'CS101' } } }] };
     await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('KHU VỰC SINH VIÊN')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm danh do giảng viên ghi nhận: tổng hợp theo môn học trước, sau đó là các phiên học gần nhất.')).toBeOnTheScreen();
     expect(screen.getAllByText('90%').length).toBeGreaterThan(0);
+    expect(screen.getByText('Tỷ lệ có mặt')).toBeOnTheScreen();
+    expect(screen.getByText('số phiên có mặt ÷ số phiên đã ghi')).toBeOnTheScreen();
+    expect(screen.getByText('Tổng số phiên đã ghi')).toBeOnTheScreen();
+    expect(screen.getByText('Số phiên có mặt')).toBeOnTheScreen();
+    expect(screen.getByText('Vắng + đi muộn')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm danh theo môn học')).toBeOnTheScreen();
+    expect(screen.getByText('Các phiên gần đây')).toBeOnTheScreen();
     expect(screen.getByText('9/10 buổi đã tham dự', { exact: false })).toBeOnTheScreen();
     expect(screen.getByLabelText('Số phiên: 10')).toBeOnTheScreen();
     expect(screen.getByLabelText('Có mặt: 9')).toBeOnTheScreen();
@@ -862,7 +892,8 @@ describe('schedule and attendance', () => {
       return progress && descendants(progress).find((node) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>)?.width === '40%');
     };
     expect(StyleSheet.flatten(fillFor('4/10 buổi đã tham dự')?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.error);
-    expect(StyleSheet.flatten(fillFor('Tỷ lệ có mặt')?.props.style as StyleProp<ViewStyle>)?.backgroundColor).toBe(tokens.colors.error);
+    expect(screen.getAllByText('40%').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('progressbar', { name: 'Tỷ lệ có mặt' })).toBeNull();
   });
 
   test('rates from 70 to 89 use the warning progress color', async () => {
@@ -929,6 +960,8 @@ describe('curriculum', () => {
     };
     mockQueries['academic.registrationSections'] = { data: [{ id: 's1', courseId: 'b', status: 'OPEN' }] };
     await render(wrap(<CurriculumScreen {...props} />));
+    expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
+    expect(screen.getByText('Khung chương trình của ngành bạn, chuỗi học phần tiên quyết và các môn bạn có thể đăng ký ngay.')).toBeOnTheScreen();
     expect(screen.getByText('Đã hoàn tất 8,5 (B)')).toBeOnTheScreen();
     expect(screen.getByText('Năm học 1')).toBeOnTheScreen();
     expect(screen.getByText('Học kỳ 2 - 1 môn')).toBeOnTheScreen();
@@ -941,6 +974,28 @@ describe('curriculum', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Đăng ký học phần' }));
     expect(navigate).toHaveBeenCalledWith('registration');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
+  });
+
+  test('shows the prerequisite chains on demand', async () => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'b', code: 'CS201', name: 'Cấu trúc dữ liệu', credits: 3, year: 1, semester: 2, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['MA101'] },
+          { courseId: 'd', code: 'CS301', name: 'Mạng máy tính', credits: 3, year: 2, semester: 1, isMandatory: true, status: 'NOT_STARTED', prerequisites: ['CS201'] },
+        ],
+      },
+    };
+    await render(wrap(<CurriculumScreen {...props} />));
+
+    expect(screen.getByText('Chuỗi tiên quyết')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('MA101 → CS201 → CS301')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Hiện 1 chuỗi' }));
+    expect(screen.getByLabelText('MA101 → CS201 → CS301')).toBeOnTheScreen();
+    expect(screen.getByText('Phải đạt môn trước mới được đăng ký môn sau trong chuỗi. ✓ = đã hoàn tất, xanh dương = đang học, xám = chưa học.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thu gọn chuỗi' }));
+    expect(screen.queryByLabelText('MA101 → CS201 → CS301')).toBeNull();
   });
 
   test('ready-to-register filter lists unblocked courses with open sections', async () => {
