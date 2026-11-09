@@ -229,7 +229,7 @@ test('same-frame double hold confirmation sends one library request', async () =
   mockPost.mockImplementation(() => request.promise);
   await render(screenElement(<LibraryScreen {...props} />));
   await fireEvent.press(screen.getByRole('button', { name: /Sách thử nghiệm/ }));
-  await fireEvent.press(screen.getByRole('button', { name: copy.hold }));
+  await fireEvent.press(screen.getByRole('button', { name: `${copy.hold}: B1` }));
 
   const confirm = screen.getAllByRole('button', { name: copy.hold }).at(-1)!;
   try {

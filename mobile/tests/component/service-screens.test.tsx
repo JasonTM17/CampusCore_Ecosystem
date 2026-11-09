@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
-import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
+import { ThemeProvider } from '../../src/design/theme';
 import { formatDateTime } from '../../src/i18n/locale';
 
 const mockApi = { mode: 'preview' as 'preview' | 'live' };
@@ -252,7 +252,7 @@ describe('service screens in live mode', () => {
     await renderThemed(<LibraryScreen {...props} />);
     expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
     expect(screen.queryByText(libraryMessages.vi.emptyCatalogue)).toBeNull();
-    expect(screen.queryByText(libraryMessages.vi.simulatedBanner)).toBeNull();
+    expect(screen.getByText(libraryMessages.vi.simulatedBanner)).toBeOnTheScreen();
   });
 
   test('a failed admissions read is a retryable error with no simulated banner', async () => {
@@ -400,10 +400,10 @@ describe('service screens in live mode', () => {
     setWidth(360);
     await renderThemed(<CareersScreen {...props} />);
     expect(screen.getByText(careersMessages.vi.emptyBoard)).toBeOnTheScreen();
-    expect(screen.queryByText(careersMessages.vi.simulatedBanner)).toBeNull();
+    expect(screen.getByText(careersMessages.vi.simulatedBanner)).toBeOnTheScreen();
   });
 
-  test('a career posting announces its employment type and existing application status', async () => {
+  test('a career posting announces its employment type, salary, status and application', async () => {
     mockApi.mode = 'live';
     const opportunity = {
       id: 'opp-1',
@@ -411,6 +411,7 @@ describe('service screens in live mode', () => {
       organizationName: 'Công ty A',
       location: 'TP. Hồ Chí Minh',
       employmentType: 'INTERNSHIP',
+      salaryText: '15.000.000 ₫',
       status: 'PUBLISHED',
     };
     mockQuery.value = {
@@ -425,13 +426,42 @@ describe('service screens in live mode', () => {
     };
     await renderThemed(<CareersScreen {...props} />);
 
+    expect(screen.getByText(careersMessages.vi.simulatedBanner)).toBeOnTheScreen();
+    expect(screen.getByText(careersMessages.vi.opportunityStatusLabels.PUBLISHED)).toBeOnTheScreen();
     const row = screen.getAllByRole('button').find((button) =>
       typeof button.props.accessibilityLabel === 'string' && button.props.accessibilityLabel.startsWith(`${opportunity.title} ·`),
     );
     expect(row).toBeDefined();
     const label = String(row?.props.accessibilityLabel ?? '');
-    const missing = [careersMessages.vi.employmentTypeLabels.INTERNSHIP, careersMessages.vi.alreadyApplied]
-      .filter((value) => !label.includes(value));
+    const missing = [
+      careersMessages.vi.employmentTypeLabels.INTERNSHIP,
+      opportunity.salaryText,
+      careersMessages.vi.opportunityStatusLabels.PUBLISHED,
+      careersMessages.vi.appliedBadge,
+    ].filter((value) => !label.includes(value));
     expect(missing).toEqual([]);
+  });
+
+  test('a submitted career application uses the web amber role', async () => {
+    mockApi.mode = 'live';
+    const application = {
+      id: 'app-1', opportunityId: 'opp-1', opportunityTitle: 'Thực tập sinh Backend',
+      organizationName: 'Công ty A', status: 'SUBMITTED', version: 1,
+      submittedAt: '2026-10-01T00:00:00Z', attachments: [],
+    };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [], hasMore: false }
+        : key === 'content.careers.applications' ? [application] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: careersMessages.vi.myApplications }));
+
+    const pill = screen.getByText(careersMessages.vi.statusLabels.SUBMITTED).parent;
+    expect(pill).toHaveStyle({ backgroundColor: tokens.colors.warningFixed });
   });
 });
