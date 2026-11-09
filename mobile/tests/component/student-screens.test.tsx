@@ -72,8 +72,8 @@ describe('student screens (preview mode)', () => {
     setWidth(360);
     await renderThemed(<StudentDashboardScreen {...props} />);
     expect(screen.getByRole('header', { name: 'Tổng quan học tập' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Xem lịch học' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Hỏi trợ lý' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Xem thời khóa biểu' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Điểm số' })).toBeOnTheScreen();
   });
 
   test('dashboard shows the active-section metric once', async () => {
