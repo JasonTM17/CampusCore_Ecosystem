@@ -12,7 +12,7 @@ import { auditTree } from '../a11y/audit';
 
 const mockProfileQuery = {
   value: {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
     error: null as string | null,
     warning: null as string | null,
     isLoading: false,
@@ -111,7 +111,7 @@ const expectAccessible = () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockProfileQuery.value = {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
     error: null,
     warning: null,
     isLoading: false,
@@ -712,5 +712,29 @@ describe('profile account security', () => {
     } finally {
       Object.defineProperty(apiClient, 'mode', { configurable: true, value: originalMode });
     }
+  });
+
+  test('the identity subtitle shows the office student code and never the profile slug', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: {
+        ...mockProfileQuery.value.data,
+        studentId: 'student-profile',
+        studentCode: 'CS-DEMO-001',
+      },
+    };
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.getByText('CS-DEMO-001')).toBeOnTheScreen();
+    expect(screen.queryByText('student-profile')).toBeNull();
+  });
+
+  test('a profile slug without an office student code is left off the identity line', async () => {
+    mockProfileQuery.value = {
+      ...mockProfileQuery.value,
+      data: { ...mockProfileQuery.value.data, studentId: 'student-profile', studentCode: '' },
+    };
+    await renderApp(<ProfileScreen {...props} />);
+    expect(screen.queryByText('student-profile')).toBeNull();
+    expect(screen.queryByText('—')).toBeNull();
   });
 });

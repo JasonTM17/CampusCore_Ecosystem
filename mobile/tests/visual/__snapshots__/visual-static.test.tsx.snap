@@ -14451,9 +14451,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flex": 1,
-                  },
                   "t": "View",
                 },
                 {
@@ -14539,9 +14536,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "s": {
-                            "flex": 1,
-                          },
                           "t": "View",
                         },
                       ],
@@ -14549,6 +14543,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         "alignItems": "center",
                         "flexDirection": "row",
                         "gap": 12,
+                        "width": "100%",
                       },
                       "t": "View",
                     },
@@ -14611,6 +14606,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     "backgroundColor": "#002148",
                     "borderRadius": 8,
                     "padding": 16,
+                    "width": "100%",
                   },
                   "t": "View",
                 },
@@ -16206,9 +16202,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flex": 1,
-                  },
                   "t": "View",
                 },
                 {
@@ -16294,9 +16287,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "s": {
-                            "flex": 1,
-                          },
                           "t": "View",
                         },
                       ],
@@ -16304,6 +16294,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         "alignItems": "center",
                         "flexDirection": "row",
                         "gap": 12,
+                        "width": "100%",
                       },
                       "t": "View",
                     },
@@ -16366,6 +16357,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     "backgroundColor": "#002148",
                     "borderRadius": 8,
                     "padding": 16,
+                    "width": "100%",
                   },
                   "t": "View",
                 },
@@ -17965,9 +17957,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flex": 1,
-                  },
                   "t": "View",
                 },
                 {
@@ -18053,9 +18042,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "s": {
-                            "flex": 1,
-                          },
                           "t": "View",
                         },
                       ],
@@ -18063,6 +18049,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         "alignItems": "center",
                         "flexDirection": "row",
                         "gap": 12,
+                        "width": "100%",
                       },
                       "t": "View",
                     },
@@ -18125,6 +18112,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     "backgroundColor": "#00305E",
                     "borderRadius": 8,
                     "padding": 16,
+                    "width": "100%",
                   },
                   "t": "View",
                 },
@@ -19720,9 +19708,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "flex": 1,
-                  },
                   "t": "View",
                 },
                 {
@@ -19808,9 +19793,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "s": {
-                            "flex": 1,
-                          },
                           "t": "View",
                         },
                       ],
@@ -19818,6 +19800,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         "alignItems": "center",
                         "flexDirection": "row",
                         "gap": 12,
+                        "width": "100%",
                       },
                       "t": "View",
                     },
@@ -19880,6 +19863,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     "backgroundColor": "#00305E",
                     "borderRadius": 8,
                     "padding": 16,
+                    "width": "100%",
                   },
                   "t": "View",
                 },

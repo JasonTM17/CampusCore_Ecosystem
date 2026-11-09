@@ -2,6 +2,7 @@ import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
+import { chromeFor } from '../../src/design/chrome';
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider, useLocale } from '../../src/i18n/locale-provider';
 
@@ -607,5 +608,38 @@ describe('student dashboard live mode', () => {
     expect(screen.getByText('Quick access')).toBeOnTheScreen();
     expect(screen.getByText('Today & upcoming classes')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Thesis area' })).toBeOnTheScreen();
+  });
+
+  test('the semester summary stretches across the content width and the title tab keeps its label', async () => {
+    mockQueries['academic.dashboard'] = { data: dashboardValue([]) };
+    mockQueries.announcements = { data: { data: [] } };
+    await renderScreen('en');
+
+    const tab = screen.getByTestId('page-title-tab');
+    const tabStyle = StyleSheet.flatten(tab.props.style) ?? {};
+    const copyStyle = StyleSheet.flatten(tab.parent?.props.style) ?? {};
+    // flex: 1 (basis 0) lets the wide register action crush the title down to the
+    // tab's 40 dp of horizontal padding and stretch that padding down the scroll view.
+    expect(copyStyle.flex).toBeUndefined();
+    expect(copyStyle.flexShrink).toBe(0);
+    expect(tabStyle.flexGrow).toBe(0);
+    expect(tabStyle.flexShrink).toBe(0);
+
+    const eyebrow = screen.getByText('CURRENT SEMESTER');
+    let node = eyebrow.parent;
+    let heroWidth: unknown;
+    let heroAlign: unknown;
+    const heroSurface = chromeFor('light').surface;
+    while (node) {
+      const style = StyleSheet.flatten(node.props?.style) ?? {};
+      if (style.backgroundColor === heroSurface) {
+        heroWidth = style.width;
+        heroAlign = style.alignSelf;
+        break;
+      }
+      node = node.parent;
+    }
+    expect(heroWidth).toBe('100%');
+    expect(heroAlign).toBe('stretch');
   });
 });
