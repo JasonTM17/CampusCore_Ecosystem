@@ -48,9 +48,12 @@ export const NOTIFICATION_PRODUCER_ROUTES: readonly NotificationProducerRoute[] 
   { domain: 'thesis-lecturer', producer: 'ThesisNotificationService', link: '/dashboard/lecturer/thesis', types: ['INFO'], route: null },
 ];
 
-const routeByLink = new Map<string, string | null>(
-  NOTIFICATION_PRODUCER_ROUTES.map((row) => [row.link, row.route]),
-);
+const routeByLink = new Map<string, string | null>([
+  ...NOTIFICATION_PRODUCER_ROUTES.map((row) => [row.link, row.route] as const),
+  // Demo lecturer rows store locale-prefixed portal links.
+  ['/vi/dashboard/lecturer/grades', '/lecturer/grading'],
+  ['/vi/dashboard/lecturer', '/lecturer/dashboard'],
+]);
 
 export interface NotificationSessionContext {
   kind: SessionKind;
