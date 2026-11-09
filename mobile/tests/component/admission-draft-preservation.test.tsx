@@ -24,7 +24,12 @@ import type { AdmissionApplicationView } from '../../src/screens/content/content
 
 const typedEssay = 'Bài luận chỉ có trên thiết bị.';
 
-const application = (version: number, essay: string, reviews: AdmissionApplicationView['reviews'] = []): AdmissionApplicationView => ({
+const application = (
+  version: number,
+  essay: string,
+  reviews: AdmissionApplicationView['reviews'] = [],
+  attachments: NonNullable<AdmissionApplicationView['attachments']> = [],
+): AdmissionApplicationView => ({
   id: 'app-1',
   applicantUserId: 'user-1',
   cycle: '2026-Q1',
@@ -35,16 +40,22 @@ const application = (version: number, essay: string, reviews: AdmissionApplicati
   schoolName: 'THPT B',
   intendedMajor: 'Công nghệ thông tin',
   essay,
-  attachments: [],
+  attachments,
   reviews,
   createdAt: '2026-01-01T00:00:00Z',
 });
 
-const element = (version: number, essay: string, formEpoch = 0, reviews: AdmissionApplicationView['reviews'] = []): ReactElement => (
+const element = (
+  version: number,
+  essay: string,
+  formEpoch = 0,
+  reviews: AdmissionApplicationView['reviews'] = [],
+  attachments: NonNullable<AdmissionApplicationView['attachments']> = [],
+): ReactElement => (
   <ThemeProvider forcedScheme="light">
     <LocaleProvider initialLocale="vi">
       <AdmissionDetail
-        application={application(version, essay, reviews)}
+        application={application(version, essay, reviews, attachments)}
         formEpoch={formEpoch}
         busy={false}
         preview={false}
@@ -75,6 +86,17 @@ describe('admission draft preservation', () => {
     await view.rerender(element(4, 'Bản nháp trên máy chủ'));
 
     expect(essayField().props.value).toBe(typedEssay);
+  });
+
+  test('a draft says it can still be edited', async () => {
+    await render(element(3, 'Bản nháp trên máy chủ'));
+    expect(screen.getByText(admissionsMessages.vi.editableHint)).toBeOnTheScreen();
+  });
+
+  test('the evidence section uses the web attachment labels and remove action', async () => {
+    await render(element(3, 'Bản nháp trên máy chủ', 0, [], [{ id: 'file-1', fileName: 'transcript.pdf', sizeBytes: 1000 }]));
+    expect(screen.getByText(admissionsMessages.vi.attachments)).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.deleteFile)).toBeOnTheScreen();
   });
 
   test('an explicit reload re-seeds the form from the server', async () => {

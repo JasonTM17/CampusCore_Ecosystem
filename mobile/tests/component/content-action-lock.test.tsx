@@ -255,7 +255,7 @@ test('a second admissions withdraw during the applications refresh is ignored', 
   await render(screenElement(<AdmissionsScreen {...props} />));
 
   await fireEvent.press(screen.getByRole('button', {
-    name: joinMeta([application.cycle, copy.statusLabels.DRAFT, application.fullName]),
+    name: joinMeta([application.fullName, `${copy.cycle}: ${application.cycle}`, copy.statusLabels.DRAFT]),
   }));
   await fireEvent.press(screen.getByRole('button', { name: copy.withdraw }));
   await pressConfirm(copy.withdraw, 1);
@@ -288,7 +288,7 @@ test('same-frame repeated admissions confirmation sends one request', async () =
   await render(screenElement(<AdmissionsScreen {...props} />));
 
   await fireEvent.press(screen.getByRole('button', {
-    name: joinMeta([application.cycle, copy.statusLabels.DRAFT, application.fullName]),
+    name: joinMeta([application.fullName, `${copy.cycle}: ${application.cycle}`, copy.statusLabels.DRAFT]),
   }));
   await fireEvent.press(screen.getByRole('button', { name: copy.withdraw }));
   const confirm = screen.getAllByRole('button', { name: copy.withdraw }).at(-1)!;

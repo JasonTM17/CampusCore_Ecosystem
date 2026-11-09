@@ -81,7 +81,7 @@ describe('signed-out responsive frames', () => {
       expect(style.flexGrow).toBe(1);
       expect(style.width).toBe('100%');
       expect(style.maxWidth).toBe(tokens.windowClasses.contentMaxWidth.medium);
-      expect(scrollAncestor(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' }))).toBeTruthy();
+      expect(scrollAncestor(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' }))).toBeTruthy();
     },
   );
 });

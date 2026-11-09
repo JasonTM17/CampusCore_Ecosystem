@@ -16,7 +16,9 @@ export const campusMessages = {
       "RESEARCH_TECH": "Nghiên cứu & Công nghệ",
       "AWARDS_HONORS": "Học bổng & Khen thưởng",
       "STUDENT_LIFE": "Đời sống Sinh viên",
-      "ACADEMIC_AFFAIRS": "Học vụ"
+      "CULTURE_ARTS": "Văn hóa & Nghệ thuật",
+      "ACADEMIC_AFFAIRS": "Học vụ",
+      "CAREER_OPPORTUNITIES": "Cơ hội Việc làm"
     } as Record<string, string>,
     "newsDetailTitle": "Chi tiết tin",
     "semester": "Học kỳ",
@@ -51,7 +53,9 @@ export const campusMessages = {
       "RESEARCH_TECH": "Research & Tech",
       "AWARDS_HONORS": "Scholarships & Honors",
       "STUDENT_LIFE": "Student Life",
-      "ACADEMIC_AFFAIRS": "Academic Affairs"
+      "CULTURE_ARTS": "Culture & Arts",
+      "ACADEMIC_AFFAIRS": "Academic Affairs",
+      "CAREER_OPPORTUNITIES": "Career & Industry"
     } as Record<string, string>,
     "newsDetailTitle": "News detail",
     "semester": "Semester",
