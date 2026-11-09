@@ -422,7 +422,7 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
 export interface ProgressBarProps {
   value: number;
   label?: string;
-  tone?: 'primary' | 'success' | 'warning';
+  tone?: 'primary' | 'success' | 'warning' | 'error';
 }
 
 export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps) {
@@ -434,6 +434,7 @@ export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps
     primary: colors.primaryContainer,
     success: colors.success,
     warning: colors.warning,
+    error: colors.error,
   } as const;
 
   return (
