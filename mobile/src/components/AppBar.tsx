@@ -8,6 +8,7 @@ import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
+import { nextThemePreference } from '../design/theme-preference';
 import { useLocale } from '../i18n/locale-provider';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import type { UserRole } from '../navigation/routes';
@@ -39,7 +40,7 @@ export interface AppBarProps {
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
 export function AppBar({ role, applicant = false, unreadCount = 0, onNotifications, onProfile, onSignOut, onSignIn }: AppBarProps) {
-  const { scheme, window } = useTheme();
+  const { scheme, preference, setPreference, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
   const { copy } = useShellCopy();
@@ -51,6 +52,18 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
   const notificationsLabel = unread === undefined
     ? copy.notifications.title
     : `${copy.notifications.title}, ${unread} ${copy.unread}`;
+  const nextPreference = nextThemePreference(preference);
+  const themeAction = nextPreference === 'system'
+    ? copy.theme.switchToSystem
+    : nextPreference === 'dark'
+      ? copy.theme.switchToDark
+      : copy.theme.switchToLight;
+  const themeLabel = `${copy.theme[preference]}, ${themeAction}`;
+  const themeIcon = nextPreference === 'system'
+    ? 'theme-light-dark'
+    : nextPreference === 'dark'
+      ? 'weather-night'
+      : 'white-balance-sunny';
 
   return (
     <View
@@ -91,6 +104,14 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
           <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
             {locale.toUpperCase()}
           </UiText>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={themeLabel}
+          accessibilityRole="button"
+          onPress={() => setPreference(nextPreference)}
+          style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
+        >
+          <MaterialCommunityIcons color={chrome.onSurface} name={themeIcon} size={24} />
         </Pressable>
         {role && onNotifications ? (
           <Pressable
