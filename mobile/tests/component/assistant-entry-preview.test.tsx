@@ -128,7 +128,7 @@ describe('AssistantFab', () => {
     />));
 
     expect(screen.queryByRole('header', { name: shellMessages.vi.sections.student })).toBeNull();
-    expect(screen.getByRole('button', { name: shellMessages.vi.screens.profile })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages.vi.profileSettings })).toBeOnTheScreen();
   });
 
   test('hides while the keyboard is open and restores when it closes', async () => {

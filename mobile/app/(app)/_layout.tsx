@@ -9,18 +9,24 @@ import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
+import { NotificationPreview } from '../../src/components/NotificationPreview';
 import { hasApplicantSurface, NO_CAPABILITIES } from '../../src/auth/capabilities';
+import { resolveNotificationRoute } from '../../src/api/push-routes';
 import { LANE_FLAGS } from '../../src/config/lane-flags';
 import { useTheme } from '../../src/design/theme';
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
+import { useLocale } from '../../src/i18n/locale-provider';
+import { shellMessages } from '../../src/i18n/shell-messages';
 import { useContentQuery } from '../../src/screens/content/use-content-query';
 import { contentApi } from '../../src/screens/content/content-api';
+import { setExitNotice } from '../../src/screens/account/exit-notice';
 import {
   pathFor,
   resolveGuard,
   roleHomePath,
   screenForPath,
 } from '../../src/navigation/route-map';
+import { useMobileNavigation } from '../../src/navigation/router-adapter';
 import type { ScreenName } from '../../src/navigation/routes';
 import { useSession } from '../../src/session/SessionContext';
 
@@ -34,9 +40,11 @@ import { useSession } from '../../src/session/SessionContext';
 export default function AppGroupLayout() {
   const router = useRouter();
   const session = useSession();
+  const mobileNavigation = useMobileNavigation();
   const pathname = usePathname() ?? '/';
   useDashboardPrefetch(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuButtonRef = useRef<View | null>(null);
   const previousMenuOpen = useRef(false);
   const applicant = hasApplicantSurface(session.capabilities ?? NO_CAPABILITIES);
@@ -45,6 +53,12 @@ export default function AppGroupLayout() {
     () => contentApi.unreadCount(),
     session.kind === 'authenticated' && !applicant,
   );
+  const account = useContentQuery<ShellAccount | null>(
+    'profile',
+    () => contentApi.profile(),
+    session.kind === 'authenticated' && !applicant,
+  );
+  const { locale } = useLocale();
   const { colors, window } = useTheme();
   const expanded = window.class === 'expanded';
 
@@ -72,6 +86,11 @@ export default function AppGroupLayout() {
   }
 
   const activeRoute = (screenForPath(pathname) ?? 'dashboard.student') as ScreenName;
+  const identity = {
+    name: [account.data?.lastName, account.data?.firstName].filter(Boolean).join(' ') || shellMessages[locale].roles[session.role],
+    email: account.data?.email || '—',
+    demo: session.kind === 'preview',
+  };
   const navigate = (route: ScreenName) => {
     setMenuOpen(false);
     const target = pathFor(route);
@@ -86,6 +105,11 @@ export default function AppGroupLayout() {
       <AppBar
         role={session.role}
         applicant={applicant}
+        unreadCount={unread.data ?? 0}
+        onNotifications={applicant ? undefined : () => {
+          setMenuOpen(false);
+          setNotificationsOpen(true);
+        }}
         onProfile={applicant ? undefined : () => navigate('profile')}
         onSignOut={applicant ? () => {
           setMenuOpen(false);
@@ -144,6 +168,40 @@ export default function AppGroupLayout() {
               router.replace(roleHomePath(role, session.capabilities));
             }}
             allowRoleSwitch={session.kind === 'preview'}
+            identity={identity}
+            onSignOut={() => {
+              setMenuOpen(false);
+              setExitNotice('signedOut');
+              mobileNavigation.signOut();
+            }}
+          />
+        ) : null}
+        {notificationsOpen && !applicant ? (
+          <NotificationPreview
+            unreadCount={unread.data ?? 0}
+            onClose={() => setNotificationsOpen(false)}
+            onMarkedRead={() => unread.setData(Math.max(0, (unread.data ?? 0) - 1))}
+            onNoticeBoard={() => {
+              setNotificationsOpen(false);
+              navigate('announcements');
+            }}
+            onOpenInbox={() => {
+              setNotificationsOpen(false);
+              navigate('notifications');
+            }}
+            onOpen={(item) => {
+              setNotificationsOpen(false);
+              const decision = resolveNotificationRoute(item.link, {
+                kind: session.kind,
+                role: session.role,
+                capabilities: session.capabilities,
+              });
+              if (decision.action === 'open') {
+                router.push(decision.href);
+              } else {
+                navigate('notifications');
+              }
+            }}
           />
         ) : null}
       </View>
@@ -158,3 +216,9 @@ const styles = StyleSheet.create({
   expanded: { flexDirection: 'row' },
   routeContent: { flex: 1, minWidth: 0 },
 });
+
+interface ShellAccount {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}
