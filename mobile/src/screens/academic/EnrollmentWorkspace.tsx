@@ -11,16 +11,21 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileNavigation } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import {
+  defaultTermId,
   enrollmentCourseCode,
   enrollmentCourseName,
   filterEnrollments,
+  lecturerName,
+  localizedName,
+  roomLabel,
   tabCounts,
   termOptions,
   type EnrollmentTab,
 } from './academic-model';
 import { previewEnrollments, previewSemester } from './academic-preview';
-import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from './academic-ui';
+import { AcademicShell, SegmentTabs, TermField, academicStyles, enrollmentStatusTone, isPreviewMode, useAcademicCopy, useAcademicQuery } from './academic-ui';
 import { EnrollmentDetail } from './EnrollmentDetail';
+import { SlipRow } from './SlipRow';
 
 export interface EnrollmentWorkspaceProps {
   navigation: MobileNavigation;
@@ -40,7 +45,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const windowClass = window.class;
   const largeText = window.fontScale >= 1.3;
   const { copy, locale } = useAcademicCopy();
-  const { formatNumber } = useLocale();
+  const { formatDate, formatNumber } = useLocale();
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
@@ -56,6 +61,10 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const rows = filterEnrollments(enrollments, tab, term || null);
   const selected = selectedId ? enrollments.find((item) => item.id === selectedId) ?? null : null;
   const emptyTitle = tab === 'active' ? copy.emptyActive : tab === 'past' ? copy.emptyPast : copy.emptyWithdrawn;
+  const headingSemester = term ? semesters.find((entry) => entry.id === term) : undefined;
+  const termEnrollments = term ? enrollments.filter((item) => item.semesterId === term) : [];
+  const headingCredits = termEnrollments.reduce((sum, item) => sum + (item.section?.course?.credits ?? 0), 0);
+  const slipSemesterId = term || defaultTermId(semesters, enrollments) || enrollments[0]?.semesterId || null;
 
   const loading = !preview && enrollmentsQuery.isLoading;
   const error = preview ? null : enrollmentsQuery.error;
@@ -67,6 +76,8 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   return (
     <AcademicShell
       title={copy[title]}
+      eyebrow={copy.eyebrow}
+      subtitle={copy.enrollmentsDescription}
       loading={loading}
       error={error}
       warning={warning}
@@ -85,6 +96,12 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
               const credits = item.section?.course?.credits ?? 0;
               const creditsLabel = fillCopy(countForm(credits, copy.creditsOne, copy.credits), { n: formatNumber(credits) });
               const sectionLabel = item.section?.sectionNumber ? `${copy.sectionLabel}: ${item.section.sectionNumber}` : '';
+              const lecturer = lecturerName(item.section);
+              const meetings = (item.section?.schedules ?? []).map((slot) => {
+                const day = copy.dayLong[slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek] ?? '';
+                const room = roomLabel(slot);
+                return `${day} ${slot.startTime}–${slot.endTime}${room ? ` · ${copy.room} ${room}` : ''}`;
+              }).join('; ');
               return (
                 <Pressable
                   key={`${item.semesterId}-${item.id}`}
@@ -99,13 +116,16 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                       <View style={styles.courseCopy}>
                         <View style={styles.courseTags}>
                           <StatusPill label={code} tone="primary" />
-                          <StatusPill label={statusLabel} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
+                          <StatusPill label={statusLabel} tone={enrollmentStatusTone(item.status)} />
                         </View>
                         <UiText variant="headlineSmall">{name}</UiText>
                         <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
                         {item.section?.sectionNumber ? (
                           <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
                         ) : null}
+                        {meetings ? <UiText variant="meta" tone="muted">{meetings}</UiText> : null}
+                        {lecturer ? <UiText variant="meta" tone="muted">{copy.lecturer}: {lecturer}</UiText> : null}
+                        {item.enrolledAt ? <UiText variant="meta" tone="muted">{copy.enrolledOn} {formatDate(item.enrolledAt)}</UiText> : null}
                       </View>
                     </View>
                   </Card>
@@ -122,6 +142,8 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       {selected ? (
         <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
       ) : (<View>
+          <SlipRow semesterId={slipSemesterId} />
+          <ScreenSpacer size={8} />
           {semestersFailed ? (
             <View style={academicStyles.card}>
               <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
@@ -140,6 +162,14 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
             ]}
           />
           <View style={academicStyles.gap} />
+          {headingSemester && termEnrollments.length > 0 ? (
+            <View style={styles.termHeading}>
+              <UiText accessibilityRole="header" variant="label" tone="muted">{localizedName(headingSemester, locale, headingSemester.id)}</UiText>
+              <UiText variant="meta" tone="muted">
+                {formatNumber(termEnrollments.length)} {termEnrollments.length === 1 ? copy.courseWord : copy.coursesWord} · {formatNumber(headingCredits)} {copy.creditsUnit}
+              </UiText>
+            </View>
+          ) : null}
           {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
         </View>)}</AcademicShell>
   );
@@ -150,4 +180,5 @@ const styles = StyleSheet.create({
   courseRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
   courseCopy: { flex: 1, gap: 4, minWidth: 0 },
   courseTags: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  termHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
 });

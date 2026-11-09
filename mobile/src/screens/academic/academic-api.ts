@@ -108,13 +108,28 @@ export interface RegistrationEligibility {
   windowEnd?: string;
 }
 
+export interface CreditLimitApplication {
+  id?: string;
+  roundId?: string;
+  semesterId?: string;
+  standardLimit?: number;
+  requestedLimit?: number;
+  reason?: string;
+  status: string;
+  reviewerNote?: string | null;
+}
+
 export interface RegistrationWorkspace {
   sections: BrowseSection[];
   enrollments: AcademicEnrollment[];
   roundOpen: boolean;
+  /** The live REGISTRATION round the catalog belongs to, when one is open. */
+  round: RegistrationRound | null;
   eligibility: RegistrationEligibility | null;
   /** The eligibility read failed: the credit limit is unknown, not absent. */
   eligibilityError?: unknown;
+  /** The student's credit-limit exception request for the live round. */
+  application: CreditLimitApplication | null;
   /** Server code when the catalog is closed to this student, for example WINDOW_CLOSED. */
   closedReason: string | null;
 }
@@ -125,6 +140,16 @@ export interface DashboardAcademics {
   enrollments: AcademicEnrollment[];
   /** Registration-round cap; null when the round is closed or no term is active. */
   creditLimit: number | null;
+}
+
+/** The live round: status OPEN inside its window, preferring the REGISTRATION round. */
+export function pickLiveRound(rounds: readonly RegistrationRound[], now: number): RegistrationRound | null {
+  const withinWindow = (round: RegistrationRound): boolean =>
+    round.status === 'OPEN'
+    && new Date(round.windowStart ?? 0).getTime() <= now
+    && now <= new Date(round.windowEnd ?? 0).getTime();
+  const live = rounds.filter(withinWindow);
+  return live.find((round) => round.kind === 'REGISTRATION') ?? live[0] ?? null;
 }
 
 const CLOSED_CODES = ['WINDOW_CLOSED', 'COHORT_INELIGIBLE', 'ROUND_NOT_FOUND'];
@@ -185,26 +210,33 @@ export const academicApi = {
   async registrationWorkspace(): Promise<RegistrationWorkspace> {
     const enrollments = await academicApi.enrollments();
     try {
-      const [rounds, sections] = await Promise.all([campusApi.registrationRounds(), campusApi.registrationSections()]);
-      let eligibility: RegistrationEligibility | null = null;
-      let eligibilityError: unknown = null;
-      try {
-        eligibility = await apiClient.get<RegistrationEligibility>('/me/registration/eligibility');
-      } catch (error) {
-        eligibilityError = error;
-      }
+      const rounds = await campusApi.registrationRounds();
+      const round = pickLiveRound(rounds as RegistrationRound[], Date.now());
+      const scope = round
+        ? `?roundId=${encodeURIComponent(round.id)}${round.semesterId ? `&semesterId=${encodeURIComponent(round.semesterId)}` : ''}`
+        : '';
+      const [sectionsResult, eligibilityResult, applicationResult] = await Promise.allSettled([
+        campusApi.registrationSections(),
+        round ? apiClient.get<RegistrationEligibility>(`/me/registration/eligibility${scope}`) : Promise.resolve(null),
+        round
+          ? apiClient.get<CreditLimitApplication | null>(`/me/registration/credit-limit-application?roundId=${encodeURIComponent(round.id)}`)
+          : Promise.resolve(null),
+      ]);
+      if (sectionsResult.status === 'rejected') throw sectionsResult.reason;
       return {
-        sections: sections as unknown as BrowseSection[],
+        sections: sectionsResult.value as unknown as BrowseSection[],
         enrollments,
-        roundOpen: (rounds as RegistrationRound[]).some((round) => round.status === 'OPEN'),
-        eligibility,
-        eligibilityError,
+        roundOpen: round !== null,
+        round,
+        eligibility: eligibilityResult.status === 'fulfilled' ? eligibilityResult.value : null,
+        eligibilityError: eligibilityResult.status === 'rejected' ? eligibilityResult.reason : null,
+        application: applicationResult.status === 'fulfilled' ? applicationResult.value ?? null : null,
         closedReason: null,
       };
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
       if (code && CLOSED_CODES.includes(code)) {
-        return { sections: [], enrollments, roundOpen: false, eligibility: null, closedReason: code };
+        return { sections: [], enrollments, roundOpen: false, round: null, eligibility: null, application: null, closedReason: code };
       }
       throw error;
     }
@@ -226,6 +258,11 @@ export async function enrollInSection(sectionId: string, locale: 'vi' | 'en'): P
     attemptKeys.settle('enroll', sectionId, error);
     throw error;
   }
+}
+
+/** Student-submitted 30-credit exception; the Academic Office decides, never the app. */
+export async function submitCreditLimitApplication(roundId: string, reason: string): Promise<CreditLimitApplication> {
+  return apiClient.post<CreditLimitApplication>('/me/registration/credit-limit-applications', { roundId, reason });
 }
 
 export async function dropEnrollmentById(enrollmentId: string): Promise<void> {

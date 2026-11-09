@@ -18,10 +18,11 @@ export interface AcademicSection {
   id?: string;
   sectionNumber?: string;
   semesterId?: string;
+  courseId?: string;
   capacity?: number;
   enrolledCount?: number;
   status?: string;
-  course?: { code?: string; name?: string; nameEn?: string | null; nameVi?: string | null; credits?: number };
+  course?: { id?: string; code?: string; name?: string; nameEn?: string | null; nameVi?: string | null; credits?: number };
   schedules?: AcademicSchedule[];
   lecturer?: { fullName?: string | null; user?: { firstName?: string | null; lastName?: string | null } | null } | null;
 }

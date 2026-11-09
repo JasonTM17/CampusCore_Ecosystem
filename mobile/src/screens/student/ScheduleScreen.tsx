@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatStrip, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { minTapTarget, tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
@@ -18,6 +18,7 @@ import {
   civilKey,
   defaultTermId,
   dayOfWeekOf,
+  isActiveEnrollment,
   termOptions,
   weekDates,
   weekStartOf,
@@ -26,7 +27,7 @@ import {
 import { previewEnrollments, previewSemester } from '../academic/academic-preview';
 import { ScheduleExport } from '../academic/ScheduleExport';
 import { WeekStrip } from '../academic/WeekStrip';
-import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 
 type View_ = 'week' | 'term';
 
@@ -76,7 +77,7 @@ const SessionCard = memo(function SessionCard({ item, expanded, onToggle }: { it
 
 type ScheduleRow = { kind: 'session'; item: AgendaItem } | { kind: 'heading'; day: number; label: string };
 
-export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenProps) {
+export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const { colors } = useTheme();
   const { formatDate } = useLocale();
@@ -98,12 +99,27 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
     : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
   const semestersFailed = !preview && semestersQuery.error !== null && (semestersQuery.data?.length ?? 0) === 0;
   const termId = termChoice ?? (defaultTermId(semesters, enrollments) ?? '');
-  const semester = semesters.find((entry) => entry.id === termId);
+  const semester = termId ? semesters.find((entry) => entry.id === termId) : undefined;
   const termEnrollments = useMemo(
-    () => enrollments.filter((item) => item.semesterId === termId),
+    () => (termId ? enrollments.filter((item) => item.semesterId === termId) : enrollments),
     [enrollments, termId],
   );
   const agenda = useMemo(() => buildAgenda(termEnrollments, locale), [termEnrollments, locale]);
+  const registeredEnrollments = useMemo(
+    () => termEnrollments.filter((item) => isActiveEnrollment(item.status) || item.status === 'COMPLETED'),
+    [termEnrollments],
+  );
+  const metrics = useMemo(() => {
+    const codes = new Set<string>();
+    let credits = 0;
+    for (const item of registeredEnrollments) {
+      const code = item.section?.course?.code;
+      if (!code || codes.has(code)) continue;
+      codes.add(code);
+      credits += item.section?.course?.credits ?? 0;
+    }
+    return { courses: codes.size, sessions: agenda.length, credits };
+  }, [registeredEnrollments, agenda.length]);
 
   const today = new Date();
   const start = weekStartOf(today, weekOffset);
@@ -122,6 +138,7 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
   return (
     <AcademicShell
       title={copy.scheduleTitle}
+      eyebrow={copy.eyebrow}
       loading={!preview && enrollmentsQuery.isLoading}
       error={preview ? null : enrollmentsQuery.error}
       warning={warning}
@@ -141,7 +158,7 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
           <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
         </View>
       ) : null}
-      <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
+      <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} />
       <SegmentTabs
         label={copy.viewLabel}
         value={view}
@@ -149,8 +166,24 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
         options={[{ value: 'week', label: copy.viewWeek }, { value: 'term', label: copy.viewTerm }]}
       />
       <ScreenSpacer />
-      {agenda.length === 0 && view === 'term' ? <StatePanel kind="empty" title={copy.emptySchedule} /> : null}
-      {view === 'week' ? (
+      {registeredEnrollments.length === 0 ? (
+        <StatePanel
+          kind="empty"
+          title={copy.emptySchedule}
+          description={copy.emptyScheduleDescription}
+          actionLabel={copy.browseSections}
+          onAction={() => openRoute(navigation, 'registration')}
+        />
+      ) : (
+        <StatStrip items={[
+          { label: copy.totalCourses, value: String(metrics.courses) },
+          { label: copy.totalMeetings, value: String(metrics.sessions) },
+          { label: copy.totalCredits, value: String(metrics.credits) },
+        ]} />
+      )}
+      <ScreenSpacer />
+      {registeredEnrollments.length > 0 && agenda.length === 0 && view === 'term' ? <StatePanel kind="empty" title={copy.noMeetings} description={copy.noMeetingsHint} /> : null}
+      {registeredEnrollments.length > 0 && view === 'week' ? (
         <View>
           <View style={academicStyles.row}>
             <Button accessibilityLabel={copy.prevWeek} label="‹" onPress={() => setWeekOffset((value) => value - 1)} variant="text" style={{ minWidth: minTapTarget }} />
@@ -176,7 +209,10 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
                 {items.length === 0 ? (
                   <Card tone="low" style={styles.emptyDay}>
                     <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="calendar-blank-outline" size={20} color={colors.textMuted} />
-                    <UiText variant="bodySmall" tone="muted" style={styles.emptyDayText}>{copy.noSessions}</UiText>
+                    <View style={styles.emptyDayText}>
+                      <UiText variant="bodySmall" tone="muted">{copy.noMeetings}</UiText>
+                      <UiText variant="meta" tone="muted">{copy.noMeetingsHint}</UiText>
+                    </View>
                   </Card>
                 ) : null}
               </View>

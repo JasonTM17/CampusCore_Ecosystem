@@ -349,11 +349,11 @@ test('browse filters, hides full sections and sorts by code, credits or seats', 
     section('2', 'CS100', { credits: 4, remainingSeats: 0, curriculumRelevance: 'MANDATORY' }),
     section('3', 'CS200', { credits: 3, remainingSeats: 20, curriculumRelevance: 'MANDATORY' }),
   ];
-  const base = { search: '', curriculum: 'ALL', hideFull: false, sort: 'code' };
+  const base = { search: '', curriculum: 'ALL', seatsOnly: false, noConflictOnly: false, sort: 'code' };
   assert.deepEqual(browse.browseSections(rows, base).map((group) => group.courseCode), ['CS100', 'CS200', 'CS300']);
   assert.deepEqual(browse.browseSections(rows, { ...base, sort: 'credits' }).map((group) => group.courseCode), ['CS100', 'CS200', 'CS300']);
   assert.deepEqual(browse.browseSections(rows, { ...base, sort: 'seats' }).map((group) => group.courseCode), ['CS200', 'CS300', 'CS100']);
-  assert.deepEqual(browse.browseSections(rows, { ...base, hideFull: true }).map((group) => group.courseCode), ['CS200', 'CS300']);
+  assert.deepEqual(browse.browseSections(rows, { ...base, seatsOnly: true }).map((group) => group.courseCode), ['CS200', 'CS300']);
   assert.deepEqual(browse.browseSections(rows, { ...base, curriculum: 'MANDATORY' }).map((group) => group.courseCode), ['CS100', 'CS200']);
 });
 
