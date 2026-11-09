@@ -14,6 +14,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import { shellMessages } from '../../i18n/shell-messages';
 import type { ScreenName } from '../../navigation/routes';
 import type { MobileScreenProps } from '../../navigation/types';
+import { GuestDocsTeaser, GuestNewsTeaser } from './GuestContentTeasers';
 
 type GuestHomeCopy = (typeof shellMessages)['vi']['guestHome'];
 type RoleKey = keyof GuestHomeCopy['roles'];
@@ -163,6 +164,14 @@ export function GuestHomeScreen({ navigation }: MobileScreenProps) {
               </Card>
             );
           })}
+        </View>
+
+        <View style={[styles.body, styles.section]}>
+          <GuestNewsTeaser navigation={navigation} />
+        </View>
+
+        <View style={[styles.body, styles.section]}>
+          <GuestDocsTeaser navigation={navigation} />
         </View>
 
         <View style={[styles.body, styles.section]}>
