@@ -134,6 +134,14 @@ test('event action follows the server state, not the clock', () => {
   assert.equal(rules.eventAction({ status: 'COMPLETED', seatsRemaining: 3, myRegistrationStatus: null }), 'none');
 });
 
+test('event status tones follow the web status roles', () => {
+  assert.equal(rules.statusTone('REGISTRATION_OPEN'), 'success');
+  assert.equal(rules.statusTone('REGISTRATION_CLOSED'), 'primary');
+  assert.equal(rules.statusTone('COMPLETED'), 'primary');
+  assert.equal(rules.statusTone('CANCELLED'), 'error');
+  assert.equal(rules.statusTone('PUBLISHED'), 'primary');
+});
+
 test('library and careers rules separate active work from history', () => {
   const statuses = (loans) => loans.map((loan) => loan.status);
   assert.deepEqual(statuses(rules.filterLoans([{ status: 'REQUESTED' }, { status: 'RETURNED' }, { status: 'ISSUED' }], 'active')), ['REQUESTED', 'ISSUED']);
