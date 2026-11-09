@@ -168,6 +168,7 @@ test('admissions phases gate editing and files; missing fields mirror the server
   assert.equal(rules.canChangeAttachments('terminal'), false);
   assert.deepEqual(rules.missingAdmissionFields({ fullName: ' ', dateOfBirth: '2008-01-01', schoolName: 'A', intendedMajor: null }), ['fullName', 'intendedMajor']);
   assert.deepEqual(rules.missingAdmissionFields({ fullName: 'A', dateOfBirth: '2008-01-01', schoolName: 'B', intendedMajor: 'C' }), []);
+  assert.equal(rules.statusTone('IN_REVIEW'), 'warning', 'the web paints in-review applications amber');
 });
 
 test('learning rules: submission phase, deadline against an injected clock, and content check', () => {

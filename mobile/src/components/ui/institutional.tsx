@@ -17,7 +17,7 @@ export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error'
 export interface IconChipProps {
   icon: UiIconName;
   size?: 32 | 36 | 40;
-  tone?: 'primary' | 'neutral';
+  tone?: 'primary' | 'neutral' | 'success';
   onBrand?: boolean;
 }
 
@@ -27,9 +27,9 @@ export function IconChip({ icon, size = 36, tone = 'primary', onBrand = false }:
   return (
     <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.chip, {
       width: size, height: size,
-      backgroundColor: onBrand ? chrome.overlay : tone === 'primary' ? colors.primaryFixed : colors.surfaceLow,
+      backgroundColor: onBrand ? chrome.overlay : tone === 'primary' ? colors.primaryFixed : tone === 'success' ? colors.successFixed : colors.surfaceLow,
     }]}>
-      <MaterialCommunityIcons name={icon} size={20} color={onBrand ? chrome.onSurface : tone === 'primary' ? colors.primary : colors.textMuted} />
+      <MaterialCommunityIcons name={icon} size={20} color={onBrand ? chrome.onSurface : tone === 'primary' ? colors.primary : tone === 'success' ? colors.success : colors.textMuted} />
     </View>
   );
 }

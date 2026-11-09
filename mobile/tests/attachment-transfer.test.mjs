@@ -40,6 +40,19 @@ test('policies mirror the server ceiling and each lane keeps its own types', () 
   assert.equal(transfer.DOCUMENT_POLICY.mimeTypes.includes('application/pdf'), true);
 });
 
+test('admissions attachments keep the web 700 KB ceiling', () => {
+  assert.equal(transfer.ADMISSION_POLICY.maxBytes, 700 * 1024);
+  assert.deepEqual(transfer.ADMISSION_POLICY.mimeTypes, transfer.DOCUMENT_POLICY.mimeTypes);
+  assert.deepEqual(
+    transfer.checkPickedFile({ ...pdf, sizeBytes: 700 * 1024 }, transfer.ADMISSION_POLICY),
+    { ok: true },
+  );
+  assert.deepEqual(
+    transfer.checkPickedFile({ ...pdf, sizeBytes: 700 * 1024 + 1 }, transfer.ADMISSION_POLICY),
+    { ok: false, problem: 'too_large' },
+  );
+});
+
 test('checkPickedFile rejects empty, oversized and unaccepted files before upload', () => {
   const policy = transfer.DOCUMENT_POLICY;
   assert.deepEqual(transfer.checkPickedFile(pdf, policy), { ok: true });

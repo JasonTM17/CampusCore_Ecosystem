@@ -246,10 +246,14 @@ export function isUrgentPriority(priority: string | null | undefined): boolean {
 }
 
 /** Server category ids arrive in several casings/separators; labels key on UPPER_SNAKE. */
-export function newsCategoryLabel(labels: Readonly<Record<string, string>>, categoryId: string | null | undefined): string {
+export function newsCategoryCode(categoryId: string | null | undefined): string {
   const key = categoryId?.trim().toUpperCase().replace(/[ -]+/g, '_').replace(/^CAT_/, '') ?? '';
-  const alias = key === 'TRAINING_ACADEMIC' ? 'ACADEMIC_AFFAIRS' : key;
-  return alias ? labels[alias] ?? '' : '';
+  return key === 'TRAINING_ACADEMIC' ? 'ACADEMIC_AFFAIRS' : key;
+}
+
+export function newsCategoryLabel(labels: Readonly<Record<string, string>>, categoryId: string | null | undefined): string {
+  const key = newsCategoryCode(categoryId);
+  return key ? labels[key] ?? '' : '';
 }
 
 /** The detail target one announcement row opens: the permalink slug, else the id. */
@@ -284,7 +288,7 @@ export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error'
 
 const TONES: Record<string, StatusTone> = {
   URGENT: 'error', HIGH: 'warning', NORMAL: 'primary', LOW: 'neutral',
-  REGISTRATION_OPEN: 'success', PUBLISHED: 'primary', IN_REVIEW: 'primary', REVIEWING: 'primary', INTERVIEW: 'primary',
+  REGISTRATION_OPEN: 'success', PUBLISHED: 'primary', IN_REVIEW: 'warning', REVIEWING: 'primary', INTERVIEW: 'primary',
   REQUESTED: 'warning', APPROVED: 'primary', ISSUED: 'primary', SUBMITTED: 'primary', RESUBMITTED: 'primary', DRAFT: 'neutral',
   RETURNED: 'warning', PENDING: 'warning', REGISTRATION_CLOSED: 'primary',
   ACCEPTED: 'success', OFFER: 'success', REVIEWED: 'success', REGISTERED: 'success', ATTENDED: 'success', COMPLETED: 'primary',

@@ -8,9 +8,8 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { FormField } from '../../components/ui/primitives';
 import { AccountFrame } from './AccountFrame';
 import { accountApi } from './account-api';
-import { classifyError, errorMessage } from './account-errors';
+import { classifyError } from './account-errors';
 import { forgotReducer, initialForgotState, validateEmail } from './recovery-flow';
-import { maskEmail } from './two-factor-flow';
 import { useAccountCopy } from './use-account-copy';
 
 /**
@@ -46,16 +45,23 @@ export function ForgotPasswordScreen({ navigation }: MobileScreenProps) {
     }
   };
 
-  const failure = state.failure ? errorMessage(state.failure, copy.errors) : null;
+  const failure = state.failure
+    ? state.failure.kind === 'rateLimited' ? copy.forgot.rateLimited
+      : state.failure.kind === 'network' ? copy.errors.network
+        : copy.forgot.failedToast
+    : null;
 
   return (
-    <AccountFrame title={copy.forgot.title} error={failure}>
+    <AccountFrame title={copy.forgot.title} subtitle={state.phase === 'sent' ? copy.forgot.afterSend : copy.forgot.beforeSend} error={failure}>
       {state.phase === 'sent' ? (
         <Card style={[styles.sent, { borderColor: colors.success }]}>
           <View accessible accessibilityLiveRegion="polite" accessibilityRole="alert">
             <UiText variant="headlineSmall">{copy.forgot.sentTitle}</UiText>
             <UiText variant="bodySmall" tone="muted" style={styles.sentBody}>
-              {copy.forgot.sentBody.replace('{email}', maskEmail(state.email))}
+              {copy.forgot.sentBody.replace('{email}', state.email ?? '')}
+            </UiText>
+            <UiText variant="bodySmall" tone="muted" style={styles.sentBody}>
+              {copy.forgot.sentDescription}
             </UiText>
           </View>
           <Button
@@ -72,6 +78,7 @@ export function ForgotPasswordScreen({ navigation }: MobileScreenProps) {
         <>
           <FormField
             label={copy.forgot.emailLabel}
+            hint={copy.forgot.emailHint}
             value={email}
             onChangeText={(text) => {
               setEmail(text);

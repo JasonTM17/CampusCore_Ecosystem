@@ -23,8 +23,10 @@ export interface AttachmentPolicy {
   mimeTypes: readonly string[];
 }
 
-/** Applicant and candidate documents (admissions, careers). */
+/** Applicant and candidate documents (careers). */
 export const DOCUMENT_POLICY: AttachmentPolicy = { maxBytes: ATTACHMENT_MAX_BYTES, mimeTypes: [PDF, PNG, JPEG, DOC, DOCX] };
+/** Admissions evidence keeps the web attachment ceiling. */
+export const ADMISSION_POLICY: AttachmentPolicy = { maxBytes: 700 * 1024, mimeTypes: DOCUMENT_POLICY.mimeTypes };
 /** Coursework submissions. */
 export const COURSEWORK_POLICY: AttachmentPolicy = {
   maxBytes: ATTACHMENT_MAX_BYTES,
