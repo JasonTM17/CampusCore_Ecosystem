@@ -129,6 +129,8 @@ export function TranscriptScreen(_props: MobileScreenProps) {
     <>
     <AcademicShell
       title={copy.transcriptTitle}
+      eyebrow={copy.transcriptEyebrow}
+      subtitle={copy.transcriptDescription}
       loading={!preview && query.isLoading}
       loadingLabel={copy.loadingTranscript}
       errorTitle={copy.transcriptUnavailable}
