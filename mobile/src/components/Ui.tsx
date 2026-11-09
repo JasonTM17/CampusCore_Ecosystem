@@ -51,13 +51,17 @@ function buildStyles(colors: ThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     scrollContent: {
+      width: '100%',
       paddingHorizontal: tokens.layout.mobileGutter,
       paddingTop: tokens.spacing.md,
       paddingBottom: Math.max(tokens.spacing.xl + tokens.layout.bottomNavigationHeight, ASSISTANT_FAB_SCROLL_INSET),
     },
-    headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
-    headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
-    pageTab: { alignSelf: 'flex-start', backgroundColor: colors.primary, borderTopLeftRadius: tokens.radii.card, borderTopRightRadius: tokens.radii.card, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10 },
+    // The title keeps its own width. flex: 1 (basis 0) let a wide header action
+    // collapse the tab to its 40 dp of horizontal padding and stretch that
+    // padding down the scroll view, which hid the body on a 411 dp phone.
+    headerRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', marginBottom: tokens.spacing.md },
+    headerCopy: { flexGrow: 1, flexShrink: 0, paddingRight: tokens.spacing.sm },
+    pageTab: { alignSelf: 'flex-start', backgroundColor: colors.primary, borderTopLeftRadius: tokens.radii.card, borderTopRightRadius: tokens.radii.card, flexGrow: 0, flexShrink: 0, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10 },
     pageTabTitle: { color: colors.onPrimary, fontSize: 14, lineHeight: 20 },
     eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
     eyebrowChip: { alignSelf: 'flex-start', backgroundColor: colors.primaryFixed, borderColor: colors.primary, borderRadius: tokens.spacing.xs, borderWidth: 1, marginBottom: tokens.spacing.xs, paddingHorizontal: 14, paddingVertical: 2 },
@@ -75,7 +79,7 @@ function buildStyles(colors: ThemeColors) {
       shadowOpacity: 0.06,
       shadowRadius: 3,
     },
-    heroCard: { borderRadius: tokens.radii.card, padding: tokens.spacing.md },
+    heroCard: { alignSelf: 'stretch', borderRadius: tokens.radii.card, padding: tokens.spacing.md, width: '100%' },
     heroActions: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
     metricHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     metricIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 32, justifyContent: 'center', width: 32 },
@@ -258,9 +262,9 @@ export function HeroCard({ eyebrow, title, detail, children, style, icon }: Hero
   const chrome = chromeFor(scheme);
   return (
     <View style={[styles.heroCard, { backgroundColor: chrome.surface }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm + tokens.spacing.xs }}>
+      <View style={{ alignItems: 'center', alignSelf: 'stretch', flexDirection: 'row', gap: tokens.spacing.sm + tokens.spacing.xs, width: '100%' }}>
       {icon ? <IconChip icon={icon} onBrand size={40} /> : null}
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
       {eyebrow ? (
         <UiText variant="meta" style={{ color: chrome.accent }}>
           {eyebrow}
