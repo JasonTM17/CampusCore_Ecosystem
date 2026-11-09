@@ -97,6 +97,32 @@ export function filterByAnnouncementQuery<T extends AnnouncementFilterItem>(
   });
 }
 
+export interface NoticeAttachment {
+  name: string;
+  url: string;
+  type: 'pdf' | 'docx' | 'xlsx' | 'zip' | 'other';
+}
+
+/** Document links a notice body carries, extracted the way the web reader does. */
+export function extractNoticeAttachments(content: string | null | undefined): NoticeAttachment[] {
+  if (!content) return [];
+  const items: NoticeAttachment[] = [];
+  const regex = /\[([^\]]+)\]\((https?:\/\/[^)\s]+\.(pdf|docx|doc|xlsx|xls|zip|rar)[^)\s]*|\/[^)\s]+\.(pdf|docx|doc|xlsx|xls|zip|rar)[^)\s]*)\)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    const extension = (match[3] || match[4] || '').toLowerCase();
+    const type: NoticeAttachment['type'] = extension === 'pdf' ? 'pdf'
+      : extension.startsWith('doc') ? 'docx'
+        : extension.startsWith('xl') ? 'xlsx'
+          : extension === 'zip' || extension === 'rar' ? 'zip'
+            : 'other';
+    items.push({ name: match[1], url: match[2], type });
+  }
+
+  return items;
+}
+
 /* ---------- library ---------- */
 
 export type LoanTab = 'active' | 'history';

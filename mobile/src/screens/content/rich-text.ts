@@ -30,6 +30,12 @@ export function htmlToPlainText(html: string | null | undefined): string {
     .trim();
 }
 
+/** Whether a body is element-shaped markup (as on the web) rather than plain text. */
+export function isHtmlBody(html: string | null | undefined): boolean {
+  if (!html) return false;
+  return /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^<>]*)?>/.test(html.replace(/<!--[\s\S]*?-->/g, ''));
+}
+
 /** The first non-empty paragraph, shortened for a list row. */
 export function excerptOf(html: string | null | undefined, limit = 140): string {
   const text = htmlToPlainText(html).split('\n').find((line) => line.trim().length > 0) ?? '';
