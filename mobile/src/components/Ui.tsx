@@ -1,6 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   type RefreshControlProps,
   ScrollView,
@@ -22,7 +21,9 @@ import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
 import { Avatar as UiAvatar } from './ui/avatar';
+import { alpha } from './ui/avatar-utils';
 import { Button } from './ui/Button';
+import { Skeleton } from './ui/primitives';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
 import { IconChip } from './ui/institutional';
@@ -56,7 +57,11 @@ function buildStyles(colors: ThemeColors) {
     },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
     headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
+    pageTab: { alignSelf: 'flex-start', backgroundColor: colors.primary, borderTopLeftRadius: tokens.radii.card, borderTopRightRadius: tokens.radii.card, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10 },
+    pageTabTitle: { color: colors.onPrimary, fontSize: 14, lineHeight: 20 },
     eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
+    eyebrowChip: { alignSelf: 'flex-start', backgroundColor: colors.primaryFixed, borderColor: colors.primary, borderRadius: tokens.spacing.xs, borderWidth: 1, marginBottom: tokens.spacing.xs, paddingHorizontal: 14, paddingVertical: 2 },
+    eyebrowText: { color: colors.primary, fontWeight: '700', textTransform: 'uppercase' },
     subtitle: { marginTop: tokens.spacing.xs },
     card: {
       backgroundColor: colors.card,
@@ -81,7 +86,7 @@ function buildStyles(colors: ThemeColors) {
     badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, flexShrink: 1, flexWrap: 'wrap', maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
     metricCard: { flex: 1, justifyContent: 'space-between', minHeight: 104, minWidth: 0, padding: tokens.spacing.md },
     metricValue: { marginVertical: tokens.spacing.xs },
-    sectionHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
+    sectionHeading: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
     listRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: 48, paddingVertical: tokens.spacing.sm + tokens.spacing.xs },
     leading: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
     leadingUnread: { backgroundColor: colors.primaryFixed },
@@ -98,11 +103,14 @@ function buildStyles(colors: ThemeColors) {
     progressFill: { borderRadius: tokens.spacing.xs, height: '100%' },
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
     scrollSection: { marginBottom: tokens.spacing.lg },
-    statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
-    statePanelError: { backgroundColor: colors.errorFixed },
-    dataNotice: { backgroundColor: colors.warningFixed },
-    stateCopy: { flex: 1, minWidth: 0, marginHorizontal: tokens.spacing.sm },
-    stateDescription: { marginTop: tokens.spacing.xs },
+    statePanel: { alignItems: 'center', backgroundColor: colors.background, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'column', gap: tokens.spacing.md, justifyContent: 'center', minHeight: 220, padding: tokens.spacing.lg },
+    statePanelError: { backgroundColor: colors.errorFixed, borderColor: colors.error },
+    stateIcon: { alignItems: 'center', backgroundColor: alpha(colors.error, 0.1), borderRadius: tokens.spacing.md + tokens.spacing.xs, height: 40, justifyContent: 'center', width: 40 },
+    dataNotice: { backgroundColor: colors.warningFixed, borderColor: colors.warning, borderRadius: tokens.radii.card, borderWidth: 1, padding: tokens.spacing.md },
+    stateCopy: { minWidth: 0, width: '100%' },
+    stateSkeletons: { gap: tokens.spacing.sm + tokens.spacing.xs, maxWidth: 320, width: '100%' },
+    stateTitle: { textAlign: 'center' },
+    stateDescription: { marginTop: tokens.spacing.xs, textAlign: 'center' },
   });
 }
 
@@ -147,7 +155,9 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
                 {eyebrow.toUpperCase()}
               </UiText>
             ) : null}
-            <UiText accessibilityRole="header" variant="headlineMedium">{title}</UiText>
+            <View testID="page-title-tab" style={styles.pageTab}>
+              <UiText accessibilityRole="header" variant="label" style={styles.pageTabTitle}>{title}</UiText>
+            </View>
             {subtitle ? (
               <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>
                 {subtitle}
@@ -321,15 +331,23 @@ export function ActionTile({ label, icon, onPress, style, compact = false }: Act
 
 export interface SectionHeadingProps {
   title: string;
+  eyebrow?: string;
   actionLabel?: string;
   onAction?: () => void;
 }
 
-export function SectionHeading({ title, actionLabel, onAction }: SectionHeadingProps) {
+export function SectionHeading({ title, eyebrow, actionLabel, onAction }: SectionHeadingProps) {
   const styles = useUiStyles();
   return (
     <View style={styles.sectionHeading}>
-      <UiText accessibilityRole="header" variant="headlineSmall" style={{ flexShrink: 1 }}>{title}</UiText>
+      <View style={{ flexShrink: 1, minWidth: 0 }}>
+        {eyebrow ? (
+          <View style={styles.eyebrowChip}>
+            <UiText variant="meta" style={styles.eyebrowText}>{eyebrow.toUpperCase()}</UiText>
+          </View>
+        ) : null}
+        <UiText accessibilityRole="header" variant="headlineSmall" style={{ flexShrink: 1 }}>{title}</UiText>
+      </View>
       {actionLabel && onAction ? (
         <Button label={actionLabel} onPress={onAction} variant="text" />
       ) : null}
@@ -481,7 +499,7 @@ export function ScreenSpacer({ size = tokens.spacing.md }: { size?: number }) {
 
 export interface StatePanelProps {
   kind: 'loading' | 'error' | 'empty';
-  title: string;
+  title?: string;
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
@@ -490,36 +508,54 @@ export interface StatePanelProps {
 export function StatePanel({ kind, title, description, actionLabel, onAction }: StatePanelProps) {
   const styles = useUiStyles();
   const { colors, window } = useTheme();
+  const { t } = useLocale();
   const largeText = window.fontScale >= chromeFontScaleCap;
+  const error = kind === 'error';
+  const resolvedTitle = title ?? (kind === 'loading' ? t('loading') : kind === 'empty' ? t('empty') : t('errorGeneric'));
   return (
     <View
+      testID="state-panel"
       style={[
         styles.statePanel,
-        kind === 'error' ? styles.statePanelError : undefined,
-        largeText ? { flexDirection: 'column', alignItems: 'stretch' } : undefined,
+        error ? styles.statePanelError : kind === 'empty' ? { borderStyle: 'dashed' } : undefined,
+        largeText ? { alignItems: 'stretch' } : undefined,
       ]}
     >
       {kind === 'loading' ? (
-        <ActivityIndicator color={colors.primary} size="small" />
-      ) : <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={kind === 'error' ? 'alert-circle-outline' : 'inbox-outline'} color={kind === 'error' ? colors.error : colors.textMuted} size={24} />}
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.stateSkeletons}>
+          <Skeleton testID="state-skeleton" height={16} width="40%" />
+          <Skeleton testID="state-skeleton" height={12} width="100%" />
+          <Skeleton testID="state-skeleton" height={12} width="80%" />
+        </View>
+      ) : error ? (
+        <View style={styles.stateIcon}>
+          <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="alert-circle-outline" color={colors.error} size={20} />
+        </View>
+      ) : (
+        <IconChip icon="inbox-outline" size={40} />
+      )}
       <View
-        accessible={kind === 'error'}
-        accessibilityLabel={kind === 'error' ? [title, description].filter(Boolean).join('. ') : undefined}
-        accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
-        accessibilityRole={kind === 'error' ? 'alert' : undefined}
-        style={[styles.stateCopy, largeText ? { marginHorizontal: 0 } : undefined]}
+        accessible={error}
+        accessibilityLabel={error ? [resolvedTitle, description].filter(Boolean).join('. ') : undefined}
+        accessibilityLiveRegion={error ? 'assertive' : 'polite'}
+        accessibilityRole={error ? 'alert' : undefined}
+        style={[styles.stateCopy, { alignItems: error ? 'flex-start' : 'center' }]}
       >
-        <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
-          {title}
+        <UiText
+          variant={error ? 'bodyMedium' : kind === 'loading' ? 'bodySmall' : 'headlineSmall'}
+          tone={error ? undefined : kind === 'loading' ? 'muted' : undefined}
+          style={[styles.stateTitle, error ? { color: colors.error, fontWeight: '600', textAlign: 'left' } : undefined]}
+        >
+          {resolvedTitle}
         </UiText>
         {description ? (
-          <UiText variant="bodySmall" tone="muted" style={styles.stateDescription}>
+          <UiText variant="bodySmall" tone="muted" style={[styles.stateDescription, error ? { textAlign: 'left' } : undefined]}>
             {description}
           </UiText>
         ) : null}
       </View>
       {actionLabel && onAction ? (
-        <Button label={actionLabel} onPress={onAction} variant="secondary" />
+        <Button label={actionLabel} onPress={onAction} variant="secondary" style={{ marginTop: tokens.spacing.xs }} />
       ) : null}
     </View>
   );
@@ -540,7 +576,7 @@ export function DataNotice({ message }: { message: string }) {
   return (
     <View
       accessibilityLiveRegion="polite"
-      style={[styles.statePanel, styles.dataNotice]}
+      style={[styles.dataNotice]}
     >
       <UiText variant="bodySmall" tone="warning" style={{ flex: 1 }}>
         {message}

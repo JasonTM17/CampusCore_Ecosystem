@@ -103,10 +103,17 @@ describe('avatarToneIndex', () => {
 });
 
 describe('avatar palette contrast', () => {
+  it('keeps a single navy fallback tone like the web avatar', () => {
+    assert.equal(AVATAR_PALETTE_LIGHT.length, 1);
+    assert.equal(AVATAR_PALETTE_DARK.length, 1);
+    assert.equal(AVATAR_PALETTE_LIGHT[0], 'primary');
+    assert.equal(AVATAR_PALETTE_DARK[0], 'primary');
+  });
+
   for (const [scheme, palette] of [['light', AVATAR_PALETTE_LIGHT], ['dark', AVATAR_PALETTE_DARK]]) {
     it(`${scheme}: every tone keeps initials at >= 4.5:1`, () => {
       const ink = toneInk(scheme);
-      assert.ok(palette.length >= 4, 'palette needs several tones');
+      assert.ok(palette.length >= 1, 'palette needs at least one tone');
       for (const key of palette) {
         const bg = toneBg(key, scheme);
         const r = ratio(ink, bg);
