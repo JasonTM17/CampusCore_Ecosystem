@@ -43,13 +43,13 @@ export function CertificatesScreen({ navigation }: MobileScreenProps) {
   const missing = copy.missing;
 
   return (
-    <ScreenShell title={copy.certificatesTitle}>
+    <ScreenShell title={copy.certificatesTitle} eyebrow={copy.certificatesEyebrow} subtitle={copy.certificatesDescription}>
       {loading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : failure && !info.hasData ? (
         <StatePanel kind="error" title={shared.errorTitle} description={failure} actionLabel={t('retry')} onAction={reloadFailed} />
       ) : !info.hasData ? (
-        <StatePanel kind="empty" title={copy.certificatesEmpty} />
+        <StatePanel kind="empty" title={copy.certificatesEmpty} description={copy.certificatesEmptyDescription} />
       ) : (
         <View style={styles.stack}>
           {failure ? <>
@@ -74,7 +74,11 @@ export function CertificatesScreen({ navigation }: MobileScreenProps) {
               />
             ) : null}
           </Card>
-          <UiText variant="bodySmall" tone="muted">{copy.certificatesNote}</UiText>
+          <View style={styles.issuer}>
+            <UiText variant="bodySmall" tone="muted">{copy.certificatesIssuedByLabel}</UiText>
+            <UiText variant="bodySmall">{copy.certificatesIssuedByValue}</UiText>
+            <UiText variant="bodySmall" tone="muted">{copy.certificatesIssuedByNote}</UiText>
+          </View>
           <Button
             label={copy.certificatesOpenCurriculum}
             variant="secondary"
@@ -88,4 +92,5 @@ export function CertificatesScreen({ navigation }: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   stack: { gap: tokens.spacing.md },
+  issuer: { gap: tokens.spacing.xs },
 });

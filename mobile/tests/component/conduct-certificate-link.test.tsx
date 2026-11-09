@@ -23,6 +23,8 @@ const props = { navigation: { navigate: jest.fn() }, role: 'student' } as unknow
 function setRecord() {
   mockQuery.value.data = {
     studentCode: 'S-1',
+    cumulativeAverageScore: 85,
+    cumulativeClassificationVi: 'Tốt',
     history: [{
       id: 'term-1',
       semesterName: 'Fall 2026',
@@ -32,8 +34,8 @@ function setRecord() {
       status: 'APPROVED',
       criteria: [],
       activities: [
-        { id: 'activity-1', title: 'Volunteer day', certificateUrl },
-        { id: 'activity-2', title: 'Invalid certificate', certificateUrl: 'file:///private/certificate.pdf' },
+        { id: 'activity-1', title: 'Volunteer day', points: 2, certificateUrl },
+        { id: 'activity-2', title: 'Invalid certificate', points: 1.5, certificateUrl: 'file:///private/certificate.pdf' },
       ],
     }],
   };
@@ -51,7 +53,7 @@ afterEach(() => {
 test('conduct status and Vietnamese classification are localized', async () => {
   setRecord();
   const vi = await renderThemed('vi', <ConductScreen {...props} />);
-  expect(screen.getByText('Trạng thái: Đã duyệt')).toBeOnTheScreen();
+  expect(screen.getByText('Trạng thái: Đã phê duyệt')).toBeOnTheScreen();
   expect(screen.getByText(/Tổng điểm: 82 · Tốt/)).toBeOnTheScreen();
   vi.unmount();
 });
@@ -61,6 +63,88 @@ test('conduct status and English classification are localized', async () => {
   const en = await renderThemed('en', <ConductScreen {...props} />);
   expect(screen.getByText('Status: Approved')).toBeOnTheScreen();
   expect(screen.getByText(/Total score: 82 · Good/)).toBeOnTheScreen();
+});
+
+test('English term labels are rewritten like the web and rank codes are named', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    cumulativeAverageScore: 91,
+    cumulativeClassificationVi: null,
+    history: [{
+      id: 'term-1',
+      semesterName: 'Học kỳ 1 năm học 2024-2025',
+      totalScore: 91,
+      classification: 'XUAT_SAC',
+      classificationVi: null,
+      status: 'PENDING',
+      criteria: [],
+      activities: [],
+    }],
+  };
+  await renderThemed('en', <ConductScreen {...props} />);
+
+  expect(screen.getAllByText('Semester 1, 2024-2025').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Excellent').length).toBeGreaterThan(0);
+  expect(screen.queryByText('XUAT_SAC')).toBeNull();
+  expect(screen.queryByText(/Học kỳ 1 năm học/)).toBeNull();
+  expect(screen.getByText('Status: Pending approval')).toBeOnTheScreen();
+});
+
+test('Vietnamese term labels are printed unchanged', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    history: [{
+      id: 'term-1',
+      semesterName: 'Học kỳ 1 năm học 2024-2025',
+      totalScore: 91,
+      classification: 'KHA',
+      classificationVi: 'Khá',
+      status: 'APPROVED',
+      criteria: [],
+      activities: [],
+    }],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+
+  expect(screen.getAllByText('Học kỳ 1 năm học 2024-2025').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Khá').length).toBeGreaterThan(0);
+});
+
+test('conduct shows the scholarship check, bonus total and classification scale', async () => {
+  setRecord();
+  await renderThemed('vi', <ConductScreen {...props} />);
+
+  expect(screen.getByText('Điều kiện xét học bổng:')).toBeOnTheScreen();
+  expect(screen.getByText('Đạt chuẩn')).toBeOnTheScreen();
+  expect(screen.getByText('(Yêu cầu tối thiểu 70 điểm)')).toBeOnTheScreen();
+  expect(screen.getByText(/\+3,5 điểm cộng/)).toBeOnTheScreen();
+  expect(screen.getByText('Khung xếp loại rèn luyện')).toBeOnTheScreen();
+  expect(screen.getByText('90-100 điểm')).toBeOnTheScreen();
+  expect(screen.getByText('80-89 điểm')).toBeOnTheScreen();
+  expect(screen.getByText('65-79 điểm')).toBeOnTheScreen();
+  expect(screen.getByText('50-64 điểm')).toBeOnTheScreen();
+  expect(screen.getByText('< 50 điểm')).toBeOnTheScreen();
+});
+
+test('conduct criteria keep the web descriptions, score unit and reached percentage', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    history: [{
+      id: 'term-1',
+      semesterName: 'Fall 2026',
+      totalScore: 80,
+      classification: 'TOT',
+      classificationVi: 'Tốt',
+      status: 'APPROVED',
+      criteria: [{ code: 'CRITERIA_1', nameVi: 'Tiêu chí 1', nameEn: 'Criterion 1', score: 40, maxScore: 50 }],
+      activities: [],
+    }],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+
+  expect(screen.getByText('5 tiêu chí rèn luyện')).toBeOnTheScreen();
+  expect(screen.getByText('Chuyên cần, bài tập, thái độ học tập và tham gia nghiên cứu khoa học.')).toBeOnTheScreen();
+  expect(screen.getByText(/Đạt 80%/)).toBeOnTheScreen();
 });
 
 test('valid conduct certificate links open externally and invalid schemes have no action', async () => {
