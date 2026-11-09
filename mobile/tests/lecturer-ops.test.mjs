@@ -262,3 +262,31 @@ test('operations copy never uses the word operations', () => {
     assert.ok(!text.includes('operations'), `${locale} copy`);
   }
 });
+
+test('lecturer attendance and grading copy follows the web reference', () => {
+  const vi = opsMessages.operationsMessages.vi;
+  const en = opsMessages.operationsMessages.en;
+  assert.deepEqual([...model.MARK_STATUSES], ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
+  assert.equal(vi.attendanceTitle, 'Điểm danh học phần');
+  assert.equal(en.attendanceTitle, 'Attendance Management');
+  assert.equal(vi.statusLate, 'Đi muộn');
+  assert.equal(vi.rateLabel, 'Tỷ lệ chuyên cần');
+  assert.equal(en.rateLabel, 'Class present rate');
+  assert.equal(vi.statsTotalStudents, 'Tổng số sinh viên');
+  assert.equal(vi.notesPlaceholder, 'Lý do vắng hoặc ghi chú thêm (không bắt buộc)');
+  assert.equal(en.notesPlaceholder, 'Reason or notes (optional)');
+  assert.equal(vi.gradingTitle, 'Quản lý điểm');
+  assert.equal(en.gradingTitle, 'Grade management');
+  assert.equal(vi.process, 'ĐQT (50%)');
+  assert.equal(vi.finalExam, 'ĐCK (50%)');
+  assert.equal(en.process, 'Coursework (50%)');
+  assert.equal(en.finalExam, 'Final (50%)');
+  assert.equal(vi.partial, 'Đã nhập một phần');
+  assert.equal(en.partial, 'Partially graded');
+  assert.equal(vi.appealed, 'Đang xem xét');
+  assert.equal(en.appealed, 'Under review');
+  assert.equal(vi.publishTitle, 'Công bố điểm');
+  assert.equal(vi.publishBody, 'Công bố điểm ngay bây giờ? Sinh viên sẽ nhìn thấy kết quả đã công bố, nên đây cần là một bước phát hành có chủ đích.');
+  assert.equal(en.publishTitle, 'Release grades');
+  assert.equal(en.publishGrades, 'Release grades');
+});

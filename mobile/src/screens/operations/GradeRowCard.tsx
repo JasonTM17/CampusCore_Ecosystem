@@ -40,9 +40,8 @@ function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = fa
   const process = parseScore(processText);
   const final = parseScore(finalText);
   const total = typeof process === 'number' && typeof final === 'number' ? calculateTotalScore(process, final) : null;
-  const totalLabel = total === null
-    ? copy.noGradeYet
-    : `${formatNumber(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${calculateGrade(total)}`;
+  const totalText = total === null ? '—' : formatNumber(total, { maximumFractionDigits: 1 });
+  const letter = total === null ? '—' : calculateGrade(total);
 
   return (
     <Card style={styles.gradeRow}>
@@ -52,13 +51,21 @@ function Row({ row, edit, problems, changed = false, copy, onEdit, disabled = fa
           <View style={styles.rowCopy}>
             <UiText variant="label">{name}</UiText>
             {row.studentCode ? <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText> : null}
+            <UiText variant="bodySmall" tone="muted">{row.email ?? copy.unavailableEmail}</UiText>
+            {row.gradeStatus === 'APPEALED' ? <StatusPill label={copy.appealed} tone="warning" /> : null}
             {changed ? <StatusPill label={copy.changedOnServer} tone="warning" /> : null}
           </View>
         </View>
-        <StatusPill
-          label={totalLabel}
-          tone={total !== null ? (total >= 5 ? 'success' : 'error') : 'neutral'}
-        />
+        <View style={styles.gradeTotals}>
+          <View style={styles.gradeTotalCell}>
+            <UiText variant="meta" tone="muted">{copy.total}</UiText>
+            <UiText variant="label">{totalText}</UiText>
+          </View>
+          <View style={styles.gradeTotalCell}>
+            <UiText variant="meta" tone="muted">{copy.letter}</UiText>
+            <UiText variant="label">{letter}</UiText>
+          </View>
+        </View>
       </View>
       {locked ? (
         <View style={{ marginTop: 8, gap: 4 }}>

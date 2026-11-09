@@ -108,7 +108,7 @@ export function SectionCard({ title, icon, count, actionLabel, onAction, childre
 }
 
 export interface StatStripProps {
-  items: ReadonlyArray<{ label: string; value: string; icon?: UiIconName }>;
+  items: ReadonlyArray<{ label: string; value: string; icon?: UiIconName; detail?: string }>;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -121,13 +121,14 @@ export function StatStrip({ items, style }: StatStripProps) {
   return (
     <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.outlineVariant, flexDirection: stacked ? 'column' : 'row' }, style]}>
       {items.map((item, index) => (
-        <View key={item.label} accessible accessibilityLabel={`${item.label}: ${item.value}`} style={[styles.stat,
+        <View key={item.label} accessible accessibilityLabel={`${item.label}: ${item.value}${item.detail ? `, ${item.detail}` : ''}`} style={[styles.stat,
           index > 0 ? { borderColor: colors.outlineVariant, borderLeftWidth: stacked ? 0 : 1, borderTopWidth: stacked ? 1 : 0 } : undefined]}>
           <View style={styles.statTop}>
             <UiText variant="headlineLarge" tone="primary" style={styles.statValue}>{item.value}</UiText>
             {item.icon ? <IconChip icon={item.icon} size={32} /> : null}
           </View>
           <UiText variant="label" tone="muted">{item.label}</UiText>
+          {item.detail ? <UiText variant="meta" tone="muted">{item.detail}</UiText> : null}
         </View>
       ))}
     </View>

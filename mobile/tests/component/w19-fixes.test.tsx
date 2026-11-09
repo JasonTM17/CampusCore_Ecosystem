@@ -237,18 +237,18 @@ describe('lecturer attendance keeps dirty marks per sheet', () => {
     await render(themed(<LecturerAttendanceScreen {...props} />));
     await screen.findByText('Alpha');
 
-    const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
       name: 'Alpha',
-      status: operationsMessages.vi.statusPresent,
+      status: operationsMessages.vi.statusAbsent,
     });
-    await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+    await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
     await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
     await screen.findByText('Bravo');
     await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
     await screen.findByText('Alpha');
 
     expect(screen.getByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeOnTheScreen();
-    expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
+    expect(screen.getByRole('radio', { name: markAbsent }).props.accessibilityState?.checked).toBe(true);
   });
 });
 
