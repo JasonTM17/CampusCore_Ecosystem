@@ -134,6 +134,101 @@ const vi = {
     loading: 'Đang tải…',
     retry: 'Thử lại',
   },
+  guestHome: {
+    brandSubtitle: 'Cổng học vụ CampusUTE',
+    eyebrow: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
+    schoolName: 'Trường Đại học Công nghệ Kỹ thuật TP.HCM • HCM-UTE',
+    title: 'Cổng Thông Tin Đào Tạo & Học Vụ Trực Tuyến',
+    description: 'Hệ thống quản lý học vụ số tập trung dành cho Sinh viên, Giảng viên và Cán bộ Quản trị.',
+    signIn: 'Đăng nhập',
+    roles: {
+      student: {
+        title: 'Cổng Sinh viên',
+        description: 'Đăng ký học phần, thời khóa biểu học kỳ, tra cứu điểm và làm đồ án tốt nghiệp.',
+        rows: ['Đăng ký học phần', 'Thời khóa biểu', 'Bảng điểm'],
+        action: 'Truy cập Cổng Sinh viên',
+      },
+      lecturer: {
+        title: 'Cổng Giảng viên',
+        description: 'Quản lý lịch giảng dạy, nhập điểm quá trình, kết thúc học phần và duyệt nhóm đồ án.',
+        rows: ['Lịch giảng dạy', 'Nhập điểm môn'],
+        action: 'Truy cập Cổng Giảng viên',
+      },
+      admin: {
+        title: 'Cổng Quản trị',
+        description: 'Quản trị hồ sơ người dùng, phân công giảng dạy, đợt đăng ký môn và thông báo toàn trường.',
+        rows: ['Hồ sơ đào tạo', 'Danh mục môn học'],
+        action: 'Truy cập Cổng Quản trị',
+      },
+    },
+    hub: {
+      title: 'Trung tâm trường học',
+      subtitle: 'Một điểm vào hệ sinh thái CampusUTE — đăng nhập để mở các mục theo vai trò của bạn.',
+      publicSection: 'Mở cho mọi người',
+      workspaceSection: 'Không gian làm việc của bạn',
+      signInCta: 'Đăng nhập để xem không gian làm việc',
+      open: 'Mở',
+      plannedStatus: 'Sắp ra mắt',
+      signInRequired: 'Cần đăng nhập',
+      entries: {
+        news: {
+          title: 'Tin tức trường',
+          description: 'Thông báo và bài viết đã xuất bản của nhà trường.',
+        },
+        docs: {
+          title: 'Tài liệu công khai',
+          description: 'Quy định, hướng dẫn và tài liệu tham khảo — chỉ phiên bản đã xuất bản.',
+        },
+        events: {
+          title: 'Sự kiện trường',
+          description: 'Lịch sự kiện, đăng ký tham gia và điểm danh.',
+        },
+        library: {
+          title: 'Thư viện',
+          description: 'Tra cứu tài liệu, mượn trả và dịch vụ phòng đọc.',
+        },
+        admissions: {
+          title: 'Tuyển sinh',
+          description: 'Ngành đào tạo, đợt xét tuyển và trạng thái nhập học.',
+        },
+        learning: {
+          title: 'Học tập trực tuyến',
+          description: 'Học phần, bài tập và tài liệu học tập.',
+        },
+        careers: {
+          title: 'Việc làm & thực tập',
+          description: 'Tin tuyển dụng, đối tác thực tập và hồ sơ ứng tuyển.',
+        },
+        dashboard: {
+          title: 'Cổng sinh viên',
+          description: 'Thời khóa biểu, điểm, học phí và thông báo cá nhân.',
+        },
+        lecturer: {
+          title: 'Không gian giảng viên',
+          description: 'Lớp học phần, điểm danh, điểm số và thông báo học phần.',
+        },
+        admin: {
+          title: 'Quản trị',
+          description: 'Danh mục, tài khoản, thông báo và hàng chờ kiểm duyệt.',
+        },
+        login: {
+          title: 'Đăng nhập',
+          description: 'Tiếp tục tới cổng đăng nhập một lần.',
+        },
+      },
+    },
+    processKicker: 'Trọng tâm học vụ',
+    processSteps: ['Đào tạo Tín chỉ', 'Thời khóa biểu', 'Điểm & Bảng điểm', 'Đồ án Tốt nghiệp'],
+    footer: {
+      subtitle: 'Cổng học vụ',
+      description: 'Một cổng học vụ cho sinh viên, giảng viên và quản trị.',
+      workspace: 'Cổng học vụ',
+      delivery: 'Triển khai',
+      workspaceLinks: ['Cổng Sinh viên', 'Cổng Giảng viên', 'Cổng Quản trị'],
+      deliveryLinks: ['Đăng nhập', 'Cổng học vụ', 'Quản trị'],
+      copyright: 'Mọi quyền được bảo lưu.',
+    },
+  },
 };
 
 type ShellCopy = typeof vi;
@@ -269,6 +364,101 @@ const en: ShellCopy = {
     empty: 'No articles yet',
     loading: 'Loading…',
     retry: 'Try again',
+  },
+  guestHome: {
+    brandSubtitle: 'Campus academic portal',
+    eyebrow: 'Ho Chi Minh City University of Technology and Engineering',
+    schoolName: 'Ho Chi Minh City University of Technology and Engineering • HCMUTE',
+    title: 'Academic Portal & Student Management',
+    description: 'Centralized academic management system for students, lecturers, and university administrators.',
+    signIn: 'Sign in',
+    roles: {
+      student: {
+        title: 'Student Portal',
+        description: 'Course registration, class timetable, semester grades, and thesis defense.',
+        rows: ['Registration', 'Schedule', 'Grades'],
+        action: 'Enter Student Portal',
+      },
+      lecturer: {
+        title: 'Lecturer Portal',
+        description: 'Teaching schedule, section gradebook, and capstone group supervision.',
+        rows: ['Gradebook', 'Teaching schedule'],
+        action: 'Enter Lecturer Portal',
+      },
+      admin: {
+        title: 'Admin Operations',
+        description: 'Academic departments, curriculum management, and campus notices.',
+        rows: ['People', 'Course catalog'],
+        action: 'Enter Admin Portal',
+      },
+    },
+    hub: {
+      title: 'Campus hub',
+      subtitle: 'One doorway into the CampusUTE ecosystem — sign in for the entries your role unlocks.',
+      publicSection: 'Open to everyone',
+      workspaceSection: 'Your workspace',
+      signInCta: 'Sign in to see your workspace',
+      open: 'Open',
+      plannedStatus: 'Planned',
+      signInRequired: 'Sign in required',
+      entries: {
+        news: {
+          title: 'Campus news',
+          description: 'Published announcements and press from the university.',
+        },
+        docs: {
+          title: 'Public documents',
+          description: 'Regulations, guides, and reference material — published revisions only.',
+        },
+        events: {
+          title: 'Campus events',
+          description: 'Event calendar, registration, and attendance tracking.',
+        },
+        library: {
+          title: 'Library',
+          description: 'Catalogue search, borrowing, and reading-room services.',
+        },
+        admissions: {
+          title: 'Admissions',
+          description: 'Programmes, application rounds, and enrolment status.',
+        },
+        learning: {
+          title: 'Online learning',
+          description: 'Courses, assignments, and learning materials.',
+        },
+        careers: {
+          title: 'Careers & internships',
+          description: 'Job postings, internship partners, and applications.',
+        },
+        dashboard: {
+          title: 'Student portal',
+          description: 'Timetable, grades, tuition, and personal announcements.',
+        },
+        lecturer: {
+          title: 'Lecturer workspace',
+          description: 'Sections, attendance, marks, and course announcements.',
+        },
+        admin: {
+          title: 'Administration',
+          description: 'Catalog, accounts, announcements, and governance queues.',
+        },
+        login: {
+          title: 'Sign in',
+          description: 'Continue to the single sign-on portal.',
+        },
+      },
+    },
+    processKicker: 'Core academic pillars',
+    processSteps: ['Credit-based Curriculum', 'Timetable & Attendance', 'Gradebook & Transcripts', 'Thesis & Capstone'],
+    footer: {
+      subtitle: 'Academic portal',
+      description: 'One campus portal for students, lecturers, and admins.',
+      workspace: 'Campus portal',
+      delivery: 'Delivery',
+      workspaceLinks: ['Student access', 'Lecturer workflows', 'Admin tools'],
+      deliveryLinks: ['Sign in', 'Campus portal', 'Admin'],
+      copyright: 'All rights reserved.',
+    },
   },
 };
 
