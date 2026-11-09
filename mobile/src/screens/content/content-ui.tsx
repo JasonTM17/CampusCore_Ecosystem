@@ -214,6 +214,10 @@ export interface ListFrameProps<T> {
   onEmptyAction?: () => void;
   /** Replaces the empty title when a filter is active. */
   emptyFilteredTitle?: string;
+  /** Page-specific heading shown when the first read fails. */
+  errorTitle?: string;
+  /** Page-specific retry sentence; falls back to the classified list error. */
+  errorDescription?: string;
   filtered?: boolean;
   /** Rows to render instead of `list.items`, for client-side filters. */
   items?: readonly T[];
@@ -236,6 +240,8 @@ export function ListFrame<T>({
   emptyActionLabel,
   onEmptyAction,
   emptyFilteredTitle,
+  errorTitle,
+  errorDescription,
   filtered = false,
   items,
   header,
@@ -250,7 +256,7 @@ export function ListFrame<T>({
   const count = list.total !== undefined && !filtered
     ? fillCopy(copy.listCount, { shown: shownCount, total: list.total })
     : null;
-  const error = list.error ?? list.loadMoreError;
+  const error = list.error ? (errorDescription ?? list.error) : list.loadMoreError;
 
   const head = (
     <View style={styles.head}>
@@ -273,6 +279,7 @@ export function ListFrame<T>({
           renderItem={(item) => renderItem(item)}
           loading={list.loading}
           error={error}
+          errorTitle={list.error ? errorTitle : undefined}
           onRetry={list.loadMoreError ? list.loadMore : list.refresh}
           refreshing={list.refreshing}
           onRefresh={list.preview ? undefined : list.refresh}
@@ -292,13 +299,14 @@ export function ListFrame<T>({
 }
 
 /** Frame for a detail view: scrollable, with a 44dp back control in the header. */
-export function DetailFrame<T>({ title, onBack, children, list }: { title: string; onBack: () => void; children: ReactNode; list?: PerformanceListProps<T> }) {
+export function DetailFrame<T>({ title, backLabel, onBack, children, list }: { title: string; backLabel?: string; onBack: () => void; children: ReactNode; list?: PerformanceListProps<T> }) {
   const { copy } = useContentCopy();
+  const label = backLabel ?? copy.back;
   return (
     <ScreenShell
       title={title}
       list={list}
-      headerAction={<Button label={copy.back} accessibilityLabel={copy.back} variant="text" onPress={onBack} />}
+      headerAction={<Button label={label} accessibilityLabel={label} variant="text" onPress={onBack} />}
     >
       {list ? <View style={styles.detailHead}>{children}</View> : children}
     </ScreenShell>

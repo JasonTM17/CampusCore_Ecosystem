@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 
-import { Button, Card, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, StatePanel } from '../../components/Ui';
 import { ChoiceField, Notice, StatusPill } from '../../components/ui/index';
 import type { MobilePublicDoc } from '../../api/client';
 import { campusMessages } from '../../i18n/campus-messages';
@@ -10,7 +10,8 @@ import { contentApi } from './content-api';
 import { joinMeta } from './content-rules';
 import { ContentHero, DetailFrame, isPreviewMode, useContentCopy } from './content-ui';
 import { previewDocs } from './preview-data';
-import { htmlToPlainText } from './rich-text';
+import { formatRelativeTime } from './relative-time';
+import { RichContent } from '../../components/content/rich-content';
 import { revisionNumbers, docBody, docCategoryLabel, docTitle } from './docs-model';
 import { useContentQuery } from './use-content-query';
 
@@ -24,7 +25,7 @@ type DocRecord = MobilePublicDoc & { superseded?: boolean };
 
 /** A published document pinned to its published revision, with permalinked earlier revisions. */
 export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailProps) {
-  const { locale, copy: shared, formatDateTime, t } = useContentCopy();
+  const { locale, t } = useContentCopy();
   const copy = campusMessages[locale];
   const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const preview = isPreviewMode();
@@ -42,28 +43,41 @@ export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailPro
   const shown = revision ?? doc?.publishedRevision ?? null;
   const viewingOld = doc !== null && revision !== null && revision !== doc.publishedRevision;
   const categoryLabel = doc?.categoryId ? docCategoryLabel(doc.categoryId, categoryLabels) : undefined;
+  const publishedLabel = doc?.publishedAt
+    ? copy.publishedOn.replace('{date}', formatRelativeTime(doc.publishedAt, locale))
+    : null;
+  const revisionLabel = shown !== null ? fillCopy(copy.revision, { n: shown }) : null;
+  const sharePermalink = () => {
+    if (!doc) return;
+    const url = `https://www.campusute.io.vn/docs/${encodeURIComponent(slug)}?rev=${doc.publishedRevision}`;
+    void Share.share({ message: url, url }).catch(() => undefined);
+  };
 
   return (
-    <DetailFrame title={copy.docDetailTitle} onBack={onBack}>
+    <DetailFrame title={copy.docsTitle} backLabel={copy.docsBackToList} onBack={onBack}>
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : !preview && query.error ? (
-        <StatePanel
-          kind="error"
-          title={shared.errorTitle}
-          description={query.error}
-          actionLabel={t('retry')}
-          onAction={() => void query.reload()}
-        />
+        query.errorStatus === 404 ? (
+          <StatePanel kind="empty" title={copy.docsNotFoundTitle} description={copy.docsNotFoundBody} />
+        ) : (
+          <StatePanel
+            kind="error"
+            title={copy.docsLoadErrorTitle}
+            description={copy.docsLoadError}
+            actionLabel={t('retry')}
+            onAction={() => void query.reload()}
+          />
+        )
       ) : !doc ? (
-        <StatePanel kind="empty" title={shared.notFound} />
+        <StatePanel kind="empty" title={copy.docsNotFoundTitle} description={copy.docsNotFoundBody} />
       ) : (
         <View style={{ gap: 12 }}>
           {viewingOld ? (
             <Notice
               tone="warning"
-              message={fillCopy(copy.supersededNote, { n: shown ?? '', current: doc.publishedRevision })}
-              actionLabel={copy.openCurrent}
+              message={fillCopy(copy.supersededNote, { current: doc.publishedRevision })}
+              actionLabel={copy.open}
               onAction={() => setRevision(null)}
             />
           ) : null}
@@ -72,15 +86,19 @@ export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailPro
               title={docTitle(doc, locale)}
               icon="file-document-outline"
               detail={joinMeta([
-                doc.publishedAt ? `${copy.publishedAt}: ${formatDateTime(doc.publishedAt)}` : null,
+                publishedLabel,
+                revisionLabel,
                 categoryLabel ? `${copy.category}: ${categoryLabel}` : null,
               ])}
             >
               <View style={styles.heroPills}>
-                {shown !== null ? <StatusPill label={fillCopy(copy.revision, { n: shown })} tone="primary" /> : null}
+                {revisionLabel ? <StatusPill label={revisionLabel} tone="primary" /> : null}
               </View>
             </ContentHero>
-            <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(docBody(doc, locale))}</UiText>
+            {!viewingOld ? (
+              <Button label={copy.permalinkLabel} variant="text" onPress={sharePermalink} />
+            ) : null}
+            <RichContent html={docBody(doc, locale)} style={styles.body} />
           </Card>
           {doc.publishedRevision > 1 ? (
             <ChoiceField
@@ -91,7 +109,6 @@ export function DocDetail({ slug, onBack, initialRevision = null }: DocDetailPro
               onChange={(value) => setRevision(Number(value) === doc.publishedRevision ? null : Number(value))}
             />
           ) : null}
-          {viewingOld ? <Button label={copy.openCurrent} variant="secondary" onPress={() => setRevision(null)} /> : null}
         </View>
       )}
     </DetailFrame>
