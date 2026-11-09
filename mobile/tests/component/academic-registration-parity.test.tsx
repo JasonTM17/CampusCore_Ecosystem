@@ -81,6 +81,22 @@ function wrap(ui: ReactElement, locale: 'vi' | 'en' = 'vi') {
   );
 }
 
+async function pressTwiceBeforeCommit(button: unknown) {
+  const originalError = console.error;
+  const warning = jest.spyOn(console, 'error').mockImplementation((message, ...args) => {
+    if (String(message).includes('overlapping act() calls')) return;
+    originalError(message, ...args);
+  });
+  try {
+    await act(async () => {
+      fireEvent.press(button as never);
+      fireEvent.press(button as never);
+    });
+  } finally {
+    warning.mockRestore();
+  }
+}
+
 const course = (code: string, name: string, credits = 3) => ({ code, name, nameVi: name, nameEn: name, credits });
 const section = (id: string, overrides: Record<string, unknown> = {}) => ({
   id, sectionNumber: '01', courseId: `c-${id}`, courseCode: `CS${id}`, courseName: `Môn ${id}`, credits: 3,
@@ -365,6 +381,30 @@ describe('credit-limit policy and exception request', () => {
       roundId: 'round-reg',
       reason: 'Cần thêm hai tín chỉ cho học kỳ cuối',
     });
+  });
+
+  test('sends one application when Submit is pressed twice before the busy state commits', async () => {
+    mockQueries['academic.registration'] = { data: registrationData([section('L3')]) };
+    let release!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { release = resolve; });
+    mockPost.mockImplementationOnce(() => pending);
+    await render(wrap(<RegistrationScreen {...props} />));
+
+    await fireEvent.changeText(screen.getByLabelText(copy.applicationReasonLabel), 'Cần thêm hai tín chỉ cho học kỳ cuối');
+    const submit = screen.getByRole('button', { name: copy.applicationSubmit });
+    try {
+      await pressTwiceBeforeCommit(submit);
+      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockPost).toHaveBeenCalledWith('/me/registration/credit-limit-applications', {
+        roundId: 'round-reg',
+        reason: 'Cần thêm hai tín chỉ cho học kỳ cuối',
+      });
+    } finally {
+      await act(async () => {
+        release({ message: 'ok' });
+        await pending;
+      });
+    }
   });
 });
 

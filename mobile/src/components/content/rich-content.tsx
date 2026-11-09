@@ -15,6 +15,7 @@ import { safeLinkUrl } from '../../assistant/markdown';
 const WEB_ORIGIN = 'https://www.campusute.io.vn';
 
 export function webUrlFor(href: string): string {
+  if (/^https:\/\//i.test(href)) return href;
   if (href.startsWith('/')) return `${WEB_ORIGIN}${href}`;
   return `${WEB_ORIGIN}/${href.replace(/^(?:\.\.?\/)+/, '')}`;
 }
