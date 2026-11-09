@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, BackHandler, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -8,16 +8,24 @@ import { chromeFor } from '../design/chrome';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
 import {
-  menuSections,
-  screenRegistry,
+  canAccessScreen,
+  getMenuSections,
+  getScreenDefinition,
   type ScreenName,
   type UserRole,
 } from '../navigation/routes';
 import { useShellCopy } from '../i18n/use-shell-copy';
-import { Button, UiText } from './Ui';
+import { SignOutDialog } from '../screens/account/SignOutDialog';
+import { Avatar, Button, StatusPill, UiText } from './Ui';
 
 /** Screens that only make sense with a target id, so they never get a menu entry. */
 const PARAMETERISED_SCREENS: ReadonlySet<ScreenName> = new Set(['thesis.detail', 'thesis.registration']);
+
+export interface MenuIdentity {
+  name: string;
+  email: string;
+  demo?: boolean;
+}
 
 interface MenuPanelProps {
   activeRoute: ScreenName;
@@ -26,20 +34,24 @@ interface MenuPanelProps {
   onNavigate(route: ScreenName): void;
   onSwitchRole(role: UserRole): void;
   allowRoleSwitch: boolean;
+  /** Signed-in identity block, fed by the shell from the profile read. */
+  identity?: MenuIdentity;
+  /** Signed-in session block: the profile screen owns the same flow. */
+  onSignOut?(): void;
 }
 
-export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch }: MenuPanelProps) {
+export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch, identity, onSignOut }: MenuPanelProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors, scheme, window } = useTheme();
   const largeText = window.fontScale >= chromeFontScaleCap;
   const chrome = chromeFor(scheme);
   const { copy, screenTitle } = useShellCopy();
   const previousRoute = useRef(activeRoute);
-  const firstMenuItem = screenRegistry.find(
-    (screen) => menuSections.some((section) => section.families.some((family) => family === screen.family))
-      && screen.roles.includes(role)
-      && !PARAMETERISED_SCREENS.has(screen.name),
-  );
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const sections = getMenuSections(role);
+  const firstMenuItem = sections
+    .flatMap((section) => section.screens)
+    .find((screen) => canAccessScreen(role, screen) && !PARAMETERISED_SCREENS.has(screen));
   const firstMenuItemRef = useRef<View | null>(null);
 
   useEffect(() => {
@@ -76,6 +88,20 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
           <Button label={copy.close} onPress={onClose} variant="text" onBrand />
         </View>
 
+        {identity ? (
+          <View style={styles.identity}>
+            <Avatar label={identity.name.charAt(0)} size={40} />
+            <View style={styles.identityCopy}>
+              <UiText variant="label" style={styles.identityName}>{identity.name}</UiText>
+              <UiText variant="meta" tone="muted" style={styles.identityEmail}>{identity.email}</UiText>
+              <View style={styles.identityChips}>
+                <StatusPill label={copy.roles[role]} tone="primary" />
+                {identity.demo ? <StatusPill label={copy.demoTag} tone="neutral" /> : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         {allowRoleSwitch ? (
           <><UiText variant="label" tone="muted" style={styles.roleLabel}>
             {copy.previewRole}
@@ -98,46 +124,42 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
         ) : null}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.menuContent}>
-          {menuSections.map((section) => {
-            const screens = screenRegistry.filter(
-              (screen) =>
-                section.families.some((family) => family === screen.family) &&
-                screen.roles.includes(role) &&
-                !PARAMETERISED_SCREENS.has(screen.name),
+          {sections.map((section) => {
+            const screens = section.screens.filter(
+              (screen) => canAccessScreen(role, screen) && !PARAMETERISED_SCREENS.has(screen),
             );
             if (screens.length === 0) {
               return null;
             }
 
             return (
-              <View key={section.title} style={styles.section}>
-                {section.title === 'Student workspace' && role !== 'student' ? null : (
-                  <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
-                    {section.title === 'Staff' ? copy.sections.staff : section.title === 'Assistant' ? copy.sections.assistant : copy.sections.student}
-                  </UiText>
-                )}
-                {screens.map((screen) => {
-                  const active = screen.name === activeRoute;
+              <View key={section.key} style={styles.section}>
+                <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
+                  {copy.sections[section.key]}
+                </UiText>
+                {screens.map((screenName) => {
+                  const active = screenName === activeRoute;
+                  const screen = getScreenDefinition(screenName);
 
                   return (
                     <Pressable
-                      key={screen.name}
-                      accessibilityLabel={screenTitle(screen.name)}
+                      key={screenName}
+                      accessibilityLabel={screenTitle(screenName)}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
-                      onPress={() => onNavigate(screen.name)}
-                      ref={screen.name === firstMenuItem?.name ? firstMenuItemRef : undefined}
+                      onPress={() => onNavigate(screenName)}
+                      ref={screenName === firstMenuItem ? firstMenuItemRef : undefined}
                       style={({ pressed }) => [styles.menuItem, active ? styles.menuItemActive : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined]}
                     >
                       <View style={[styles.menuIcon, { backgroundColor: active ? colors.primaryFixed : colors.surfaceLow }]}>
                         <MaterialCommunityIcons
                           color={active ? colors.primary : colors.textMuted}
-                          name={screen.icon}
+                          name={screen?.icon ?? 'circle-outline'}
                           size={19}
                         />
                       </View>
                       <UiText variant="bodySmall" tone={active ? 'primary' : 'default'} style={styles.menuLabel}>
-                        {screenTitle(screen.name)}
+                        {screenTitle(screenName)}
                       </UiText>
                       <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
                     </Pressable>
@@ -146,7 +168,44 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
               </View>
             );
           })}
+
+          <View style={styles.accountBlock}>
+            <Pressable
+              accessibilityLabel={copy.profileSettings}
+              accessibilityRole="button"
+              accessibilityState={{ selected: activeRoute === 'profile' }}
+              onPress={() => onNavigate('profile')}
+              style={({ pressed }) => [styles.menuItem, activeRoute === 'profile' ? styles.menuItemActive : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined]}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: colors.surfaceLow }]}>
+                <MaterialCommunityIcons color={colors.textMuted} name="cog-outline" size={19} />
+              </View>
+              <UiText variant="bodySmall" style={styles.menuLabel}>{copy.profileSettings}</UiText>
+              <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
+            </Pressable>
+            {onSignOut ? (
+              <Pressable
+                accessibilityLabel={copy.signOut}
+                accessibilityRole="button"
+                onPress={() => setSignOutOpen(true)}
+                style={({ pressed }) => [styles.menuItem, pressed ? { backgroundColor: colors.errorFixed } : undefined]}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: colors.errorFixed }]}>
+                  <MaterialCommunityIcons color={colors.error} name="logout" size={19} />
+                </View>
+                <UiText variant="bodySmall" tone="error" style={styles.menuLabel}>{copy.signOut}</UiText>
+              </Pressable>
+            ) : null}
+          </View>
         </ScrollView>
+        <SignOutDialog
+          visible={signOutOpen}
+          onConfirm={() => {
+            setSignOutOpen(false);
+            onSignOut?.();
+          }}
+          onCancel={() => setSignOutOpen(false)}
+        />
       </View>
     </View>
   );
@@ -168,6 +227,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   panelHeader: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm + tokens.spacing.xs, marginHorizontal: -tokens.layout.mobileGutter, padding: tokens.spacing.md, marginBottom: tokens.spacing.md },
   logo: { width: 36, height: 40, borderRadius: tokens.radii.control, backgroundColor: tokens.colors.card },
   headerCopy: { flex: 1 },
+  identity: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: tokens.spacing.sm + tokens.spacing.xs, marginBottom: tokens.spacing.md, paddingBottom: tokens.spacing.md },
+  identityCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
+  identityName: { flexShrink: 1 },
+  identityEmail: { flexShrink: 1 },
+  identityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
   roleLabel: { marginBottom: tokens.spacing.xs },
   roleRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
   roleRowStacked: { flexDirection: 'column' },
@@ -181,4 +245,5 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   menuItemActive: { backgroundColor: colors.primaryFixed },
   menuIcon: { alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: tokens.radii.control },
   menuLabel: { flex: 1, marginLeft: tokens.spacing.sm },
+  accountBlock: { borderTopColor: colors.outlineVariant, borderTopWidth: StyleSheet.hairlineWidth, marginTop: tokens.spacing.sm, paddingTop: tokens.spacing.sm },
 });

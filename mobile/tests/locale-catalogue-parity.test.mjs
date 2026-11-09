@@ -94,7 +94,10 @@ test('AccountFrame reads portal subtitle from accountMessages catalogue', () => 
 const shellCopy = (await loadTs('src/i18n/shell-messages.ts')).shellMessages;
 
 test('Vietnamese shell menu labels are localized', () => {
-  assert.notEqual(shellCopy.vi.menu, shellCopy.en.menu, 'the Vietnamese bottom navigation label must be translated');
+  assert.equal(shellCopy.vi.menu, 'Menu', 'the menu label follows the web bottom bar in both locales');
+  assert.equal(shellCopy.en.menu, 'Menu');
+  assert.notEqual(shellCopy.vi.nav.home, shellCopy.en.nav.home, 'tab labels must be translated');
+  assert.notEqual(shellCopy.vi.openMenu, shellCopy.en.openMenu, 'the Vietnamese open-menu name must be translated');
   assert.doesNotMatch(shellCopy.vi.openMenu, /\bmenu\b/i, 'the Vietnamese open-menu accessibility name must be translated');
   assert.doesNotMatch(shellCopy.vi.closeMenu, /\bmenu\b/i, 'the Vietnamese close-menu accessibility name must be translated');
 });

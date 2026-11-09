@@ -116,6 +116,7 @@ export const contentApi = {
   deleteNotification: (id: string) => apiClient.delete<unknown>(`/notifications/my/${enc(id)}`),
 
   /* ----- records ----- */
+  profile: () => campusApi.profile(),
   conduct: (signal?: AbortSignal) => apiClient.get<unknown>('/conduct/my', { signal }),
 
   /* ----- events ----- */

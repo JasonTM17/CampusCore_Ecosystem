@@ -8,10 +8,12 @@ import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { minTapTarget, tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
+import { useLocale } from '../i18n/locale-provider';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import type { UserRole } from '../navigation/routes';
 import { PreviewPill } from './PreviewPill';
 import { UiText } from './ui/UiText';
+import { unreadBadgeLabel } from './unread-badge';
 
 // Standalone component renderers may omit the safe-area provider/context.
 // Native app renders always use the package's real context.
@@ -22,6 +24,9 @@ export interface AppBarProps {
   role?: UserRole;
   /** Signed-in admissions-only view for an account without an academic role. */
   applicant?: boolean;
+  /** Signed-in view: the notification preview control and its unread count. */
+  unreadCount?: number;
+  onNotifications?: () => void;
   onProfile?: () => void;
   /** Signed-in view without a profile screen: the session-ending control. */
   onSignOut?: () => void;
@@ -33,14 +38,19 @@ export interface AppBarProps {
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
-export function AppBar({ role, applicant = false, onProfile, onSignOut, onSignIn }: AppBarProps) {
+export function AppBar({ role, applicant = false, unreadCount = 0, onNotifications, onProfile, onSignOut, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
   const { copy } = useShellCopy();
+  const { locale, setLocale } = useLocale();
   const roleLabel = applicant ? copy.roles.applicant : role ? copy.roles[role] : null;
   const preview = apiClient.mode === 'preview';
   const brandVariant = window.fontScale >= 1.3 ? 'meta' : 'headlineSmall';
+  const unread = unreadCount > 0 ? unreadCount : undefined;
+  const notificationsLabel = unread === undefined
+    ? copy.notifications.title
+    : `${copy.notifications.title}, ${unread} ${copy.unread}`;
 
   return (
     <View
@@ -72,6 +82,31 @@ export function AppBar({ role, applicant = false, onProfile, onSignOut, onSignIn
           </View>
         ) : null}
         <PreviewPill />
+        <Pressable
+          accessibilityLabel={copy.language}
+          accessibilityRole="button"
+          onPress={() => setLocale(locale === 'vi' ? 'en' : 'vi')}
+          style={({ pressed }) => [styles.language, { backgroundColor: pressed ? chrome.surfaceStrong : chrome.overlay }]}
+        >
+          <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
+            {locale.toUpperCase()}
+          </UiText>
+        </Pressable>
+        {role && onNotifications ? (
+          <Pressable
+            accessibilityLabel={notificationsLabel}
+            accessibilityRole="button"
+            onPress={onNotifications}
+            style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
+          >
+            <MaterialCommunityIcons color={chrome.onSurface} name="bell-outline" size={24} />
+            {unread === undefined ? null : (
+              <View accessibilityElementsHidden accessible={false} importantForAccessibility="no" style={[styles.badge, { backgroundColor: chrome.gold }]}>
+                <UiText variant="meta" style={[styles.badgeCount, { color: chrome.onGold }]}>{unreadBadgeLabel(unread)}</UiText>
+              </View>
+            )}
+          </Pressable>
+        ) : null}
         {onProfile ? (
           <Pressable
             accessibilityLabel={copy.screens.profile}
@@ -108,11 +143,14 @@ export function AppBar({ role, applicant = false, onProfile, onSignOut, onSignIn
 
 const styles = StyleSheet.create({
   bar: { paddingHorizontal: tokens.layout.mobileGutter, borderBottomWidth: StyleSheet.hairlineWidth },
-  row: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.md, minHeight: 56, paddingVertical: tokens.spacing.sm },
+  row: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: 56, paddingVertical: tokens.spacing.sm },
   mark: { alignItems: 'center', backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', padding: 4, width: 36 },
   logo: { height: '100%', width: '100%' },
   copy: { flex: 1, minWidth: 0 },
   rolePill: { borderRadius: tokens.spacing.xs, paddingHorizontal: tokens.spacing.sm, paddingVertical: 4, flexShrink: 1 },
   iconButton: { alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
+  language: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.xs },
+  badge: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: 16, minWidth: 16, paddingHorizontal: 3, position: 'absolute', right: 2, top: 2 },
+  badgeCount: { fontSize: 10, lineHeight: 12, textAlign: 'center' },
   signIn: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: tokens.spacing.md },
 });
