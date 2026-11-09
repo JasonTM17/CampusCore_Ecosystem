@@ -43,6 +43,7 @@ jest.mock('../../src/api/parity-api', () => ({
 }));
 
 import { SignInScreen } from '../../src/screens/auth/SignInScreen';
+import { setPasswordResetNotice } from '../../src/screens/account/password-reset-notice';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -68,20 +69,35 @@ describe('sign-in hero and card copy', () => {
     await renderScreen('vi');
     expect(screen.queryByText('Chào mừng trở lại')).toBeNull();
     expect(screen.getByText('CampusUTE')).toBeOnTheScreen();
-    expect(screen.getByText('Cổng thông tin đào tạo')).toBeOnTheScreen();
+    expect(screen.getByText('Cổng học vụ CampusUTE')).toBeOnTheScreen();
   });
 
   test('the live card drops the browser-architecture helper paragraph', async () => {
     await renderScreen('vi');
     expect(screen.queryByText(/Tiếp tục trong trình duyệt/)).toBeNull();
-    expect(screen.getByRole('header', { name: 'Đăng nhập' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Đăng nhập cổng học vụ' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
   });
 
   test('the English live hero and card drop the same tagline and helper', async () => {
     await renderScreen('en');
     expect(screen.queryByText('Welcome back')).toBeNull();
     expect(screen.queryByText(/Continue in your browser/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Sign in with CampusUTE ID' })).toBeOnTheScreen();
+    expect(screen.getByText('Campus academic portal')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Sign in with your campus account' })).toBeOnTheScreen();
+  });
+
+  test('the sign-in card explains that accounts are issued by the Academic Office', async () => {
+    await renderScreen('en');
+    expect(screen.getByText('Your campus account is issued by the Academic Office.')).toBeOnTheScreen();
+    expect(screen.getByText('There is no public self-registration form for students or lecturers.')).toBeOnTheScreen();
+    expect(screen.getByText('Contact the Academic Office (Room A-105) for issuance or account recovery.')).toBeOnTheScreen();
+  });
+
+  test('a completed password reset carries the password-updated notice into sign-in', async () => {
+    setPasswordResetNotice();
+    await renderScreen('vi');
+    expect(screen.getByText('Đã cập nhật mật khẩu')).toBeOnTheScreen();
+    expect(screen.getByText('Mật khẩu của bạn đã được đặt lại. Hãy đăng nhập bằng mật khẩu mới.')).toBeOnTheScreen();
   });
 });

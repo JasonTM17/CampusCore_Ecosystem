@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
 import { PreviewPill } from '../../components/PreviewPill';
-import { StatusPill } from '../../components/ui/index';
+import { FilterChip, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
@@ -19,12 +19,14 @@ import { useLocale } from '../../i18n/locale-provider';
 import { shellMessages } from '../../i18n/shell-messages';
 import { useSession } from '../../session/SessionContext';
 import { accountScreen } from '../account/account-routes';
+import { takePasswordResetNotice } from '../account/password-reset-notice';
 import { useAccountCopy } from '../account/use-account-copy';
 import { configuredPortalUrl } from '../operations/shared/portal-url';
 import { contentApi } from '../content/content-api';
 import {
   isUrgentPriority,
   joinMeta,
+  newsCategoryCode,
   newsCategoryLabel,
   newsHighlights,
   newsTargetOf,
@@ -52,6 +54,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const copy = useAccountCopy();
   const insets = useContext(SafeAreaInsetsContext);
   const [error, setError] = useState<string | null>(null);
+  const [passwordReset] = useState(takePasswordResetNotice);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const noMobileSurface = error === copy.signIn.noMobileSurface;
   const portal = configuredPortalUrl();
@@ -130,6 +133,12 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
         <View style={styles.body}>
           <Card style={styles.formCard}>
             <UiText accessibilityRole="header" variant="headlineLarge">{copy.signIn.heading}</UiText>
+            {passwordReset ? (
+              <View accessibilityLiveRegion="polite" style={styles.resetNotice}>
+                <UiText variant="label" tone="success">{copy.signIn.passwordUpdatedTitle}</UiText>
+                <UiText variant="bodySmall" tone="success">{copy.signIn.passwordUpdatedBody}</UiText>
+              </View>
+            ) : null}
             {isPreview ? (
               <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>{copy.signIn.preview}</UiText>
             ) : null}
@@ -151,6 +160,11 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
                 variant="text"
               />
             )}
+            <View style={styles.issueNote}>
+              <UiText variant="bodySmall" tone="muted">{copy.signIn.issuedBy}</UiText>
+              <UiText variant="bodySmall" tone="muted">{copy.signIn.selfRegistration}</UiText>
+              <UiText variant="bodySmall" tone="muted">{copy.signIn.officeContact}</UiText>
+            </View>
             {!isPreview && (session.bootStatus === 'unavailable' || session.bootStatus === 'checking') ? (
               <View accessibilityLiveRegion="polite">
                 <UiText variant="bodySmall" tone="error">{copy.signIn.unavailable}</UiText>
@@ -202,6 +216,16 @@ function sessionStoreIssuer(): string {
 /** Lead article plus the compact follow-up rows shown under it. */
 const GUEST_NEWS_MAX = 5;
 
+/** Web home category order; labels come from the campus catalogue. */
+const GUEST_NEWS_CATEGORIES = [
+  'RESEARCH_TECH',
+  'AWARDS_HONORS',
+  'STUDENT_LIFE',
+  'CULTURE_ARTS',
+  'ACADEMIC_AFFAIRS',
+  'CAREER_OPPORTUNITIES',
+] as const;
+
 /**
  * Public magazine feed under the guest actions (web home parity). It reuses the
  * same anonymous paged read and per-identity memory cache as the /news screen,
@@ -218,13 +242,25 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
   const categoryLabels = campusCopy.newsCategoryLabels as Readonly<Record<string, string>>;
   const priorityLabels = campusCopy.priorityLabels as Readonly<Record<string, string>>;
   const preview = useMemo(() => previewNews(locale), [locale]);
+  const [activeCategory, setActiveCategory] = useState('ALL');
   const list = usePagedList<MobilePublicAnnouncement>({
     key: 'content.news',
     fetchPage: (page, limit, signal) => contentApi.news({ page, limit, signal }),
     keyOf: (item) => item.id,
     preview,
   });
-  const { featured, rest } = newsHighlights(list.items, GUEST_NEWS_MAX);
+  const counts = useMemo(() => {
+    const next: Record<string, number> = {};
+    for (const item of list.items) {
+      const code = newsCategoryCode(item.categoryId);
+      if (code) next[code] = (next[code] ?? 0) + 1;
+    }
+    return next;
+  }, [list.items]);
+  const filtered = activeCategory === 'ALL'
+    ? list.items
+    : list.items.filter((item) => newsCategoryCode(item.categoryId) === activeCategory);
+  const { featured, rest } = newsHighlights(filtered, GUEST_NEWS_MAX);
   const open = (item: MobilePublicAnnouncement) => navigation.navigate('news', { newsItem: newsTargetOf(item) });
 
   return (
@@ -233,6 +269,7 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
         <View style={styles.headCopy}>
           <UiText variant="meta" tone="primary" style={styles.eyebrow}>{copy.newsEyebrow}</UiText>
           <UiText accessibilityRole="header" variant="headlineSmall">{copy.newsTitle}</UiText>
+          <UiText variant="bodySmall" tone="muted">{copy.newsDescription}</UiText>
         </View>
         <Pressable
           accessibilityLabel={copy.seeAll}
@@ -245,6 +282,25 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
           <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />
         </Pressable>
       </View>
+      {list.items.length > 0 && !list.loading && !list.error ? (
+        <View style={styles.categories}>
+          <FilterChip
+            count={list.items.length}
+            label={copy.allStories}
+            onPress={() => setActiveCategory('ALL')}
+            selected={activeCategory === 'ALL'}
+          />
+          {GUEST_NEWS_CATEGORIES.map((code) => (
+            <FilterChip
+              count={counts[code] ?? 0}
+              key={code}
+              label={categoryLabels[code] ?? code}
+              onPress={() => setActiveCategory(code)}
+              selected={activeCategory === code}
+            />
+          ))}
+        </View>
+      ) : null}
       {list.warning ? (
         <View testID="signin-news-warning">
           <DataNotice message={list.warning} />
@@ -263,7 +319,7 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
         </View>
       ) : !featured ? (
         <View style={styles.empty} testID="signin-news-empty">
-          <UiText variant="bodySmall" tone="muted">{copy.empty}</UiText>
+          <UiText variant="bodySmall" tone="muted">{activeCategory === 'ALL' ? copy.empty : copy.noStories}</UiText>
         </View>
       ) : (
         <View style={styles.feed}>
@@ -393,6 +449,7 @@ const makeNewsStyles = (colors: ThemeColors) => StyleSheet.create({
   section: { gap: tokens.spacing.sm, marginTop: tokens.spacing.lg },
   head: { alignItems: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   headCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
+  categories: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
   eyebrow: { letterSpacing: 0.6, textTransform: 'uppercase' },
   seeAll: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, minHeight: minTapTarget, minWidth: minTapTarget },
   feed: { gap: tokens.spacing.sm },
@@ -422,6 +479,8 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   body: { alignSelf: 'center', flexGrow: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
   formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },
+  resetNotice: { backgroundColor: colors.successFixed, borderColor: colors.success, borderRadius: tokens.radii.control, borderWidth: 1, gap: tokens.spacing.xs, marginBottom: tokens.spacing.md, marginTop: tokens.spacing.sm, padding: tokens.spacing.sm },
+  issueNote: { gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
   guestRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
   guestColumn: { gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
   guestButton: { flex: 1 },

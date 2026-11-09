@@ -9,7 +9,7 @@ import type { MobileAdmissionForm } from '../../api/client';
 import { admissionsMessages } from '../../i18n/admissions-messages';
 import { fillCopy } from '../../i18n/academic-messages';
 import { campusIsoDate } from '../../i18n/locale';
-import { DOCUMENT_POLICY } from './attachment-transfer';
+import { ADMISSION_POLICY } from './attachment-transfer';
 import { contentApi, type AdmissionApplicationView, type AttachmentInfo } from './content-api';
 import { admissionPhase, canChangeAttachments, missingAdmissionFields, type AdmissionRequiredField } from './content-rules';
 import {
@@ -67,7 +67,7 @@ function parseReviewChecklist(value: string | null | undefined): ReviewChecklist
 /** One application: editable form while draft or returned, read-only after, with files and review history. */
 export function AdmissionDetail(props: AdmissionDetailProps) {
   const { application, busy, preview, flash, stale = false, formEpoch = 0, onReload, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
-  const { locale, formatDate, formatDateTime, copy: shared } = useContentCopy();
+  const { locale, formatDate, formatDateTime } = useContentCopy();
   const copy = admissionsMessages[locale];
   const phase = admissionPhase(application.status);
   const editable = phase === 'editable' || phase === 'returned';
@@ -77,8 +77,8 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
   return (
     <DetailFrame title={copy.title} onBack={onBack}
       list={{ data: [...(cardRows("section-1", attachments, (item, index) => String(item.id ?? index), <>
-          <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>
-          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{shared.noAttachments}</UiText> : null}
+          <UiText accessibilityRole="header" variant="headlineSmall">{copy.attachments}</UiText>
+          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.attachmentsEmpty}</UiText> : null}
           </>, (file) => (
             <AttachmentRow
               key={file.id}
@@ -91,7 +91,8 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
           {!filesLocked && !preview ? (
             <UploadPicker
               intent={`admissions:${application.id}`}
-              policy={DOCUMENT_POLICY}
+              policy={ADMISSION_POLICY}
+              tooLargeMessage={copy.uploadTooLarge}
               disabled={busy}
               upload={(part, key, signal) => contentApi.admissionsUpload(application.id, part, key, signal)}
               onUploaded={onUploaded}
@@ -129,6 +130,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
               <StatusChip code={application.status} labels={copy.statusLabels} />
             </View>
           </ContentHero>
+          {phase === 'editable' ? <UiText variant="label" tone="muted" style={{ marginTop: 8 }}>{copy.editableHint}</UiText> : null}
           {phase === 'returned' ? <UiText variant="label" tone="warning" style={{ marginTop: 8 }}>{copy.returnedHint}</UiText> : null}
           {phase === 'locked' ? <UiText variant="label" tone="muted" style={{ marginTop: 8 }}>{copy.locked}</UiText> : null}
           {phase === 'terminal' ? <UiText variant="label" tone="muted" style={{ marginTop: 8 }}>{copy.terminal}</UiText> : null}

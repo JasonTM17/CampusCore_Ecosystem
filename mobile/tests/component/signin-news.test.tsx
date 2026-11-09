@@ -111,13 +111,26 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByText('Lịch thi cuối kỳ đã công bố')).toBeOnTheScreen();
     expect(screen.getByText('Thông báo khẩn của trường')).toBeOnTheScreen();
     // Category pill via the label helper, cover image, "Đọc bài" cue.
-    expect(screen.getByText('Học vụ')).toBeOnTheScreen();
+    expect(screen.getAllByText('Học vụ').length).toBeGreaterThan(0);
     expect(screen.getByTestId('signin-news-cover')).toBeOnTheScreen();
     expect(screen.getByText(shellMessages.vi.guest.readArticle)).toBeOnTheScreen();
     // Only the URGENT row carries the "Khẩn" pill.
     expect(screen.getAllByText('Khẩn').length).toBe(1);
     // The OIDC entry point is never blocked by the feed.
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
+  });
+
+  test('the guest news block carries the web description and category counts', async () => {
+    mockQuery.value.data = paged(ITEMS);
+    await renderScreen();
+    expect(screen.getByText('Thông báo học vụ, sự kiện học thuật, thành tựu nghiên cứu khoa học và chính sách đào tạo chính thức từ Trường Đại học Công nghệ Kỹ thuật TP.HCM.')).toBeOnTheScreen();
+    const all = screen.getByRole('button', { name: 'Tất cả bài viết' });
+    expect(within(all).getByText('3')).toBeOnTheScreen();
+    const academic = screen.getByRole('button', { name: 'Học vụ' });
+    expect(within(academic).getByText('1')).toBeOnTheScreen();
+    await fireEvent.press(academic);
+    expect(screen.getByText('Lịch thi cuối kỳ đã công bố')).toBeOnTheScreen();
+    expect(screen.queryByText('Thông báo khẩn của trường')).toBeNull();
   });
 
   test('a card opens the guest news detail route and see-all opens the feed', async () => {
@@ -151,14 +164,14 @@ describe('sign-in guest news feed', () => {
     mockQuery.value = { data: undefined, error: null, warning: null, isLoading: true, errorStatus: null };
     await renderScreen();
     expect(screen.getByTestId('signin-news-loading')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
   });
 
   test('empty feed shows the quiet empty state', async () => {
     mockQuery.value.data = paged([]);
     await renderScreen();
     expect(screen.getByTestId('signin-news-empty')).toBeOnTheScreen();
-    expect(screen.getByText('Chưa có bài viết')).toBeOnTheScreen();
+    expect(screen.getByText('Chưa có bản tin nào được công bố')).toBeOnTheScreen();
   });
 
   test('error shows a retry that reloads without touching sign-in', async () => {
@@ -168,7 +181,7 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByText('Không thể tải dữ liệu')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.guest.retry }));
     expect(mockReload).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
   });
 
   test('error announcement is separate from its retry action', async () => {
@@ -195,7 +208,7 @@ describe('sign-in guest news feed', () => {
     await renderScreen('en');
     expect(screen.getByText('CAMPUS PRESS & MAGAZINE')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'HCMUTE Academic Life & Innovation' })).toBeOnTheScreen();
-    expect(screen.getByText('No articles yet')).toBeOnTheScreen();
+    expect(screen.getByText('No announcements published yet')).toBeOnTheScreen();
   });
 
   test.each([
@@ -208,7 +221,7 @@ describe('sign-in guest news feed', () => {
     });
     await renderScreen(locale);
     await fireEvent.press(screen.getByRole('button', {
-      name: locale === 'vi' ? 'Đăng nhập bằng CampusUTE ID' : 'Sign in with CampusUTE ID',
+      name: locale === 'vi' ? 'Đăng nhập bằng tài khoản campus' : 'Sign in with your campus account',
     }));
 
     expect(await screen.findByText(message)).toBeOnTheScreen();

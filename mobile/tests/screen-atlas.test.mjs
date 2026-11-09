@@ -185,7 +185,7 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   const accountCopy = fs.readFileSync(path.join(mobileRoot, 'src/i18n/account-messages.ts'), 'utf8');
   assert.match(signIn, /const isPreview = apiClient\.mode === 'preview'/);
   assert.match(accountCopy, /explore: 'Explore preview'/);
-  assert.match(accountCopy, /signIn: 'Sign in with CampusUTE ID'/);
+  assert.match(accountCopy, /signIn: 'Sign in with your campus account'/);
   assert.match(signIn, /copy\.signIn\.explore/);
   assert.match(signIn, /copy\.signIn\.signIn/);
   assert.match(signIn, /navigation\.enterPreview\(\)/);

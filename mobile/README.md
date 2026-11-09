@@ -163,7 +163,7 @@ start --android` dev-client path is equivalent in dev mode (dev falls back to
 the default issuer when unset) but is not part of this verification.
 
 Sign in with `student@campuscore.edu` and the public demo password documented
-in `docs/DEMO_RUNBOOK.md`. Expected: guest Home → Đăng nhập bằng CampusUTE ID →
+in `docs/DEMO_RUNBOOK.md`. Expected: guest Home → Đăng nhập bằng tài khoản campus →
 system browser opens the local login page at `10.0.2.2:4010` → the app returns
 to the student dashboard populated from the local DB.
 
