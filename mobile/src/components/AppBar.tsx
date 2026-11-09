@@ -46,7 +46,8 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
   const { copy } = useShellCopy();
   const roleLabel = applicant ? copy.roles.applicant : role ? copy.roles[role] : null;
   const preview = apiClient.mode === 'preview';
-  const brandVariant = window.fontScale >= 1.3 ? 'meta' : 'headlineSmall';
+  const largeChrome = window.fontScale >= chromeFontScaleCap - 0.01;
+  const brandVariant = largeChrome ? 'meta' : 'headlineSmall';
   const unread = unreadCount > 0 ? unreadCount : undefined;
   const notificationsLabel = unread === undefined
     ? copy.notifications.title
@@ -72,11 +73,18 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
           <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
             CampusUTE
           </UiText>
-          {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
+          {roleLabel && largeChrome ? <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
         </View>
-        {roleLabel && window.fontScale < 1.3 && !preview ? (
+        {roleLabel && !largeChrome && !preview ? (
           <View style={[styles.rolePill, { backgroundColor: chrome.overlay }]}>
-            <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
+            <UiText
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              variant="meta"
+              maxFontSizeMultiplier={chromeFontScaleCap}
+              style={{ color: chrome.onSurface, flexShrink: 1, minWidth: 0 }}
+            >
               {roleLabel}
             </UiText>
           </View>
