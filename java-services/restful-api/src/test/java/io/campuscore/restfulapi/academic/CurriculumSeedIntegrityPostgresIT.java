@@ -3,7 +3,11 @@ package io.campuscore.restfulapi.academic;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.campuscore.restfulapi.academic.service.AcademicReadService;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +35,26 @@ class CurriculumSeedIntegrityPostgresIT {
             + " 'curriculum-etec', 'curriculum-robot', 'curriculum-manuf', 'curriculum-autoeng',"
             + " 'curriculum-bimeng', 'curriculum-civil', 'curriculum-bte', 'curriculum-fin',"
             + " 'curriculum-lscm')";
+
+    private static final String HISTORY_COURSE_CODES = "('SE401', 'SE402', 'SE403', 'SE404', 'SE405', 'SE406',"
+            + " 'SE407', 'SE408', 'SE409', 'SE410', 'SE411', 'SE412')";
+
+    private static final Map<String, Integer> DECLARED_PROGRAM_TOTALS = Map.ofEntries(
+            Map.entry("curriculum-ais", 148),
+            Map.entry("curriculum-auto", 150),
+            Map.entry("curriculum-autoeng", 150),
+            Map.entry("curriculum-bimeng", 146),
+            Map.entry("curriculum-bte", 138),
+            Map.entry("curriculum-civil", 147),
+            Map.entry("curriculum-etec", 150),
+            Map.entry("curriculum-fin", 140),
+            Map.entry("curriculum-isbd", 145),
+            Map.entry("curriculum-lscm", 142),
+            Map.entry("curriculum-manuf", 148),
+            Map.entry("curriculum-mis", 145),
+            Map.entry("curriculum-netsec", 152),
+            Map.entry("curriculum-robot", 149),
+            Map.entry("curriculum-se", 150));
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -102,12 +126,71 @@ class CurriculumSeedIntegrityPostgresIT {
                         rs.getInt("totalCredits"),
                         rs.getInt("mandatory_credits")));
 
-        System.out.println("CURRICULUM_CREDIT_BALANCES=" + balances);
-        assertThat(balances.stream()
-                .filter(balance -> balance.declaredCredits() != balance.mandatoryCredits())
+        List<StudentHistoryCredits> history = jdbc.query(
+                "SELECT curriculum.\"id\" AS curriculum_id, student.\"id\" AS student_id,"
+                        + " COALESCE(SUM(enrollment.\"creditsSnapshot\"), 0)::integer AS earned_credits"
+                        + " FROM academic.\"Curriculum\" curriculum"
+                        + " JOIN academic.\"Student\" student ON student.\"curriculumId\" = curriculum.\"id\""
+                        + " LEFT JOIN academic.\"Enrollment\" enrollment"
+                        + " ON enrollment.\"studentId\" = student.\"id\""
+                        + " AND enrollment.\"id\" LIKE 'enrollment-history-%'"
+                        + " AND enrollment.\"semesterId\" = 'semester-history-demo'"
+                        + " AND enrollment.\"status\" = 'COMPLETED'"
+                        + " AND enrollment.\"gradeStatus\" IN ('PUBLISHED', 'APPEALED')"
+                        + " AND COALESCE(enrollment.\"letterGrade\", '') <> 'F'"
+                        + " AND enrollment.\"courseId\" IN (SELECT course.\"id\" FROM academic.\"Course\" course"
+                        + " WHERE course.\"code\" IN " + HISTORY_COURSE_CODES + ")"
+                        + " WHERE curriculum.\"id\" IN " + SEEDED_CURRICULA
+                        + " GROUP BY curriculum.\"id\", student.\"id\""
+                        + " ORDER BY curriculum.\"id\", student.\"id\"",
+                (rs, rowNum) -> new StudentHistoryCredits(
+                        rs.getString("curriculum_id"),
+                        rs.getString("student_id"),
+                        rs.getInt("earned_credits")));
+
+        Map<String, List<StudentHistoryCredits>> historyByCurriculum = new LinkedHashMap<>();
+        for (StudentHistoryCredits row : history) {
+            historyByCurriculum.computeIfAbsent(row.curriculumId(), ignored -> new ArrayList<>()).add(row);
+        }
+
+        List<CurriculumAudit> audits = balances.stream()
+                .map(balance -> audit(balance, historyByCurriculum.getOrDefault(balance.curriculumId(), List.of())))
+                .toList();
+        System.out.println("CURRICULUM_TOTAL_AUDIT=" + audits);
+        assertThat(audits)
+                .as("seeded curricula")
+                .hasSize(16);
+        assertThat(audits.stream()
+                .filter(audit -> audit.expectedCredits() != null && audit.declaredCredits() != audit.expectedCredits())
                 .toList())
-                .as("declared curriculum credits versus mandatory linked course credits")
+                .as("declared program totals")
                 .isEmpty();
+        assertThat(audits.stream()
+                .filter(audit -> audit.expectedCredits() != null && audit.declaredCredits() < audit.maxHistoryCredits())
+                .toList())
+                .as("declared program totals versus completed history credits")
+                .isEmpty();
+        CurriculumAudit demo = audits.stream()
+                .filter(audit -> "curriculum-demo".equals(audit.curriculumId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(demo.declaredCredits())
+                .as("curriculum-demo declared credits versus mandatory linked course credits")
+                .isEqualTo(demo.mandatoryCredits());
+    }
+
+    private static CurriculumAudit audit(CreditBalance balance, List<StudentHistoryCredits> history) {
+        StudentHistoryCredits top = history.stream()
+                .max(Comparator.comparingInt(StudentHistoryCredits::earnedCredits))
+                .orElse(null);
+        return new CurriculumAudit(
+                balance.curriculumId(),
+                balance.declaredCredits(),
+                balance.mandatoryCredits(),
+                history.size(),
+                top == null ? null : top.studentId(),
+                top == null ? 0 : top.earnedCredits(),
+                DECLARED_PROGRAM_TOTALS.get(balance.curriculumId()));
     }
 
     @Test
@@ -145,5 +228,18 @@ class CurriculumSeedIntegrityPostgresIT {
     }
 
     private record CreditBalance(String curriculumId, int declaredCredits, int mandatoryCredits) {
+    }
+
+    private record StudentHistoryCredits(String curriculumId, String studentId, int earnedCredits) {
+    }
+
+    private record CurriculumAudit(
+            String curriculumId,
+            int declaredCredits,
+            int mandatoryCredits,
+            int studentCount,
+            String topStudentId,
+            int maxHistoryCredits,
+            Integer expectedCredits) {
     }
 }

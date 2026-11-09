@@ -395,14 +395,13 @@ public class RegistrationService {
                 if (cachedRoster.isEmpty()) {
                     // Only completed history justifies an empty active roster;
                     // an all-dropped term must not certify a retired snapshot.
-                    Integer completed = jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM " + ENROLLMENT
-                                    + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId"
-                                    + " AND \"status\" = 'COMPLETED'",
-                            new MapSqlParameterSource("studentId", studentId)
-                                    .addValue("semesterId", cachedSemesterId), Integer.class);
-                    if (completed != null && completed > 0) {
-                        return new SlipPayload(String.valueOf(row.get("sha256")).trim(), payload);
+                    cachedRoster = completedEnrollmentsForSlip(studentId, cachedSemesterId);
+                    if (!cachedRoster.isEmpty()) {
+                        RenderedSlip expected = renderActiveRoster(studentId, cachedSemesterId, cachedRoster);
+                        String storedDigest = String.valueOf(row.get("sha256")).trim();
+                        if (expected.sha256().equals(storedDigest) && expected.sha256().equals(sha256(payload))) {
+                            return new SlipPayload(storedDigest, payload);
+                        }
                     }
                 } else {
                     RenderedSlip expected = renderActiveRoster(studentId, cachedSemesterId, cachedRoster);
@@ -1055,6 +1054,20 @@ public class RegistrationService {
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                         + " WHERE enrollment.\"studentId\" = :studentId AND enrollment.\"semesterId\" = :semesterId"
                         + " AND enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED')"
+                        + " ORDER BY course.\"code\", section.\"sectionNumber\"",
+                new MapSqlParameterSource().addValue("studentId", studentId).addValue("semesterId", semesterId));
+    }
+
+    private List<Map<String, Object>> completedEnrollmentsForSlip(String studentId, String semesterId) {
+        return jdbc.queryForList(
+                "SELECT enrollment.\"id\", enrollment.\"sectionId\" AS section_id, enrollment.\"courseId\" AS course_id,"
+                        + " enrollment.\"roundId\" AS round_id, course.\"credits\" AS credits,"
+                        + " course.\"code\" AS course_code, course.\"name\" AS course_name, section.\"sectionNumber\" AS section_number"
+                        + " FROM " + ENROLLMENT + " enrollment"
+                        + " JOIN " + SECTION + " section ON section.\"id\" = enrollment.\"sectionId\""
+                        + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
+                        + " WHERE enrollment.\"studentId\" = :studentId AND enrollment.\"semesterId\" = :semesterId"
+                        + " AND enrollment.\"status\" = 'COMPLETED'"
                         + " ORDER BY course.\"code\", section.\"sectionNumber\"",
                 new MapSqlParameterSource().addValue("studentId", studentId).addValue("semesterId", semesterId));
     }

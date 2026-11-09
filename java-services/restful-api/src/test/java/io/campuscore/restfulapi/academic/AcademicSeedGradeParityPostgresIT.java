@@ -48,10 +48,38 @@ class AcademicSeedGradeParityPostgresIT {
                           WHEN "finalGrade" >= 7.0 THEN 'B'
                           WHEN "finalGrade" >= 6.5 THEN 'C+'
                           WHEN "finalGrade" >= 5.5 THEN 'C'
+                          WHEN "finalGrade" >= 5.0 THEN 'D+'
                           WHEN "finalGrade" >= 4.0 THEN 'D'
                           ELSE 'F'
                       END
                     """)).isZero();
+        }
+    }
+
+    @Test
+    void secondaryGradeBandCheckMatchesCanonicalBands() throws Exception {
+        String lowerGradeCase = """
+                CASE
+                    WHEN "finalGrade" >= 8.5 THEN 'A'
+                    WHEN "finalGrade" >= 8.0 THEN 'B+'
+                    WHEN "finalGrade" >= 7.0 THEN 'B'
+                    WHEN "finalGrade" >= 6.5 THEN 'C+'
+                    WHEN "finalGrade" >= 5.5 THEN 'C'
+                    WHEN "finalGrade" >= 5.0 THEN 'D+'
+                    WHEN "finalGrade" >= 4.0 THEN 'D'
+                    ELSE 'F'
+                END
+                """;
+        String query = """
+                SELECT COUNT(*) FROM (VALUES
+                    (0.0::numeric), (3.99), (4.0), (4.5), (4.99), (5.0), (5.25), (5.49),
+                    (5.5), (6.49), (6.5), (6.99), (7.0), (7.99), (8.0),
+                    (8.49), (8.5), (8.99)
+                ) grades("finalGrade")
+                WHERE (%s) IS DISTINCT FROM (%s)
+                """.formatted(lowerGradeCase, CANONICAL_LETTER);
+        try (Connection connection = SeedPostgresITSupport.connect()) {
+            assertThat(SeedPostgresITSupport.count(connection, query)).isZero();
         }
     }
 }

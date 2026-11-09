@@ -135,6 +135,52 @@ class RegistrationSlipContentPersistenceTest {
         assertThat(text).contains("__PAGE_COUNT__=2", "13 TC");
     }
 
+    @Test
+    void completedHistoryRegeneratesStaleSlipCache() throws Exception {
+        byte[] stalePayload = legacyAsciiSlip();
+        String staleDigest = sha256(stalePayload);
+        jdbc.update(
+                "INSERT INTO \"academic\".\"Course\" (\"id\", \"code\", \"name\", \"nameEn\", \"nameVi\", \"credits\") VALUES (?, ?, ?, ?, ?, ?)",
+                "course-history", "SE101", "Lập trình tiếng Việt", "Vietnamese Programming", "Lập trình tiếng Việt", 3);
+        jdbc.update(
+                "INSERT INTO \"academic\".\"Section\""
+                        + " (\"id\", \"sectionNumber\", \"courseId\", \"semesterId\", \"capacity\", \"enrolledCount\", \"status\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "section-history", "01", "course-history", SEMESTER_ID, 35, 1, "CLOSED");
+        jdbc.update(
+                "INSERT INTO \"academic\".\"Enrollment\""
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"enrolledAt\","
+                        + " \"gradeStatus\", \"finalGrade\", \"letterGrade\", \"courseId\", \"roundId\", \"creditsSnapshot\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "enrollment-history", STUDENT_ID, "section-history", SEMESTER_ID, "COMPLETED",
+                Timestamp.from(Instant.now()), "PUBLISHED", 8.0, "B", "course-history", ROUND_ID, 3);
+        jdbc.update(
+                "INSERT INTO \"academic\".\"RegistrationSlip\""
+                        + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "legacy-slip", STUDENT_ID, SEMESTER_ID, ROUND_ID, staleDigest, stalePayload.length, stalePayload);
+
+        assertThat(extractPdfText(stalePayload)).contains("PHIEU DANG KY HOC PHAN");
+        RegistrationService.SlipPayload refreshed = registrationService.slip(STUDENT_ID, SEMESTER_ID);
+
+        assertThat(refreshed.payload()).as("completed-history cache uses the current renderer").isNotEqualTo(stalePayload);
+        assertThat(refreshed.sha256()).isEqualTo(sha256(refreshed.payload())).isNotEqualTo(staleDigest);
+        assertThat(jdbc.queryForObject(
+                        "SELECT \"sha256\" FROM \"academic\".\"RegistrationSlip\" WHERE \"studentId\" = ?",
+                        String.class,
+                        STUDENT_ID))
+                .isEqualTo(refreshed.sha256());
+        assertThat(jdbc.queryForObject(
+                        "SELECT \"payload\" FROM \"academic\".\"RegistrationSlip\" WHERE \"studentId\" = ?",
+                        byte[].class,
+                        STUDENT_ID))
+                .isEqualTo(refreshed.payload());
+
+        RegistrationService.SlipPayload second = registrationService.slip(STUDENT_ID, SEMESTER_ID);
+        assertThat(second.sha256()).isEqualTo(refreshed.sha256());
+        assertThat(second.payload()).isEqualTo(refreshed.payload());
+    }
+
     private void enrollCourse(String courseId, String courseCode, String sectionId, int credits, String key) {
         jdbc.update(
                 "INSERT INTO \"academic\".\"Course\" (\"id\", \"code\", \"name\", \"nameEn\", \"nameVi\", \"credits\") VALUES (?, ?, ?, ?, ?, ?)",
@@ -172,6 +218,32 @@ class RegistrationSlipContentPersistenceTest {
 
     private static String sha256(byte[] value) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
+    }
+
+    private static byte[] legacyAsciiSlip() {
+        String content = "BT /F1 12 Tf 72 720 Td (PHIEU DANG KY HOC PHAN) Tj ET\n";
+        String[] objects = {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            "<< /Length " + content.length() + " >>\nstream\n" + content + "endstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+        };
+        StringBuilder pdf = new StringBuilder("%PDF-1.4\n");
+        int[] offsets = new int[objects.length + 1];
+        for (int index = 0; index < objects.length; index++) {
+            offsets[index + 1] = pdf.length();
+            pdf.append(index + 1).append(" 0 obj\n").append(objects[index]).append("\nendobj\n");
+        }
+        int xrefOffset = pdf.length();
+        pdf.append("xref\n0 ").append(offsets.length).append("\n0000000000 65535 f \n");
+        for (int index = 1; index < offsets.length; index++) {
+            String offset = Integer.toString(offsets[index]);
+            pdf.append("0".repeat(10 - offset.length())).append(offset).append(" 00000 n\n");
+        }
+        pdf.append("trailer\n<< /Size ").append(offsets.length).append(" /Root 1 0 R >>\nstartxref\n")
+                .append(xrefOffset).append("\n%%EOF\n");
+        return pdf.toString().getBytes(StandardCharsets.US_ASCII);
     }
 
     private void createTables() {

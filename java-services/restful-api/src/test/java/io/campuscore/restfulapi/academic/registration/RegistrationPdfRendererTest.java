@@ -236,6 +236,160 @@ class RegistrationPdfRendererTest {
         }
     }
 
+    @Test
+    void keepsByteIdenticalOutputForUnchangedInputs() throws Exception {
+        assertThat(sha256(renderer.render("student-123", "sem-2026-1", "enr-abc", "sec-xyz")))
+                .isEqualTo("fe51f8241efd1c49fe18b60d07f8b1bfb6331782f4177491ddac74f436659aa9");
+
+        java.util.List<RegistrationPdfRenderer.CourseItem> courses = java.util.List.of(
+                new RegistrationPdfRenderer.CourseItem(
+                        "CS201", "Lập trình hướng đối tượng", "01", 3, "enr-vi", "sec-vi"));
+        byte[] enriched = renderer.renderEnriched(
+                "stu-vi",
+                "22110001",
+                "Nguyễn Thị Hằng",
+                "sem-vi",
+                "Học kỳ II, năm học 2026 - 2027",
+                "enr-vi",
+                "sec-vi",
+                courses);
+        assertThat(sha256(enriched))
+                .isEqualTo("9442e5aa36d44fa80e6cf9a1313c8dc5e784ca6dcbf6f36b790a6950556c9cca");
+    }
+
+    @Test
+    void publishesCompressedFontBytesAtLoadTime() throws Exception {
+        Class<?> resources = Class.forName(
+                "io.campuscore.restfulapi.academic.registration.RegistrationPdfRenderer$FontResources");
+        java.lang.reflect.Field regularField = resources.getDeclaredField("REGULAR");
+        regularField.setAccessible(true);
+        Object font = regularField.get(null);
+        java.lang.reflect.Field compressedField = font.getClass().getDeclaredField("compressedBytes");
+        assertThat(java.lang.reflect.Modifier.isFinal(compressedField.getModifiers()))
+                .withFailMessage("compressed font bytes must be safely published")
+                .isTrue();
+        compressedField.setAccessible(true);
+        assertThat((byte[]) compressedField.get(font)).isNotEmpty();
+    }
+
+    @Test
+    void truncatesCourseNamesOnCodePointBoundaries() throws Exception {
+        String emojiName = "😀".repeat(40);
+        byte[] emojiPdf = renderEnrichedWithCourseName(emojiName);
+        String emojiExtracted = extractText(emojiPdf);
+        assertThat(emojiExtracted.lines()).contains("?".repeat(33) + "...");
+        assertThat(hasLoneSurrogate(emojiExtracted)).isFalse();
+        assertNoLoneSurrogatesInUnicodeMaps(emojiPdf);
+
+        String vietnameseName = "Lập trình hướng đối tượng nâng cao mở rộng";
+        String vietnameseExtracted = extractText(renderEnrichedWithCourseName(vietnameseName));
+        assertThat(vietnameseExtracted.lines()).contains(graphemeSafePrefix(vietnameseName, 33) + "...");
+
+        String decomposedName = java.text.Normalizer.normalize(vietnameseName, java.text.Normalizer.Form.NFD);
+        String decomposedExtracted = extractText(renderEnrichedWithCourseName(decomposedName));
+        assertThat(decomposedExtracted.lines()).contains(graphemeSafePrefix(decomposedName, 33) + "...");
+        assertThat(hasLoneSurrogate(decomposedExtracted)).isFalse();
+    }
+
+    @Test
+    void truncatesLongNamesAndLegacyLineInsideThePage() throws Exception {
+        String studentName = "Nguyễn Văn An ".repeat(20).trim();
+        String semesterName = "Học kỳ II, năm học 2026 - 2027 ".repeat(3).trim();
+        String studentId = "student-" + "x".repeat(80);
+        String semesterId = "semester-" + "y".repeat(80);
+        String enrollmentId = "enrollment-" + "z".repeat(80);
+        String sectionId = "section-" + "w".repeat(80);
+        byte[] pdf = renderer.renderEnriched(
+                studentId,
+                "22110001",
+                studentName,
+                semesterId,
+                semesterName,
+                enrollmentId,
+                sectionId,
+                java.util.List.of(new RegistrationPdfRenderer.CourseItem(
+                        "CS101", "Nhập môn lập trình", "01", 3, enrollmentId, sectionId)));
+        String extracted = extractText(pdf);
+
+        String expectedStudentName = studentName.substring(0, studentName.offsetByCodePoints(0, 21)) + "...";
+        assertThat(extracted.lines()).contains(expectedStudentName);
+        String expectedSemesterName = semesterName.substring(0, semesterName.offsetByCodePoints(0, 30)) + "...";
+        assertThat(extracted.lines()).contains(expectedSemesterName);
+
+        String legacyLine = "CampusUTE registration slip student=" + studentId
+                + " semester=" + semesterId
+                + " enrollment=" + enrollmentId
+                + " section=" + sectionId;
+        assertThat(extracted.lines()).contains(legacyLine.substring(0, legacyLine.offsetByCodePoints(0, 99)) + "...");
+        assertThat(extracted).doesNotContain(studentName);
+        assertThat(extracted).doesNotContain(legacyLine);
+        assertThat(extracted.lines()
+                .filter(line -> line.startsWith("CampusUTE registration slip"))
+                .mapToInt(line -> line.codePointCount(0, line.length()))
+                .max()
+                .orElse(0))
+                .isLessThanOrEqualTo(102);
+    }
+
+    private byte[] renderEnrichedWithCourseName(String courseName) {
+        return renderer.renderEnriched(
+                "stu-1",
+                "22110001",
+                "Short Name",
+                "sem-1",
+                "Semester 1",
+                "enr-1",
+                "sec-1",
+                java.util.List.of(new RegistrationPdfRenderer.CourseItem(
+                        "CS101", courseName, "01", 3, "enr-1", "sec-1")));
+    }
+
+    private static String sha256(byte[] value) throws Exception {
+        return java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(value));
+    }
+
+    private static String graphemeSafePrefix(String text, int maxCodePoints) {
+        int maxOffset = text.offsetByCodePoints(0, Math.min(maxCodePoints, text.codePointCount(0, text.length())));
+        java.text.BreakIterator boundaries = java.text.BreakIterator.getCharacterInstance();
+        boundaries.setText(text);
+        int end = 0;
+        while (boundaries.next() != java.text.BreakIterator.DONE && boundaries.current() <= maxOffset) {
+            end = boundaries.current();
+        }
+        return text.substring(0, end);
+    }
+
+    private static boolean hasLoneSurrogate(String text) {
+        for (int index = 0; index < text.length(); index++) {
+            char character = text.charAt(index);
+            if (Character.isHighSurrogate(character)) {
+                if (index + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(index + 1))) {
+                    return true;
+                }
+                index++;
+            } else if (Character.isLowSurrogate(character)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void assertNoLoneSurrogatesInUnicodeMaps(byte[] pdfBytes) {
+        String pdf = new String(pdfBytes, StandardCharsets.US_ASCII);
+        Matcher mapping = Pattern.compile("<([0-9A-Fa-f]{4})>\\s*<([0-9A-Fa-f]+)>").matcher(pdf);
+        while (mapping.find()) {
+            String hex = mapping.group(2);
+            StringBuilder value = new StringBuilder();
+            for (int index = 0; index + 4 <= hex.length(); index += 4) {
+                value.append((char) Integer.parseInt(hex.substring(index, index + 4), 16));
+            }
+            assertThat(hasLoneSurrogate(value.toString()))
+                    .withFailMessage("Unicode map contains a lone surrogate: " + hex)
+                    .isFalse();
+        }
+    }
+
     private static void assertXrefOffsetsAreValid(String pdfString) {
         String startXrefMarker = "startxref\r\n";
         int startXrefValue = pdfString.indexOf(startXrefMarker) + startXrefMarker.length();
