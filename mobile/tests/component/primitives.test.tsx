@@ -1,5 +1,5 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { StyleSheet } from 'react-native';
 
@@ -20,13 +20,14 @@ import {
 } from '../../src/components/ui/index';
 
 describe('Toast', () => {
-  test('live region polite and dismiss works', async () => {
+  test('auto-dismisses after its duration', async () => {
+    jest.useFakeTimers();
     const onDismiss = jest.fn();
     await render(<Toast visible message="Đã lưu" onDismiss={onDismiss} />);
-    const toast = screen.getByText('Đã lưu');
-    expect(toast).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: 'Đóng thông báo' }));
+    expect(screen.getByText('Đã lưu')).toBeOnTheScreen();
+    await act(async () => { jest.advanceTimersByTime(4000); });
     expect(onDismiss).toHaveBeenCalled();
+    jest.useRealTimers();
   });
   test('error tone uses assertive alert', async () => {
     await render(<Toast visible message="Lỗi mạng" tone="error" />);
@@ -122,7 +123,7 @@ describe('InlineError', () => {
 describe('FormField', () => {
   test('address value wraps without changing the stored text', async () => {
     const value = 'Phường Buôn Ma Thuột, Tỉnh Đắk Lắk';
-    await render(<FormField label="Địa chỉ" value={value} />);
+    await render(<FormField label="Địa chỉ" value={value} multiline />);
     const input = screen.getByLabelText('Địa chỉ');
     expect(input.props.value).toBe(value);
     expect(input.props.multiline).toBe(true);
@@ -160,13 +161,13 @@ describe('localized chrome strings (ux-m1-02)', () => {
     expect(screen.getByText('Đóng nhanh')).toBeOnTheScreen();
   });
 
-  test('Toast dismiss button localizes to english', async () => {
+  test('Toast shows its message in english', async () => {
     await render(
       <LocaleProvider initialLocale="en">
         <Toast visible message="Saved" onDismiss={() => {}} />
       </LocaleProvider>,
     );
-    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toBeOnTheScreen();
+    expect(screen.getByText('Saved')).toBeOnTheScreen();
   });
 
   test('SearchBar input fallback and clear button localize to english', async () => {

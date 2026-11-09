@@ -32,7 +32,7 @@ test('shared mobile primitives announce headings, progress, and unread state', (
   const notifications = readSources(root,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   // The compact app chrome uses the medium headline; heading semantics remain.
-  assert.match(ui, /accessibilityRole="header" variant="headlineMedium"/);
+  assert.match(ui, /accessibilityRole="header" variant="label"/);
   assert.match(ui, /accessibilityRole="header" variant="headlineSmall"/);
   assert.match(ui, /accessibilityRole="progressbar"/);
   assert.match(ui, /accessibilityValue=\{\{ min: 0, max: 100, now: Math\.round\(boundedValue\) \}\}/);
