@@ -9,14 +9,13 @@ import type { MobileCareerOpportunity } from '../../api/client';
 import { careersMessages } from '../../i18n/careers-messages';
 import { DOCUMENT_POLICY } from './attachment-transfer';
 import { contentApi, type CareerApplicationView } from './content-api';
-import { employmentTypeLabel, isApplicationWithdrawable } from './content-rules';
+import { employmentTypeLabel, isApplicationWithdrawable, careerApplicationTone } from './content-rules';
 import {
   AttachmentRow,
   ContentHero,
   DetailFrame,
   FlashNotice,
   MetaRow,
-  StatusChip,
   UploadPicker,
   useContentCopy,
   type Flash,
@@ -49,7 +48,7 @@ export function OpportunityDetail({ opportunity, alreadyApplied, busy, preview, 
           <ContentHero title={opportunity.title} icon="briefcase-outline" detail={opportunity.organizationName ?? undefined}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
               {!open ? <StatusPill label={copy.notOpen} tone="warning" /> : null}
-              {alreadyApplied ? <StatusPill label={copy.alreadyApplied} tone="success" /> : null}
+              {alreadyApplied ? <StatusPill label={copy.appliedBadge} tone="success" /> : null}
             </View>
           </ContentHero>
           {opportunity.description ? <UiText variant="bodyLarge" style={{ marginTop: 16 }}>{opportunity.description}</UiText> : null}
@@ -139,7 +138,7 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
             detail={application.organizationName ?? undefined}
           >
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
-              <StatusChip code={application.status} labels={copy.statusLabels} />
+              <StatusPill label={copy.statusLabels[application.status] ?? application.status} tone={careerApplicationTone(application.status)} />
             </View>
           </ContentHero>
           <View style={{ gap: 4 }}>
