@@ -32,6 +32,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
     searchNotificationRecipients: jest.fn(),
     enrollments: jest.fn(),
     creditApplications: jest.fn(),
+    analytics: jest.fn(),
     thesisRounds: jest.fn(),
     deanOverview: jest.fn(),
   },
@@ -507,5 +508,143 @@ describe('queue card head', () => {
     const heading = screen.getByRole('header', { name: title });
     expect(heading.props.numberOfLines).toBeUndefined();
     expect(StyleSheet.flatten(heading.parent?.props.style).flexDirection).toBe('row');
+  });
+});
+
+describe('dean overview web parity', () => {
+  beforeEach(() => {
+    mockFlags.dean = true;
+    mockSession.role = 'lecturer';
+    mockSession.capabilities = ['dean.overview'];
+    api.thesisRounds.mockResolvedValue([{ id: 'r1', name: 'Round 1', status: 'OPEN' }]);
+  });
+
+  test('shows the seven faculty metrics with the web formulas', async () => {
+    api.deanOverview.mockResolvedValue({
+      faculty: { facultyName: 'Khoa Công nghệ Thông tin' },
+      stats: {
+        totalGroups: 11,
+        groupsPendingApproval: 2,
+        groupsApproved: 5,
+        groupsRejected: 1,
+        groupsWithoutTopic: 3,
+        totalMembers: 27,
+        facultyTopics: 9,
+        supervisorCount: 4,
+        byDepartment: [],
+      },
+      supervisors: [],
+      groups: [],
+    });
+    await renderThemed(<LaneRoute id="dean.overview" />);
+    await waitFor(() => expect(screen.getByText('Quan sát khóa luận toàn khoa')).toBeTruthy());
+    for (const [label, value] of [
+      ['Nhóm', '11'],
+      ['Chờ xét duyệt', '2'],
+      ['Đã duyệt', '5'],
+      ['Chưa có đề tài', '3'],
+      ['Sinh viên tham gia', '27'],
+      ['Đề tài của khoa', '9'],
+      ['GV hướng dẫn', '4'],
+    ] as const) {
+      expect(screen.getByLabelText(`${label}: ${value}`)).toBeTruthy();
+    }
+    expect(screen.queryByText('Bị từ chối')).toBeNull();
+  });
+
+  test('a group row expands to members, supervisors and the rejection reason', async () => {
+    api.deanOverview.mockResolvedValue({
+      stats: { totalGroups: 1, groupsPendingApproval: 0, groupsApproved: 0, byDepartment: [] },
+      supervisors: [],
+      groups: [{
+        id: 'g1',
+        topicTitle: 'Hệ thống campus',
+        status: 'SUBMITTED',
+        approvalStatus: 'REJECTED',
+        departmentName: 'CNTT',
+        rejectionReason: 'Thiếu nhóm trưởng',
+        members: [
+          { displayName: 'Nguyễn Văn A', studentNumber: '21110001', isLeader: true },
+          { displayName: 'Trần Thị B', studentNumber: '21110002', isExternal: true },
+        ],
+        supervisors: [{ displayName: 'Giảng viên Một', employeeId: 'GV001', departmentName: 'Khoa CNTT' }],
+      }],
+    });
+    await renderThemed(<LaneRoute id="dean.overview" />);
+    await waitFor(() => expect(screen.getByText('Hệ thống campus')).toBeTruthy());
+    expect(screen.queryByText('Nguyễn Văn A')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Hệ thống campus' }));
+    expect(screen.getByText('Nguyễn Văn A')).toBeTruthy();
+    expect(screen.getByText('21110001')).toBeTruthy();
+    expect(screen.getByText('Nhóm trưởng')).toBeTruthy();
+    expect(screen.getByText('Ngoài trường')).toBeTruthy();
+    expect(screen.getByText('Giảng viên Một')).toBeTruthy();
+    expect(screen.getByText('GV001')).toBeTruthy();
+    expect(screen.getByText('Khoa CNTT')).toBeTruthy();
+    expect(screen.getByText('Thiếu nhóm trưởng')).toBeTruthy();
+    expect(screen.getByText('Đã gửi')).toBeTruthy();
+    expect(screen.getByText('Bị từ chối')).toBeTruthy();
+  });
+
+  test('uses the web title and supervisor section wording', async () => {
+    api.deanOverview.mockResolvedValue({
+      stats: { totalGroups: 0, groupsPendingApproval: 0, groupsApproved: 0, byDepartment: [] },
+      supervisors: [{ lecturerId: 'gv1', displayName: 'Giảng viên Một', supervisedGroups: 1, supervisedTopics: 1 }],
+      groups: [],
+    });
+    await renderThemed(<LaneRoute id="dean.overview" />);
+    await waitFor(() => expect(screen.getByText('Khối lượng hướng dẫn')).toBeTruthy());
+    expect(screen.getByText('Quan sát khóa luận toàn khoa')).toBeTruthy();
+    expect(screen.getByText('Giảng viên đang hướng dẫn ít nhất một nhóm trong đợt.')).toBeTruthy();
+    expect(screen.getByText('Chờ xét duyệt')).toBeTruthy();
+  });
+});
+
+describe('admin overview web parity', () => {
+  beforeEach(() => {
+    mockFlags.admin = true;
+    mockSession.role = 'admin';
+    mockSession.capabilities = ['admin.oversight'];
+    api.analytics.mockResolvedValue({
+      totals: { students: 5, lecturers: 3, courses: 2, enrollments: 4 },
+      departments: [{ code: 'CNTT', name: 'Information Technology', students: 5, courses: 2, sections: 1 }],
+      gradeDistribution: [{ grade: 'A', count: 2 }],
+      semesterTrends: [{ semester: 'HK1', activeStudents: 5, completionRate: 80 }],
+      facultyRanks: [{ rank: 'PROFESSOR', count: 1 }],
+    });
+  });
+
+  test('KPI labels and detail lines match the web', async () => {
+    await renderThemed(<LaneRoute id="admin.overview" />);
+    await waitFor(() => expect(screen.getByText('Sinh viên')).toBeTruthy());
+    for (const [label, value, detail] of [
+      ['Sinh viên', '5', 'Hồ sơ người dùng hiện có.'],
+      ['Giảng viên', '3', 'Tài khoản giảng viên đang hoạt động.'],
+      ['Môn học', '2', 'Sẵn sàng mở lớp và đăng ký.'],
+      ['Đăng ký học phần', '4', 'Hồ sơ đăng ký hiện có.'],
+    ] as const) {
+      expect(screen.getByLabelText(`${label}: ${value}, ${detail}`)).toBeTruthy();
+      expect(screen.getByText(detail)).toBeTruthy();
+    }
+  });
+
+  test('page identity and management copy match the web', async () => {
+    await renderThemed(<LaneRoute id="admin.overview" />);
+    await waitFor(() => expect(screen.getByText('Tổng quan quản trị')).toBeTruthy());
+    expect(screen.getByText('Tổng quan campus')).toBeTruthy();
+    expect(screen.getByText('Quản lý tài khoản, hồ sơ học vụ, thông báo và luồng luận văn cốt lõi trong một cổng thống nhất.')).toBeTruthy();
+    expect(screen.getByText('Công cụ quản trị')).toBeTruthy();
+    expect(screen.getByText('Mở đúng khu vực cần xử lý.')).toBeTruthy();
+  });
+
+  test('analytics heading, live notice and chart titles match the web', async () => {
+    await renderThemed(<LaneRoute id="admin.overview" />);
+    await waitFor(() => expect(screen.getByText('Trung tâm phân tích & giám sát học vụ')).toBeTruthy());
+    expect(screen.getByText('Dữ liệu trực tiếp')).toBeTruthy();
+    expect(screen.getByText('Các biểu đồ dưới đây được vẽ trực tiếp từ API hồ sơ học vụ thực tế.')).toBeTruthy();
+    expect(screen.getByText('Theo khoa')).toBeTruthy();
+    expect(screen.getByText('Xu hướng ĐKHP')).toBeTruthy();
+    expect(screen.getByText('Đội ngũ giảng viên')).toBeTruthy();
+    expect(screen.getByText('Xếp loại học lực')).toBeTruthy();
   });
 });
