@@ -131,7 +131,7 @@ test('a second publish press during the post-publish reload is ignored', async (
   await screen.findByText('Alpha');
 
   await fireEvent.press(screen.getByRole('button', { name: copy.publishGrades }));
-  await fireEvent.press(screen.getByRole('button', { name: copy.publishConfirm }));
+  await fireEvent.press(screen.getAllByRole('button', { name: copy.publishConfirm }).at(-1)!);
   expect(await screen.findByText(copy.publishedOk)).toBeOnTheScreen();
   expect(mockRuntime.publishGrades).toHaveBeenCalledTimes(1);
 
@@ -170,7 +170,7 @@ test('same-frame repeated publish confirmation sends one request', async () => {
   await screen.findByText('Alpha');
   await fireEvent.press(screen.getByRole('button', { name: copy.publishGrades }));
 
-  const confirm = screen.getByRole('button', { name: copy.publishConfirm });
+  const confirm = screen.getAllByRole('button', { name: copy.publishConfirm }).at(-1)!;
   try {
     await pressTwiceBeforeCommit(confirm);
     expect(mockRuntime.publishGrades).toHaveBeenCalledTimes(1);

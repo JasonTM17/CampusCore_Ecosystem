@@ -49,6 +49,7 @@ export const lecturerApi = {
   schedule: () => campusApi.lecturerSchedule(),
   gradingSections: () => campusApi.lecturerGradingSections(),
   attendanceSheet: readSheet,
+  sectionSummary: (sectionId: string) => campusApi.attendanceSectionSummary(sectionId),
 
   /** Re-reads the server first; throws StaleAttendanceError instead of overwriting a newer sheet. */
   async saveAttendance(
