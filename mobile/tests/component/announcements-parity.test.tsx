@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
@@ -166,5 +166,80 @@ describe('announcements page parity', () => {
     expect(statusTone('HIGH')).toBe('warning');
     expect(statusTone('NORMAL')).toBe('primary');
     expect(statusTone('LOW')).toBe('neutral');
+  });
+
+  test('the first notice is the featured card when no filter is active', async () => {
+    mockPagedLists['content.announcements'] = {
+      items: [
+        notice('featured', 'Thông báo tiêu điểm'),
+        notice('standard', 'Thông báo thường'),
+      ],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />);
+
+    const featured = screen.getByTestId('announcement-featured');
+    expect(within(featured).getByText('Bài viết tiêu điểm')).toBeOnTheScreen();
+    expect(within(featured).getByText('Thông báo tiêu điểm')).toBeOnTheScreen();
+    expect(screen.getAllByText('Thông báo tiêu điểm')).toHaveLength(1);
+    expect(screen.getByText('Thông báo thường')).toBeOnTheScreen();
+  });
+
+  test('an HTML notice body renders its headings and list items', async () => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('html', 'Thông báo học vụ', {
+        content: '<h2>Quy định học vụ</h2><ul><li>Điều một</li><li>Điều hai</li></ul>',
+      })],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.expand}: Thông báo học vụ` }));
+
+    expect(screen.getByRole('header', { name: 'Quy định học vụ' })).toBeOnTheScreen();
+    expect(screen.getByText('Điều một')).toBeOnTheScreen();
+    expect(screen.getByText('Điều hai')).toBeOnTheScreen();
+  });
+
+  test('a hostile notice body keeps its safe text and drops every active payload', async () => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('hostile', 'Thông báo an toàn', {
+        content: '<h2>Nội dung an toàn</h2><script>alert(1)</script><img src="javascript:alert(2)" alt="ảnh xấu" onerror="alert(3)" />',
+      })],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.expand}: Thông báo an toàn` }));
+
+    expect(screen.getByRole('header', { name: 'Nội dung an toàn' })).toBeOnTheScreen();
+    expect(screen.queryByText(/alert\(/)).toBeNull();
+    expect(screen.queryByLabelText('ảnh xấu')).toBeNull();
+  });
+
+  test('a plain text notice body is rendered unchanged', async () => {
+    mockPagedLists['content.announcements'] = {
+      items: [
+        notice('featured', 'Thông báo tiêu điểm'),
+        notice('plain', 'Thông báo thường', { content: 'Dòng một\nDòng hai' }),
+      ],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.expand}: Thông báo thường` }));
+
+    expect(screen.getByText('Dòng một\nDòng hai')).toBeOnTheScreen();
+  });
+
+  test('attachment links inside a notice are listed like the web reader', async () => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('attachment', 'Thông báo có tệp', {
+        content: '<p>Danh sách đính kèm bên dưới.</p>[Danh sách lớp](https://files.example.test/danh-sach.pdf)',
+      })],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.expand}: Thông báo có tệp` }));
+
+    expect(screen.getByText('Tệp đính kèm chính thức')).toBeOnTheScreen();
+    expect(screen.getByText('1 tệp')).toBeOnTheScreen();
+    expect(screen.getByRole('link', { name: 'Danh sách lớp' })).toBeOnTheScreen();
   });
 });
