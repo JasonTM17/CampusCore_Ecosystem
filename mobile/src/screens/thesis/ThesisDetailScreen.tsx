@@ -21,7 +21,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
   const round = topic ? rounds.rounds.find((item) => item.id === topic.roundId) ?? null : null;
   const group = useThesisGroup(topic?.roundId ?? null);
   const chosen = Boolean(topic && group.group?.topicId === topic.id);
-  const canRegister = Boolean(topic) && isRegistrationOpen(round) && group.loaded && !group.loading && !group.error && !group.isStale && !chosen;
+  const canRegister = Boolean(topic) && isRegistrationOpen(round) && group.loaded && !group.loading && !group.error && !group.isStale && !group.cancelled && !chosen;
 
   return (
     <ScreenShell title={copy.detailTitle}>
@@ -29,6 +29,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
       {!topicId ? <StatePanel kind="empty" title={copy.topicNotFound} actionLabel={copy.back} onAction={() => navigation.navigate('thesis.topics')} /> : null}
       {topic ? (
         <>
+          <UiText variant="bodySmall" tone="muted" style={styles.description}>{copy.topicDetailDescription}</UiText>
           <Card tone="primary" style={styles.card}>
             <View style={styles.header}>
               <IconChip icon="lightbulb-outline" size={40} />
@@ -68,6 +69,16 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
           ) : null}
           <QueryNotices state={{ ...rounds, preview: false }} copy={copy} />
           <QueryNotices state={group} copy={copy} />
+          {!chosen && !canRegister && group.loaded && !group.loading && !group.error ? (
+            group.cancelled ? (
+              <UiText variant="bodySmall" tone="muted" style={styles.blocked}>{copy.topicGroupCancelled}</UiText>
+            ) : !group.group ? (
+              <View style={styles.blocked}>
+                <UiText variant="bodySmall" tone="muted">{copy.noGroup}</UiText>
+                <UiText variant="bodySmall" tone="muted">{copy.noGroupDescription}</UiText>
+              </View>
+            ) : null
+          ) : null}
           <View style={styles.actions}>
             {canRegister ? (
               <Button label={copy.register} onPress={() => navigation.navigate('thesis.registration', { thesisTopicId: topic.id })} />
@@ -85,6 +96,8 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
 
 const styles = StyleSheet.create({
   card: { marginBottom: tokens.spacing.md, padding: tokens.spacing.lg },
+  description: { marginBottom: tokens.spacing.sm },
+  blocked: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.md },
   header: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   grow: { flex: 1, minWidth: 0 },
   line: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },

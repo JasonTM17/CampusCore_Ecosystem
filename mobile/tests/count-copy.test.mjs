@@ -131,7 +131,7 @@ test('English lane count copy keeps the plural noun beyond one', () => {
 
 test('English thesis count copy uses the singular noun for one', () => {
   assert.equal(fillCopy(en.thesis.topicCountOne, { count: 1 }), '1 topic');
-  assert.equal(fillCopy(en.thesis.topicGroupsMaxOne, { count: 1 }), 'Up to 1 group');
+  assert.equal(fillCopy(en.thesis.topicGroupsMaxOne, { count: 1 }), '1 thesis group');
   assert.equal(fillCopy(en.thesis.advisorTopicsOne, { count: 1 }), '1 topic');
   assert.equal(fillCopy(en.thesis.advisorsCappedOne, { count: 1 }), 'Showing the first 1 topic only.');
   assert.equal(fillCopy(en.thesis.groupMembersCountOne, { count: 1 }), '1 member');
@@ -139,7 +139,7 @@ test('English thesis count copy uses the singular noun for one', () => {
 
 test('English thesis count copy keeps the plural noun beyond one', () => {
   assert.equal(fillCopy(en.thesis.topicCount, { count: 2 }), '2 topics');
-  assert.equal(fillCopy(en.thesis.topicGroupsMax, { count: 2 }), 'Up to 2 groups');
+  assert.equal(fillCopy(en.thesis.topicGroupsMax, { count: 2 }), '2 thesis groups');
   assert.equal(fillCopy(en.thesis.advisorTopics, { count: 2 }), '2 topics');
   assert.equal(fillCopy(en.thesis.advisorsCapped, { count: 2 }), 'Showing the first 2 topics only.');
   assert.equal(fillCopy(en.thesis.groupMembersCount, { count: 2 }), '2 members');
@@ -154,7 +154,7 @@ test('Vietnamese lane and thesis count copy does not inflect', () => {
   assert.equal(fillCopy(vi.lanes.creditUnitOne, { n: 1 }), '1 tín chỉ');
   assert.equal(fillCopy(vi.lanes.pageOfOne, { page: 1, pages: 1, total: 1 }), 'Trang 1/1 · 1 mục');
   assert.equal(fillCopy(vi.thesis.topicCountOne, { count: 1 }), '1 đề tài');
-  assert.equal(fillCopy(vi.thesis.topicGroupsMaxOne, { count: 1 }), 'Tối đa 1 nhóm');
+  assert.equal(fillCopy(vi.thesis.topicGroupsMaxOne, { count: 1 }), '1 nhóm đề tài');
   assert.equal(fillCopy(vi.thesis.advisorTopicsOne, { count: 1 }), '1 đề tài');
   assert.equal(fillCopy(vi.thesis.advisorsCappedOne, { count: 1 }), 'Hiển thị tối đa 1 đề tài đầu tiên.');
   assert.equal(fillCopy(vi.thesis.groupMembersCountOne, { count: 1 }), '1 thành viên');
