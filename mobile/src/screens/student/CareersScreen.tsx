@@ -11,8 +11,8 @@ import { careersMessages } from '../../i18n/careers-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi, type CareerApplicationView } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
-import { activeOpportunityIds, employmentTypeLabel, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
-import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { activeOpportunityIds, careerApplicationTone, careerOpportunityTone, employmentTypeLabel, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
+import { ContentIconChip, ListFrame, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
 import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
@@ -137,8 +137,8 @@ export function CareersScreen(_props: MobileScreenProps) {
       options={[{ value: 'board', label: copy.board }, { value: 'mine', label: copy.myApplications }]}
     />
   );
-  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
-  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
+  // The simulated-environment notice is part of the board itself, in live mode too.
+  const banner = <DataNotice message={copy.simulatedBanner} />;
   const mine = apps.items.filter((item) => (sub === 'active') === isApplicationWithdrawable(item));
 
   return (
@@ -176,7 +176,9 @@ export function CareersScreen(_props: MobileScreenProps) {
                   item.organizationName,
                   item.location,
                   employmentTypeLabel(copy.employmentTypeLabels, item.employmentType),
-                  liveIds.has(item.id) ? copy.alreadyApplied : null,
+                  item.salaryText,
+                  copy.opportunityStatusLabels[item.status] ?? item.status,
+                  liveIds.has(item.id) ? copy.appliedBadge : null,
                 ])}
                 onPress={() => setOpportunity(item)}
                 style={styles.rowMain}
@@ -184,9 +186,10 @@ export function CareersScreen(_props: MobileScreenProps) {
                 <ContentIconChip icon="briefcase-outline" />
                 <View style={styles.rowCopy}>
                   <UiText variant="label">{item.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType)])}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType), item.salaryText])}</UiText>
                   <View style={styles.chips}>
-                    {liveIds.has(item.id) ? <StatusPill label={copy.alreadyApplied} tone="success" /> : null}
+                    <StatusPill label={copy.opportunityStatusLabels[item.status] ?? item.status} tone={careerOpportunityTone(item.status)} />
+                    {liveIds.has(item.id) ? <StatusPill label={copy.appliedBadge} tone="success" /> : null}
                   </View>
                 </View>
               </Pressable>
@@ -230,7 +233,7 @@ export function CareersScreen(_props: MobileScreenProps) {
                     {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDate(item.submittedAt)}` : null])}
                   </UiText>
                   <View style={styles.chips}>
-                    <StatusChip code={item.status} labels={copy.statusLabels} />
+                    <StatusPill label={copy.statusLabels[item.status] ?? item.status} tone={careerApplicationTone(item.status)} />
                   </View>
                 </View>
               </Pressable>
