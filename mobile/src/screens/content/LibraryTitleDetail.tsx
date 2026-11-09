@@ -4,12 +4,12 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
 import { StatusPill } from '../../components/ui/index';
-import type { MobileLibraryTitle } from '../../api/client';
+import type { MobileLibraryCopy, MobileLibraryTitle } from '../../api/client';
 import { fillCopy } from '../../i18n/academic-messages';
 import { libraryMessages } from '../../i18n/library-messages';
 import { contentApi } from './content-api';
-import { firstAvailableCopy, joinMeta } from './content-rules';
-import { ContentHero, ContentIconChip, DetailFrame, FlashNotice, MetaRow, StatusChip, isPreviewMode, useContentCopy, type Flash } from './content-ui';
+import { joinMeta, libraryCopyTone } from './content-rules';
+import { ContentHero, ContentIconChip, DetailFrame, FlashNotice, MetaRow, isPreviewMode, useContentCopy, type Flash } from './content-ui';
 import { previewLibraryTitles } from './preview-data';
 import { useContentQuery } from './use-content-query';
 
@@ -18,12 +18,12 @@ export interface LibraryTitleDetailProps {
   busy: boolean;
   flash: Flash | null;
   onBack: () => void;
-  /** Called with the title that carries the copy to hold. */
-  onHold: (title: MobileLibraryTitle) => void;
+  /** Called with the title and the copy the patron chose to hold. */
+  onHold: (title: MobileLibraryTitle, copy: MobileLibraryCopy) => void;
   reloadToken: number;
 }
 
-/** Title detail with its copies; the hold goes to the first copy the server lists as available. */
+/** Title detail with its copies; every available copy carries its own hold action. */
 export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloadToken }: LibraryTitleDetailProps) {
   const { locale, copy: shared, formatNumber, t } = useContentCopy();
   const copy = libraryMessages[locale];
@@ -31,24 +31,31 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
   const query = useContentQuery<MobileLibraryTitle>(`content.library.title.${titleId}.${reloadToken}`, () => contentApi.libraryTitle(titleId));
   const title = preview ? previewLibraryTitles(locale).find((entry) => entry.id === titleId) ?? null : query.data ?? null;
   const copies = title?.copies ?? [];
-  const canHold = title !== null && !preview && firstAvailableCopy(copies) !== null;
 
   return (
     <DetailFrame title={copy.title} onBack={onBack}
       list={{ data: [...((!preview && query.isLoading) ? [] : (!preview && query.error) ? [] : (!title) ? [] : (copies.length > 0) ? cardRows("section-1", copies, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{copy.copies}</UiText>
               </>, (entry) => (
-                <View key={entry.id} accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={styles.copyRow}>
-                  <ContentIconChip icon="barcode-scan" />
-                  <UiText variant="bodyMedium" style={{ flex: 1 }}>{entry.barcode}</UiText>
-                  <StatusChip code={entry.status} labels={copy.copyStatus} />
+                <View key={entry.id} style={styles.copyRow}>
+                  <View accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={styles.copyInfo}>
+                    <ContentIconChip icon="barcode-scan" />
+                    <UiText variant="bodyMedium" style={{ flex: 1 }}>{entry.barcode}</UiText>
+                    <StatusPill label={copy.copyStatus[entry.status] ?? entry.status} tone={libraryCopyTone(entry.status)} />
+                  </View>
+                  {entry.status === 'AVAILABLE' ? (
+                    <Button
+                      label={copy.hold}
+                      accessibilityLabel={`${copy.hold}: ${entry.barcode}`}
+                      variant="secondary"
+                      loading={busy}
+                      disabled={busy || preview}
+                      onPress={() => onHold(title, entry)}
+                    />
+                  ) : null}
                 </View>
               ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>{!preview && query.isLoading ? null : (<>{!preview && query.error ? null : (<>{!title ? null : (<><View style={{ gap: 12 }}>
-          {title.availableCopies > 0 || canHold ? (
-            <Button label={copy.hold} loading={busy} disabled={busy || preview || !canHold} onPress={() => onHold(title)} />
-          ) : (
-            <UiText variant="label" tone="warning">{copy.noCopiesAvailable}</UiText>
-          )}
+          {title.availableCopies > 0 ? null : <UiText variant="label" tone="warning">{copy.noCopiesAvailable}</UiText>}
         </View></>)}</>)}</>)}
     </> }}
     >
@@ -89,4 +96,5 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
 const styles = StyleSheet.create({
   heroPills: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   copyRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 44, paddingVertical: 4 },
+  copyInfo: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minWidth: 0 },
 });

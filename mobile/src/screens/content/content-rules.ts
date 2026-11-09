@@ -294,3 +294,40 @@ const TONES: Record<string, StatusTone> = {
 export function statusTone(code: string | null | undefined): StatusTone {
   return (code && TONES[code]) || 'neutral';
 }
+
+/* ---------- service status roles ---------- */
+
+// The careers board and the library catalogue draw their own colour roles; the
+// shared map above still serves news, docs, events and learning.
+
+const CAREER_OPPORTUNITY_TONES: Record<string, StatusTone> = {
+  DRAFT: 'neutral', IN_REVIEW: 'warning', PUBLISHED: 'success', PAUSED: 'warning', CLOSED: 'neutral', REJECTED: 'error',
+};
+
+export function careerOpportunityTone(code: string | null | undefined): StatusTone {
+  return (code && CAREER_OPPORTUNITY_TONES[code]) || 'neutral';
+}
+
+const CAREER_APPLICATION_TONES: Record<string, StatusTone> = {
+  SUBMITTED: 'warning', REVIEWING: 'primary', INTERVIEW: 'primary', OFFER: 'success', REJECTED: 'error', WITHDRAWN: 'neutral',
+};
+
+export function careerApplicationTone(code: string | null | undefined): StatusTone {
+  return (code && CAREER_APPLICATION_TONES[code]) || 'neutral';
+}
+
+const LIBRARY_LOAN_TONES: Record<string, StatusTone> = {
+  REQUESTED: 'warning', APPROVED: 'primary', ISSUED: 'primary', RETURNED: 'success', CANCELLED: 'neutral',
+};
+
+export function libraryLoanTone(code: string | null | undefined): StatusTone {
+  return (code && LIBRARY_LOAN_TONES[code]) || 'neutral';
+}
+
+const LIBRARY_COPY_TONES: Record<string, StatusTone> = {
+  AVAILABLE: 'success', RESERVED: 'warning', ON_LOAN: 'primary', RETIRED: 'neutral',
+};
+
+export function libraryCopyTone(code: string | null | undefined): StatusTone {
+  return (code && LIBRARY_COPY_TONES[code]) || 'neutral';
+}

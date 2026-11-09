@@ -4,15 +4,15 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, DataNotice, UiText } from '../../components/Ui';
 import { FilterChip, SearchBar, SegmentedControl, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
-import type { MobileLibraryLoan, MobileLibraryTitle } from '../../api/client';
+import type { MobileLibraryCopy, MobileLibraryLoan, MobileLibraryTitle } from '../../api/client';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
 import { libraryMessages } from '../../i18n/library-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
 import { contentErrorMessage } from '../content/content-errors';
-import { copyFailureMessage, filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
-import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { copyFailureMessage, filterLoans, isLoanCancellable, joinMeta, libraryLoanTone, type LoanTab } from '../content/content-rules';
+import { ContentIconChip, ListFrame, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { LibraryTitleDetail } from '../content/LibraryTitleDetail';
 import { previewLibraryLoans, previewLibraryTitles } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
@@ -22,13 +22,12 @@ type Tab = 'catalogue' | 'loans';
 
 /** Patron library: catalogue search and holds, own loans with cancel. Availability is always read from the server. */
 export function LibraryScreen(_props: MobileScreenProps) {
-  const { locale, formatDate, copy: common, t } = useContentCopy();
+  const { locale, formatDateTime, copy: common, t } = useContentCopy();
   const copy = libraryMessages[locale];
   const [tab, setTab] = useState<Tab>('catalogue');
   const [loanTab, setLoanTab] = useState<LoanTab>('active');
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
-  const live = apiClient.mode === 'live';
   const [selected, setSelected] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<{ availability?: string[] }>({});
@@ -76,18 +75,12 @@ export function LibraryScreen(_props: MobileScreenProps) {
     }
   }, [catalogue, clear, common, copy.copyUnavailable, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
 
-  const hold = (title: MobileLibraryTitle) => ask({
+  const hold = (title: MobileLibraryTitle, target: MobileLibraryCopy) => ask({
     title: copy.holdTitle,
-    description: title.title,
+    description: joinMeta([title.title, target.barcode]),
     confirmLabel: copy.hold,
     cancelLabel: t('cancel'),
-    onConfirm: () => void run(async () => {
-      // The detail read carries the copies; availability can change between list and hold.
-      const detail = await contentApi.libraryTitle(title.id);
-      const target = firstAvailableCopy(detail.copies);
-      if (!target) throw Object.assign(new Error('no copy'), { code: 'NO_COPY' });
-      await contentApi.libraryRequest(target.id);
-    }, copy.held),
+    onConfirm: () => void run(() => contentApi.libraryRequest(target.id), copy.held),
   });
 
   const cancelLoan = (loan: MobileLibraryLoan) => ask({
@@ -123,8 +116,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
       options={[{ value: 'catalogue', label: copy.catalogue }, { value: 'loans', label: copy.myLoans }]}
     />
   );
-  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
-  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
+  // The simulated-environment notice is part of the catalogue itself, in live mode too.
+  const banner = <DataNotice message={copy.simulatedBanner} />;
   const previewSearch = catalogue.preview ? search.trim().toLocaleLowerCase(locale) : '';
   const rows = catalogue.items.filter((item) => {
     if (availableOnly && item.availableCopies <= 0) return false;
@@ -174,7 +167,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
                 <ContentIconChip icon="book-open-page-variant-outline" />
                 <View style={styles.rowCopy}>
                   <UiText variant="label">{item.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.author, item.category])}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.author, item.category, item.isbn])}</UiText>
                   <View style={styles.chips}>
                     <StatusPill
                       label={item.availableCopies > 0
@@ -212,9 +205,11 @@ export function LibraryScreen(_props: MobileScreenProps) {
           )}
           renderItem={(loan) => {
             const dates = joinMeta([
-              `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
-              loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
-              loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
+              `${copy.requestedAt}: ${formatDateTime(loan.requestedAt)}`,
+              loan.barcode,
+              loan.expiresAt ? `${copy.expiresAt}: ${formatDateTime(loan.expiresAt)}` : null,
+              loan.dueAt ? `${copy.dueAt}: ${formatDateTime(loan.dueAt)}` : null,
+              loan.cancelReason,
             ]);
             return (
               <Card>
@@ -223,7 +218,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
                   <View style={styles.rowCopy}>
                     <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
                     <View style={styles.chips}>
-                      <StatusChip code={loan.status} labels={copy.statusLabels} />
+                      <StatusPill label={copy.statusLabels[loan.status] ?? loan.status} tone={libraryLoanTone(loan.status)} />
                     </View>
                     <UiText variant="bodySmall" tone="muted">{dates}</UiText>
                   </View>
