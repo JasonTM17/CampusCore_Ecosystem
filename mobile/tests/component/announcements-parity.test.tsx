@@ -58,9 +58,9 @@ const notice = (id: string, title: string, extra: Record<string, unknown> = {}) 
   ...extra,
 });
 
-const renderThemed = (element: ReactElement) => render(
+const renderThemed = (element: ReactElement, locale: 'vi' | 'en' = 'vi') => render(
   <ThemeProvider forcedScheme="light">
-    <LocaleProvider initialLocale="vi">{element}</LocaleProvider>
+    <LocaleProvider initialLocale={locale}>{element}</LocaleProvider>
   </ThemeProvider>,
 );
 
@@ -182,6 +182,60 @@ describe('announcements page parity', () => {
     expect(within(featured).getByText('Thông báo tiêu điểm')).toBeOnTheScreen();
     expect(screen.getAllByText('Thông báo tiêu điểm')).toHaveLength(1);
     expect(screen.getByText('Thông báo thường')).toBeOnTheScreen();
+  });
+
+  test.each([
+    { locale: 'vi' as const, magazine: 'Dạng Bản tin', dispatch: 'Dạng Công văn' },
+    { locale: 'en' as const, magazine: 'Magazine Feed', dispatch: 'Official Dispatches' },
+  ])('the view switcher restores the magazine layout in $locale', async ({ locale, magazine, dispatch }) => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('n1', 'Course registration opens'), notice('n2', 'Academic calendar updated')],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />, locale);
+
+    expect(screen.getByTestId('announcement-featured')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('tab', { name: dispatch }));
+    expect(screen.queryByTestId('announcement-featured')).toBeNull();
+
+    await fireEvent.press(screen.getByRole('tab', { name: magazine }));
+    expect(screen.getByTestId('announcement-featured')).toBeOnTheScreen();
+  });
+
+  test.each([
+    {
+      locale: 'vi' as const,
+      dispatch: 'Dạng Công văn',
+      code: 'Số: 659/TB-ĐHCNKT-ĐT',
+      category: '🌐 Thông báo toàn trường',
+      priority: 'Cao',
+      date: '15:00 28/10/2026',
+    },
+    {
+      locale: 'en' as const,
+      dispatch: 'Official Dispatches',
+      code: 'Ref: 659/TB-ĐHCNKT-ĐT',
+      category: '🌐 Campus-wide Notice',
+      priority: 'High',
+      date: 'Oct 28, 2026, 03:00 PM',
+    },
+  ])('dispatch rows show the web fields in $locale', async ({ locale, dispatch, code, category, priority, date }) => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('n1', 'Course registration opens', { isGlobal: true, priority: 'HIGH' })],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />, locale);
+
+    await fireEvent.press(screen.getByRole('tab', { name: dispatch }));
+
+    expect(screen.getByText(code)).toBeOnTheScreen();
+    expect(screen.getByText('Course registration opens')).toBeOnTheScreen();
+    const row = screen.getByRole('button', {
+      name: [code, 'Course registration opens', category, priority, date].join(' · '),
+    });
+    expect(within(row).getByText(category)).toBeOnTheScreen();
+    expect(screen.getByText(priority)).toBeOnTheScreen();
+    expect(screen.getByText(date)).toBeOnTheScreen();
+    await fireEvent.press(row);
+    expect(screen.getByText('Course registration opens nội dung')).toBeOnTheScreen();
   });
 
   test('an HTML notice body renders its headings and list items', async () => {

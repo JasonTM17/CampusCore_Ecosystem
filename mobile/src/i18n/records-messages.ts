@@ -21,6 +21,16 @@ export const recordsMessages = {
     "announcementsAttachments": "Tệp đính kèm chính thức",
     "announcementsAttachmentCount": "{n} tệp",
     "announcementsDigitalDocument": "Tài liệu số",
+    "announcementsViewMode": "Kiểu hiển thị",
+    "announcementsViewMagazine": "Dạng Bản tin",
+    "announcementsViewDispatch": "Dạng Công văn",
+    "announcementsDispatchReference": "Số: {ref}",
+    "announcementsAudienceBadges": {
+      "GLOBAL": "🌐 Thông báo toàn trường",
+      "STUDENT": "🎓 Dành riêng cho Sinh viên",
+      "LECTURER": "👨‍🏫 Nghiệp vụ Giảng viên",
+      "OTHER": "Thông báo chuyên biệt"
+    },
     "expand": "Xem nội dung",
     "collapse": "Thu gọn",
     "publishedAt": "Phát hành",
@@ -145,6 +155,16 @@ export const recordsMessages = {
     "announcementsAttachments": "Official Attached Documents",
     "announcementsAttachmentCount": "{n} files",
     "announcementsDigitalDocument": "Digital document",
+    "announcementsViewMode": "View mode",
+    "announcementsViewMagazine": "Magazine Feed",
+    "announcementsViewDispatch": "Official Dispatches",
+    "announcementsDispatchReference": "Ref: {ref}",
+    "announcementsAudienceBadges": {
+      "GLOBAL": "🌐 Campus-wide Notice",
+      "STUDENT": "🎓 Student Dedicated",
+      "LECTURER": "👨‍🏫 Faculty & Lecturer",
+      "OTHER": "Specialized Notice"
+    },
     "expand": "Read",
     "collapse": "Collapse",
     "publishedAt": "Published",
