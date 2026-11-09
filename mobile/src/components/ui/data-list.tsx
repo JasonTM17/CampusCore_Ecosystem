@@ -17,6 +17,8 @@ export interface DataListProps<T> {
   loading?: boolean;
   /** Error text. With no rows it replaces the list; with rows it sits above them. */
   error?: string | null;
+  /** Optional page-specific error heading shown above the retry sentence. */
+  errorTitle?: string;
   onRetry?: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -40,6 +42,7 @@ export function DataList<T>({
   renderItem,
   loading = false,
   error,
+  errorTitle,
   onRetry,
   refreshing = false,
   onRefresh,
@@ -60,7 +63,12 @@ export function DataList<T>({
   const canLoadMore = hasMore && !loadingMore && !error && Boolean(onLoadMore);
   const renderRow = useListRenderer(renderItem);
 
-  const errorBanner = error ? <InlineError message={error} onRetry={onRetry} retryLabel={t('retry')} /> : null;
+  const errorBanner = error ? (
+    <View style={{ gap: spacing.xs }}>
+      {errorTitle ? <UiText variant="label" tone="error">{errorTitle}</UiText> : null}
+      <InlineError message={error} onRetry={onRetry} retryLabel={t('retry')} />
+    </View>
+  ) : null;
 
   let emptyComponent: ReactElement | null = null;
   if (empty && loading) {
