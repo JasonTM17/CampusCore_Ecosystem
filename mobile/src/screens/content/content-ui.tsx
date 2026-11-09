@@ -189,7 +189,7 @@ export function ContentHero({
     <View style={[styles.hero, { backgroundColor: chrome.surface }]}>
       {icon ? <ContentIconChip icon={icon} onBrand /> : null}
       <View style={styles.heroCopy}>
-        {eyebrow ? <UiText variant="meta" style={{ color: chrome.accent }}>{eyebrow}</UiText> : null}
+        {eyebrow ? <UiText variant="meta" style={[styles.heroEyebrow, { color: chrome.accent }]}>{eyebrow}</UiText> : null}
         <UiText accessibilityRole="header" variant="headlineMedium" style={{ color: chrome.onSurface }}>{title}</UiText>
         {description ? <UiText variant="bodySmall" style={[styles.heroDetail, { color: chrome.onSurfaceMuted }]}>{description}</UiText> : null}
         {detail ? <UiText accessibilityLiveRegion={detailLive ? 'polite' : undefined} variant="bodySmall" style={[styles.heroDetail, { color: chrome.onSurfaceMuted }]}>{detail}</UiText> : null}
@@ -367,8 +367,8 @@ function ContentFileRow(props: FileRowProps) {
   );
 }
 
-function problemMessage(copy: (typeof contentMessages)['vi'], problem: FileProblem): string {
-  return problem === 'too_large' ? copy.fileTooLarge : problem === 'type' ? copy.fileType : copy.fileEmpty;
+function problemMessage(copy: (typeof contentMessages)['vi'], problem: FileProblem, tooLargeMessage?: string): string {
+  return problem === 'too_large' ? tooLargeMessage ?? copy.fileTooLarge : problem === 'type' ? copy.fileType : copy.fileEmpty;
 }
 
 export interface FilePickerProps {
@@ -378,12 +378,14 @@ export interface FilePickerProps {
   /** Shown on the picked file, for example a failed upload; the file is kept. */
   status?: 'ready' | 'busy' | 'failed';
   statusLabel?: string;
+  /** Overrides the shared oversize copy for a lane with its own ceiling. */
+  tooLargeMessage?: string;
   extraActions?: readonly FileRowAction[];
   disabled?: boolean;
 }
 
 /** Choose and show one file. With the default adapter the choose control explains that it is not supported. */
-export function FilePicker({ policy, file, onChange, status = 'ready', statusLabel, extraActions = [], disabled = false }: FilePickerProps) {
+export function FilePicker({ policy, file, onChange, status = 'ready', statusLabel, tooLargeMessage, extraActions = [], disabled = false }: FilePickerProps) {
   const { copy } = useContentCopy();
   const adapter = getFileAdapter();
   const capability = adapter.capability('pick');
@@ -403,10 +405,10 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
       return;
     }
     if (outcome.status === 'picked') onChange(outcome.file);
-    else if (outcome.status === 'invalid') setProblem(problemMessage(copy, outcome.problem));
+    else if (outcome.status === 'invalid') setProblem(problemMessage(copy, outcome.problem, tooLargeMessage));
     else if (outcome.status === 'failed') setProblem(copy.fileFailed);
     else if (outcome.status === 'unavailable') setProblem(copy.pickUnavailable);
-  }, [adapter, copy, onChange, policy]);
+  }, [adapter, copy, onChange, policy, tooLargeMessage]);
 
   if (file) {
     const check = checkPickedFile(file, policy);
@@ -415,7 +417,7 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
         name={file.name}
         sizeBytes={file.sizeBytes}
         status={check.ok ? status : 'failed'}
-        statusLabel={check.ok ? statusLabel : problemMessage(copy, check.problem)}
+        statusLabel={check.ok ? statusLabel : problemMessage(copy, check.problem, tooLargeMessage)}
         actions={[
           ...extraActions,
           { key: 'remove', label: copy.removeFile, onPress: () => { file.release?.(); onChange(null); }, disabled },
@@ -446,11 +448,13 @@ export interface UploadPickerProps<T> {
   policy: AttachmentPolicy;
   upload: (part: { uri: string; name: string; type: string }, idempotencyKey: string, signal?: AbortSignal) => Promise<T>;
   onUploaded: (result: T) => void;
+  /** Overrides the shared oversize copy for a lane with its own ceiling. */
+  tooLargeMessage?: string;
   disabled?: boolean;
 }
 
 /** Pick, then upload now. A failed upload keeps the chosen file so the user can retry. */
-export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled = false }: UploadPickerProps<T>) {
+export function UploadPicker<T>({ intent, policy, upload, onUploaded, tooLargeMessage, disabled = false }: UploadPickerProps<T>) {
   const { copy } = useContentCopy();
   const [file, setFile] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
@@ -494,6 +498,7 @@ export function UploadPicker<T>({ intent, policy, upload, onUploaded, disabled =
         onChange={(next) => { currentFile.current = next; setFile(next); setFailure(null); }}
         status={busy ? 'busy' : failure ? 'failed' : 'ready'}
         statusLabel={failure ?? undefined}
+        tooLargeMessage={tooLargeMessage}
         disabled={disabled || busy}
         extraActions={[{ key: 'upload', label: copy.uploadFile, onPress: () => void send(), disabled: disabled || busy }]}
       />
@@ -508,6 +513,7 @@ const styles = StyleSheet.create({
   detailHead: { marginBottom: tokens.spacing.sm },
   hero: { alignItems: 'flex-start', borderRadius: tokens.radii.card, flexDirection: 'row', gap: tokens.spacing.sm, padding: tokens.spacing.md },
   heroCopy: { flex: 1, minWidth: 0 },
+  heroEyebrow: { letterSpacing: 0.6, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
   heroDetail: { marginTop: tokens.spacing.xs },
   iconChip: { alignItems: 'center', borderRadius: tokens.radii.control, flexShrink: 0, height: 40, justifyContent: 'center', width: 40 },
   iconAction: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, minHeight: minTapTarget, minWidth: minTapTarget, justifyContent: 'center' },

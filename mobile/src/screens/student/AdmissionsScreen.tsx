@@ -19,7 +19,7 @@ type View_ = { kind: 'list' } | { kind: 'new' } | { kind: 'detail'; id: string }
 
 /** Admissions applicant: own applications, draft, submit, withdraw and files. The decision is always labelled simulated. */
 export function AdmissionsScreen(_props: MobileScreenProps) {
-  const { locale, formatDate, copy: common } = useContentCopy();
+  const { locale, copy: common } = useContentCopy();
   const copy = admissionsMessages[locale];
   const [view, setView] = useState<View_>({ kind: 'list' });
   const [cycle, setCycle] = useState('');
@@ -194,6 +194,8 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.title}
+        eyebrow={copy.eyebrow}
+        description={copy.description}
         icon="file-document-edit-outline"
         list={apps}
         keyOf={(item) => item.id}
@@ -207,27 +209,36 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
             </View>
           </View>
         )}
-        renderItem={(item) => (
-          <Card>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={joinMeta([item.cycle, copy.statusLabels[item.status] ?? item.status, item.fullName])}
-              onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); setStale(false); }}
-              style={styles.rowMain}
-            >
-              <ContentIconChip icon="file-document-edit-outline" />
-              <View style={styles.rowCopy}>
-                <UiText variant="label">{item.cycle}</UiText>
-                <UiText variant="bodySmall" tone="muted">
-                  {joinMeta([item.fullName, item.submittedAt ? formatDate(item.submittedAt) : null])}
-                </UiText>
-                <View style={styles.chips}>
-                  <StatusChip code={item.status} labels={copy.statusLabels} />
+        renderItem={(item) => {
+          const decision = item.decision
+            ? `${copy.decision}: ${copy.statusLabels[item.decision] ?? item.decision}${item.decisionLabel ? ` (${item.decisionLabel})` : ''}`
+            : null;
+          return (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([
+                  item.fullName || item.cycle,
+                  `${copy.cycle}: ${item.cycle}`,
+                  copy.statusLabels[item.status] ?? item.status,
+                  decision,
+                ])}
+                onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); setStale(false); }}
+                style={styles.rowMain}
+              >
+                <ContentIconChip icon="file-document-edit-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{item.fullName || item.cycle}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{`${copy.cycle}: ${item.cycle}`}</UiText>
+                  <View style={styles.chips}>
+                    <StatusChip code={item.status} labels={copy.statusLabels} />
+                  </View>
+                  {decision ? <UiText variant="bodySmall" tone="muted">{decision}</UiText> : null}
                 </View>
-              </View>
-            </Pressable>
-          </Card>
-        )}
+              </Pressable>
+            </Card>
+          );
+        }}
       />
       {dialog}
     </>

@@ -58,6 +58,7 @@ import { LoggedOutScreen } from '../../src/screens/account/LoggedOutScreen';
 import { ResetPasswordScreen } from '../../src/screens/account/ResetPasswordScreen';
 import { TwoFactorCard } from '../../src/screens/account/TwoFactorCard';
 import { setExitNotice } from '../../src/screens/account/exit-notice';
+import { takePasswordResetNotice } from '../../src/screens/account/password-reset-notice';
 import { ProfileScreen } from '../../src/screens/student/ProfileScreen';
 import { accountMessages } from '../../src/i18n/account-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
@@ -129,22 +130,24 @@ describe('forgot password', () => {
   test('rejects an invalid address locally without calling the API', async () => {
     await renderApp(<ForgotPasswordScreen {...props} />);
     expect(screen.getByRole('header', { name: 'Quên mật khẩu' })).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByLabelText('Email'), 'not-an-email');
+    expect(screen.getByText('Dùng địa chỉ được gắn với tài khoản nhà trường của bạn.')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByLabelText('Địa chỉ email'), 'not-an-email');
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
     expect(screen.getByText('Địa chỉ email chưa hợp lệ.')).toBeOnTheScreen();
     expect(accountApi.forgotPassword).not.toHaveBeenCalled();
     expectAccessible();
   });
 
-  test('shows the same neutral banner and masks the address', async () => {
+  test('shows the same neutral banner and echoes the address like the web', async () => {
     mocked(accountApi.forgotPassword).mockResolvedValue({ message: 'ok' });
     await renderApp(<ForgotPasswordScreen {...props} />, 'en');
-    await fireEvent.changeText(screen.getByLabelText('Email'), 'student@example.edu');
+    await fireEvent.changeText(screen.getByLabelText('Email address'), 'student@example.edu');
     await fireEvent.press(screen.getByRole('button', { name: 'Send reset link' }));
     await waitFor(() => expect(screen.getByText('Check your inbox')).toBeOnTheScreen());
     expect(accountApi.forgotPassword).toHaveBeenCalledWith('student@example.edu');
-    expect(screen.getByText(/s\*\*\*@example\.edu/)).toBeOnTheScreen();
-    expect(screen.queryByText(/student@example\.edu/)).toBeNull();
+    expect(screen.getByText(/student@example\.edu/)).toBeOnTheScreen();
+    expect(screen.queryByText(/s\*\*\*@example\.edu/)).toBeNull();
+    expect(screen.getByText('Check spam or promotions if you do not see the message right away. You can also start over with another address.')).toBeOnTheScreen();
     expectAccessible();
   });
 
@@ -152,7 +155,7 @@ describe('forgot password', () => {
     const request = deferred<{ message: string }>();
     mocked(accountApi.forgotPassword).mockReturnValue(request.promise);
     await renderApp(<ForgotPasswordScreen {...props} />);
-    await fireEvent.changeText(screen.getByLabelText('Email'), 'student@example.edu');
+    await fireEvent.changeText(screen.getByLabelText('Địa chỉ email'), 'student@example.edu');
     await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
 
     expect(accountApi.forgotPassword).toHaveBeenCalledTimes(1);
@@ -165,15 +168,24 @@ describe('forgot password', () => {
   test('maps 429 and offline failures to localized messages', async () => {
     mocked(accountApi.forgotPassword).mockRejectedValueOnce({ status: 429, code: 'RATE_LIMIT_EXCEEDED' });
     await renderApp(<ForgotPasswordScreen {...props} />);
-    await fireEvent.changeText(screen.getByLabelText('Email'), 'student@example.edu');
+    await fireEvent.changeText(screen.getByLabelText('Địa chỉ email'), 'student@example.edu');
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
     await waitFor(() => expect(screen.getByRole('alert')).toBeOnTheScreen());
-    expect(screen.getByText('Bạn thao tác quá nhanh. Hãy chờ một lát rồi thử lại.')).toBeOnTheScreen();
+    expect(screen.getByText('Bạn đã yêu cầu liên kết đặt lại quá nhiều lần. Vui lòng chờ một lát rồi thử lại.')).toBeOnTheScreen();
 
     mocked(accountApi.forgotPassword).mockRejectedValueOnce(new TypeError('Network request failed'));
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
     await waitFor(() =>
       expect(screen.getByText('Không có kết nối. Kiểm tra mạng rồi thử lại.')).toBeOnTheScreen());
+  });
+
+  test('a failed request uses the web recovery copy instead of a generic error', async () => {
+    mocked(accountApi.forgotPassword).mockRejectedValueOnce({ status: 500 });
+    await renderApp(<ForgotPasswordScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Địa chỉ email'), 'student@example.edu');
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi liên kết đặt lại' }));
+    await waitFor(() =>
+      expect(screen.getByText('Hiện chưa thể bắt đầu khôi phục mật khẩu.')).toBeOnTheScreen());
   });
 });
 
@@ -208,7 +220,14 @@ describe('reset password', () => {
       accepted.resolve({ message: 'ok' });
       await accepted.promise;
     });
-    await waitFor(() => expect(screen.getByRole('header', { name: 'Đã đặt lại mật khẩu' })).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByRole('header', { name: 'Đặt lại mật khẩu thành công' })).toBeOnTheScreen());
+  });
+
+  test('shows the web password policy above the checklist', async () => {
+    await renderApp(<ResetPasswordScreen {...props} initialToken={FAKE_TOKEN} />);
+    expect(screen.getByText('Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số. Mật khẩu không được chứa địa chỉ email của bạn.')).toBeOnTheScreen();
+    expect(screen.getByText(/Có ít nhất một chữ cái và một chữ số/)).toBeOnTheScreen();
+    expect(screen.getByText(/72 byte UTF-8/)).toBeOnTheScreen();
   });
 
   test('validates locally, toggles visibility and never renders the token', async () => {
@@ -233,11 +252,13 @@ describe('reset password', () => {
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu mới'), FAKE_PASSWORD);
     await fireEvent.changeText(screen.getByLabelText('Xác nhận mật khẩu'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
-    await waitFor(() => expect(screen.getByRole('header', { name: 'Đã đặt lại mật khẩu' })).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByRole('header', { name: 'Đặt lại mật khẩu thành công' })).toBeOnTheScreen());
+    expect(screen.getByText('Bạn có thể đăng nhập bằng mật khẩu mới ngay bây giờ.')).toBeOnTheScreen();
     expect(accountApi.resetPassword).toHaveBeenCalledWith(FAKE_TOKEN, FAKE_PASSWORD);
     expect(JSON.stringify(screen.toJSON())).not.toContain(FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Đến màn hình đăng nhập' }));
     expect(navigation.navigate).toHaveBeenCalledWith('auth.signIn');
+    expect(takePasswordResetNotice()).toBe(true);
   });
 
   test('a rejected token falls back to the invalid state', async () => {
@@ -258,6 +279,15 @@ describe('logged out', () => {
     expectAccessible();
     await fireEvent.press(screen.getByRole('button', { name: 'Đăng nhập' }));
     expect(navigation.navigate).toHaveBeenCalledWith('auth.signIn');
+  });
+
+  test('a normal sign-out shows the web secured confirmation', async () => {
+    setExitNotice('signedOut');
+    await renderApp(<LoggedOutScreen {...props} />);
+    expect(screen.getByRole('header', { name: 'Đã đăng xuất an toàn' })).toBeOnTheScreen();
+    expect(screen.getByText('Bảo mật hệ thống')).toBeOnTheScreen();
+    expect(screen.getByText('Bạn đã đăng xuất khỏi cổng học vụ.')).toBeOnTheScreen();
+    expectAccessible();
   });
 });
 

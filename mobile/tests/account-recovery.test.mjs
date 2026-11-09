@@ -186,6 +186,64 @@ test('error messages prefer business codes and never echo server text', () => {
   assert.equal(errors.errorMessage(errors.classifyError({ status: 400, code: 'UNLISTED' }), copy), copy.validation);
 });
 
+test('sign-in rejection and recovery guidance mirror the web catalogue', () => {
+  assert.equal(
+    accountMessages.en.signIn.authorizationRejected,
+    'This sign-in attempt was blocked. Refresh the page and try again.',
+  );
+  assert.equal(
+    accountMessages.vi.signIn.authorizationRejected,
+    'Lần đăng nhập này đã bị chặn. Hãy làm mới trang rồi thử lại.',
+  );
+  assert.equal(accountMessages.en.forgot.emailLabel, 'Email address');
+  assert.equal(accountMessages.vi.forgot.emailLabel, 'Địa chỉ email');
+  assert.equal(
+    accountMessages.en.forgot.emailHint,
+    'Use the address tied to your campus account.',
+  );
+  assert.equal(
+    accountMessages.en.forgot.sentDescription,
+    'Check spam or promotions if you do not see the message right away. You can also start over with another address.',
+  );
+  assert.equal(
+    accountMessages.en.forgot.rateLimited,
+    'You requested reset links too often. Please wait a while and try again.',
+  );
+  assert.equal(
+    accountMessages.en.forgot.failedToast,
+    'We could not start password recovery right now.',
+  );
+});
+
+test('reset success and policy copy follow the web while keeping the backend byte ceiling', () => {
+  assert.equal(accountMessages.en.reset.doneTitle, 'Password reset complete');
+  assert.equal(accountMessages.vi.reset.doneTitle, 'Đặt lại mật khẩu thành công');
+  assert.equal(
+    accountMessages.en.reset.doneBody,
+    'You can now sign in with your new password.',
+  );
+  assert.equal(
+    accountMessages.en.reset.policyHint,
+    'Between 8 and 128 characters with at least one letter and one digit. It must not contain your email address.',
+  );
+  assert.equal(
+    accountMessages.vi.reset.policyHint,
+    'Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số. Mật khẩu không được chứa địa chỉ email của bạn.',
+  );
+  assert.equal(
+    accountMessages.en.reset.checklistLetterDigit,
+    'At least one letter and one digit',
+  );
+  assert.equal(
+    accountMessages.vi.reset.checklistLetterDigit,
+    'Có ít nhất một chữ cái và một chữ số',
+  );
+  assert.match(accountMessages.en.reset.checklistLength, /72 UTF-8 bytes/);
+  assert.match(accountMessages.vi.reset.checklistLength, /72 byte UTF-8/);
+  assert.equal(accountMessages.en.signIn.passwordUpdatedTitle, 'Password updated');
+  assert.equal(accountMessages.vi.signIn.passwordUpdatedTitle, 'Đã cập nhật mật khẩu');
+});
+
 test('vi and en account messages have identical keys, placeholders and non-empty text', () => {
   const flatten = (value, prefix = '') => Object.entries(value).flatMap(([key, item]) =>
     typeof item === 'string' ? [[`${prefix}${key}`, item]] : flatten(item, `${prefix}${key}.`));

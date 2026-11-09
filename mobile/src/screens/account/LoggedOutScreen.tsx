@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, IconChip, UiText } from '../../components/Ui';
+import { Button, IconChip, StatusPill, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
 import type { MobileScreenProps } from '../../navigation/types';
 import { AccountFrame } from './AccountFrame';
@@ -19,19 +19,23 @@ export function LoggedOutScreen({ navigation }: MobileScreenProps) {
     if (session?.signingOut) session.clearSigningOut();
   }, [session?.signingOut, session?.clearSigningOut]);
 
+  const signedOut = notice === 'signedOut';
+
   return (
-    <AccountFrame title={copy.loggedOut.title}>
+    <AccountFrame title={signedOut ? copy.loggedOut.securedTitle : copy.loggedOut.title}>
       <View style={styles.content}>
         <View style={styles.noticeRow}>
-          <IconChip icon="lock-outline" size={36} tone="primary" />
-          <UiText
-            accessibilityLiveRegion="polite"
-            variant="bodyMedium"
-            tone="muted"
-            style={styles.body}
-          >
-            {copy.loggedOut[notice]}
-          </UiText>
+          <IconChip icon={signedOut ? 'shield-check-outline' : 'lock-outline'} size={36} tone={signedOut ? 'success' : 'primary'} />
+          <View style={styles.bodyColumn}>
+            {signedOut ? <StatusPill label={copy.loggedOut.securedBadge} tone="success" /> : null}
+            <UiText
+              accessibilityLiveRegion="polite"
+              variant="bodyMedium"
+              tone={signedOut ? 'success' : 'muted'}
+            >
+              {signedOut ? copy.loggedOut.signedOutPortal : copy.loggedOut[notice]}
+            </UiText>
+          </View>
         </View>
         <Button
           icon="login"
@@ -46,5 +50,5 @@ export function LoggedOutScreen({ navigation }: MobileScreenProps) {
 const styles = StyleSheet.create({
   content: { gap: tokens.spacing.md },
   noticeRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md, marginBottom: tokens.spacing.sm },
-  body: { flex: 1 },
+  bodyColumn: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
 });

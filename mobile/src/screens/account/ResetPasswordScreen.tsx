@@ -11,6 +11,7 @@ import { accountApi } from './account-api';
 import { accountScreen } from './account-routes';
 import { classifyError, errorMessage } from './account-errors';
 import { checkPasswordPolicy, passwordChecklist } from './password-policy';
+import { setPasswordResetNotice } from './password-reset-notice';
 import { initialResetState, resetReducer } from './recovery-flow';
 import { useAccountCopy } from './use-account-copy';
 
@@ -93,7 +94,10 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
         <Button
           icon="login"
           label={copy.reset.goToSignIn}
-          onPress={() => navigation.navigate('auth.signIn')}
+          onPress={() => {
+            setPasswordResetNotice();
+            navigation.navigate('auth.signIn');
+          }}
         />
       </AccountFrame>
     );
@@ -131,6 +135,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
         showLabel={copy.common.showPassword}
         hideLabel={copy.common.hidePassword}
       />
+      <UiText variant="bodySmall" tone="muted" style={styles.policy}>{copy.reset.policyHint}</UiText>
       <View style={styles.checklist}>
         {passwordChecklist(password, confirmation).map((item) => (
           <UiText
@@ -161,6 +166,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
 
 const styles = StyleSheet.create({
   panel: { marginBottom: tokens.spacing.md },
+  policy: { marginBottom: tokens.spacing.xs },
   checklist: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.md },
   back: { marginTop: tokens.spacing.md },
 });

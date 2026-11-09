@@ -137,8 +137,30 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     setWidth(360);
     await renderThemed(<AdmissionsScreen {...props} />);
     expect(screen.getByRole('header', { name: admissionsMessages.vi.title })).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.eyebrow)).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.description)).toBeOnTheScreen();
     expect(screen.getByText(admissionsMessages.vi.simulatedBanner)).toBeOnTheScreen();
-    expect(screen.getByText('2026-Q1-DEMO')).toBeOnTheScreen();
+    expect(screen.getByText('Nguyễn Văn A')).toBeOnTheScreen();
+    expect(screen.getByText(`${admissionsMessages.vi.cycle}: 2026-Q1-DEMO`)).toBeOnTheScreen();
+  });
+
+  test('an admissions row shows the decision line under the status chip', async () => {
+    mockApi.mode = 'live';
+    const application = {
+      ...previewAdmissions('vi')[0],
+      status: 'ACCEPTED',
+      decision: 'ACCEPTED' as const,
+      decisionLabel: 'SIMULATED' as const,
+    };
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? [application] : []),
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    expect(screen.getByText(`${admissionsMessages.vi.decision}: ${admissionsMessages.vi.statusLabels.ACCEPTED} (SIMULATED)`)).toBeOnTheScreen();
   });
 
   test('admissions detail locks the preview actions and shows the review note', async () => {
