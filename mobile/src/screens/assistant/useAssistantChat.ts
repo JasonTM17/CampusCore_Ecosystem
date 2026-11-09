@@ -46,6 +46,8 @@ export interface ChatMessage {
   degraded?: boolean;
   reasonCode?: string | null;
   feedback?: MessageFeedback | null;
+  /** Server timestamp for history rows, receipt time for messages created on this device. */
+  createdAt?: string;
   /** True for text produced on the device (stop notice, preview echo); never rated. */
   local?: boolean;
   /** The answer was replaced by the output guard. */
@@ -85,6 +87,7 @@ function toChatMessage(message: AssistantHistoryMessage, fallbackBlocked: string
     degraded: message.degraded,
     reasonCode: message.reasonCode,
     feedback: message.feedback ? { rating: message.feedback } : null,
+    createdAt: message.createdAt,
     blocked,
   };
 }
@@ -210,6 +213,7 @@ export function useAssistantChat() {
       id: messageId ?? nextLocalId('assistant'),
       from: 'assistant',
       text: text || currentCopy.knowledgeUnavailable,
+      createdAt: new Date().toISOString(),
       citations: snapshot.citations as unknown as AssistantCitation[],
       degraded: done?.degraded,
       reasonCode: done?.reasonCode ?? null,
@@ -269,8 +273,8 @@ export function useAssistantChat() {
     if (isPreview || !orchestrator) {
       setMessages((current) => [
         ...current,
-        { id: nextLocalId('user'), from: 'student', text },
-        { id: nextLocalId('preview'), from: 'assistant', text: copy.previewReply, local: true, reasonCode: 'PREVIEW' },
+        { id: nextLocalId('user'), from: 'student', text, createdAt: new Date().toISOString() },
+        { id: nextLocalId('preview'), from: 'assistant', text: copy.previewReply, createdAt: new Date().toISOString(), local: true, reasonCode: 'PREVIEW' },
       ]);
       setDraft('');
       return;
@@ -279,7 +283,7 @@ export function useAssistantChat() {
     lastTextRef.current = text;
     const echoId = nextLocalId('user');
     optimisticIdRef.current = echoId;
-    setMessages((current) => [...current, { id: echoId, from: 'student', text }]);
+    setMessages((current) => [...current, { id: echoId, from: 'student', text, createdAt: new Date().toISOString() }]);
     setDraft('');
     const result = await orchestrator.send({
       message: text,
@@ -307,7 +311,7 @@ export function useAssistantChat() {
     const result = await orchestrator.cancel();
     if (result.status === 'cancelled') {
       setMessages((current) => [...current, {
-        id: nextLocalId('stopped'), from: 'assistant', text: copyRef.current.stoppedMessage, degraded: true, reasonCode: 'CANCELLED', local: true,
+        id: nextLocalId('stopped'), from: 'assistant', text: copyRef.current.stoppedMessage, createdAt: new Date().toISOString(), degraded: true, reasonCode: 'CANCELLED', local: true,
       }]);
       setDraft((current) => current || lastTextRef.current);
       optimisticIdRef.current = null;

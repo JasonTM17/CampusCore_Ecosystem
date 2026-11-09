@@ -6,6 +6,8 @@ import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { ASSISTANT_FEEDBACK_REASONS } from '../../api/assistant-limits';
 import { citationDomainLabel, fillAssistantCopy, type AssistantChatCopy } from '../../i18n/assistant-messages';
+import { formatDayMonthTime } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import { safeText } from '../../assistant/chat-helpers';
 import type { AssistantCitation, AssistantFeedbackRating, AssistantFeedbackReason } from '../../api/client';
 import type { ChatMessage } from './useAssistantChat';
@@ -54,6 +56,7 @@ export interface MessageBubbleProps {
 
 export const MessageBubble = memo(function MessageBubble({ message, copy, feedbackBusy, onRate }: MessageBubbleProps) {
   const { colors } = useTheme();
+  const { locale } = useLocale();
   const student = message.from === 'student';
   const rated = message.feedback;
   const reasons = rated ? (rated.rating === 'UP' ? POSITIVE_REASONS : NEGATIVE_REASONS) : [];
@@ -63,6 +66,9 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
       <Card tone={student ? 'primary' : 'card'} style={[styles.card, { borderColor: student ? colors.primary : colors.outlineVariant }, student ? styles.studentCard : undefined]}>
         <View style={styles.header}>
           <UiText variant="meta" tone={student ? 'primary' : 'muted'}>{student ? copy.you : copy.assistant}</UiText>
+          {!student && !message.degraded && (message.reasonCode === 'ANSWERED' || message.reasonCode === 'RAG_GROUNDED') ? (
+            <Badge label={copy.answered} tone={message.reasonCode === 'ANSWERED' ? 'success' : 'primary'} />
+          ) : null}
           {!student && message.degraded && message.reasonCode !== 'CANCELLED' ? <Badge label={copy.fallbackAnswer} tone="warning" /> : null}
         </View>
         {student ? (
@@ -118,6 +124,9 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
             ) : null}
           </View>
         ) : null}
+        {message.createdAt ? (
+          <UiText variant="meta" tone="muted" style={styles.time}>{formatDayMonthTime(message.createdAt, locale)}</UiText>
+        ) : null}
       </Card>
     </View>
   );
@@ -130,6 +139,7 @@ const styles = StyleSheet.create({
   studentCard: { alignSelf: 'flex-end' },
   header: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
   text: { marginTop: tokens.spacing.xs },
+  time: { marginTop: tokens.spacing.xs },
   sources: { marginTop: tokens.spacing.sm },
   sourcesHeader: { alignItems: 'center', flexDirection: 'row', minHeight: minTapTarget, minWidth: minTapTarget },
   grow: { flex: 1 },

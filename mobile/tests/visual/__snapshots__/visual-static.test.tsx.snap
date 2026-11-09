@@ -1985,14 +1985,19 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "Trợ lý CampusUTE",
+                                    {
+                                      "c": [
+                                        "Trợ lý CampusUTE",
+                                      ],
+                                      "role": "header",
+                                      "s": {
+                                        "color": "#EDF0F2",
+                                        "fontSize": 26,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
-                                  "role": "header",
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 26,
-                                  },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                               ],
                               "s": {
@@ -2081,7 +2086,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Cuộc trò chuyện mới",
+                                            "Hội thoại mới",
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
@@ -2098,7 +2103,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Cuộc trò chuyện mới",
+                                  "label": "Hội thoại mới",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2224,7 +2229,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "Đăng ký học phần",
+                                        "Lớp tôi đang học",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2233,7 +2238,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Đăng ký học phần",
+                                  "label": "Lớp tôi đang học",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2252,7 +2257,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "lịch học",
+                                        "TKB tuần này của tôi",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2261,7 +2266,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "lịch học",
+                                  "label": "TKB tuần này của tôi",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2280,7 +2285,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "thông báo",
+                                        "Điểm của tôi thế nào?",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2289,7 +2294,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "thông báo",
+                                  "label": "Điểm của tôi thế nào?",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2308,7 +2313,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "chương trình đào tạo",
+                                        "Điều kiện tốt nghiệp",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2317,7 +2322,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "chương trình đào tạo",
+                                  "label": "Điều kiện tốt nghiệp",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2436,7 +2441,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 },
                                 {
                                   "c": [
-                                    "Gửi câu hỏi",
+                                    "Gửi tin nhắn",
                                   ],
                                   "s": {
                                     "color": "#12151C",
@@ -2453,7 +2458,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "t": "View",
                             },
                           ],
-                          "label": "Gửi câu hỏi",
+                          "label": "Gửi tin nhắn",
                           "role": "button",
                           "s": {
                             "alignItems": "center",
@@ -2526,14 +2531,19 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "Trợ lý CampusUTE",
+                                    {
+                                      "c": [
+                                        "Trợ lý CampusUTE",
+                                      ],
+                                      "role": "header",
+                                      "s": {
+                                        "color": "#EDF0F2",
+                                        "fontSize": 26,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
-                                  "role": "header",
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 26,
-                                  },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                               ],
                               "s": {
@@ -2622,7 +2632,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Cuộc trò chuyện mới",
+                                            "Hội thoại mới",
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
@@ -2639,7 +2649,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Cuộc trò chuyện mới",
+                                  "label": "Hội thoại mới",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2765,7 +2775,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "Đăng ký học phần",
+                                        "Lớp tôi đang học",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2774,7 +2784,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Đăng ký học phần",
+                                  "label": "Lớp tôi đang học",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2793,7 +2803,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "lịch học",
+                                        "TKB tuần này của tôi",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2802,7 +2812,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "lịch học",
+                                  "label": "TKB tuần này của tôi",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2821,7 +2831,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "thông báo",
+                                        "Điểm của tôi thế nào?",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2830,7 +2840,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "thông báo",
+                                  "label": "Điểm của tôi thế nào?",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2849,7 +2859,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "chương trình đào tạo",
+                                        "Điều kiện tốt nghiệp",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -2858,7 +2868,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "chương trình đào tạo",
+                                  "label": "Điều kiện tốt nghiệp",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -2979,7 +2989,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 },
                                 {
                                   "c": [
-                                    "Gửi câu hỏi",
+                                    "Gửi tin nhắn",
                                   ],
                                   "s": {
                                     "color": "#12151C",
@@ -2996,7 +3006,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "t": "View",
                             },
                           ],
-                          "label": "Gửi câu hỏi",
+                          "label": "Gửi tin nhắn",
                           "role": "button",
                           "s": {
                             "alignItems": "center",
@@ -3073,14 +3083,19 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "Trợ lý CampusUTE",
+                                    {
+                                      "c": [
+                                        "Trợ lý CampusUTE",
+                                      ],
+                                      "role": "header",
+                                      "s": {
+                                        "color": "#17243A",
+                                        "fontSize": 26,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
-                                  "role": "header",
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 26,
-                                  },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                               ],
                               "s": {
@@ -3169,7 +3184,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Cuộc trò chuyện mới",
+                                            "Hội thoại mới",
                                           ],
                                           "s": {
                                             "color": "#003F87",
@@ -3186,7 +3201,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Cuộc trò chuyện mới",
+                                  "label": "Hội thoại mới",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3312,7 +3327,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "Đăng ký học phần",
+                                        "Lớp tôi đang học",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3321,7 +3336,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Đăng ký học phần",
+                                  "label": "Lớp tôi đang học",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3340,7 +3355,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "lịch học",
+                                        "TKB tuần này của tôi",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3349,7 +3364,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "lịch học",
+                                  "label": "TKB tuần này của tôi",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3368,7 +3383,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "thông báo",
+                                        "Điểm của tôi thế nào?",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3377,7 +3392,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "thông báo",
+                                  "label": "Điểm của tôi thế nào?",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3396,7 +3411,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "chương trình đào tạo",
+                                        "Điều kiện tốt nghiệp",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3405,7 +3420,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "chương trình đào tạo",
+                                  "label": "Điều kiện tốt nghiệp",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3524,7 +3539,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 },
                                 {
                                   "c": [
-                                    "Gửi câu hỏi",
+                                    "Gửi tin nhắn",
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
@@ -3541,7 +3556,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "t": "View",
                             },
                           ],
-                          "label": "Gửi câu hỏi",
+                          "label": "Gửi tin nhắn",
                           "role": "button",
                           "s": {
                             "alignItems": "center",
@@ -3614,14 +3629,19 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "Trợ lý CampusUTE",
+                                    {
+                                      "c": [
+                                        "Trợ lý CampusUTE",
+                                      ],
+                                      "role": "header",
+                                      "s": {
+                                        "color": "#17243A",
+                                        "fontSize": 26,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
-                                  "role": "header",
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 26,
-                                  },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                               ],
                               "s": {
@@ -3710,7 +3730,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "c": [
                                         {
                                           "c": [
-                                            "Cuộc trò chuyện mới",
+                                            "Hội thoại mới",
                                           ],
                                           "s": {
                                             "color": "#003F87",
@@ -3727,7 +3747,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Cuộc trò chuyện mới",
+                                  "label": "Hội thoại mới",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3853,7 +3873,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "Đăng ký học phần",
+                                        "Lớp tôi đang học",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3862,7 +3882,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Đăng ký học phần",
+                                  "label": "Lớp tôi đang học",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3881,7 +3901,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "lịch học",
+                                        "TKB tuần này của tôi",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3890,7 +3910,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "lịch học",
+                                  "label": "TKB tuần này của tôi",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3909,7 +3929,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "thông báo",
+                                        "Điểm của tôi thế nào?",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3918,7 +3938,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "thông báo",
+                                  "label": "Điểm của tôi thế nào?",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -3937,7 +3957,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "c": [
                                     {
                                       "c": [
-                                        "chương trình đào tạo",
+                                        "Điều kiện tốt nghiệp",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -3946,7 +3966,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "chương trình đào tạo",
+                                  "label": "Điều kiện tốt nghiệp",
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
@@ -4067,7 +4087,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                 },
                                 {
                                   "c": [
-                                    "Gửi câu hỏi",
+                                    "Gửi tin nhắn",
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
@@ -4084,7 +4104,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "t": "View",
                             },
                           ],
-                          "label": "Gửi câu hỏi",
+                          "label": "Gửi tin nhắn",
                           "role": "button",
                           "s": {
                             "alignItems": "center",
