@@ -1,13 +1,14 @@
 import { StyleSheet, View } from 'react-native';
 
-import { Card, StatePanel, UiText } from '../../components/Ui';
+import { Card, StatePanel } from '../../components/Ui';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { campusMessages } from '../../i18n/campus-messages';
 import { contentApi } from './content-api';
 import { joinMeta, publisherName } from './content-rules';
 import { ContentHero, DetailFrame, StatusChip, isPreviewMode, useContentCopy } from './content-ui';
 import { previewNews } from './preview-data';
-import { htmlToPlainText } from './rich-text';
+import { formatRelativeTime } from './relative-time';
+import { RichContent } from '../../components/content/rich-content';
 import { useContentQuery } from './use-content-query';
 
 export interface NewsDetailProps {
@@ -18,7 +19,7 @@ export interface NewsDetailProps {
 
 /** One public announcement. Reads with the public auth policy, so it works signed out too. */
 export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
-  const { locale, copy: shared, formatDateTime, t } = useContentCopy();
+  const { locale, copy: shared, t } = useContentCopy();
   const copy = campusMessages[locale];
   const preview = isPreviewMode();
   const query = useContentQuery<MobilePublicAnnouncement>(
@@ -28,9 +29,13 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
   const item = preview
     ? previewNews(locale).find((entry) => entry.id === idOrSlug || entry.slug === idOrSlug) ?? null
     : query.data ?? null;
+  const publishedDate = item?.publishAt ?? item?.createdAt ?? null;
+  const publishedLabel = publishedDate
+    ? copy.publishedOn.replace('{date}', formatRelativeTime(publishedDate, locale))
+    : null;
 
   return (
-    <DetailFrame title={copy.newsDetailTitle} onBack={onBack}>
+    <DetailFrame title={copy.newsTitle} backLabel={copy.newsBackToList} onBack={onBack}>
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : !preview && query.error ? (
@@ -49,7 +54,7 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
             title={item.title}
             icon="newspaper-variant-outline"
             detail={joinMeta([
-              item.publishAt ? `${copy.publishedAt}: ${formatDateTime(item.publishAt)}` : null,
+              publishedLabel,
               publisherName(item.lecturerDisplayName, item.publishedBy),
               item.semesterName ? `${copy.semester}: ${item.semesterName}` : null,
             ])}
@@ -58,7 +63,7 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
               <StatusChip code={item.priority} labels={copy.priorityLabels} />
             </View>
           </ContentHero>
-          <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(item.content ?? item.summary)}</UiText>
+          <RichContent html={item.content ?? item.summary} style={styles.body} />
         </Card>
       )}
     </DetailFrame>

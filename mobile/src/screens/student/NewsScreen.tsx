@@ -11,10 +11,11 @@ import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
-import { filterByPriority, newsCategoryLabel } from '../content/content-rules';
+import { filterByPriority, newsCategoryLabel, publisherName } from '../content/content-rules';
 import { ContentChevron, ContentIconChip, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
 import { NewsDetail } from '../content/NewsDetail';
 import { previewNews } from '../content/preview-data';
+import { formatRelativeTime } from '../content/relative-time';
 import { excerptOf } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
 import { summaryRowAccessibilityLabel } from './summary-label';
@@ -23,7 +24,7 @@ const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 
 /** Public campus news: paged feed, priority filter and a detail view. */
 export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
-  const { locale, formatDate } = useContentCopy();
+  const { locale } = useContentCopy();
   const { window } = useTheme();
   const largeText = window.fontScale >= chromeFontScaleCap;
   const copy = campusMessages[locale];
@@ -58,12 +59,15 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.newsTitle}
+        description={copy.newsSubtitle}
         icon="newspaper-variant-outline"
         list={list}
         items={rows}
         filtered={priorities.length > 0}
         keyOf={(item) => item.id}
         emptyTitle={copy.emptyFeed}
+        errorTitle={copy.newsLoadErrorTitle}
+        errorDescription={copy.newsLoadError}
         header={(
           <View style={styles.filters}>
             <UiText variant="meta" tone="muted">{copy.priority}</UiText>
@@ -82,13 +86,15 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
         renderItem={(item) => {
           const summaryText = item.summary ?? (item.content ? excerptOf(item.content) : null);
           const category = newsCategoryLabel(categoryLabels, item.categoryId);
+          const dateLabel = formatRelativeTime(item.publishAt ?? item.createdAt, locale);
+          const publisher = publisherName(item.lecturerDisplayName, item.publishedBy);
           return (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={summaryRowAccessibilityLabel({
                 title: item.title,
                 badge: copy.priorityLabels[item.priority ?? ''] ?? item.priority,
-                date: item.publishAt ? formatDate(item.publishAt) : null,
+                date: dateLabel || null,
                 summary: summaryText,
               })}
               onPress={() => setSelected(item.slug ?? item.id)}
@@ -103,10 +109,13 @@ export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
                       <UiText ellipsizeMode="tail" variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{summaryText}</UiText>
                     ) : null}
                     <View style={styles.meta}>
-                      {category
-                        ? <StatusPill label={category} tone="primary" />
-                        : <StatusChip code={item.priority} labels={copy.priorityLabels} />}
-                      {item.publishAt ? <UiText variant="meta" tone="muted">{formatDate(item.publishAt)}</UiText> : null}
+                      <StatusChip code={item.priority} labels={copy.priorityLabels} />
+                      {category ? <StatusPill label={category} tone="neutral" /> : null}
+                      {dateLabel ? <UiText variant="meta" tone="muted">{dateLabel}</UiText> : null}
+                    </View>
+                    <View style={styles.footer}>
+                      {publisher ? <UiText variant="meta" tone="muted" style={styles.publisher}>{publisher}</UiText> : null}
+                      <UiText variant="label" tone="primary" style={styles.readMore}>{copy.readMore}</UiText>
                     </View>
                   </View>
                   <ContentChevron />
@@ -125,6 +134,9 @@ const styles = StyleSheet.create({
   rowContent: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   meta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  footer: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  publisher: { flexShrink: 1 },
+  readMore: { marginLeft: 'auto' },
   filters: { gap: tokens.spacing.xs },
   filterChips: { flexDirection: 'row', gap: tokens.spacing.sm, paddingVertical: 1 },
 });
