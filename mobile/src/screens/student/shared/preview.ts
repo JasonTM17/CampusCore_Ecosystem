@@ -4,9 +4,9 @@ export const upcomingClasses = [
 ];
 
 export const courses = [
-  { code: 'CS204', name: 'Software Architecture', lecturer: 'Dr. Le Minh', progress: 72, status: 'In progress' },
-  { code: 'BA312', name: 'Business Analytics', lecturer: 'Assoc. Prof. Tran Ha', progress: 58, status: 'In progress' },
-  { code: 'EN201', name: 'Academic English', lecturer: 'Ms. Nguyen Mai', progress: 86, status: 'On track' },
+  { code: 'CS204', name: 'Software Architecture', nameEn: 'Software Architecture', nameVi: 'Kiến trúc phần mềm', lecturer: 'Dr. Le Minh', progress: 72, status: 'In progress' },
+  { code: 'BA312', name: 'Business Analytics', nameEn: 'Business Analytics', nameVi: 'Phân tích kinh doanh', lecturer: 'Assoc. Prof. Tran Ha', progress: 58, status: 'In progress' },
+  { code: 'EN201', name: 'Academic English', nameEn: 'Academic English', nameVi: 'Tiếng Anh học thuật', lecturer: 'Ms. Nguyen Mai', progress: 86, status: 'On track' },
 ];
 
 export const grades = [

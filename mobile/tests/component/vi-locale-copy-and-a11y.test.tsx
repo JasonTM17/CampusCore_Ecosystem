@@ -85,8 +85,8 @@ afterEach(() => {
 describe('Vietnamese preview data localization and accessibility names', () => {
   test('StudentDashboardScreen renders Vietnamese course names for preview upcoming classes', async () => {
     const view = await renderInLocale(<StudentDashboardScreen {...props} />, 'vi');
-    expect(await view.findByText(/Kiến trúc phần mềm/)).toBeTruthy();
-    expect(await view.findByText(/Phân tích kinh doanh/)).toBeTruthy();
+    expect((await view.findAllByText(/Kiến trúc phần mềm/)).length).toBeGreaterThan(0);
+    expect((await view.findAllByText(/Phân tích kinh doanh/)).length).toBeGreaterThan(0);
     expect(view.queryByText(/Software Architecture/)).toBeNull();
   });
 

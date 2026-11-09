@@ -1549,6 +1549,10 @@ export const campusApi = {
     apiClient.get<Array<{ id: string; status: string; kind?: string }>>('/registration/rounds'),
   registrationSections: () =>
     apiClient.get<RegistrationCatalogSection[]>('/me/registration/sections'),
+  registrationSummary: (semesterId?: string) =>
+    apiClient.get<{ creditLimit?: number; creditsRemaining?: number; creditsUsed?: number }>(
+      '/me/registration/summary' + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
+    ),
   transcript: () => apiClient.get<JsonObject>('/enrollments/my/transcript'),
   announcements: () => apiClient.get<MobileAnnouncementPage>('/announcements/my'),
   updateProfile: (body: JsonObject) => apiClient.put<AuthUser>('/auth/profile', body),

@@ -127,7 +127,7 @@ studentScreens.push(
   { name: 'document detail', render: () => <DocDetail slug={previewDocs('vi')[0].slug} onBack={noop} /> },
   { name: 'academic stale notice', render: () => <AcademicShell title="Academic" warning="Stale data"><Card><UiText>Academic content</UiText></Card></AcademicShell> },
   { name: 'thesis stale notice', render: () => <ScreenShell title="Thesis"><QueryNotices copy={thesisMessages.vi} state={{ warning: 'Stale data', error: null, loading: false, reload: async () => {}, preview: true }} /><Card><UiText>Thesis content</UiText></Card></ScreenShell> },
-  { name: 'dashboard stale notice', setup: () => { mockQueries['academic.enrollments'] = { warning: 'Stale data' }; }, render: () => <StudentDashboardScreen {...props} /> },
+  { name: 'dashboard stale notice', setup: () => { mockQueries['academic.dashboard'] = { warning: 'Stale data' }; }, render: () => <StudentDashboardScreen {...props} /> },
   { name: 'dashboard announcement error', setup: () => { mockQueries.announcements = { error: 'Announcements unavailable' }; }, render: () => <StudentDashboardScreen {...props} /> },
   { name: 'dashboard empty agenda', setup: () => { Object.defineProperty(apiClient, 'mode', { value: 'live', configurable: true }); }, render: () => <StudentDashboardScreen {...props} /> },
   { name: 'conduct stale notice', setup: () => {

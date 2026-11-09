@@ -64,14 +64,15 @@ test('student screens key enrollment lists by semester and guard profile saves',
 
   // Retaken courses repeat the same code across semesters, so list keys must
   // include the semester (or the unique grade record id) to stay unique.
-  assert.match(dashboard, /key=\{`\$\{item\.semesterId \?\? 'na'\}-\$\{item\.code\}`\}/);
+  assert.match(dashboard, /key=\{course\.id\}/);
+  assert.match(dashboard, /key=\{item\.id\}/);
   const workspace = fs.readFileSync(path.join(mobileRoot, 'src/screens/academic/EnrollmentWorkspace.tsx'), 'utf8');
   assert.match(workspace, /key=\{`\$\{item\.semesterId\}-\$\{item\.id\}`\}/);
   assert.match(grades, /key=\{record\.id\}/);
   assert.doesNotMatch(screens + workspace, /key=\{item\.code\}|key=\{course\.code\}|key=\{grade\.code\}/);
   // Dashboard and courses speak for active enrollments, not dropped history.
-  assert.match(dashboard, /liveEnrollments\.filter\(\(item\) => isActiveEnrollment\(item\.status\)\)/);
-  assert.match(dashboard, /activeSectionCount = apiClient\.mode === 'preview' \? previewCourses\.length : activeEnrollments\.length/);
+  assert.match(dashboard, /enrollments\.filter\(\(item\) => isActiveEnrollment\(item\.status\)\)/);
+  assert.match(dashboard, /activeSectionCount = preview \? previewCourses\.length : activeEnrollments\.length/);
   assert.match(dashboard, /countForm\(activeSectionCount, c\.activeSectionsOne, c\.activeSections\)/);
   const academicModel = fs.readFileSync(path.join(mobileRoot, 'src/screens/academic/academic-model.ts'), 'utf8');
   assert.match(academicModel, /ACTIVE_STATUSES: readonly string\[\] = \['ENROLLED', 'PENDING', 'CONFIRMED'\]/);
