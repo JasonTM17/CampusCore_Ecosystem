@@ -24,6 +24,10 @@ jest.mock('expo-router', () => ({
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'preview', role: 'student', switchRole: jest.fn() }),
 }));
+jest.mock('../../src/i18n/locale', () => ({
+  ...jest.requireActual<typeof import('../../src/i18n/locale')>('../../src/i18n/locale'),
+  formatLongDate: () => 'Monday, November 9, 2026',
+}));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 import { StudentDashboardScreen } from '../../src/screens/student/StudentDashboardScreen';

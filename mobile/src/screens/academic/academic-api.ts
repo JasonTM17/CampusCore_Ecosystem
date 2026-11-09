@@ -7,6 +7,7 @@ import { apiClient, campusApi, createAssistantClientRequestId } from '../../api/
 import { getFileAdapter } from '../../files/file-adapter';
 import type { FileActionResult } from '../../files/file-adapter';
 import type { AcademicEnrollment, AcademicSemester } from './academic-model';
+import { defaultTermId } from './academic-model';
 import { createAttemptKeys } from './idempotency-attempts';
 import type { BrowseSection } from './registration-browse';
 import type { GradeRecordLike } from './gpa';
@@ -104,6 +105,14 @@ export interface RegistrationWorkspace {
   closedReason: string | null;
 }
 
+export interface DashboardAcademics {
+  semesterId: string | null;
+  semester: AcademicSemester | null;
+  enrollments: AcademicEnrollment[];
+  /** Registration-round cap; null when the round is closed or no term is active. */
+  creditLimit: number | null;
+}
+
 const CLOSED_CODES = ['WINDOW_CLOSED', 'COHORT_INELIGIBLE', 'ROUND_NOT_FOUND'];
 
 function listOf<T>(payload: unknown): T[] {
@@ -126,6 +135,24 @@ export const academicApi = {
     (await campusApi.attendanceSummary(semesterId ?? undefined)) as unknown as AttendanceSummaryRow[],
   attendanceRecords: async (semesterId?: string | null): Promise<AttendanceRecordRow[]> =>
     listOf<AttendanceRecordRow>(await apiClient.get<unknown>(`/attendance/my${query(semesterId)}`)),
+
+  /** Preferred-term overview: the same semester rule and query parameters the web dashboard uses. */
+  async dashboard(): Promise<DashboardAcademics> {
+    const semesters = await academicApi.semesters();
+    const semesterId = defaultTermId(semesters, []) || null;
+    const semester = semesters.find((entry) => entry.id === semesterId) ?? null;
+    if (!semesterId) {
+      return { semesterId: null, semester: null, enrollments: [], creditLimit: null };
+    }
+    const [enrollments, summary] = await Promise.all([
+      academicApi.enrollments(semesterId),
+      campusApi.registrationSummary(semesterId).catch((error: unknown) => {
+        if ((error as { code?: string } | null)?.code === 'WINDOW_CLOSED') return null;
+        throw error;
+      }),
+    ]);
+    return { semesterId, semester, enrollments, creditLimit: summary?.creditLimit ?? null };
+  },
 
   /** Catalog, rounds, eligibility and enrollments. A closed window is data, any other failure throws. */
   async registrationWorkspace(): Promise<RegistrationWorkspace> {
