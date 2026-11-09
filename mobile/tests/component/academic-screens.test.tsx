@@ -173,14 +173,33 @@ describe('transcript', () => {
     ],
   };
 
-  test('shows the cumulative GPA, the term record and the grade scale', async () => {
+  test('shows the cumulative GPA, the web KPI set, the term record and the grade scale', async () => {
     mockQueries['academic.transcript'] = { data: transcript };
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'b', code: 'CS101', name: 'Nhập môn', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'c', code: 'CS102', name: 'Cấu trúc dữ liệu', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'd', code: 'CS103', name: 'Hệ điều hành', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'IN_PROGRESS' },
+          { courseId: 'e', code: 'CS104', name: 'Mạng máy tính', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'IN_PROGRESS' },
+        ],
+      },
+    };
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getByRole('header', { name: 'Bảng điểm' })).toBeOnTheScreen();
     expect(screen.getAllByText('3,42').length).toBeGreaterThan(0);
-    expect(screen.getByText('GPA tích lũy (hệ 4)')).toBeOnTheScreen();
+    expect(screen.getByText('GPA hệ 4 tích lũy toàn khóa')).toBeOnTheScreen();
+    expect(screen.getByText('Tín chỉ đã đạt')).toBeOnTheScreen();
+    expect(screen.getByText('14 / 120')).toBeOnTheScreen();
+    expect(screen.getByText('Môn đã hoàn tất')).toBeOnTheScreen();
+    expect(screen.getByText('3')).toBeOnTheScreen();
+    expect(screen.getByText('Môn đang học')).toBeOnTheScreen();
+    expect(screen.getByText('2')).toBeOnTheScreen();
     expect(screen.getByText('MA101')).toBeOnTheScreen();
     expect(screen.getByLabelText('A+, 9,0 - 10,0, 4,0')).toBeOnTheScreen();
+    expect(screen.getByText('F (<4.0): chưa tích lũy, phải học lại.')).toBeOnTheScreen();
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
 
@@ -190,6 +209,7 @@ describe('transcript', () => {
     expect(screen.getByRole('header', { name: 'Transcript' })).toBeOnTheScreen();
     expect(screen.getAllByText('3.42').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('A+, 9.0 - 10.0, 4.0')).toBeOnTheScreen();
+    expect(screen.getByText('F (<4.0): not earned — the course must be retaken.')).toBeOnTheScreen();
   });
 
   test('an API error is an error state, never data', async () => {
@@ -249,7 +269,7 @@ describe('transcript', () => {
     };
     await render(wrap(<TranscriptScreen {...props} />));
 
-    expect(screen.getByText('P')).toBeOnTheScreen();
+    expect(screen.getAllByText('P').length).toBeGreaterThan(0);
     expect(screen.queryByText('Đã công bố')).toBeNull();
   });
 
@@ -271,7 +291,7 @@ describe('transcript', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     expect(screen.queryByText('3,50')).toBeNull();
     expect(screen.queryByText('0,00')).toBeNull();
-    expect(screen.getByText('Chưa có số liệu')).toBeOnTheScreen();
+    expect(screen.getAllByText('Chưa có số liệu').length).toBeGreaterThan(0);
   });
 
   test('a payload that is not a transcript is not rendered', async () => {
@@ -302,6 +322,70 @@ describe('transcript', () => {
     expect(screen.getByText('8,5')).toBeOnTheScreen();
     expect(screen.getAllByText('A').length).toBeGreaterThan(0);
     expect(screen.getByText('Đang phúc khảo')).toBeOnTheScreen();
+  });
+
+  test('letter chips use the web tone bands for B and D grades', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 2.5, totalCreditsEarned: 6, totalCreditsAttempted: 6 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 2.5, creditsEarned: 6, creditsAttempted: 6,
+          records: [
+            { id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 7.5, letterGrade: 'B', gradeStatus: 'PUBLISHED' },
+            { id: 'r2', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 4.5, letterGrade: 'D', gradeStatus: 'PUBLISHED' },
+          ],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    const toneOf = (letter: string) => screen.getAllByText(letter).map((pill) =>
+      StyleSheet.flatten(pill.parent?.props.style as StyleProp<ViewStyle>)?.backgroundColor,
+    );
+    expect(toneOf('B')).toContain(tokens.colors.primaryFixed);
+    expect(toneOf('B')).not.toContain(tokens.colors.successFixed);
+    expect(toneOf('D')).toContain(tokens.colors.warningFixed);
+    expect(toneOf('D')).not.toContain(tokens.colors.errorFixed);
+  });
+
+  test('shows the term count line, the detail hint and the grade distribution', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 3.42, totalCreditsEarned: 6, totalCreditsAttempted: 6 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 3.42, creditsEarned: 6, creditsAttempted: 6,
+          records: [
+            { id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 9, letterGrade: 'A', gradeStatus: 'PUBLISHED' },
+            { id: 'r2', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 7.5, letterGrade: 'B+', gradeStatus: 'PUBLISHED' },
+          ],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    expect(screen.getByText('2 môn - 6 tín chỉ đã đăng ký - GPA 3,42')).toBeOnTheScreen();
+    expect(screen.getByText('Chi tiết GK/CK')).toBeOnTheScreen();
+    expect(screen.getByText('Phân bố xếp loại')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Phân bố xếp loại: A 1, B+ 1')).toBeOnTheScreen();
+  });
+
+  test('opens the summary breakdown from a transcript row', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 3.42, totalCreditsEarned: 3, totalCreditsAttempted: 3 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 3.42, creditsEarned: 3, creditsAttempted: 3,
+          records: [{ id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, processScore: 7.4, finalExamScore: 8.6, finalGrade: 8, letterGrade: 'B', gradeStatus: 'PUBLISHED' }],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: /Mở chi tiết điểm cho CS101 Nhập môn/ }));
+    expect(await screen.findByText('Điểm quá trình (ĐQT - 50%)')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm cuối kỳ (ĐCK - 50%)')).toBeOnTheScreen();
+    expect(screen.getByText('7,4 / 10')).toBeOnTheScreen();
+    expect(screen.getByText('8,6 / 10')).toBeOnTheScreen();
   });
 });
 
@@ -440,17 +524,18 @@ describe('grades', () => {
     expect(pullControl().refreshing).toBe(false);
   });
 
-  test('a retaken course counts once in the GPA and average cards', async () => {
+  test('a retaken course counts once in the GPA and completed-credit cards', async () => {
     mockQueries['academic.grades'] = {
       data: [
-        { id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 3, letterGrade: 'F', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
-        { id: 'g2', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 9, letterGrade: 'A', gradeStatus: 'PUBLISHED', semesterId: 't2', semester: 'HK2' },
+        { id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 2.5, letterGrade: 'F', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: 't1', semester: 'HK1' },
+        { id: 'g2', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 9, letterGrade: 'A', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: 't2', semester: 'HK2' },
       ],
     };
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getAllByText('4,00').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('9,00').length).toBeGreaterThan(0);
-    expect(screen.queryByText('2,00')).toBeNull();
+    expect(screen.getByText('Tín chỉ hoàn tất')).toBeOnTheScreen();
+    expect(screen.getByText('3')).toBeOnTheScreen();
+    expect(screen.getByText('2/2')).toBeOnTheScreen();
     expect(screen.queryByText('6,00')).toBeNull();
   });
 
@@ -468,7 +553,7 @@ describe('grades', () => {
     expect(screen.queryByText('preview-term')).toBeNull();
   });
 
-  test('lists published grades only and explains the scale', async () => {
+  test('lists published grades only and keeps the scale on the transcript', async () => {
     mockQueries['academic.grades'] = {
       data: [
         { id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
@@ -478,10 +563,107 @@ describe('grades', () => {
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getByText('MA101')).toBeOnTheScreen();
     expect(screen.queryByText('CS101')).toBeNull();
-    expect(screen.getByLabelText('B, 7,0 - 7,9, 3,0')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Xem bảng điểm tích lũy' }));
+    expect(screen.queryByText('Thang điểm')).toBeNull();
+    expect(screen.queryByLabelText('B, 7,0 - 7,9, 3,0')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở bảng điểm' }));
     expect(navigate).toHaveBeenCalledWith('transcript');
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
+  });
+
+  test('shows the component summary and the per-term count line without the extra scale card', async () => {
+    mockQueries['academic.grades'] = {
+      data: [
+        { id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
+        { id: 'g2', courseCode: 'PH101', courseName: 'Vật lý', credits: 2, finalGrade: 7, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
+      ],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('Điểm thành phần theo từng môn')).toBeOnTheScreen();
+    expect(screen.getByText('2 môn - 5 tín chỉ')).toBeOnTheScreen();
+    expect(screen.queryByText('Thang điểm')).toBeNull();
+  });
+
+  test('explains the empty grades state and opens the transcript from it', async () => {
+    mockQueries['academic.grades'] = { data: [] };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('Chưa có điểm được công bố')).toBeOnTheScreen();
+    expect(screen.getByText('Khi môn học được chấm và công bố, kết quả sẽ xuất hiện tại đây.')).toBeOnTheScreen();
+    const open = screen.getAllByRole('button', { name: 'Mở bảng điểm' });
+    expect(open).toHaveLength(1);
+    await fireEvent.press(open[0]);
+    expect(navigate).toHaveBeenCalledWith('transcript');
+  });
+
+  test('offers catalogue terms that have no published grades in the semester filter', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    mockQueries['academic.semesters'] = {
+      data: [{ id: 't9', name: 'HK9', nameVi: 'Học kỳ 9', nameEn: 'Semester 9' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    await fireEvent.press(screen.getByRole('button', { name: 'Học kỳ: Tất cả học kỳ' }));
+    expect(screen.getByRole('radio', { name: 'Học kỳ 9' })).toBeOnTheScreen();
+  });
+
+  test('opens the grade breakdown sheet from a row', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, processScore: 7.2, finalExamScore: 8.6, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1', sectionCode: '01' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: /Mở chi tiết điểm cho CS101 Nhập môn lập trình/ }));
+    expect(screen.getByRole('header', { name: 'Chi tiết điểm học phần' })).toBeOnTheScreen();
+    expect(screen.getByText('ĐHP = ĐQT × 50% + ĐCK × 50%')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm quá trình (ĐQT - 50%)')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm cuối kỳ (ĐCK - 50%)')).toBeOnTheScreen();
+    expect(screen.getAllByText('50%')).toHaveLength(2);
+    expect(screen.getByText('7,2 / 10')).toBeOnTheScreen();
+    expect(screen.getByText('8,6 / 10')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm tổng kết (10)')).toBeOnTheScreen();
+    expect(screen.getAllByText('8,1').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Quy đổi (4.0)')).toBeOnTheScreen();
+    expect(screen.getByText('3,0')).toBeOnTheScreen();
+    expect(apiClient.get).toHaveBeenCalledWith('/grades/student-grades/enrollment/g1');
+  });
+
+  test('renders component rows from the enrollment breakdown API', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    jest.mocked(apiClient.get).mockResolvedValueOnce({
+      grades: [
+        { id: 'l1', gradeItemName: 'Kiểm tra giữa kỳ', gradeItemType: 'QUIZ', score: 8.25, maxScore: 10, weight: 0.4 },
+        { id: 'l2', gradeItemName: 'Thi cuối kỳ', gradeItemType: 'FINAL', score: 7, maxScore: 10, weight: 60 },
+      ],
+    });
+    await render(wrap(<GradesScreen {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: /Mở chi tiết điểm cho CS101 Nhập môn lập trình/ }));
+    expect(await screen.findByText('Kiểm tra giữa kỳ')).toBeOnTheScreen();
+    expect(screen.getByText('40%')).toBeOnTheScreen();
+    expect(screen.getByText('8,3 / 10')).toBeOnTheScreen();
+    expect(screen.getByText('Điểm cuối kỳ (ĐCK - 50%)')).toBeOnTheScreen();
+    expect(screen.getByText('60%')).toBeOnTheScreen();
+    expect(screen.getByText('7,0 / 10')).toBeOnTheScreen();
+  });
+
+  test('letter chips use the web tone bands for B and D grades', async () => {
+    mockQueries['academic.grades'] = {
+      data: [
+        { id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 7.5, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
+        { id: 'g2', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 4.5, letterGrade: 'D', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
+      ],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+
+    const toneOf = (letter: string) => screen.getAllByText(letter).map((pill) =>
+      StyleSheet.flatten(pill.parent?.props.style as StyleProp<ViewStyle>)?.backgroundColor,
+    );
+    expect(toneOf('B')).toContain(tokens.colors.primaryFixed);
+    expect(toneOf('B')).not.toContain(tokens.colors.successFixed);
+    expect(toneOf('D')).toContain(tokens.colors.warningFixed);
+    expect(toneOf('D')).not.toContain(tokens.colors.errorFixed);
   });
 
   test('includes appealed grades in the grades list and GPA summary', async () => {
