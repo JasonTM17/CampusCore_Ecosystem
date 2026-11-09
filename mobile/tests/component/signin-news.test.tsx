@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Dimensions, StyleSheet } from 'react-native';
-import type { ReactElement } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
-import { minTapTarget } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'live' as 'preview' | 'live' };
@@ -31,7 +28,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'signedOut', role: 'student', capabilities: [] }),
 }));
-// Native auth surfaces are out of scope here — the feed never touches OIDC.
+// Native auth surfaces are out of scope here — the sign-in screen never touches OIDC until pressed.
 jest.mock('../../src/auth/oidc-session', () => ({
   signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })),
 }));
@@ -58,25 +55,6 @@ import { signInWithOidc } from '../../src/auth/oidc-session';
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student', selectedThesisTopicId: null } as MobileScreenProps;
 
-const ITEMS = [
-  {
-    id: 'a',
-    title: 'Lịch thi cuối kỳ đã công bố',
-    summary: 'Phòng Đào tạo thông báo lịch thi.',
-    slug: 'lich-thi-cuoi-ky',
-    publishAt: '2026-10-28T01:00:00Z',
-    categoryId: 'academic-affairs',
-    priority: 'NORMAL',
-    coverImageUrl: 'https://example.test/cover.png',
-  },
-  { id: 'b', title: 'Thông báo khẩn của trường', priority: 'URGENT', publishAt: '2026-10-27T01:00:00Z' },
-  { id: 'c', title: 'Tin học vụ thường', priority: 'HIGH' },
-];
-
-function paged(items: unknown[]) {
-  return { items, hasMore: false, total: items.length };
-}
-
 const renderScreen = (locale: 'vi' | 'en' = 'vi') =>
   render(
     <ThemeProvider forcedScheme="light">
@@ -102,113 +80,15 @@ afterEach(() => {
   mockQuery.value = { data: undefined, error: null, warning: null, isLoading: false, errorStatus: null };
 });
 
-describe('sign-in guest news feed', () => {
-  test('renders the magazine section: featured card, compact rows, urgent pill only', async () => {
-    mockQuery.value.data = paged(ITEMS);
+describe('sign-in screen', () => {
+  test('is a pure authentication form without the guest news magazine or browse buttons', async () => {
     await renderScreen();
-    expect(screen.getByTestId('signin-news-section')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: shellMessages.vi.guest.newsTitle })).toBeOnTheScreen();
-    expect(screen.getByText('Lịch thi cuối kỳ đã công bố')).toBeOnTheScreen();
-    expect(screen.getByText('Thông báo khẩn của trường')).toBeOnTheScreen();
-    // Category pill via the label helper, cover image, "Đọc bài" cue.
-    expect(screen.getAllByText('Học vụ').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('signin-news-cover')).toBeOnTheScreen();
-    expect(screen.getByText(shellMessages.vi.guest.readArticle)).toBeOnTheScreen();
-    // Only the URGENT row carries the "Khẩn" pill.
-    expect(screen.getAllByText('Khẩn').length).toBe(1);
-    // The OIDC entry point is never blocked by the feed.
+
+    expect(screen.queryByTestId('signin-news-section')).toBeNull();
+    expect(screen.queryByText(shellMessages.vi.guest.newsTitle)).toBeNull();
+    expect(screen.queryByRole('button', { name: shellMessages.vi.screens.news })).toBeNull();
+    expect(screen.queryByRole('button', { name: shellMessages.vi.screens.docs })).toBeNull();
     expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
-  });
-
-  test('the guest news block carries the web description and category counts', async () => {
-    mockQuery.value.data = paged(ITEMS);
-    await renderScreen();
-    expect(screen.getByText('Thông báo học vụ, sự kiện học thuật, thành tựu nghiên cứu khoa học và chính sách đào tạo chính thức từ Trường Đại học Công nghệ Kỹ thuật TP.HCM.')).toBeOnTheScreen();
-    const all = screen.getByRole('button', { name: 'Tất cả bài viết' });
-    expect(within(all).getByText('3')).toBeOnTheScreen();
-    const academic = screen.getByRole('button', { name: 'Học vụ' });
-    expect(within(academic).getByText('1')).toBeOnTheScreen();
-    await fireEvent.press(academic);
-    expect(screen.getByText('Lịch thi cuối kỳ đã công bố')).toBeOnTheScreen();
-    expect(screen.queryByText('Thông báo khẩn của trường')).toBeNull();
-  });
-
-  test('a card opens the guest news detail route and see-all opens the feed', async () => {
-    mockQuery.value.data = paged(ITEMS);
-    await renderScreen();
-    await fireEvent.press(screen.getByTestId('signin-news-featured'));
-    expect(navigation.navigate).toHaveBeenCalledWith('news', { newsItem: 'lich-thi-cuoi-ky' });
-    await fireEvent.press(screen.getByTestId('signin-news-row-0'));
-    expect(navigation.navigate).toHaveBeenCalledWith('news', { newsItem: 'b' });
-    await fireEvent.press(screen.getByTestId('signin-news-see-all'));
-    expect(navigation.navigate).toHaveBeenCalledWith('news');
-  });
-
-  test('guest news links and compact rows keep a 48dp minimum height', async () => {
-    mockQuery.value.data = paged(ITEMS);
-    await renderScreen();
-    const seeAll = StyleSheet.flatten(screen.getByTestId('signin-news-see-all').props.style);
-    const compactRow = StyleSheet.flatten(screen.getByTestId('signin-news-row-1').props.style);
-    expect(seeAll.minHeight).toBeGreaterThanOrEqual(minTapTarget);
-    expect(compactRow.minHeight).toBeGreaterThanOrEqual(minTapTarget);
-  });
-
-  test('a missing cover falls back to the neutral placeholder', async () => {
-    mockQuery.value.data = paged([{ id: 'x', title: 'Không ảnh bìa', priority: 'NORMAL' }]);
-    await renderScreen();
-    expect(screen.getByTestId('signin-news-cover-placeholder')).toBeOnTheScreen();
-    expect(screen.queryByTestId('signin-news-cover')).toBeNull();
-  });
-
-  test('loading shows skeleton blocks while sign-in stays interactive', async () => {
-    mockQuery.value = { data: undefined, error: null, warning: null, isLoading: true, errorStatus: null };
-    await renderScreen();
-    expect(screen.getByTestId('signin-news-loading')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
-  });
-
-  test('empty feed shows the quiet empty state', async () => {
-    mockQuery.value.data = paged([]);
-    await renderScreen();
-    expect(screen.getByTestId('signin-news-empty')).toBeOnTheScreen();
-    expect(screen.getByText('Chưa có bản tin nào được công bố')).toBeOnTheScreen();
-  });
-
-  test('error shows a retry that reloads without touching sign-in', async () => {
-    mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false, errorStatus: 500 };
-    await renderScreen();
-    expect(screen.getByTestId('signin-news-error')).toBeOnTheScreen();
-    expect(screen.getByText('Không thể tải dữ liệu')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.guest.retry }));
-    expect(mockReload).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
-  });
-
-  test('error announcement is separate from its retry action', async () => {
-    mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false, errorStatus: 500 };
-    await renderScreen();
-    const errorNotice = screen.getByRole('alert', { name: 'Không thể tải dữ liệu' });
-    expect(errorNotice.props.accessible).toBe(true);
-    expect(errorNotice.props.accessibilityRole).toBe('alert');
-    expect(errorNotice.props.accessibilityLabel).toBe('Không thể tải dữ liệu');
-    expect(errorNotice.props.accessibilityLabel).not.toBe(shellMessages.vi.guest.loading);
-    expect(within(errorNotice).queryByRole('button', { name: shellMessages.vi.guest.retry })).toBeNull();
-    expect(screen.getByRole('button', { name: shellMessages.vi.guest.retry })).toBeOnTheScreen();
-  });
-
-  test('a failed revalidate keeps data visible with a stale banner', async () => {
-    mockQuery.value = { data: paged(ITEMS.slice(0, 1)), error: null, warning: 'Không có kết nối mạng.', isLoading: false, errorStatus: 0 };
-    await renderScreen();
-    expect(screen.getByTestId('signin-news-warning')).toBeOnTheScreen();
-    expect(screen.getByText('Lịch thi cuối kỳ đã công bố')).toBeOnTheScreen();
-  });
-
-  test('english locale renders the web magazine labels', async () => {
-    mockQuery.value.data = paged([]);
-    await renderScreen('en');
-    expect(screen.getByText('CAMPUS PRESS & MAGAZINE')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'HCMUTE Academic Life & Innovation' })).toBeOnTheScreen();
-    expect(screen.getByText('No announcements published yet')).toBeOnTheScreen();
   });
 
   test.each([
@@ -225,8 +105,7 @@ describe('sign-in guest news feed', () => {
     }));
 
     expect(await screen.findByText(message)).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: shellMessages[locale].screens.news })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: shellMessages[locale].screens.docs })).toBeOnTheScreen();
+    expect(screen.queryByTestId('signin-news-section')).toBeNull();
   });
 });
 

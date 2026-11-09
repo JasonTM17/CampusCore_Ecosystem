@@ -83,7 +83,7 @@ describe('signed-out responsive frames', () => {
     async (width, height, fontScale) => {
       setWindow(width, height, fontScale);
       await show(<SignInScreen {...props} />);
-      const body = screen.getByTestId('signin-news-section').parent;
+      const body = screen.getByTestId('signin-body');
       const style = StyleSheet.flatten(body?.props.style);
       expect(style.flex).toBeUndefined();
       expect(style.flexGrow).toBe(1);
