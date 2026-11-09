@@ -113,6 +113,14 @@ export function formatDateTime(value: string | number | Date | null | undefined,
   return locale === 'vi' ? `${time} ${datePart(p, locale)}` : `${datePart(p, locale)}, ${time}`;
 }
 
+/** Day and month with the campus clock, matching the web assistant message stamp. */
+export function formatDayMonthTime(value: string | number | Date | null | undefined, locale: AppLocale): string {
+  const p = toParts(value);
+  if (!p) return EMPTY;
+  const day = locale === 'vi' ? `${pad(p.d)}/${pad(p.m)}` : `${MONTHS_EN[p.m - 1] ?? pad(p.m)} ${p.d}`;
+  return `${day} ${pad(p.hh)}:${pad(p.mm)}`;
+}
+
 /** An instant's fixed UTC+07 calendar day, encoded at UTC midnight for zone-free day math. */
 export function campusDate(value: Date | number = new Date()): Date {
   const instant = value instanceof Date ? value : new Date(value);
