@@ -154,7 +154,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.progressRow}>
             {progressCards.map((card) => (
               <Card key={card.semesterId} style={styles.progressCard}>
-                <UiText variant="label" numberOfLines={1} style={styles.progressTerm}>{card.name}</UiText>
+                <UiText variant="label" numberOfLines={2} style={styles.progressTerm}>{card.name}</UiText>
                 <View style={styles.progressValues}>
                   <UiText variant="headlineSmall" style={styles.progressGpa}>
                     {card.gpa === null ? '—' : gpa(card.gpa)}

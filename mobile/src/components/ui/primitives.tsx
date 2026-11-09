@@ -284,7 +284,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
   const { t } = useLocale();
   const clear = onClear ?? (() => onChangeText(''));
   return (
-    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, paddingLeft: spacing.md }, style]}>
+    <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, minWidth: 0, paddingLeft: spacing.sm }, style]}>
       <TextInput
         {...input}
         multiline={false}
@@ -293,7 +293,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
         accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
         placeholder={placeholder}
         placeholderTextColor={colors.outline}
-        style={{ color: colors.text, flex: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, paddingVertical: spacing.sm }}
+        style={{ color: colors.text, flex: 1, flexShrink: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, minWidth: 0, paddingVertical: spacing.sm }}
       />
       {value.length > 0 ? (
         <Pressable
