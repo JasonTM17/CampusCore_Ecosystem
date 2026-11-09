@@ -98,7 +98,7 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { NewsScreen } from '../../src/screens/student/NewsScreen';
 import { DocsScreen } from '../../src/screens/student/DocsScreen';
-import { SignInScreen } from '../../src/screens/auth/SignInScreen';
+import { GuestHomeScreen } from '../../src/screens/guest/GuestHomeScreen';
 import { summaryRowAccessibilityLabel } from '../../src/screens/student/summary-label';
 
 const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -210,13 +210,13 @@ describe('summary row accessibility labels and text clamping', () => {
       },
     ];
 
-    await renderThemed(<SignInScreen {...mobileProps} />);
+    await renderThemed(<GuestHomeScreen {...mobileProps} />);
 
     const summaryNode = screen.getByText(longSummary);
     expect(summaryNode.props.numberOfLines).toBe(2);
     expect(summaryNode.props.ellipsizeMode).toBe('tail');
 
-    const featuredCard = screen.getByTestId('signin-news-featured');
+    const featuredCard = screen.getByTestId('guest-news-featured');
     expect(featuredCard.props.accessibilityLabel).toContain(longSummary);
     expect(featuredCard.props.accessibilityLabel).toContain('25/10/2026');
   });

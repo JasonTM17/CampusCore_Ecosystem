@@ -1,41 +1,23 @@
-import { useContext, useMemo, useRef, useState } from 'react';
-import { Image, Linking, Pressable, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { useContext, useRef, useState } from 'react';
+import { Image, Linking, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, UiText } from '../../components/Ui';
 import { LanguageToggleButton } from '../../components/LanguageToggleButton';
+import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 import { PreviewPill } from '../../components/PreviewPill';
-import { FilterChip, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
-import type { MobilePublicAnnouncement } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
 import { sessionStore } from '../../auth/mobile-session-store';
-import { minTapTarget, tokens } from '../../design/tokens';
+import { tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
-import { campusMessages } from '../../i18n/campus-messages';
-import { useLocale } from '../../i18n/locale-provider';
-import { shellMessages } from '../../i18n/shell-messages';
 import { useSession } from '../../session/SessionContext';
 import { accountScreen } from '../account/account-routes';
 import { takePasswordResetNotice } from '../account/password-reset-notice';
 import { useAccountCopy } from '../account/use-account-copy';
 import { configuredPortalUrl } from '../operations/shared/portal-url';
-import { contentApi } from '../content/content-api';
-import {
-  isUrgentPriority,
-  joinMeta,
-  newsCategoryCode,
-  newsCategoryLabel,
-  newsHighlights,
-  newsTargetOf,
-} from '../content/content-rules';
-import { previewNews } from '../content/preview-data';
-import { summaryOrExcerpt } from '../content/rich-text';
-import { usePagedList } from '../content/use-paged-list';
-import { summaryRowAccessibilityLabel } from '../student/summary-label';
 import type { MobileScreenProps } from '../../navigation/types';
 
 /** How far the form card rides up over the navy hero band. */
@@ -48,10 +30,9 @@ const HERO_OVERLAP = tokens.spacing.lg + tokens.spacing.xs;
  */
 export function SignInScreen({ navigation }: MobileScreenProps) {
   const styles = useThemedStyles(makeStyles);
-  const { scheme, window } = useTheme();
+  const { scheme } = useTheme();
   const chrome = chromeFor(scheme);
   const session = useSession();
-  const { locale } = useLocale();
   const copy = useAccountCopy();
   const insets = useContext(SafeAreaInsetsContext);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +42,6 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const portal = configuredPortalUrl();
   const signInFlight = useRef(false);
   const isPreview = apiClient.mode === 'preview';
-  const stackGuests = window.fontScale >= 1.3;
 
   const handleSignIn = async () => {
     if (signInFlight.current) return;
@@ -129,10 +109,11 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
             <LanguageToggleButton />
+            <ThemeToggleButton />
           </View>
           <PreviewPill style={styles.previewPill} />
         </View>
-        <View style={styles.body}>
+        <View style={styles.body} testID="signin-body">
           <Card style={styles.formCard}>
             <UiText accessibilityRole="header" variant="headlineLarge">{copy.signIn.heading}</UiText>
             {passwordReset ? (
@@ -195,11 +176,6 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
               </View>
             ) : null}
           </Card>
-          <View style={stackGuests ? styles.guestColumn : styles.guestRow}>
-            <Button icon="newspaper-variant-outline" label={shellMessages[locale].screens.news} onPress={() => navigation.navigate('news')} variant="secondary" style={stackGuests ? undefined : styles.guestButton} />
-            <Button icon="file-document-outline" label={shellMessages[locale].screens.docs} onPress={() => navigation.navigate('docs')} variant="secondary" style={stackGuests ? undefined : styles.guestButton} />
-          </View>
-          <SignInNewsSection navigation={navigation} />
           <View style={styles.footerFlex} />
         </View>
       </ScrollView>
@@ -212,263 +188,6 @@ function sessionStoreIssuer(): string {
   // development (KM-2); the flow must target the same origin the refresh calls use.
   return sessionStore.issuer;
 }
-
-/* ---------- guest news feed ---------- */
-
-/** Lead article plus the compact follow-up rows shown under it. */
-const GUEST_NEWS_MAX = 5;
-
-/** Web home category order; labels come from the campus catalogue. */
-const GUEST_NEWS_CATEGORIES = [
-  'RESEARCH_TECH',
-  'AWARDS_HONORS',
-  'STUDENT_LIFE',
-  'CULTURE_ARTS',
-  'ACADEMIC_AFFAIRS',
-  'CAREER_OPPORTUNITIES',
-] as const;
-
-/**
- * Public magazine feed under the guest actions (web home parity). It reuses the
- * same anonymous paged read and per-identity memory cache as the /news screen,
- * so a guest who opens the feed twice gets stale-while-revalidate for free.
- * Every failure lands only inside this section — the sign-in controls never
- * wait for it.
- */
-function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navigation'] }) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeNewsStyles);
-  const { locale, formatDate } = useLocale();
-  const copy = shellMessages[locale].guest;
-  const campusCopy = campusMessages[locale];
-  const categoryLabels = campusCopy.newsCategoryLabels as Readonly<Record<string, string>>;
-  const priorityLabels = campusCopy.priorityLabels as Readonly<Record<string, string>>;
-  const preview = useMemo(() => previewNews(locale), [locale]);
-  const [activeCategory, setActiveCategory] = useState('ALL');
-  const list = usePagedList<MobilePublicAnnouncement>({
-    key: 'content.news',
-    fetchPage: (page, limit, signal) => contentApi.news({ page, limit, signal }),
-    keyOf: (item) => item.id,
-    preview,
-  });
-  const counts = useMemo(() => {
-    const next: Record<string, number> = {};
-    for (const item of list.items) {
-      const code = newsCategoryCode(item.categoryId);
-      if (code) next[code] = (next[code] ?? 0) + 1;
-    }
-    return next;
-  }, [list.items]);
-  const filtered = activeCategory === 'ALL'
-    ? list.items
-    : list.items.filter((item) => newsCategoryCode(item.categoryId) === activeCategory);
-  const { featured, rest } = newsHighlights(filtered, GUEST_NEWS_MAX);
-  const open = (item: MobilePublicAnnouncement) => navigation.navigate('news', { newsItem: newsTargetOf(item) });
-
-  return (
-    <View style={styles.section} testID="signin-news-section">
-      <View style={styles.head}>
-        <View style={styles.headCopy}>
-          <UiText variant="meta" tone="primary" style={styles.eyebrow}>{copy.newsEyebrow}</UiText>
-          <UiText accessibilityRole="header" variant="headlineSmall">{copy.newsTitle}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.newsDescription}</UiText>
-        </View>
-        <Pressable
-          accessibilityLabel={copy.seeAll}
-          accessibilityRole="link"
-          onPress={() => navigation.navigate('news')}
-          style={styles.seeAll}
-          testID="signin-news-see-all"
-        >
-          <UiText variant="label" tone="primary">{copy.seeAll}</UiText>
-          <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />
-        </Pressable>
-      </View>
-      {list.items.length > 0 && !list.loading && !list.error ? (
-        <View style={styles.categories}>
-          <FilterChip
-            count={list.items.length}
-            label={copy.allStories}
-            onPress={() => setActiveCategory('ALL')}
-            selected={activeCategory === 'ALL'}
-          />
-          {GUEST_NEWS_CATEGORIES.map((code) => (
-            <FilterChip
-              count={counts[code] ?? 0}
-              key={code}
-              label={categoryLabels[code] ?? code}
-              onPress={() => setActiveCategory(code)}
-              selected={activeCategory === code}
-            />
-          ))}
-        </View>
-      ) : null}
-      {list.warning ? (
-        <View testID="signin-news-warning">
-          <DataNotice message={list.warning} />
-        </View>
-      ) : null}
-      {list.loading ? (
-        <View accessibilityLabel={copy.loading} accessibilityLiveRegion="polite" accessible style={styles.feed} testID="signin-news-loading">
-          <View style={[styles.skeletonBlock, styles.skeletonCover]} />
-          <View style={[styles.skeletonBlock, styles.skeletonRow]} />
-          <View style={[styles.skeletonBlock, styles.skeletonRow]} />
-          <View style={[styles.skeletonBlock, styles.skeletonRow]} />
-        </View>
-      ) : list.error ? (
-        <View testID="signin-news-error">
-          <StatePanel kind="error" title={list.error} actionLabel={copy.retry} onAction={() => void list.reload()} />
-        </View>
-      ) : !featured ? (
-        <View style={styles.empty} testID="signin-news-empty">
-          <UiText variant="bodySmall" tone="muted">{activeCategory === 'ALL' ? copy.empty : copy.noStories}</UiText>
-        </View>
-      ) : (
-        <View style={styles.feed}>
-          <FeaturedNewsCard
-            category={newsCategoryLabel(categoryLabels, featured.categoryId)}
-            date={featured.publishAt ? formatDate(featured.publishAt) : ''}
-            item={featured}
-            onPress={() => open(featured)}
-            readLabel={copy.readArticle}
-            summary={summaryOrExcerpt(featured)}
-          />
-          {rest.map((item, index) => (
-            <CompactNewsRow
-              date={item.publishAt ? formatDate(item.publishAt) : ''}
-              index={index}
-              item={item}
-              key={item.id}
-              onPress={() => open(item)}
-              urgentLabel={isUrgentPriority(item.priority) ? priorityLabels.URGENT : ''}
-            />
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function NewsCover({ url }: { url?: string | null }) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeNewsStyles);
-  const [failed, setFailed] = useState(false);
-  if (!url || failed) {
-    return (
-      <View importantForAccessibility="no" style={[styles.cover, styles.coverPlaceholder]} testID="signin-news-cover-placeholder">
-        <MaterialCommunityIcons accessible={false} color={colors.textMuted} name="newspaper-variant-outline" size={32} />
-      </View>
-    );
-  }
-  return <Image accessible={false} importantForAccessibility="no" onError={() => setFailed(true)} resizeMode="cover" source={{ uri: url }} style={styles.cover} testID="signin-news-cover" />;
-}
-
-function FeaturedNewsCard({
-  item,
-  category,
-  date,
-  summary,
-  readLabel,
-  onPress,
-}: {
-  item: MobilePublicAnnouncement;
-  category: string;
-  date: string;
-  summary: string;
-  readLabel: string;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeNewsStyles);
-  return (
-    <Pressable
-      accessibilityLabel={summaryRowAccessibilityLabel({
-        title: item.title,
-        badge: category,
-        date,
-        summary,
-      })}
-      accessibilityRole="link"
-      onPress={onPress}
-      style={({ pressed }) => [pressed ? styles.pressed : undefined]}
-      testID="signin-news-featured"
-    >
-      <Card style={styles.featuredCard}>
-        <NewsCover key={item.coverImageUrl ?? 'none'} url={item.coverImageUrl} />
-        <View style={styles.featuredBody}>
-          <View style={styles.metaRow}>
-            {category ? <StatusPill label={category} tone="primary" /> : null}
-            {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
-          </View>
-          <UiText variant="label">{item.title}</UiText>
-          {summary ? <UiText ellipsizeMode="tail" numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
-          <View style={styles.readRow}>
-            <UiText variant="label" tone="primary">{readLabel}</UiText>
-            <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />
-          </View>
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-function CompactNewsRow({
-  item,
-  index,
-  date,
-  urgentLabel,
-  onPress,
-}: {
-  item: MobilePublicAnnouncement;
-  index: number;
-  date: string;
-  urgentLabel: string;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeNewsStyles);
-  return (
-    <Pressable
-      accessibilityLabel={joinMeta([item.title, urgentLabel, date])}
-      accessibilityRole="link"
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed ? { backgroundColor: colors.surfaceLow } : undefined]}
-      testID={`signin-news-row-${index}`}
-    >
-      <View style={styles.rowCopy}>
-        <UiText variant="label">{item.title}</UiText>
-        <View style={styles.metaRow}>
-          {urgentLabel ? <StatusPill label={urgentLabel} tone="error" /> : null}
-          {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
-        </View>
-      </View>
-      <MaterialCommunityIcons accessible={false} color={colors.textMuted} importantForAccessibility="no" name="chevron-right" size={20} />
-    </Pressable>
-  );
-}
-
-const makeNewsStyles = (colors: ThemeColors) => StyleSheet.create({
-  section: { gap: tokens.spacing.sm, marginTop: tokens.spacing.lg },
-  head: { alignItems: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
-  headCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
-  categories: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  eyebrow: { letterSpacing: 0.6, textTransform: 'uppercase' },
-  seeAll: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, minHeight: minTapTarget, minWidth: minTapTarget },
-  feed: { gap: tokens.spacing.sm },
-  featuredCard: { overflow: 'hidden', padding: 0 },
-  cover: { height: 160, width: '100%' },
-  coverPlaceholder: { alignItems: 'center', backgroundColor: colors.surfaceLow, justifyContent: 'center' },
-  featuredBody: { gap: tokens.spacing.xs, padding: tokens.spacing.md },
-  metaRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
-  readRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
-  row: { alignItems: 'center', borderRadius: tokens.radii.control, flexDirection: 'row', gap: tokens.spacing.sm, minHeight: minTapTarget, minWidth: minTapTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
-  empty: { paddingVertical: tokens.spacing.sm },
-  skeletonBlock: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
-  skeletonCover: { height: 200 },
-  skeletonRow: { height: tokens.layout.touchTarget },
-  pressed: { opacity: 0.88 },
-});
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -483,9 +202,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },
   resetNotice: { backgroundColor: colors.successFixed, borderColor: colors.success, borderRadius: tokens.radii.control, borderWidth: 1, gap: tokens.spacing.xs, marginBottom: tokens.spacing.md, marginTop: tokens.spacing.sm, padding: tokens.spacing.sm },
   issueNote: { gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
-  guestRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
-  guestColumn: { gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
-  guestButton: { flex: 1 },
   footerFlex: { flex: 1, minHeight: tokens.spacing.lg },
   submit: { marginTop: tokens.spacing.sm },
   errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
