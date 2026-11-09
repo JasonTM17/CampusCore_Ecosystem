@@ -86,6 +86,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
   },
 }));
 
+import * as queryCache from '../../src/hooks/query-cache';
 import { contentApi } from '../../src/screens/content/content-api';
 import { expoPushPlatform } from '../../src/api/expo-push-platform';
 import { NotificationsScreen } from '../../src/screens/student/NotificationsScreen';
@@ -249,6 +250,18 @@ describe('notifications centre opens only allowlisted routes', () => {
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith('transcript', undefined);
     await waitFor(() => expect(contentApi.markNotificationRead).toHaveBeenCalledWith('n1'));
+  });
+
+  test('the unread count reaches the shared cache even when the screen is already gone', async () => {
+    setWidth(360);
+    showRows([row('n1', 'Điểm đã công bố', '/dashboard/transcript')]);
+    jest.mocked(contentApi.unreadCount).mockResolvedValue(4);
+    const write = jest.spyOn(queryCache, 'writeQueryCache');
+    await renderThemed(<NotificationsScreen {...props} />);
+    await fireEvent.press(rowButton('Điểm đã công bố'));
+    await waitFor(() => expect(write).toHaveBeenCalledWith(
+      expect.stringContaining('content.notifications.unread-count'), 4));
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
   test.each([

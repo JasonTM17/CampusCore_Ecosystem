@@ -12,7 +12,7 @@ import { PUSH_OPT_IN_ENABLED } from '../../config/features';
 import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { useOptimisticRows } from '../../hooks/use-optimistic-rows';
-import { evictQueryCache, queryCacheKey } from '../../hooks/query-cache';
+import { evictQueryCache, queryCacheKey, writeQueryCache } from '../../hooks/query-cache';
 import { fillCopy } from '../../i18n/academic-messages';
 import { checkinMessages } from '../../i18n/checkin-messages';
 import { notificationsCenterMessages } from '../../i18n/notifications-center-messages';
@@ -98,7 +98,13 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
         evictQueryCache(queryCacheKey(session?.accountId ?? null, resource, cacheScope));
       }
       if (ok) success(ok);
-      void unread.reload();
+      // Read the count outside the screen's own query: opening a notification
+      // navigates away, and a write to the shared cache still reaches the badge
+      // in the app shell, which a reload from an unmounted screen never would.
+      const unreadKey = queryCacheKey(session?.accountId ?? null, 'content.notifications.unread-count', cacheScope);
+      void contentApi.unreadCount()
+        .then((count) => { if (identityRef.current === identity) writeQueryCache(unreadKey, count); })
+        .catch(() => undefined);
     } catch (error) {
       if (identityRef.current === identity) fail(contentErrorMessage(shared, error, copy.updateFailed));
     } finally {
@@ -106,7 +112,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
       busyRef.current = false;
       setBusy(false);
     }
-  }, [begin, cacheScope, copy.updateFailed, fail, identity, list, offline, session?.accountId, shared, success, unread]);
+  }, [begin, cacheScope, copy.updateFailed, fail, identity, list, offline, session?.accountId, shared, success]);
 
   const markRead = (item: MobileNotification, announce = true) => {
     if (item.isRead) return;
