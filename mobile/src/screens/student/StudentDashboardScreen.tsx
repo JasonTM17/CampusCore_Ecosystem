@@ -40,7 +40,7 @@ import type { ScreenName } from '../../navigation/routes';
 import { useLiveResource } from './shared/useLiveResource';
 import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
 import { upcomingClasses, courses as previewCourses } from './shared/preview';
-import { tokens } from '../../design/tokens';
+import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 
 const EMPTY_OVERVIEW: DashboardAcademics = {
@@ -141,9 +141,23 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       eyebrow={c.eyebrow}
       title={c.title}
       headerAction={
-        <View style={[styles.dateChip, { borderColor: colors.outlineVariant, backgroundColor: colors.card }]}>
-          <UiText variant="meta" tone="muted">{formatLongDate(new Date(), locale)}</UiText>
-        </View>
+        preview ? (
+          <View style={[styles.dateChip, { borderColor: colors.outlineVariant, backgroundColor: colors.card }]}>
+            <UiText variant="meta" tone="muted">{formatLongDate(new Date(), locale)}</UiText>
+          </View>
+        ) : (
+          <View testID="dashboard-header-actions" style={styles.headerActions}>
+            <View style={[styles.dateChip, { borderColor: colors.outlineVariant, backgroundColor: colors.card }]}>
+              <UiText variant="meta" tone="muted">{formatLongDate(new Date(), locale)}</UiText>
+            </View>
+            <Button
+              label={c.headerRegisterCourses}
+              onPress={() => navigation.navigate('registration')}
+              variant="secondary"
+              style={styles.headerRegister}
+            />
+          </View>
+        )
       }
     >
       {warning ? <View style={styles.notice}><DataNotice message={warning} /></View> : null}
@@ -333,7 +347,9 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
 });
 
 const styles = StyleSheet.create({
-  dateChip: { borderRadius: tokens.radii.control, borderWidth: 1, marginLeft: tokens.spacing.sm, maxWidth: 168, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+  headerActions: { alignItems: 'center', flexDirection: 'row', flexShrink: 1, flexWrap: 'nowrap', gap: tokens.spacing.xs, marginLeft: tokens.spacing.sm, maxWidth: '100%' },
+  headerRegister: { flexShrink: 1, maxWidth: 200, minWidth: minTapTarget },
+  dateChip: { borderRadius: tokens.radii.control, borderWidth: 1, maxWidth: 168, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: tokens.spacing.sm },
   actionStack: { flexDirection: 'column' },

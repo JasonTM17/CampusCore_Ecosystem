@@ -592,6 +592,24 @@ describe('grades', () => {
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
   });
 
+  test('shows the per-semester GPA progress strip from the transcript feed', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    mockQueries['academic.transcript'] = {
+      data: {
+        semesters: [
+          { semesterId: 't1', semesterName: 'HK1', semesterNameVi: 'Học kỳ 1', semesterNameEn: 'Semester 1', gpa: 3.42, creditsEarned: 12, creditsAttempted: 15, records: [] },
+          { semesterId: 't2', semesterName: 'HK2', semesterNameVi: 'Học kỳ 2', semesterNameEn: 'Semester 2', gpa: 3.1, creditsEarned: 9, creditsAttempted: 9, records: [] },
+        ],
+      },
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('Tiến bộ theo học kỳ')).toBeOnTheScreen();
+    expect(screen.getByText('3,42')).toBeOnTheScreen();
+    expect(screen.getByText('3,10')).toBeOnTheScreen();
+  });
+
   test('shows the component summary and the per-term count line without the extra scale card', async () => {
     mockQueries['academic.grades'] = {
       data: [

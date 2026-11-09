@@ -1,9 +1,9 @@
 import { groupedRows } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { minTapTarget } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
@@ -12,7 +12,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AcademicGradeRecord } from '../academic/academic-api';
 import { previewGrades } from '../academic/academic-preview';
-import { letterTone, publishedOnly, summarizeBestAttempts } from '../academic/gpa';
+import { letterTone, parseTranscript, publishedOnly, semesterProgressCards, summarizeBestAttempts } from '../academic/gpa';
 import { localizedName } from '../academic/academic-model';
 import { GradeDetailSheet } from '../academic/GradeDetailSheet';
 import {
@@ -39,6 +39,7 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.grades', () => academicApi.grades(), copy);
+  const transcriptQuery = useAcademicQuery('academic.transcript', () => academicApi.transcript(), copy);
   const semesters = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
   const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
@@ -59,6 +60,10 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   const visible = records.filter((record) => !term || record.semesterId === term);
   const summary = summarizeBestAttempts(visible);
   const gradedCount = visible.filter((record) => Boolean(record.letterGrade)).length;
+  const progressCards = useMemo(() => {
+    const model = preview ? null : parseTranscript(transcriptQuery.data, locale);
+    return model ? semesterProgressCards(model.terms) : [];
+  }, [preview, transcriptQuery.data, locale]);
   const grouped = useMemo(() => {
     const groups = new Map<string, { label: string; records: AcademicGradeRecord[] }>();
     for (const record of visible) {
@@ -143,6 +148,27 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
         <MetricCard icon="book-check-outline" label={copy.completedCredits} value={formatNumber(summary.completedCredits)} style={academicStyles.metric} />
         <MetricCard icon="book-open-outline" label={copy.gradedCourses} value={`${formatNumber(gradedCount)}/${formatNumber(visible.length)}`} style={academicStyles.metric} />
       </View>
+      {progressCards.length > 0 ? (
+        <View accessibilityLabel={copy.progressStripAriaLabel} style={styles.progressSection}>
+          <SectionHeading title={copy.progressStripTitle} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.progressRow}>
+            {progressCards.map((card) => (
+              <Card key={card.semesterId} style={styles.progressCard}>
+                <UiText variant="label" numberOfLines={1} style={styles.progressTerm}>{card.name}</UiText>
+                <View style={styles.progressValues}>
+                  <UiText variant="headlineSmall" style={styles.progressGpa}>
+                    {card.gpa === null ? '—' : gpa(card.gpa)}
+                  </UiText>
+                  <UiText variant="meta" tone="muted">
+                    {`${formatNumber(card.creditsEarned)} ${copy.creditsWord}`}
+                  </UiText>
+                </View>
+                <UiText variant="meta" tone="muted" style={styles.progressGpaLabel}>{copy.gradePointLabel}</UiText>
+              </Card>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
       <SectionHeading title={copy.publishedGrades} />
       {visible.length === 0 ? (
         <StatePanel
@@ -159,6 +185,13 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
 }
 
 const styles = StyleSheet.create({
+  progressSection: { gap: 8, marginBottom: 8 },
+  progressRow: { gap: 12, paddingVertical: 4 },
+  progressCard: { gap: 6, minWidth: 148, paddingHorizontal: 12, paddingVertical: 10 },
+  progressTerm: { maxWidth: 148 },
+  progressValues: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between' },
+  progressGpa: { fontVariant: ['tabular-nums'] },
+  progressGpaLabel: { letterSpacing: 0.8, textTransform: 'uppercase' },
   termTitle: { marginBottom: 4 },
   rowPress: { minHeight: minTapTarget },
   gradeRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 8 },
