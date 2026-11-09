@@ -4,6 +4,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { LanguageToggleButton } from '../../components/LanguageToggleButton';
 import { PreviewPill } from '../../components/PreviewPill';
 import { FilterChip, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
@@ -127,6 +128,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
               <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
+            <LanguageToggleButton />
           </View>
           <PreviewPill style={styles.previewPill} />
         </View>

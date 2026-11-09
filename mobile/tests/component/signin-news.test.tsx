@@ -117,7 +117,7 @@ describe('sign-in guest news feed', () => {
     // Only the URGENT row carries the "Khẩn" pill.
     expect(screen.getAllByText('Khẩn').length).toBe(1);
     // The OIDC entry point is never blocked by the feed.
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
   });
 
   test('the guest news block carries the web description and category counts', async () => {
@@ -164,7 +164,7 @@ describe('sign-in guest news feed', () => {
     mockQuery.value = { data: undefined, error: null, warning: null, isLoading: true, errorStatus: null };
     await renderScreen();
     expect(screen.getByTestId('signin-news-loading')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
   });
 
   test('empty feed shows the quiet empty state', async () => {
@@ -181,7 +181,7 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByText('Không thể tải dữ liệu')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.guest.retry }));
     expect(mockReload).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản campus' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' })).toBeOnTheScreen();
   });
 
   test('error announcement is separate from its retry action', async () => {
@@ -221,7 +221,7 @@ describe('sign-in guest news feed', () => {
     });
     await renderScreen(locale);
     await fireEvent.press(screen.getByRole('button', {
-      name: locale === 'vi' ? 'Đăng nhập bằng tài khoản campus' : 'Sign in with your campus account',
+      name: locale === 'vi' ? 'Đăng nhập bằng tài khoản nhà trường để tiếp tục.' : 'Sign in with your campus account to continue.',
     }));
 
     expect(await screen.findByText(message)).toBeOnTheScreen();
