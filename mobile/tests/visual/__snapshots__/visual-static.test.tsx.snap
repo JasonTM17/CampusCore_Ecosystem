@@ -111,6 +111,30 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
               "c": [
                 {
                   "c": [
+                    "󰖨",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Theo hệ thống, Chuyển sang giao diện sáng",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰂜",
                   ],
                   "s": {
@@ -598,6 +622,30 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                 "borderRadius": 8,
                 "justifyContent": "center",
                 "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰖨",
+                  ],
+                  "s": {
+                    "color": "#EDF0F2",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Theo hệ thống, Chuyển sang giao diện sáng",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
               },
               "t": "View",
             },
@@ -1094,6 +1142,30 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
               "c": [
                 {
                   "c": [
+                    "󰖨",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Theo hệ thống, Chuyển sang giao diện sáng",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
                     "󰂜",
                   ],
                   "s": {
@@ -1581,6 +1653,30 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                 "borderRadius": 8,
                 "justifyContent": "center",
                 "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    "󰖨",
+                  ],
+                  "s": {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                  },
+                  "t": "Text",
+                },
+              ],
+              "label": "Theo hệ thống, Chuyển sang giao diện sáng",
+              "role": "button",
+              "s": {
+                "alignItems": "center",
+                "backgroundColor": "transparent",
+                "borderRadius": 8,
+                "justifyContent": "center",
+                "width": 48,
               },
               "t": "View",
             },
