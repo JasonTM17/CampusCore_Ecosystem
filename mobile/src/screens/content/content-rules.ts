@@ -43,6 +43,60 @@ export function filterByPriority<T extends { priority?: string | null }>(items: 
   return priorities.length === 0 ? items.slice() : items.filter((item) => priorities.includes(item.priority ?? 'NORMAL'));
 }
 
+/* ---------- announcements ---------- */
+
+export type AnnouncementCategory = 'ALL' | 'GLOBAL' | 'STUDENT_ONLY' | 'REGISTRATION' | 'THESIS' | 'SCHOLARSHIP' | 'EXAM';
+
+export const ANNOUNCEMENT_CATEGORIES: readonly AnnouncementCategory[] = [
+  'ALL', 'GLOBAL', 'STUDENT_ONLY', 'REGISTRATION', 'THESIS', 'SCHOLARSHIP', 'EXAM',
+];
+
+interface AnnouncementFilterItem {
+  title: string;
+  content?: string | null;
+  isGlobal?: boolean | null;
+  targetRoles?: string[] | null;
+}
+
+type AnnouncementAudience = 'GLOBAL' | 'STUDENT' | 'LECTURER' | 'OTHER';
+
+function announcementAudience(item: Pick<AnnouncementFilterItem, 'isGlobal' | 'targetRoles'>): AnnouncementAudience {
+  if (item.isGlobal) return 'GLOBAL';
+  const roles = (item.targetRoles ?? [])
+    .map((role) => (typeof role === 'string' ? role.trim().toUpperCase() : ''))
+    .filter(Boolean);
+  const hasStudent = roles.includes('STUDENT');
+  const hasLecturer = roles.includes('LECTURER');
+  if (hasStudent && hasLecturer) return 'GLOBAL';
+  if (hasLecturer) return 'LECTURER';
+  if (hasStudent) return 'STUDENT';
+  return 'OTHER';
+}
+
+const ANNOUNCEMENT_TOPICS: Partial<Record<AnnouncementCategory, RegExp>> = {
+  REGISTRATION: /\b(đăng ký|học phần|registration|course registration)\b/i,
+  THESIS: /\b(luận văn|đề tài|thesis|kltn|tlcn|đồ án|capstone)\b/i,
+  SCHOLARSHIP: /\b(học bổng|rèn luyện|scholarship|financial aid)\b/i,
+  EXAM: /\b(thi|khảo thí|phúc khảo|exam|examination|kỳ thi|lịch thi)\b/i,
+};
+
+/** The web feed filters loaded notices by audience, topic and free text. */
+export function filterByAnnouncementQuery<T extends AnnouncementFilterItem>(
+  items: readonly T[],
+  category: AnnouncementCategory,
+  query: string,
+): T[] {
+  const search = query.trim().toLowerCase();
+  const topic = ANNOUNCEMENT_TOPICS[category];
+  return items.filter((item) => {
+    if (category === 'GLOBAL' && announcementAudience(item) !== 'GLOBAL') return false;
+    if (category === 'STUDENT_ONLY' && announcementAudience(item) !== 'STUDENT') return false;
+    const fullText = `${item.title} ${item.content ?? ''}`;
+    if (topic && !topic.test(fullText)) return false;
+    return search.length === 0 || fullText.toLowerCase().includes(search);
+  });
+}
+
 /* ---------- library ---------- */
 
 export type LoanTab = 'active' | 'history';
@@ -229,6 +283,7 @@ export function joinMeta(parts: ReadonlyArray<string | null | undefined | false>
 export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error';
 
 const TONES: Record<string, StatusTone> = {
+  URGENT: 'error', HIGH: 'warning', NORMAL: 'primary', LOW: 'neutral',
   REGISTRATION_OPEN: 'primary', PUBLISHED: 'primary', IN_REVIEW: 'primary', REVIEWING: 'primary', INTERVIEW: 'primary',
   REQUESTED: 'warning', APPROVED: 'primary', ISSUED: 'primary', SUBMITTED: 'primary', RESUBMITTED: 'primary', DRAFT: 'neutral',
   RETURNED: 'warning', PENDING: 'warning', REGISTRATION_CLOSED: 'warning',
