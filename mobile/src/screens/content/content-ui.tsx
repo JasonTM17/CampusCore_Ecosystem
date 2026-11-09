@@ -222,6 +222,7 @@ export interface ListFrameProps<T> {
   /** Rows to render instead of `list.items`, for client-side filters. */
   items?: readonly T[];
   header?: ReactNode;
+  footer?: ReactElement | null;
   flash?: Flash | null;
   accessibilityLabel?: string;
   icon?: ContentIconName;
@@ -245,6 +246,7 @@ export function ListFrame<T>({
   filtered = false,
   items,
   header,
+  footer,
   flash,
   accessibilityLabel,
   icon,
@@ -291,6 +293,7 @@ export function ListFrame<T>({
           emptyActionLabel={emptyActionLabel}
           onEmptyAction={onEmptyAction}
           header={head}
+          listFooter={footer}
           accessibilityLabel={accessibilityLabel ?? title}
         />
       </ResponsiveContent>

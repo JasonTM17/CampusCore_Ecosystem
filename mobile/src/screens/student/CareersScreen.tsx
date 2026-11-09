@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Card, DataNotice, UiText } from '../../components/Ui';
-import { SearchBar, SegmentedControl } from '../../components/ui/index';
+import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { Button, SearchBar } from '../../components/ui/index';
 import { StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileCareerOpportunity } from '../../api/client';
@@ -11,22 +11,19 @@ import { careersMessages } from '../../i18n/careers-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi, type CareerApplicationView } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
-import { activeOpportunityIds, careerApplicationTone, careerOpportunityTone, employmentTypeLabel, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
+import { CONTENT_PAGE_SIZE } from '../content/content-paging';
+import { activeOpportunityIds, careerApplicationTone, careerOpportunityTone, employmentTypeLabel, joinMeta } from '../content/content-rules';
 import { ContentIconChip, ListFrame, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
 import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
 import { usePagedList } from '../content/use-paged-list';
 
-type Tab = 'board' | 'mine';
-type Sub = 'active' | 'history';
-
 /** Candidate careers: published postings, apply, own applications, attachments and withdraw. States are server-owned. */
 export function CareersScreen(_props: MobileScreenProps) {
-  const { locale, formatDate, copy: common } = useContentCopy();
+  const { locale, formatDateTime, copy: common } = useContentCopy();
   const copy = careersMessages[locale];
-  const [tab, setTab] = useState<Tab>('board');
-  const [sub, setSub] = useState<Sub>('active');
+  const [page, setPage] = useState(0);
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
   const [opportunity, setOpportunity] = useState<MobileCareerOpportunity | null>(null);
@@ -40,8 +37,8 @@ export function CareersScreen(_props: MobileScreenProps) {
   const previewOpps = useMemo(() => previewOpportunities(locale), [locale]);
   const previewApps = useMemo(() => previewCareerApplications(locale), [locale]);
   const board = usePagedList<MobileCareerOpportunity>({
-    key: `content.careers.board.${search}`,
-    fetchPage: (page, limit, signal) => contentApi.careersOpportunities({ page, limit, signal, query: search || undefined }),
+    key: `content.careers.board.${search}.${page}`,
+    fetchPage: (requestedPage, limit, signal) => contentApi.careersOpportunities({ page: page + requestedPage, limit, signal, query: search || undefined }),
     keyOf: (item) => item.id,
     preview: previewOpps,
   });
@@ -129,118 +126,119 @@ export function CareersScreen(_props: MobileScreenProps) {
     );
   }
 
-  const tabs = (
-    <SegmentedControl
-      accessibilityLabel={copy.title}
-      value={tab}
-      onChange={(value) => setTab(value as Tab)}
-      options={[{ value: 'board', label: copy.board }, { value: 'mine', label: copy.myApplications }]}
-    />
-  );
   // The simulated-environment notice is part of the board itself, in live mode too.
   const banner = <DataNotice message={copy.simulatedBanner} />;
-  const mine = apps.items.filter((item) => (sub === 'active') === isApplicationWithdrawable(item));
+  const applicationsSection = (
+    <View style={styles.applicationsSection}>
+      <UiText accessibilityRole="header" variant="headlineSmall">{copy.myApplications}</UiText>
+      {apps.error ? (
+        <StatePanel kind="error" title={copy.errorTitle} description={apps.error} actionLabel={copy.retry} onAction={() => void apps.reload()} />
+      ) : null}
+      {apps.loading && apps.items.length === 0 ? <StatePanel kind="loading" title={copy.loading} /> : null}
+      {!apps.loading && !apps.error && apps.items.length === 0 ? <StatePanel kind="empty" title={copy.emptyApplications} /> : null}
+      {apps.items.map((item) => (
+        <Card key={item.id}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={joinMeta([item.opportunityTitle, copy.statusLabels[item.status] ?? item.status, item.organizationName])}
+            onPress={() => setApplicationId(item.id)}
+            style={styles.rowMain}
+          >
+            <ContentIconChip icon="briefcase-check-outline" />
+            <View style={styles.rowCopy}>
+              <UiText variant="label">{item.opportunityTitle ?? item.opportunityId}</UiText>
+              <UiText variant="bodySmall" tone="muted">
+                {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDateTime(item.submittedAt)}` : null])}
+              </UiText>
+              {item.moderationReason ? <UiText variant="bodySmall" tone="error">{copy.reason}: {item.moderationReason}</UiText> : null}
+              <View style={styles.chips}>
+                <StatusPill label={copy.statusLabels[item.status] ?? item.status} tone={careerApplicationTone(item.status)} />
+              </View>
+            </View>
+          </Pressable>
+        </Card>
+      ))}
+    </View>
+  );
+  const boardList = board.total === undefined ? board : { ...board, total: undefined, hasMore: false };
+  const totalPages = board.total === undefined ? null : Math.max(1, Math.ceil(board.total / CONTENT_PAGE_SIZE));
+  const firstVisible = board.items.length === 0 ? 0 : page * CONTENT_PAGE_SIZE + 1;
+  const lastVisible = page * CONTENT_PAGE_SIZE + board.items.length;
+  const paginationSummary = board.total === undefined
+    ? null
+    : `${common.showingResults} ${firstVisible} ${common.to} ${lastVisible} ${common.of} ${board.total} ${common.results}`;
+  const paginationSection = paginationSummary ? (
+    <View style={styles.pagination}>
+      <UiText accessibilityLiveRegion="polite" variant="bodySmall" tone="muted" style={styles.paginationSummary}>{paginationSummary}</UiText>
+      {totalPages !== null && (page > 0 || page + 1 < totalPages) ? (
+        <View style={styles.paginationActions}>
+          <Button label={common.goToPreviousPage} variant="secondary" disabled={page === 0} onPress={() => setPage((current) => Math.max(0, current - 1))} />
+          <Button label={common.goToNextPage} variant="secondary" disabled={page + 1 >= totalPages} onPress={() => setPage((current) => Math.min(totalPages - 1, current + 1))} />
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+  const footer = (
+    <View style={styles.listFooter}>
+      {paginationSection}
+      {applicationsSection}
+    </View>
+  );
 
   return (
     <>
-      {tab === 'board' ? (
-        <ListFrame
-          title={copy.title}
-          icon="briefcase-outline"
-          list={board}
-          filtered={search.length > 0}
-          keyOf={(item) => item.id}
-          emptyTitle={copy.emptyBoard}
-          flash={flash}
-          header={(
-            <View style={styles.header}>
-              {banner}
-              {tabs}
-              <SearchBar
-                value={input}
-                onChangeText={setInput}
-                onClear={() => { setInput(''); setSearch(''); }}
-                placeholder={copy.searchPlaceholder}
-                accessibilityLabel={copy.search}
-                returnKeyType="search"
-                onSubmitEditing={() => setSearch(input.trim())}
-              />
-            </View>
-          )}
-          renderItem={(item) => (
-            <Card>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={joinMeta([
-                  item.title,
-                  item.organizationName,
-                  item.location,
-                  employmentTypeLabel(copy.employmentTypeLabels, item.employmentType),
-                  item.salaryText,
-                  copy.opportunityStatusLabels[item.status] ?? item.status,
-                  liveIds.has(item.id) ? copy.appliedBadge : null,
-                ])}
-                onPress={() => setOpportunity(item)}
-                style={styles.rowMain}
-              >
-                <ContentIconChip icon="briefcase-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{item.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType), item.salaryText])}</UiText>
-                  <View style={styles.chips}>
-                    <StatusPill label={copy.opportunityStatusLabels[item.status] ?? item.status} tone={careerOpportunityTone(item.status)} />
-                    {liveIds.has(item.id) ? <StatusPill label={copy.appliedBadge} tone="success" /> : null}
-                  </View>
+      <ListFrame
+        title={copy.title}
+        icon="briefcase-outline"
+        list={boardList}
+        filtered={search.length > 0}
+        keyOf={(item) => item.id}
+        emptyTitle={copy.emptyBoard}
+        flash={flash}
+        footer={footer}
+        header={(
+          <View style={styles.header}>
+            {banner}
+            <SearchBar
+              value={input}
+              onChangeText={setInput}
+              onClear={() => { setInput(''); setSearch(''); setPage(0); }}
+              placeholder={copy.searchPlaceholder}
+              accessibilityLabel={copy.search}
+              returnKeyType="search"
+              onSubmitEditing={() => { setPage(0); setSearch(input.trim()); }}
+            />
+          </View>
+        )}
+        renderItem={(item) => (
+          <Card>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={joinMeta([
+                item.title,
+                item.organizationName,
+                item.location,
+                employmentTypeLabel(copy.employmentTypeLabels, item.employmentType),
+                item.salaryText,
+                copy.opportunityStatusLabels[item.status] ?? item.status,
+                liveIds.has(item.id) ? copy.appliedBadge : null,
+              ])}
+              onPress={() => setOpportunity(item)}
+              style={styles.rowMain}
+            >
+              <ContentIconChip icon="briefcase-outline" />
+              <View style={styles.rowCopy}>
+                <UiText variant="label">{item.title}</UiText>
+                <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType), item.salaryText])}</UiText>
+                <View style={styles.chips}>
+                  <StatusPill label={copy.opportunityStatusLabels[item.status] ?? item.status} tone={careerOpportunityTone(item.status)} />
+                  {liveIds.has(item.id) ? <StatusPill label={copy.appliedBadge} tone="success" /> : null}
                 </View>
-              </Pressable>
-            </Card>
-          )}
-        />
-      ) : (
-        <ListFrame
-          title={copy.title}
-          icon="briefcase-check-outline"
-          list={apps}
-          items={mine}
-          filtered
-          keyOf={(item) => item.id}
-          emptyTitle={sub === 'active' ? copy.emptyApplications : copy.emptyHistory}
-          flash={flash}
-          header={(
-            <View style={styles.header}>
-              {banner}
-              {tabs}
-              <SegmentedControl
-                accessibilityLabel={copy.myApplications}
-                value={sub}
-                onChange={(value) => setSub(value as Sub)}
-                options={[{ value: 'active', label: copy.applicationsActive }, { value: 'history', label: copy.applicationsHistory }]}
-              />
-            </View>
-          )}
-          renderItem={(item) => (
-            <Card>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={joinMeta([item.opportunityTitle, copy.statusLabels[item.status] ?? item.status, item.organizationName])}
-                onPress={() => setApplicationId(item.id)}
-                style={styles.rowMain}
-              >
-                <ContentIconChip icon="briefcase-check-outline" />
-                <View style={styles.rowCopy}>
-                  <UiText variant="label">{item.opportunityTitle ?? item.opportunityId}</UiText>
-                  <UiText variant="bodySmall" tone="muted">
-                    {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDate(item.submittedAt)}` : null])}
-                  </UiText>
-                  <View style={styles.chips}>
-                    <StatusPill label={copy.statusLabels[item.status] ?? item.status} tone={careerApplicationTone(item.status)} />
-                  </View>
-                </View>
-              </Pressable>
-            </Card>
-          )}
-        />
-      )}
+              </View>
+            </Pressable>
+          </Card>
+        )}
+      />
       {dialog}
     </>
   );
@@ -248,6 +246,11 @@ export function CareersScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
+  applicationsSection: { gap: tokens.spacing.sm, paddingTop: tokens.spacing.md },
+  listFooter: { gap: tokens.spacing.md },
+  pagination: { alignItems: 'center', borderTopColor: tokens.colors.outlineVariant, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', paddingTop: tokens.spacing.md },
+  paginationActions: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end' },
+  paginationSummary: { flexShrink: 1, minWidth: 0 },
   rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
