@@ -38,16 +38,23 @@ const props = { navigation: { navigate: jest.fn() }, role: 'student' } as unknow
 afterEach(() => { jest.restoreAllMocks(); });
 
 describe('schedule tap targets', () => {
-  test('week arrows keep a 48dp minimum width and height', async () => {
+  test('week arrows use hit slop instead of widening the picker row', async () => {
     await render(wrap(<ScheduleScreen {...props} />));
     for (const name of ['Tuần trước', 'Tuần sau']) {
-      const style = StyleSheet.flatten(screen.getByRole('button', { name }).props.style);
-      expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
-      expect(style.minHeight).toBeGreaterThanOrEqual(minTapTarget);
+      const control = screen.getByRole('button', { name });
+      const style = StyleSheet.flatten(control.props.style);
+      expect(style.minWidth).toBeUndefined();
+      const hitSlop = control.props.hitSlop;
+      expect(hitSlop).toMatchObject({
+        top: expect.any(Number),
+        bottom: expect.any(Number),
+        left: expect.any(Number),
+        right: expect.any(Number),
+      });
     }
   });
 
-  test('week strip day cells keep a 48dp minimum width and height', async () => {
+  test('week strip day cells flex equally but keep a 48dp minimum height', async () => {
     const days = weekDates(new Date(2026, 10, 2));
     await render(wrap(
       <WeekStrip
@@ -60,7 +67,8 @@ describe('schedule tap targets', () => {
     ));
     const cell = screen.getAllByRole('button')[0];
     const style = StyleSheet.flatten(cell.props.style);
-    expect(style.minWidth).toBeGreaterThanOrEqual(minTapTarget);
+    expect(style.flex).toBe(1);
+    expect(style.minWidth).toBe(0);
     expect(style.minHeight).toBeGreaterThanOrEqual(minTapTarget);
   });
 });
