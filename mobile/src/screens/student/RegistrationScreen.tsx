@@ -7,7 +7,7 @@ import { Button, Card, HeroCard, IconChip, InlineError, ScreenSpacer, StatePanel
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
-import { fillCopy } from '../../i18n/academic-messages';
+import { fillCopy, type AcademicCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -41,6 +41,7 @@ interface SectionView {
   code: string;
   name: string;
   number: string;
+  label: string;
   credits: number;
   seats: string;
   tier: SeatTier;
@@ -83,6 +84,32 @@ const sectionLabel = (section: BrowseSection): string =>
   section.sectionNumber && !section.sectionNumber.startsWith(section.courseCode)
     ? `${section.courseCode}-${section.sectionNumber}`
     : section.sectionNumber || section.courseCode;
+
+interface RoundCountdownProps {
+  windowEnd: number;
+  copy: AcademicCopy;
+  formatCount: (value: number) => string;
+}
+
+/** The live clock ticks inside this leaf so the section list never re-renders every second. */
+function RoundCountdown({ windowEnd, copy, formatCount }: RoundCountdownProps) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const remainingMs = windowEnd - now;
+  if (remainingMs <= 0) return <StatusPill label={copy.roundClosedBadge} tone="neutral" />;
+  const days = Math.floor(remainingMs / 86_400_000);
+  const clock = [Math.floor(remainingMs / 3_600_000) % 24, Math.floor(remainingMs / 60_000) % 60, Math.floor(remainingMs / 1000) % 60]
+    .map((part) => String(part).padStart(2, '0')).join(':');
+  return (
+    <StatusPill
+      label={`${copy.roundCountdownPrefix}: ${days > 0 ? `${fillCopy(copy.roundCountdownDays, { days: formatCount(days) })} ` : ''}${clock}`}
+      tone="primary"
+    />
+  );
+}
 
 export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
@@ -161,6 +188,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       code: section.courseCode,
       name: localizedName({ name: section.courseName, nameEn: section.courseNameEn, nameVi: section.courseNameVi }, locale) || section.courseName,
       number: section.sectionNumber,
+      label: sectionLabel(section),
       credits: section.credits ?? 0,
       seats: tier === 'full' ? copy.full : fillCopy(countForm(section.remainingSeats, copy.seatsLeftOne, copy.seatsLeft), { n: formatCount(section.remainingSeats) }),
       tier,
@@ -212,11 +240,6 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const remainingMs = windowEnd - Date.now();
   const roundClosed = Boolean(round) && remainingMs <= 0;
   const showCountdown = remainingMs > 0 && remainingMs <= 7 * 86_400_000;
-  const countdownDays = Math.floor(remainingMs / 86_400_000);
-  const countdownClock = remainingMs > 0
-    ? [Math.floor(remainingMs / 3_600_000) % 24, Math.floor(remainingMs / 60_000) % 60, Math.floor(remainingMs / 1000) % 60]
-      .map((part) => String(part).padStart(2, '0')).join(':')
-    : '';
 
   const toggleCourse = (courseKey: string) => {
     setCollapsedCourses((current) => {
@@ -325,7 +348,7 @@ return (
       <Dialog
         visible={dropTarget !== null}
         title={copy.dropTitle}
-        description={dropTarget ? fillCopy(copy.dropBody, { name: `${dropTarget.code} ${dropTarget.name}` }) : undefined}
+        description={dropTarget ? fillCopy(copy.dropBody, { section: dropTarget.label }) : undefined}
         confirmLabel={copy.dropSection}
         cancelLabel={copy.cancel}
         destructive
@@ -365,10 +388,7 @@ return (
             {roundClosed ? (
               <StatusPill label={copy.roundClosedBadge} tone="neutral" />
             ) : showCountdown ? (
-              <StatusPill
-                label={`${copy.roundCountdownPrefix}: ${countdownDays > 0 ? `${fillCopy(copy.roundCountdownDays, { days: formatCount(countdownDays) })} ` : ''}${countdownClock}`}
-                tone="primary"
-              />
+              <RoundCountdown windowEnd={windowEnd} copy={copy} formatCount={formatCount} />
             ) : null}
           </View>
         </Card>

@@ -25,9 +25,11 @@ function Field({ label, value }: { label: string; value: string }) {
 export interface EnrollmentDetailProps {
   enrollment: AcademicEnrollment;
   onBack: () => void;
+  /** Opens the shared drop confirmation; null when the status cannot be dropped. */
+  onDrop: (() => void) | null;
 }
 
-export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) {
+export function EnrollmentDetail({ enrollment, onBack, onDrop }: EnrollmentDetailProps) {
   const { copy, locale } = useAcademicCopy();
   const { formatDate, formatNumber } = useLocale();
   const section = enrollment.section;
@@ -77,6 +79,16 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
           ))
         )}
       </Card>
+      <ScreenSpacer />
+      {onDrop ? (
+        <Button
+          label={copy.dropSection}
+          accessibilityLabel={`${copy.dropSection}: ${enrollmentCourseCode(enrollment)}`}
+          onPress={onDrop}
+          variant="destructive"
+          icon="trash-can-outline"
+        />
+      ) : null}
       <ScreenSpacer />
       {enrollment.status !== 'DROPPED' && enrollment.status !== 'CANCELLED' ? <SlipRow semesterId={enrollment.semesterId} /> : null}
     </View>

@@ -321,7 +321,8 @@ describe('transcript', () => {
       },
     };
     await render(wrap(<TranscriptScreen {...props} />));
-    expect(screen.getByText('8,5')).toBeOnTheScreen();
+    expect(screen.getAllByText('8,5').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /8,5 · A/ })).toBeOnTheScreen();
     expect(screen.getAllByText('A').length).toBeGreaterThan(0);
     expect(screen.getByText('Đang xem xét')).toBeOnTheScreen();
   });
@@ -460,7 +461,7 @@ describe('enrollments and courses', () => {
     mockQueries['academic.enrollments'] = { data: [fractional] };
     mockQueries['academic.semesters'] = { data: semesters };
     const view = await render(wrap(<EnrollmentsScreen {...props} />));
-    await fireEvent.press(screen.getByRole('button', { name: /CS101/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /CS101 Nhập môn lập trình/ }));
     expect(screen.getByText('3,5')).toBeOnTheScreen();
     await view.unmount();
   });
@@ -1209,9 +1210,9 @@ describe('registration', () => {
     };
     mockPost.mockResolvedValueOnce({ message: 'ok' });
     await render(wrap(<RegistrationScreen {...props} />));
-    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp: CSE1' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Hủy đăng ký: CSE1' }));
     expect(mockPost).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Hủy đăng ký' }));
     expect(await screen.findByText('Đã rút lớp')).toBeOnTheScreen();
     expect(mockPost).toHaveBeenCalledTimes(1);
     expect(mockPost.mock.calls[0][0]).toBe('/me/enrollments/enr-1/drop');
@@ -1227,8 +1228,8 @@ describe('registration', () => {
     };
     mockPost.mockResolvedValueOnce({ message: 'ok' });
     await render(wrap(<RegistrationScreen {...props} />));
-    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp: CSG1' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Rút lớp' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Hủy đăng ký: CSG1' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Hủy đăng ký' }));
     expect(await screen.findByText('Đã rút lớp')).toBeOnTheScreen();
     expect(mockPost).toHaveBeenCalledTimes(1);
     expect(mockPost.mock.calls[0][0]).toBe('/me/enrollments/enr-9/drop');
@@ -1321,7 +1322,7 @@ describe('registration', () => {
   test('the catalog search placeholder uses the standard course term', async () => {
     mockQueries['academic.registration'] = { data: registrationData([section('M2')]) };
     await render(wrap(<RegistrationScreen {...props} />));
-    expect(screen.getByLabelText('Tìm lớp học phần').props.placeholder).toBe('Tìm học phần');
+    expect(screen.getByLabelText('Tìm lớp học phần').props.placeholder).toBe('Tìm theo mã hoặc tên môn học');
   });
 
   test('shows the localized course name in Vietnamese and English', async () => {
