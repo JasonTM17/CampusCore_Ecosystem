@@ -1,12 +1,17 @@
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { MobileNotification } from '../api/client';import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
+import { useLocale } from '../i18n/locale-provider';
 import { useShellCopy } from '../i18n/use-shell-copy';
+import { contentMessages } from '../i18n/content-messages';
+import { recordsMessages } from '../i18n/records-messages';
 import { contentApi } from '../screens/content/content-api';
+import { contentErrorMessage } from '../screens/content/content-errors';
 import { useContentQuery } from '../screens/content/use-content-query';
 import { stripNotificationTagPrefix } from '../screens/student/notification-title';
-import { Button, Sheet, UiText } from './Ui';
+import { Button, Notice, Sheet, UiText } from './Ui';
 
 /** Inbox row as the tenant API returns it: the producer link rides along with the typed fields. */
 export type PreviewNotification = MobileNotification & { link?: unknown };
@@ -28,15 +33,24 @@ export interface NotificationPreviewProps {
 export function NotificationPreview({ unreadCount, onClose, onOpen, onMarkedRead, onNoticeBoard, onOpenInbox }: NotificationPreviewProps) {
   const { colors } = useTheme();
   const { copy } = useShellCopy();
+  const { locale } = useLocale();
   const preview = useContentQuery<PreviewNotification[]>(
     'content.notifications.preview',
     () => contentApi.notifications({ page: 0, limit: 5, isRead: false }).then((page) => page.items.slice(0, 5)),
   );
+  const unread = useContentQuery<number>('content.notifications.unread-count', () => contentApi.unreadCount());
+  const [markFailed, setMarkFailed] = useState<string | null>(null);
   const rows = (preview.data ?? []).slice(0, 5);
 
   const open = (item: PreviewNotification) => {
     if (!item.isRead) {
-      void contentApi.markNotificationRead(item.id).then(onMarkedRead).catch(() => undefined);
+      setMarkFailed(null);
+      void contentApi.markNotificationRead(item.id)
+        .then(onMarkedRead)
+        .catch((cause: unknown) => {
+          setMarkFailed(contentErrorMessage(contentMessages[locale], cause, recordsMessages[locale].updateFailed));
+          void unread.reload();
+        });
     }
     onOpen(item);
   };
@@ -55,6 +69,7 @@ export function NotificationPreview({ unreadCount, onClose, onOpen, onMarkedRead
         </View>
       )}
     >
+      {markFailed ? <Notice tone="error" message={markFailed} /> : null}
       {preview.isLoading ? (
         <UiText variant="bodySmall" tone="muted" style={styles.state}>{copy.notifications.loading}</UiText>
       ) : preview.error ? (

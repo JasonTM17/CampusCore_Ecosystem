@@ -7,9 +7,16 @@ import { ThemeProvider } from '../../src/design/theme';
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 import { RichContent } from '../../src/components/content/rich-content';
+import { RichAttachments, type RichAttachment } from '../../src/components/content/rich-attachments';
 
 const renderRich = (html: string) => render(
   <ThemeProvider forcedScheme="light"><RichContent html={html} /></ThemeProvider>,
+);
+
+const renderAttachments = (attachments: readonly RichAttachment[]) => render(
+  <ThemeProvider forcedScheme="light">
+    <RichAttachments attachments={attachments} heading="Tệp đính kèm" countLabel="Tệp" documentLabel="Tài liệu" />
+  </ThemeProvider>,
 );
 
 afterEach(() => {
@@ -91,4 +98,26 @@ test('keeps text from malformed and unclosed markup', async () => {
   expect(screen.getByText(/Mở/)).toBeOnTheScreen();
   expect(screen.getByText(/đậm/)).toBeOnTheScreen();
   expect(screen.getByText('tài liệu')).toBeOnTheScreen();
+});
+
+test('opens an attachment at its absolute URL and prefixes only relative paths', async () => {
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  await renderAttachments([
+    { name: 'Thư từ hiệu trưởng', url: 'https://cdn.example.com/letter.pdf', type: 'pdf' },
+    { name: 'Quy chế đào tạo', url: '/docs/quy-che-dao-tao.pdf', type: 'pdf' },
+  ]);
+
+  await fireEvent.press(screen.getByRole('link', { name: 'Thư từ hiệu trưởng' }));
+  expect(open).toHaveBeenLastCalledWith('https://cdn.example.com/letter.pdf');
+  await fireEvent.press(screen.getByRole('link', { name: 'Quy chế đào tạo' }));
+  expect(open).toHaveBeenLastCalledWith('https://www.campusute.io.vn/docs/quy-che-dao-tao.pdf');
+});
+
+test('does not open a javascript link from a body', async () => {
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  open.mockClear();
+  await renderRich('<p><a href="javascript:alert(1)">bấm</a></p>');
+
+  expect(screen.queryByRole('link')).toBeNull();
+  expect(open).not.toHaveBeenCalled();
 });
