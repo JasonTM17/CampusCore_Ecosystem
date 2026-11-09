@@ -7933,7 +7933,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30",
+                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -8004,7 +8004,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -8079,7 +8079,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00",
+                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -8150,7 +8150,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -8582,7 +8582,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30",
+                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -8653,7 +8653,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -8728,7 +8728,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00",
+                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -8799,7 +8799,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9233,7 +9233,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30",
+                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -9304,7 +9304,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9379,7 +9379,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00",
+                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -9450,7 +9450,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9882,7 +9882,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30",
+                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -9953,7 +9953,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 05/11/2026 14:30 → 05/11/2026 17:30 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -10028,7 +10028,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00",
+                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10099,7 +10099,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 21/11/2026 15:00 → 21/11/2026 17:00 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -10489,7 +10489,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 15:00",
+                                    "15:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -10506,7 +10506,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 28/10/2026 15:00",
+                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 15:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -10694,7 +10694,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 13:00",
+                                    "13:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -10711,7 +10711,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 28/10/2026 13:00",
+                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 13:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -10864,7 +10864,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "c": [
                                 {
                                   "c": [
-                                    "27/10/2026 15:00",
+                                    "15:00 27/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -10881,7 +10881,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 15:00 27/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -11301,7 +11301,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 15:00",
+                                    "15:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -11318,7 +11318,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 28/10/2026 15:00",
+                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 15:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -11506,7 +11506,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 13:00",
+                                    "13:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -11523,7 +11523,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 28/10/2026 13:00",
+                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 13:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -11676,7 +11676,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "c": [
                                 {
                                   "c": [
-                                    "27/10/2026 15:00",
+                                    "15:00 27/10/2026",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -11693,7 +11693,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                               "t": "View",
                             },
                           ],
-                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 15:00 27/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -12115,7 +12115,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 15:00",
+                                    "15:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -12132,7 +12132,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 28/10/2026 15:00",
+                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 15:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -12320,7 +12320,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 13:00",
+                                    "13:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -12337,7 +12337,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 28/10/2026 13:00",
+                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 13:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -12490,7 +12490,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "c": [
                                 {
                                   "c": [
-                                    "27/10/2026 15:00",
+                                    "15:00 27/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -12507,7 +12507,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 15:00 27/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -12927,7 +12927,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 15:00",
+                                    "15:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -12944,7 +12944,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 28/10/2026 15:00",
+                          "label": "Chưa đọc · Mở đăng ký đề tài luận văn · Chọn đề tài trước ngày 30/8. · 15:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -13132,7 +13132,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                 },
                                 {
                                   "c": [
-                                    "28/10/2026 13:00",
+                                    "13:00 28/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -13149,7 +13149,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 28/10/2026 13:00",
+                          "label": "Chưa đọc · Đã công bố điểm CS204 · Kết quả đồ án cuối kỳ đã sẵn sàng. · 13:00 28/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
@@ -13302,7 +13302,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "c": [
                                 {
                                   "c": [
-                                    "27/10/2026 15:00",
+                                    "15:00 27/10/2026",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -13319,7 +13319,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                               "t": "View",
                             },
                           ],
-                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 27/10/2026 15:00",
+                          "label": "Đã đọc · Bảo trì thư viện · Gia hạn trực tuyến tạm dừng cuối tuần. · 15:00 27/10/2026",
                           "role": "button",
                           "s": {
                             "gap": 12,
