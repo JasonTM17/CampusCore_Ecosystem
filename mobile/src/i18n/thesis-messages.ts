@@ -135,7 +135,6 @@ export interface ThesisCopy {
   reportFile: string;
   reportFileHint: string;
   reportPick: string;
-  reportUpload: string;
   reportUploadCancel: string;
   reportUploading: string;
   reportDownload: string;
@@ -145,7 +144,6 @@ export interface ThesisCopy {
   reportRemoveFileBody: string;
   reportSubmit: string;
   reportUpdate: string;
-  reportClearLink: string;
   reportSubmitted: string;
   reportUpdated: string;
   reportFileRemoved: string;
@@ -337,7 +335,6 @@ const vi: ThesisCopy = {
   reportFile: 'Tệp báo cáo',
   reportFileHint: 'PDF, DOC hoặc DOCX, tối đa 20 MB',
   reportPick: 'Chọn tệp',
-  reportUpload: 'Tải tệp lên',
   reportUploadCancel: 'Hủy tải lên',
   reportUploading: 'Đang tải lên',
   reportDownload: 'Tải báo cáo',
@@ -347,7 +344,6 @@ const vi: ThesisCopy = {
   reportRemoveFileBody: 'Liên kết báo cáo vẫn được giữ.',
   reportSubmit: 'Nộp báo cáo',
   reportUpdate: 'Lưu thay đổi',
-  reportClearLink: 'Gỡ liên kết',
   reportSubmitted: 'Đã nộp báo cáo',
   reportUpdated: 'Đã cập nhật báo cáo',
   reportFileRemoved: 'Đã gỡ tệp',
@@ -588,7 +584,6 @@ const en: ThesisCopy = {
   reportFile: 'Report file',
   reportFileHint: 'PDF, DOC or DOCX, up to 20 MB',
   reportPick: 'Choose file',
-  reportUpload: 'Upload file',
   reportUploadCancel: 'Cancel upload',
   reportUploading: 'Uploading',
   reportDownload: 'Download report',
@@ -598,7 +593,6 @@ const en: ThesisCopy = {
   reportRemoveFileBody: 'The report link is kept.',
   reportSubmit: 'Submit report',
   reportUpdate: 'Save changes',
-  reportClearLink: 'Remove link',
   reportSubmitted: 'Report submitted',
   reportUpdated: 'Report updated',
   reportFileRemoved: 'File removed',
