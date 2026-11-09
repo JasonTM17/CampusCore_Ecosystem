@@ -99,8 +99,8 @@ describe('Vietnamese preview data localization and accessibility names', () => {
 
   test('RegistrationScreen renders Vietnamese course names for preview section groups', async () => {
     const view = await renderInLocale(<RegistrationScreen {...props} />, 'vi');
-    expect(await view.findByText(/CS401 · Hệ phân tán/)).toBeTruthy();
-    expect(await view.findByText(/UX305 · Thiết kế dịch vụ/)).toBeTruthy();
+    expect(await view.findByText(/CS401 — Hệ phân tán/)).toBeTruthy();
+    expect(await view.findByText(/UX305 — Thiết kế dịch vụ/)).toBeTruthy();
     expect(view.queryByText(/Distributed Systems/)).toBeNull();
   });
 

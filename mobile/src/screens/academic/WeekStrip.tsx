@@ -41,6 +41,7 @@ export function WeekStrip({ days, selectedIndex, todayKey, labels, todayLabel, o
             <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate}>
               {civilDayOf(date)}
             </UiText>
+            {isToday ? <UiText variant="meta" tone="primary" style={styles.todayBadge}>{resolvedToday}</UiText> : null}
           </Pressable>
         );
       })}
@@ -62,4 +63,5 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.xs,
   },
   dayDate: { fontVariant: ['tabular-nums'] },
+  todayBadge: { fontSize: 9, textAlign: 'center' },
 });

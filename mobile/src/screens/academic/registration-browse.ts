@@ -110,8 +110,10 @@ export function sortSectionGroups<T extends BrowseSection>(groups: readonly Cour
 export interface BrowseQuery {
   search: string;
   curriculum: CurriculumFilter;
-  /** Hide sections with no seats left. */
-  hideFull: boolean;
+  /** Only sections with seats left. */
+  seatsOnly: boolean;
+  /** Only sections the server did not flag against the student's timetable. */
+  noConflictOnly: boolean;
   sort: SectionSortMode;
 }
 
@@ -119,7 +121,8 @@ export function browseSections<T extends BrowseSection>(sections: readonly T[], 
   const visible = sections.filter(
     (section) => matchesSectionSearch(section, query.search)
       && matchesCurriculumFilter(section, query.curriculum)
-      && (!query.hideFull || section.remainingSeats > 0 || section.alreadyEnrolled === true),
+      && (!query.seatsOnly || section.remainingSeats > 0)
+      && (!query.noConflictOnly || !section.scheduleConflict),
   );
   return sortSectionGroups(groupByCourse(visible), query.sort);
 }
@@ -148,11 +151,13 @@ export function findScheduleConflict(
 
 /* ---------- availability ---------- */
 
-export type SectionAvailability = 'enrolled' | 'closed' | 'full' | 'conflict' | 'creditLimit' | 'open';
+export type SectionAvailability = 'enrolled' | 'closed' | 'full' | 'conflict' | 'creditLimit' | 'duplicate' | 'open';
 
 export interface AvailabilityContext {
   /** Meetings of the student's active enrollments, used when the server did not flag a conflict. */
   enrolledMeetings?: readonly SectionMeeting[];
+  /** Courses the student already registered in another section this round. */
+  enrolledCourseIds?: ReadonlySet<string>;
   /** Credits still allowed this round; null or undefined when unknown. */
   creditsRemaining?: number | null;
   roundOpen: boolean;
@@ -161,10 +166,12 @@ export interface AvailabilityContext {
 /** What to tell the student about a section, in priority order. The server re-checks on submit. */
 export function sectionAvailability(section: BrowseSection, context: AvailabilityContext): SectionAvailability {
   if (section.alreadyEnrolled) return 'enrolled';
-  if (!context.roundOpen || (section.status !== 'OPEN' && section.status !== '')) return 'closed';
+  if (!context.roundOpen) return 'closed';
   if (section.remainingSeats <= 0) return 'full';
   if (section.scheduleConflict || findScheduleConflict(section.schedules, context.enrolledMeetings)) return 'conflict';
+  if (section.courseId && context.enrolledCourseIds?.has(section.courseId)) return 'duplicate';
   if (typeof context.creditsRemaining === 'number' && (section.credits ?? 0) > context.creditsRemaining) return 'creditLimit';
+  if (section.status !== 'OPEN' && section.status !== '') return 'closed';
   return 'open';
 }
 
