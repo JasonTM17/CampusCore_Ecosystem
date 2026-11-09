@@ -184,6 +184,16 @@ test('transcript payload normalises names, summary and the basis note per locale
   assert.equal(gpa.parseTranscript(transcriptPayload, 'en').basisNote, 'Best-attempt basis');
 });
 
+test('semester progress cards mirror transcript order and carry term GPAs', () => {
+  const parsed = gpa.parseTranscript(transcriptPayload, 'vi');
+  const cards = gpa.semesterProgressCards(parsed.terms);
+  assert.equal(cards.length, 2);
+  assert.equal(cards[0].semesterId, 's2');
+  assert.equal(cards[0].gpa, 3.6);
+  assert.equal(cards[0].creditsEarned, 8);
+  assert.equal(cards[1].gpa, 3);
+});
+
 test('transcript without a server summary falls back to the best-attempt GPA', () => {
   const parsed = gpa.parseTranscript({ semesters: transcriptPayload.semesters }, 'en');
   assert.ok(Math.abs(parsed.cumulativeGpa - gpa.summarizeBestAttempts(transcriptPayload.semesters.flatMap((term) => term.records)).gpa) < 1e-9);

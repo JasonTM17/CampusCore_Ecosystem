@@ -173,6 +173,27 @@ export function summarizeBestAttempts(records: readonly GradeRecordLike[]): Best
 
 /* ---------- transcript payload ---------- */
 
+export interface SemesterProgressCard {
+  semesterId: string;
+  name: string;
+  gpa: number | null;
+  creditsEarned: number;
+}
+
+/** One card per transcript term, mirroring the web grades progress strip source. */
+export function semesterProgressCards(terms: readonly TranscriptTerm[]): SemesterProgressCard[] {
+  return terms.map((term) => {
+    const hasGradedWork = (term.creditsAttempted ?? 0) > 0 || term.records.length > 0;
+    const gpa = typeof term.gpa === 'number' && Number.isFinite(term.gpa) && hasGradedWork ? term.gpa : null;
+    return {
+      semesterId: term.semesterId,
+      name: term.name,
+      gpa,
+      creditsEarned: term.creditsEarned ?? 0,
+    };
+  });
+}
+
 export interface TranscriptRecord extends GradeRecordLike {
   id: string;
   courseCode: string;
