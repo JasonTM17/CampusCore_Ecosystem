@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -170,6 +170,27 @@ describe('registration round banner', () => {
     await render(wrap(<RegistrationScreen {...props} />));
 
     expect(screen.getByText(/Còn lại: 2 ngày/)).toBeOnTheScreen();
+  });
+
+  test('the countdown clock ticks every second', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-11-09T00:00:00Z'));
+    const soon = new Date('2026-11-11T01:00:00Z').toISOString();
+    mockQueries['academic.registration'] = {
+      data: registrationData([section('A1')], { round: round({ windowEnd: soon }) }),
+    };
+    let unmount: (() => void) | undefined;
+    try {
+      const view = await render(wrap(<RegistrationScreen {...props} />));
+      unmount = view.unmount;
+      expect(screen.getByText('Còn lại: 2 ngày 01:00:00')).toBeOnTheScreen();
+      await act(async () => { jest.advanceTimersByTime(1000); });
+      expect(screen.getByText('Còn lại: 2 ngày 00:59:59')).toBeOnTheScreen();
+    } finally {
+      if (unmount) await act(() => { unmount?.(); });
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
   });
 });
 
@@ -416,6 +437,52 @@ describe('enrollment workspace parity', () => {
     await enrollments.unmount();
     await render(wrap(<ScheduleScreen {...props} />));
     expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
+  });
+});
+
+describe('enrollment drop parity', () => {
+  const rows = [
+    { id: 'e1', sectionId: 's1', semesterId: 't2', status: 'ENROLLED', enrolledAt: '2026-09-07T00:00:00Z', section: { sectionNumber: '01', course: course('CS101', 'Nhập môn'), schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '09:00', classroom: { building: 'A1', roomNumber: '101' } }] } },
+    { id: 'e2', sectionId: 's2', semesterId: 't2', status: 'DROPPED', section: { sectionNumber: '02', course: course('MA101', 'Giải tích') } },
+  ];
+  const term = [{ id: 't2', name: 'HK2', status: 'IN_PROGRESS' }];
+
+  test('the list card drops an enrolled course through the shared confirmation', async () => {
+    mockQueries['academic.enrollments'] = { data: rows };
+    mockQueries['academic.semesters'] = { data: term };
+    mockPost.mockResolvedValueOnce({ message: 'ok' });
+    await render(wrap(<EnrollmentsScreen {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.dropSection}: CS101` }));
+    expect(screen.getByText(copy.dropTitle)).toBeOnTheScreen();
+    expect(screen.getByText(/Bạn đang hủy lớp học phần CS101-01/)).toBeOnTheScreen();
+    expect(mockPost).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: copy.dropSection }));
+    expect(await screen.findByText(copy.dropped)).toBeOnTheScreen();
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockPost.mock.calls[0][0]).toBe('/me/enrollments/e1/drop');
+  });
+
+  test('the detail sheet drops the same course', async () => {
+    mockQueries['academic.enrollments'] = { data: rows };
+    mockQueries['academic.semesters'] = { data: term };
+    mockPost.mockResolvedValueOnce({ message: 'ok' });
+    await render(wrap(<EnrollmentsScreen {...props} />));
+
+    await fireEvent.press(screen.getByRole('button', { name: /CS101 Nhập môn/ }));
+    await fireEvent.press(screen.getByRole('button', { name: `${copy.dropSection}: CS101` }));
+    await fireEvent.press(screen.getByRole('button', { name: copy.dropSection }));
+    expect(await screen.findByText(copy.dropped)).toBeOnTheScreen();
+    expect(mockPost.mock.calls[0][0]).toBe('/me/enrollments/e1/drop');
+  });
+
+  test('a dropped course no longer offers the drop action', async () => {
+    mockQueries['academic.enrollments'] = { data: rows };
+    mockQueries['academic.semesters'] = { data: term };
+    await render(wrap(<EnrollmentsScreen {...props} />));
+    await fireEvent.press(screen.getByRole('tab', { name: 'Đã rút (1)' }));
+
+    expect(screen.queryByRole('button', { name: `${copy.dropSection}: MA101` })).toBeNull();
   });
 });
 

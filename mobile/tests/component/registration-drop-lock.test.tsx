@@ -136,10 +136,10 @@ test('registration search stays on one line with a short placeholder and a compl
   await render(screenElement(<RegistrationScreen {...props} />));
   const input = screen.getByLabelText(copy.searchLabel);
 
-  expect(input.props.placeholder).toBe('Tìm học phần');
+  expect(input.props.placeholder).toBe('Tìm theo mã hoặc tên môn học');
   expect(input.props.accessibilityLabel).toBe(copy.searchLabel);
   expect(input.props.multiline).toBe(false);
-  expect(academicMessages.en.searchPlaceholder).toBe('Search courses');
+  expect(academicMessages.en.searchPlaceholder).toBe('Search by course code or name');
 });
 
 test('search matches the localized course name shown to the student', async () => {

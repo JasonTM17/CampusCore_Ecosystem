@@ -5804,6 +5804,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰩺",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Hủy đăng ký: CS204",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                          },
+                          "t": "View",
+                        },
                       ],
                       "s": {
                         "backgroundColor": "#1E2229",
@@ -5983,6 +6005,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                             "alignItems": "flex-start",
                             "flexDirection": "row",
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰩺",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Hủy đăng ký: BA312",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
                           },
                           "t": "View",
                         },
@@ -6568,6 +6612,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                               },
                               "t": "View",
                             },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰩺",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "label": "Hủy đăng ký: CS204",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                              },
+                              "t": "View",
+                            },
                           ],
                           "s": {
                             "backgroundColor": "#1E2229",
@@ -6742,6 +6808,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 12,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰩺",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "label": "Hủy đăng ký: BA312",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
                               },
                               "t": "View",
                             },
@@ -7338,6 +7426,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                           },
                           "t": "View",
                         },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰩺",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Hủy đăng ký: CS204",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                          },
+                          "t": "View",
+                        },
                       ],
                       "s": {
                         "backgroundColor": "#FFFFFF",
@@ -7517,6 +7627,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                             "alignItems": "flex-start",
                             "flexDirection": "row",
                             "gap": 12,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰩺",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Hủy đăng ký: BA312",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
                           },
                           "t": "View",
                         },
@@ -8102,6 +8234,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                               },
                               "t": "View",
                             },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰩺",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "label": "Hủy đăng ký: CS204",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                              },
+                              "t": "View",
+                            },
                           ],
                           "s": {
                             "backgroundColor": "#FFFFFF",
@@ -8276,6 +8430,28 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                 "alignItems": "flex-start",
                                 "flexDirection": "row",
                                 "gap": 12,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰩺",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "label": "Hủy đăng ký: BA312",
+                              "role": "button",
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
                               },
                               "t": "View",
                             },

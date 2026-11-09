@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, IconChip, InlineError, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Dialog, Notice } from '../../components/ui/primitives';
+import { IconButton } from '../../components/ui/institutional';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -15,17 +17,30 @@ import {
   enrollmentCourseCode,
   enrollmentCourseName,
   filterEnrollments,
+  isDroppableEnrollment,
   lecturerName,
   localizedName,
   roomLabel,
   tabCounts,
   termOptions,
+  type AcademicEnrollment,
   type EnrollmentTab,
 } from './academic-model';
 import { previewEnrollments, previewSemester } from './academic-preview';
 import { AcademicShell, SegmentTabs, TermField, academicStyles, enrollmentStatusTone, isPreviewMode, useAcademicCopy, useAcademicQuery } from './academic-ui';
 import { EnrollmentDetail } from './EnrollmentDetail';
 import { SlipRow } from './SlipRow';
+import { useRegistrationActions } from './useRegistrationActions';
+
+/** The enrollments screen has no registration catalog, so the basket stays empty. */
+const EMPTY_CATALOG: readonly string[] = [];
+
+/** Confirmation label for a drop, mirroring the web section label. */
+function dropSectionLabel(item: AcademicEnrollment): string {
+  const code = enrollmentCourseCode(item);
+  const number = item.section?.sectionNumber;
+  return number && !number.startsWith(code) ? `${code}-${number}` : number || code;
+}
 
 export interface EnrollmentWorkspaceProps {
   navigation: MobileNavigation;
@@ -53,6 +68,14 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const [tab, setTab] = useState<EnrollmentTab>('active');
   const [term, setTerm] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<AcademicEnrollment | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const actions = useRegistrationActions({
+    copy, locale, preview,
+    knownOffline: enrollmentsQuery.errorStatus === 0,
+    reload: async () => { await Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()]); },
+    catalogIds: EMPTY_CATALOG,
+  });
 
   const enrollments = useMemo(() => (preview ? previewEnrollments : enrollmentsQuery.data ?? []), [preview, enrollmentsQuery.data]);
   const semesters = useMemo(() => (preview ? [previewSemester] : semestersQuery.data ?? []), [preview, semestersQuery.data]);
@@ -60,6 +83,10 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const counts = tabCounts(enrollments, term || null);
   const rows = filterEnrollments(enrollments, tab, term || null);
   const selected = selectedId ? enrollments.find((item) => item.id === selectedId) ?? null : null;
+  const openDrop = (item: AcademicEnrollment) => {
+    setDropTarget(item);
+    setConfirmOpen(true);
+  };
   const emptyTitle = tab === 'active' ? copy.emptyActive : tab === 'past' ? copy.emptyPast : copy.emptyWithdrawn;
   const headingSemester = term ? semesters.find((entry) => entry.id === term) : undefined;
   const termEnrollments = term ? enrollments.filter((item) => item.semesterId === term) : [];
@@ -128,6 +155,14 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                         {item.enrolledAt ? <UiText variant="meta" tone="muted">{copy.enrolledOn} {formatDate(item.enrolledAt)}</UiText> : null}
                       </View>
                     </View>
+                    {isDroppableEnrollment(item.status) ? (
+                      <IconButton
+                        icon="trash-can-outline"
+                        accessibilityLabel={`${copy.dropSection}: ${code}`}
+                        onPress={() => openDrop(item)}
+                        disabled={preview || actions.busy}
+                      />
+                    ) : null}
                   </Card>
                 </Pressable>
               );
@@ -139,8 +174,13 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
     </>,
       }}
     >
+      {actions.notice ? <View style={academicStyles.card}><Notice message={actions.notice.text} tone={actions.notice.tone} /></View> : null}
       {selected ? (
-        <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
+        <EnrollmentDetail
+          enrollment={selected}
+          onBack={() => setSelectedId(null)}
+          onDrop={isDroppableEnrollment(selected.status) ? () => openDrop(selected) : null}
+        />
       ) : (<View>
           <SlipRow semesterId={slipSemesterId} />
           <ScreenSpacer size={8} />
@@ -171,7 +211,23 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
             </View>
           ) : null}
           {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
-        </View>)}</AcademicShell>
+        </View>)}
+      <Dialog
+        visible={confirmOpen}
+        title={copy.dropTitle}
+        description={dropTarget ? fillCopy(copy.dropBody, { section: dropSectionLabel(dropTarget) }) : undefined}
+        confirmLabel={copy.dropSection}
+        cancelLabel={copy.cancel}
+        destructive
+        onCancel={() => { setDropTarget(null); setConfirmOpen(false); }}
+        onConfirm={() => {
+          const target = dropTarget;
+          setDropTarget(null);
+          setConfirmOpen(false);
+          if (target) void actions.drop(target.id);
+        }}
+      />
+    </AcademicShell>
   );
 }
 
