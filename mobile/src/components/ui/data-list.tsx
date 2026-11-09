@@ -30,6 +30,7 @@ export interface DataListProps<T> {
   emptyActionLabel?: string;
   onEmptyAction?: () => void;
   header?: ReactElement | null;
+  listFooter?: ReactElement | null;
   accessibilityLabel?: string;
   testID?: string;
 }
@@ -54,6 +55,7 @@ export function DataList<T>({
   emptyActionLabel,
   onEmptyAction,
   header,
+  listFooter,
   accessibilityLabel,
   testID,
 }: DataListProps<T>) {
@@ -85,7 +87,7 @@ export function DataList<T>({
     emptyComponent = <EmptyState title={emptyTitle ?? t('empty')} description={emptyDescription} actionLabel={emptyActionLabel} onAction={onEmptyAction} />;
   }
 
-  const footer = loadingMore ? (
+  const loadMoreFooter = loadingMore ? (
     <View accessibilityLiveRegion="polite" style={[styles.footer, { minHeight: layout.touchTarget }]}>
       <ActivityIndicator color={colors.primary} size="small" />
       <UiText variant="bodySmall" tone="muted">{t('loadingMore')}</UiText>
@@ -95,6 +97,12 @@ export function DataList<T>({
       <Button label={t('loadMore')} onPress={onLoadMore as () => void} variant="secondary" />
     </View>
   ) : null;
+  const footer = listFooter ? (
+    <View style={{ gap: spacing.md, paddingTop: spacing.md }}>
+      {loadMoreFooter}
+      {listFooter}
+    </View>
+  ) : loadMoreFooter;
 
   return (
     <PerformanceList
