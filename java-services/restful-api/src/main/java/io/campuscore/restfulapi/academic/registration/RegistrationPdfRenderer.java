@@ -26,6 +26,11 @@ public class RegistrationPdfRenderer {
 
     private static final int ROWS_PER_PAGE = 12;
     private static final int FONT_OBJECT_COUNT = 5;
+    // Budgets keep each field inside the 612 pt MediaBox at the size it is drawn.
+    private static final int COURSE_NAME_MAX_CODE_POINTS = 36;
+    private static final int STUDENT_NAME_MAX_CODE_POINTS = 24;
+    private static final int SEMESTER_NAME_MAX_CODE_POINTS = 33;
+    private static final int LEGACY_LINE_MAX_CODE_POINTS = 102;
 
     public record CourseItem(
             String courseCode,
@@ -74,20 +79,26 @@ public class RegistrationPdfRenderer {
         FontUsage boldFont = new FontUsage(FontResources.BOLD);
         String cleanStudentId = safe(studentId);
         String cleanStudentCode = safe(studentCode != null && !studentCode.isBlank() ? studentCode : studentId);
-        String cleanStudentName = studentName != null && !studentName.isBlank() ? studentName : cleanStudentId;
+        String cleanStudentName = truncate(
+                studentName != null && !studentName.isBlank() ? studentName : cleanStudentId,
+                STUDENT_NAME_MAX_CODE_POINTS);
         String cleanSemesterId = safe(semesterId);
-        String cleanSemesterName = semesterName != null && !semesterName.isBlank() ? semesterName : cleanSemesterId;
+        String cleanSemesterName = truncate(
+                semesterName != null && !semesterName.isBlank() ? semesterName : cleanSemesterId,
+                SEMESTER_NAME_MAX_CODE_POINTS);
         String cleanEnrollmentId = safe(enrollmentId);
         String cleanSectionId = safe(sectionId);
 
-        String legacyText = "CampusUTE registration slip student="
-                + cleanStudentId
-                + " semester="
-                + cleanSemesterId
-                + " enrollment="
-                + cleanEnrollmentId
-                + " section="
-                + cleanSectionId;
+        String legacyText = truncate(
+                "CampusUTE registration slip student="
+                        + cleanStudentId
+                        + " semester="
+                        + cleanSemesterId
+                        + " enrollment="
+                        + cleanEnrollmentId
+                        + " section="
+                        + cleanSectionId,
+                LEGACY_LINE_MAX_CODE_POINTS);
 
         List<String> streamLines = new ArrayList<>();
         // Decorative header lines
@@ -195,9 +206,7 @@ public class RegistrationPdfRenderer {
                 pageLines.add("Q");
 
                 String cName = item.courseName() != null ? item.courseName() : "Course " + rowNumber;
-                if (cName.length() > 36) {
-                    cName = cName.substring(0, 33) + "...";
-                }
+                cName = truncate(cName, COURSE_NAME_MAX_CODE_POINTS);
 
                 pageLines.add("BT");
                 pageLines.add("0 g");
@@ -378,6 +387,28 @@ public class RegistrationPdfRenderer {
         return value == null ? "" : value.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
+    private static String truncate(String value, int maxCodePoints) {
+        if (value.codePointCount(0, value.length()) <= maxCodePoints) {
+            return value;
+        }
+        int cut = value.offsetByCodePoints(0, maxCodePoints - 3);
+        if (cut > 0 && cut < value.length() && isCombiningMark(value.codePointAt(cut))) {
+            while (cut > 0) {
+                int previous = value.codePointBefore(cut);
+                cut -= Character.charCount(previous);
+                if (!isCombiningMark(previous)) break;
+            }
+        }
+        return value.substring(0, cut) + "...";
+    }
+
+    private static boolean isCombiningMark(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.NON_SPACING_MARK
+                || type == Character.COMBINING_SPACING_MARK
+                || type == Character.ENCLOSING_MARK;
+    }
+
     private record FontObjectIds(int type0Id) {
         private int cidFontId() {
             return type0Id + 1;
@@ -475,7 +506,7 @@ public class RegistrationPdfRenderer {
         private final int ascent;
         private final int descent;
         private final GlyphMapper glyphMapper;
-        private byte[] compressedBytes;
+        private final byte[] compressedBytes;
 
         private TrueTypeFont(byte[] bytes) {
             this.bytes = bytes;
@@ -511,6 +542,7 @@ public class RegistrationPdfRenderer {
             ascent = signedShort(data, hhea.offset() + 4);
             descent = signedShort(data, hhea.offset() + 6);
             glyphMapper = readGlyphMapper(data, cmap);
+            compressedBytes = compress(bytes);
         }
 
         private static TrueTypeFont load(String resourcePath) {
@@ -555,20 +587,21 @@ public class RegistrationPdfRenderer {
         }
 
         private byte[] compressedBytes() {
-            if (compressedBytes == null) {
-                Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
-                try (ByteArrayOutputStream output = new ByteArrayOutputStream();
-                        DeflaterOutputStream compressed = new DeflaterOutputStream(output, deflater)) {
-                    compressed.write(bytes);
-                    compressed.finish();
-                    compressedBytes = output.toByteArray();
-                } catch (IOException exception) {
-                    throw new IllegalStateException("Unable to compress registration PDF font", exception);
-                } finally {
-                    deflater.end();
-                }
-            }
             return compressedBytes;
+        }
+
+        private static byte[] compress(byte[] bytes) {
+            Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
+            try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+                    DeflaterOutputStream compressed = new DeflaterOutputStream(output, deflater)) {
+                compressed.write(bytes);
+                compressed.finish();
+                return output.toByteArray();
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to compress registration PDF font", exception);
+            } finally {
+                deflater.end();
+            }
         }
 
         private static Map<String, FontTable> readTables(ByteBuffer data, int fontLength) {
