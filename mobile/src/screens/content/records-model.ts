@@ -16,6 +16,7 @@ export interface ConductCriterion {
   code: string;
   nameVi?: string | null;
   nameEn?: string | null;
+  description?: string | null;
   score: number;
   maxScore: number;
 }
@@ -61,7 +62,7 @@ function parseTerm(raw: unknown, index: number): ConductTerm | null {
         const criterionCode = text(entry?.code);
         return score === null || maxScore === null || !criterionCode
           ? []
-          : [{ code: criterionCode, nameVi: text(entry.nameVi), nameEn: text(entry.nameEn), score, maxScore }];
+          : [{ code: criterionCode, nameVi: text(entry.nameVi), nameEn: text(entry.nameEn), description: text(entry.description), score, maxScore }];
       })
     : [];
   const activities = Array.isArray(row.activities)
@@ -118,6 +119,36 @@ export function parseConduct(raw: unknown): ConductModel | null {
     cumulativeClassificationVi: text(body.cumulativeClassificationVi),
     terms,
   };
+}
+
+export type ConductRankKey = 'XUAT_SAC' | 'TOT' | 'KHA' | 'TRUNG_BINH' | 'YEU';
+
+/** Same normalization as the web rank label: exact codes first, then the Vietnamese label. */
+export function conductRankKey(value: string | null | undefined): ConductRankKey | null {
+  const normalized = (value ?? '').toUpperCase();
+  if (normalized === 'XUAT_SAC' || normalized === 'EXCELLENT' || normalized.includes('XUẤT SẮC')) return 'XUAT_SAC';
+  if (normalized === 'TOT' || normalized === 'GOOD' || normalized.includes('TỐT')) return 'TOT';
+  if (normalized === 'KHA' || normalized === 'FAIR' || normalized.includes('KHÁ')) return 'KHA';
+  if (normalized === 'TRUNG_BINH' || normalized === 'AVERAGE' || normalized.includes('TRUNG BÌNH')) return 'TRUNG_BINH';
+  if (normalized === 'YEU' || normalized === 'KEM' || normalized === 'WEAK' || normalized === 'POOR' || normalized.includes('YẾU') || normalized.includes('KÉM')) return 'YEU';
+  return null;
+}
+
+export type ConductStatusKey = 'APPROVED' | 'PENDING' | 'IN_REVIEW' | 'DRAFT' | 'UNKNOWN';
+
+/** Only the statuses the web catalogue names survive; anything else is the neutral unknown state. */
+export function conductStatusKey(value: string | null | undefined): ConductStatusKey {
+  const normalized = (value ?? '').trim().toUpperCase();
+  return normalized === 'APPROVED' || normalized === 'PENDING' || normalized === 'IN_REVIEW' || normalized === 'DRAFT'
+    ? normalized
+    : 'UNKNOWN';
+}
+
+/** Web conduct rewrite: English turns the Vietnamese catalogue name into `Semester 1, 2024-2025`. */
+export function conductSemesterName(name: string | null | undefined, locale: 'vi' | 'en'): string {
+  if (!name) return '—';
+  if (locale === 'vi') return name;
+  return name.replace(/Học kỳ\s+(\d+)\s+năm học\s+(\d{4})-(\d{4})/i, 'Semester $1, $2-$3');
 }
 
 export interface CertificateInfo {
