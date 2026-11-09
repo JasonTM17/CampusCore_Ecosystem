@@ -7,7 +7,7 @@ import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { uiMessages } from '../../src/i18n/locale';
-import { Button, ScreenShell, SectionHeading, StatePanel } from '../../src/components/Ui';
+import { Badge, Button, ScreenShell, SectionHeading, StatePanel } from '../../src/components/Ui';
 import {
   Dialog,
   FilterChip,
@@ -42,6 +42,17 @@ describe('status pill', () => {
     expect(pill.minHeight).toBeGreaterThanOrEqual(Math.ceil(tokens.typography.meta.lineHeight * 1.3));
     expect(pill.paddingHorizontal).toBe(10);
     expect(pill.paddingVertical).toBe(2);
+  });
+
+  test('Badge shares the status pill geometry and supports the info tone', async () => {
+    await render(wrap(<Badge label="Beta" tone="info" />));
+    const label = screen.getByText('Beta');
+    const pill = flat(label.parent?.props.style);
+    expect(pill.borderRadius).toBe(6);
+    expect(pill.paddingHorizontal).toBe(10);
+    expect(pill.paddingVertical).toBe(2);
+    expect(pill.minHeight).toBeGreaterThanOrEqual(Math.ceil(tokens.typography.meta.lineHeight * 1.3));
+    expect(flat(label.props.style).color).toBe(tokens.colors.primary);
   });
 });
 

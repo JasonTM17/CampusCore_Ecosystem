@@ -68,7 +68,7 @@ function ErrorRecovery({ onRetry }: { onRetry: () => void }) {
   const { t } = useLocale();
   return (
     <View style={[styles.host, { backgroundColor: colors.background }]}>
-      <StatePanel kind="error" title={t('errorGeneric')} actionLabel={t('retry')} onAction={onRetry} />
+      <StatePanel kind="error" title={t('sectionErrorTitle')} description={t('sectionErrorDescription')} actionLabel={t('retry')} onAction={onRetry} />
     </View>
   );
 }
