@@ -49,7 +49,7 @@ const fallbackApi = buildApi(DEFAULT_LOCALE, true, () => {});
 const LocaleContext = createContext<LocaleApi>(fallbackApi);
 
 /** AsyncStorage is resolved lazily so importing this module never needs the native module. */
-function defaultStorage(): KeyValueStorage | undefined {
+export function defaultStorage(): KeyValueStorage | undefined {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('@react-native-async-storage/async-storage');
