@@ -13,6 +13,7 @@ import {
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { Card, UiText } from '../../components/Ui';
+import { LanguageToggleButton } from '../../components/LanguageToggleButton';
 import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
@@ -87,6 +88,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
                 {portalSubtitle}
               </UiText>
             </View>
+            <LanguageToggleButton />
           </View>
           <ResponsiveContent style={styles.content}>
             <Card style={styles.formCard}>

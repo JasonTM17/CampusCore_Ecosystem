@@ -4,6 +4,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, UiText } from '../../components/Ui';
+import { LanguageToggleButton } from '../../components/LanguageToggleButton';
 import { IconChip, StatusPill } from '../../components/ui/institutional';
 import type { UiIconName } from '../../components/ui/institutional';
 import { chromeFor } from '../../design/chrome';
@@ -15,6 +16,7 @@ import { shellMessages } from '../../i18n/shell-messages';
 import type { ScreenName } from '../../navigation/routes';
 import type { MobileScreenProps } from '../../navigation/types';
 import { GuestDocsTeaser, GuestNewsTeaser } from './GuestContentTeasers';
+import { GuestIdentityBoard } from './GuestIdentityBoard';
 
 type GuestHomeCopy = (typeof shellMessages)['vi']['guestHome'];
 type RoleKey = keyof GuestHomeCopy['roles'];
@@ -117,6 +119,7 @@ export function GuestHomeScreen({ navigation }: MobileScreenProps) {
               <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.brandSubtitle}</UiText>
             </View>
+            <LanguageToggleButton />
           </View>
           <UiText variant="meta" style={[styles.heroEyebrow, { color: chrome.accent }]}>{copy.eyebrow}</UiText>
           <UiText variant="meta" style={[styles.heroSchool, { color: chrome.onSurfaceMuted }]}>{copy.schoolName}</UiText>
@@ -132,6 +135,7 @@ export function GuestHomeScreen({ navigation }: MobileScreenProps) {
         </View>
 
         <View style={[styles.body, styles.section]}>
+          <GuestIdentityBoard onOpenPortal={() => navigation.navigate('auth.signIn')} />
           {ROLE_KEYS.map((role) => {
             const lane = copy.roles[role];
             const tone = roleTone(role, colors);
