@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, InlineError, ScreenSpacer, StatePanel, StatStrip, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
-import { minTapTarget, tokens } from '../../design/tokens';
+import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -30,6 +30,8 @@ import { WeekStrip } from '../academic/WeekStrip';
 import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 
 type View_ = 'week' | 'term';
+
+const weekChevronHitSlop = { top: 10, bottom: 10, left: 10, right: 10 };
 
 const SessionCard = memo(function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded: boolean; onToggle: (id: string) => void }) {
   const { copy } = useAcademicCopy();
@@ -185,19 +187,39 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
       {registeredEnrollments.length > 0 && agenda.length === 0 && view === 'term' ? <StatePanel kind="empty" title={copy.noMeetings} description={copy.noMeetingsHint} /> : null}
       {registeredEnrollments.length > 0 && view === 'week' ? (
         <View>
-          <View style={academicStyles.row}>
-            <Button accessibilityLabel={copy.prevWeek} label="‹" onPress={() => setWeekOffset((value) => value - 1)} variant="text" style={{ minWidth: minTapTarget }} />
-            <UiText variant="label" accessibilityLiveRegion="polite">{weekLabel}</UiText>
-            <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" style={{ minWidth: minTapTarget }} />
+          <View style={styles.weekLabelRow}>
+            <UiText variant="label" accessibilityLiveRegion="polite" numberOfLines={1} adjustsFontSizeToFit>
+              {weekLabel}
+            </UiText>
           </View>
-          <WeekStrip
-            days={days}
-            selectedIndex={selectedDayIndex}
-            todayKey={civilKey(today)}
-            labels={copy.dayShort}
-            todayLabel={copy.today}
-            onSelect={(index) => { setSelectedDayIndex(index); setOpenId(null); }}
-          />
+          <View style={styles.weekPicker}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.prevWeek}
+              hitSlop={weekChevronHitSlop}
+              onPress={() => setWeekOffset((value) => value - 1)}
+              style={styles.weekChevron}
+            >
+              <UiText variant="label" tone="primary">‹</UiText>
+            </Pressable>
+            <WeekStrip
+              days={days}
+              selectedIndex={selectedDayIndex}
+              todayKey={civilKey(today)}
+              labels={copy.dayShort}
+              todayLabel={copy.today}
+              onSelect={(index) => { setSelectedDayIndex(index); setOpenId(null); }}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.nextWeek}
+              hitSlop={weekChevronHitSlop}
+              onPress={() => setWeekOffset((value) => value + 1)}
+              style={styles.weekChevron}
+            >
+              <UiText variant="label" tone="primary">›</UiText>
+            </Pressable>
+          </View>
           {(() => {
             const date = days[selectedDayIndex];
             const items = agendaForDate(agenda, date, semester);
@@ -225,6 +247,9 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
 });
 
 const styles = StyleSheet.create({
+  weekLabelRow: { marginTop: tokens.spacing.sm },
+  weekPicker: { alignItems: 'center', flexDirection: 'row', flexWrap: 'nowrap', marginTop: tokens.spacing.xs, minWidth: 0 },
+  weekChevron: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing.xs },
   termDay: { marginTop: tokens.spacing.md },
   sessionRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.md },
   timeRail: { alignItems: 'center', borderRightWidth: 1, justifyContent: 'center', minWidth: 64, paddingRight: tokens.spacing.sm },
