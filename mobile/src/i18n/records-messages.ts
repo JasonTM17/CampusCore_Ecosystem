@@ -17,6 +17,10 @@ export const recordsMessages = {
       "EXAM": "Thi cử & Khảo thí"
     } as Record<string, string>,
     "announcementsUnavailable": "Không thể tải thông báo học vụ.",
+    "announcementsFeatured": "Bài viết tiêu điểm",
+    "announcementsAttachments": "Tệp đính kèm chính thức",
+    "announcementsAttachmentCount": "{n} tệp",
+    "announcementsDigitalDocument": "Tài liệu số",
     "expand": "Xem nội dung",
     "collapse": "Thu gọn",
     "publishedAt": "Phát hành",
@@ -135,6 +139,10 @@ export const recordsMessages = {
       "EXAM": "Exams & Grading"
     } as Record<string, string>,
     "announcementsUnavailable": "Academic announcements are unavailable.",
+    "announcementsFeatured": "Featured",
+    "announcementsAttachments": "Official Attached Documents",
+    "announcementsAttachmentCount": "{n} files",
+    "announcementsDigitalDocument": "Digital document",
     "expand": "Read",
     "collapse": "Collapse",
     "publishedAt": "Published",
