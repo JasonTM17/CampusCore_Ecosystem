@@ -41,6 +41,7 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
   const sectionsQuery = useAcademicQuery('academic.registrationSections', () => academicApi.registrationSections(), copy);
   const pull = usePullToRefresh(() => query.reload());
   const [filter, setFilter] = useState<StatusFilter>('ALL');
+  const [chainsOpen, setChainsOpen] = useState(false);
   const data = preview ? previewCurriculum : query.data ?? null;
   const courses = data?.courses ?? [];
 
@@ -57,6 +58,37 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
     map.forEach((list) => list.sort());
     return map;
   }, [courses]);
+  const prereqChains = useMemo(() => {
+    const byCode = new Map(courses.map((course) => [course.code, course]));
+    const paths: string[][] = [];
+    const walk = (code: string, path: string[]) => {
+      const next = (unlocksByCode.get(code) ?? []).filter(
+        (dependent) => byCode.has(dependent) && !path.includes(dependent),
+      );
+      if (next.length === 0) {
+        if (path.length > 1) paths.push(path);
+        return;
+      }
+      next.forEach((dependent) => walk(dependent, [...path, dependent]));
+    };
+    const dependentCodes = new Set<string>();
+    unlocksByCode.forEach((dependents) => dependents.forEach((code) => dependentCodes.add(code)));
+    courses
+      .filter(
+        (course) =>
+          !dependentCodes.has(course.code)
+          && (unlocksByCode.get(course.code)?.length ?? 0) > 0,
+      )
+      .forEach((root) => walk(root.code, [root.code]));
+    const isSubPath = (a: string[], b: string[]) =>
+      a.length < b.length
+      && Array.from({ length: b.length - a.length + 1 }, (_, i) => i).some(
+        (offset) => a.every((code, j) => b[offset + j] === code),
+      );
+    return paths
+      .filter((path) => !paths.some((other) => other !== path && isSubPath(path, other)))
+      .sort((a, b) => b.length - a.length);
+  }, [courses, unlocksByCode]);
   const isAvailable = (course: CurriculumCourse) =>
     course.status === 'NOT_STARTED' && (course.prerequisites ?? []).every((code) => statusByCode.get(code) === 'COMPLETED');
 
@@ -117,6 +149,8 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
   return (
     <AcademicShell
       title={copy.curriculumTitle}
+      eyebrow={copy.curriculumEyebrow}
+      subtitle={copy.curriculumDescription}
       loading={!preview && query.isLoading}
       error={preview ? null : query.error}
       warning={preview ? copy.previewNotice : query.warning}
@@ -163,7 +197,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                       {requirementChips(course)}
                     </View>
                     <View style={styles.coursePills}>
-                      <StatusPill label={statusPillLabel} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : isAvailable(course) ? 'success' : 'neutral'} />
+                      <StatusPill label={statusPillLabel} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'info' : isAvailable(course) ? 'success' : 'neutral'} />
                       <StatusPill label={requirementLabel} tone="neutral" />
                     </View>
                   </View>
@@ -208,6 +242,39 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
               ))}
             </View>
           </Card>
+          {prereqChains.length > 0 ? (
+            <Card style={academicStyles.card}>
+              <View style={styles.chainsHead}>
+                <UiText accessibilityRole="header" variant="headlineSmall">{copy.chainsTitle}</UiText>
+                <Button
+                  label={chainsOpen
+                    ? copy.chainsCollapse
+                    : fillCopy(prereqChains.length === 1 ? copy.chainsExpandOne : copy.chainsExpand, { count: formatNumber(prereqChains.length) })}
+                  variant="text"
+                  onPress={() => setChainsOpen((open) => !open)}
+                />
+              </View>
+              {chainsOpen ? <>
+                <UiText variant="bodySmall" tone="muted">{copy.chainsDescription}</UiText>
+                {prereqChains.map((chain) => (
+                  <View key={chain.join('>')} accessible accessibilityLabel={chain.join(' → ')} style={styles.chainRow}>
+                    {chain.map((code, step) => {
+                      const status = statusByCode.get(code) ?? 'NOT_STARTED';
+                      return (
+                        <View key={`${chain.join('>')}-${code}-${step}`} style={styles.chainStep}>
+                          {step > 0 ? <UiText variant="meta" tone="muted">→</UiText> : null}
+                          <StatusPill
+                            label={status === 'COMPLETED' ? `✓ ${code}` : code}
+                            tone={status === 'COMPLETED' ? 'success' : status === 'IN_PROGRESS' ? 'info' : 'neutral'}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+              </> : null}
+            </Card>
+          ) : null}
           {availableCourses.length > 0 && (filter === 'ALL' || filter === 'AVAILABLE') ? (
             <Card style={academicStyles.card}>
               <View style={styles.availableHead}>
@@ -271,6 +338,9 @@ const styles = StyleSheet.create({
   yearHeading: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.md },
   termHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 8 },
   termTitle: { flex: 1, minWidth: 0 },
+  chainsHead: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
+  chainRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
+  chainStep: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs },
   availableHead: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.xs },
   availableRow: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
   availableCopy: { flex: 1, gap: 4, minWidth: 160 },

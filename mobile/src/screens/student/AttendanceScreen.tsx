@@ -2,7 +2,7 @@ import { cardRows, contentRows, renderVirtualRow } from '../../components/perf/v
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { Card, DataNotice, Divider, IconChip, InlineError, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Card, DataNotice, Divider, IconChip, InlineError, MetricCard, ProgressBar, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useTheme } from '../../design/theme';
 import { useLocale } from '../../i18n/locale-provider';
@@ -55,11 +55,14 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
     .filter((record) => !sectionId || record.sectionId === sectionId)
     .sort((left, right) => right.date.localeCompare(left.date));
   const sum = (key: 'present' | 'absent' | 'late' | 'excused') => rows.reduce((total, row) => total + row[key], 0);
+  const recorded = rows.reduce((total, row) => total + row.total, 0);
   const overall = overallRate(rows);
 
   return (
     <AcademicShell
       title={copy.attendanceTitle}
+      eyebrow={copy.attendanceEyebrow}
+      subtitle={copy.attendanceDescription}
       loading={!preview && summaryQuery.isLoading}
       error={preview ? null : summaryQuery.error}
       errorTitle={copy.attendanceErrorTitle}
@@ -141,22 +144,11 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
             display="sheet"
             options={[{ value: '', label: copy.allCourses }, ...summary.map((row) => ({ value: row.sectionId, label: `${row.courseCode} · ${localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}` }))]}
           />
-          <Card tone="primary">
-            <View style={styles.summaryHeader}>
-              <IconChip icon="chart-donut" />
-              <View style={styles.summaryCopy}>
-                <UiText variant="label" tone="muted">{copy.overall}</UiText>
-                <UiText variant="display" tone="primary">{overall}%</UiText>
-              </View>
-            </View>
-            <ProgressBar label={copy.overall} value={overall} tone={rateTone(overall)} />
-          </Card>
-          <ScreenSpacer />
           <View style={academicStyles.metrics}>
-            <MetricCard icon="check-circle-outline" label={copy.present} value={formatNumber(sum('present'))} style={academicStyles.metric} />
-            <MetricCard icon="close-circle-outline" label={copy.absent} value={formatNumber(sum('absent'))} style={academicStyles.metric} />
-            <MetricCard icon="clock-outline" label={copy.late} value={formatNumber(sum('late'))} style={academicStyles.metric} />
-            <MetricCard icon="email-check-outline" label={copy.excused} value={formatNumber(sum('excused'))} style={academicStyles.metric} />
+            <MetricCard icon="chart-donut" label={copy.overall} value={`${formatNumber(overall)}%`} detail={copy.overallHint} style={academicStyles.metric} />
+            <MetricCard icon="clipboard-check-outline" label={copy.totalSessions} value={formatNumber(recorded)} style={academicStyles.metric} />
+            <MetricCard icon="check-circle-outline" label={copy.presentSessions} value={formatNumber(sum('present'))} style={academicStyles.metric} />
+            <MetricCard icon="alert-circle-outline" label={copy.absentLate} value={formatNumber(sum('absent') + sum('late'))} style={academicStyles.metric} />
           </View>
           <SectionHeading title={copy.byCourse} />
           </View></>)}</AcademicShell>
@@ -164,8 +156,6 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
 }
 
 const styles = {
-  summaryHeader: { alignItems: 'center' as const, flexDirection: 'row' as const, gap: 12 },
-  summaryCopy: { flex: 1, minWidth: 0 },
   courseHeader: { alignItems: 'flex-start' as const, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   courseStats: { borderTopWidth: 1, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 12, paddingTop: 12 },
   courseStat: { flexBasis: 56, flexGrow: 1, gap: 2, minWidth: 56 },

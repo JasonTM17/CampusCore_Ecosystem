@@ -75,6 +75,7 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
     <>
     <AcademicShell
       title={copy.gradesTitle}
+      eyebrow={copy.gradesEyebrow}
       loading={!preview && query.isLoading}
       loadingLabel={copy.loadingGrades}
       errorTitle={copy.gradesUnavailable}
