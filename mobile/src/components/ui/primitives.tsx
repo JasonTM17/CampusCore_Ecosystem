@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -13,6 +13,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { minTapTarget, tokens } from '../../design/tokens';
@@ -20,7 +21,9 @@ import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
 import { chromeFontScaleCap } from '../../design/font-scale';
 import { useLocale } from '../../i18n/locale-provider';
+import { alpha } from './avatar-utils';
 import { Button } from './Button';
+import { IconButton } from './institutional';
 import { UiText } from './UiText';
 import type { TextTone } from './UiText';
 
@@ -110,6 +113,7 @@ export interface DialogProps {
 export function Dialog({ visible, title, description, confirmLabel, cancelLabel, onConfirm, onCancel, destructive = false }: DialogProps) {
   const { colors, spacing, radii, reducedMotion } = useTheme();
   const insets = useContext(ModalInsetsContext);
+  const { t } = useLocale();
   const close = onCancel ?? onConfirm;
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={close}>
@@ -122,9 +126,12 @@ export function Dialog({ visible, title, description, confirmLabel, cancelLabel,
         <View
           accessibilityRole="alert"
           accessibilityViewIsModal
-          style={[dialogStyles.panel, { backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, padding: spacing.lg }]}
+          style={[dialogStyles.panel, { backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, padding: spacing.md + spacing.xs }]}
         >
-          <UiText accessibilityRole="header" variant="headlineSmall">{title}</UiText>
+          <View style={dialogStyles.header}>
+            <UiText accessibilityRole="header" variant="headlineSmall" style={dialogStyles.title}>{title}</UiText>
+            <IconButton icon="close" accessibilityLabel={t('closeDialog')} onPress={close} />
+          </View>
           {description ? (
             <ScrollView style={dialogStyles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <UiText variant="bodySmall" tone="muted" style={dialogStyles.desc}>{description}</UiText>
@@ -141,8 +148,10 @@ export function Dialog({ visible, title, description, confirmLabel, cancelLabel,
 }
 
 const dialogStyles = StyleSheet.create({
-  backdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: tokens.spacing.lg },
+  backdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)', flex: 1, justifyContent: 'center', padding: tokens.spacing.lg },
   panel: { borderWidth: 1, maxWidth: 420, maxHeight: '90%', width: '100%' },
+  header: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
+  title: { flex: 1, minWidth: 0, paddingTop: tokens.spacing.sm },
   scroll: { flexShrink: 1 },
   desc: { marginTop: tokens.spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.lg },
@@ -157,17 +166,21 @@ export interface ToastProps {
   onDismiss?: () => void;
 }
 
-const toastTones: Record<NonNullable<ToastProps['tone']>, { bg: keyof ReturnType<typeof toneKeys>; text: TextTone }> = {
-  default: { bg: 'surfaceHigh', text: 'default' },
-  success: { bg: 'successFixed', text: 'success' },
-  error: { bg: 'errorFixed', text: 'error' },
-  warning: { bg: 'warningFixed', text: 'warning' },
+const toastTones: Record<NonNullable<ToastProps['tone']>, {
+  bg: keyof ReturnType<typeof toneKeys>;
+  border: keyof ReturnType<typeof toneKeys>;
+  ink: keyof ReturnType<typeof toneKeys>;
+  icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+}> = {
+  default: { bg: 'surfaceHigh', border: 'outlineVariant', ink: 'textMuted', icon: 'information-outline' },
+  success: { bg: 'successFixed', border: 'success', ink: 'success', icon: 'check-circle-outline' },
+  error: { bg: 'errorFixed', border: 'error', ink: 'error', icon: 'alert-circle-outline' },
+  warning: { bg: 'warningFixed', border: 'warning', ink: 'warning', icon: 'alert-outline' },
 };
 function toneKeys() { return tokens.colors; }
 
 export function Toast({ visible, message, tone = 'default', duration = 4000, onDismiss }: ToastProps) {
   const { colors, spacing, radii, layout } = useTheme();
-  const { t } = useLocale();
   useEffect(() => {
     if (!visible || !onDismiss) return;
     const timer = setTimeout(onDismiss, duration);
@@ -175,13 +188,15 @@ export function Toast({ visible, message, tone = 'default', duration = 4000, onD
   }, [visible, duration, onDismiss]);
   if (!visible) return null;
   const m = toastTones[tone];
+  const color = (key: keyof ReturnType<typeof toneKeys>) => (colors as Record<string, string>)[key];
   return (
     <View
+      testID="toast"
       accessibilityLiveRegion={tone === 'error' ? 'assertive' : 'polite'}
-      style={[toastStyles.toast, { backgroundColor: (colors as Record<string, string>)[m.bg], borderColor: colors.outlineVariant, borderRadius: radii.card, margin: spacing.md, minHeight: layout.touchTarget, padding: spacing.md }]}
+      style={[toastStyles.toast, { backgroundColor: color(m.bg), borderColor: color(m.border), borderRadius: radii.card, margin: spacing.md, minHeight: layout.touchTarget, padding: spacing.md }]}
     >
-      <UiText accessibilityRole={tone === 'error' ? 'alert' : undefined} variant="bodySmall" tone={m.text} style={toastStyles.text}>{message}</UiText>
-      {onDismiss ? <Button label={t('close')} onPress={onDismiss} variant="text" accessibilityLabel={t('dismissNotification')} /> : null}
+      <MaterialCommunityIcons accessible={false} importantForAccessibility="no" testID="toast-icon" name={m.icon} size={20} color={color(m.ink)} />
+      <UiText accessibilityRole={tone === 'error' ? 'alert' : undefined} variant="bodySmall" tone={tone === 'default' ? 'default' : tone} style={toastStyles.text}>{message}</UiText>
     </View>
   );
 }
@@ -246,7 +261,7 @@ export function Skeleton({ width = '100%', height = 16, borderRadius = tokens.ra
     loop.start();
     return () => loop.stop();
   }, [reducedMotion, opacity, motion.durationMedium]);
-  const base = { width, height, borderRadius, backgroundColor: colors.surfaceHigh } as ViewStyle;
+  const base = { width, height, borderRadius, backgroundColor: colors.surfaceLow } as ViewStyle;
   return (
     <Animated.View
       testID={testID}
@@ -328,12 +343,12 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
             onPress={() => onChange(opt.value)}
             style={({ pressed }) => [
               { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: minTapTarget, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
-              selected ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1 } : undefined,
+              selected ? { backgroundColor: colors.primary, borderColor: colors.primary, borderWidth: 1 } : undefined,
               pressed && !disabled ? { opacity: 0.85 } : undefined,
               disabled ? { opacity: 0.5 } : undefined,
             ]}
           >
-            <UiText variant="label" tone={selected ? 'primary' : 'muted'}>{opt.label}</UiText>
+            <UiText variant="label" tone={selected ? 'onPrimary' : 'muted'}>{opt.label}</UiText>
           </Pressable>
         );
       })}
@@ -343,7 +358,7 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
 
 /* ---------- EmptyState ---------- */
 export interface EmptyStateProps {
-  title: string;
+  title?: string;
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
@@ -352,13 +367,14 @@ export interface EmptyStateProps {
 
 export function EmptyState({ title, description, actionLabel, onAction, loading = false }: EmptyStateProps) {
   const { colors, spacing, radii, layout } = useTheme();
+  const { t } = useLocale();
   return (
     <View
       accessibilityLiveRegion="polite"
       style={{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.card, borderWidth: 1, minHeight: layout.touchTarget * 2, padding: spacing.lg }}
     >
       {loading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
-      <UiText accessibilityRole="header" variant="headlineSmall" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{title}</UiText>
+      <UiText accessibilityRole="header" variant="headlineSmall" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{title ?? t('empty')}</UiText>
       {description ? <UiText variant="bodySmall" tone="muted" style={{ marginTop: spacing.xs, textAlign: 'center' }}>{description}</UiText> : null}
       {actionLabel && onAction ? (
         <View style={{ marginTop: spacing.md }}>
@@ -371,22 +387,29 @@ export function EmptyState({ title, description, actionLabel, onAction, loading 
 
 /* ---------- InlineError ---------- */
 export interface InlineErrorProps {
+  title?: string;
   message: string;
   onRetry?: () => void;
   retryLabel?: string;
 }
 
-export function InlineError({ message, onRetry, retryLabel }: InlineErrorProps) {
-  const { colors, spacing, radii, layout, window } = useTheme();
+export function InlineError({ title, message, onRetry, retryLabel }: InlineErrorProps) {
+  const { colors, spacing, radii, window } = useTheme();
   const largeText = window.fontScale >= chromeFontScaleCap;
   const { t } = useLocale();
   return (
     <View
       testID="inline-error"
       accessibilityLiveRegion="assertive"
-      style={{ alignItems: largeText ? 'stretch' : 'center', backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: largeText ? 'column' : 'row', minHeight: layout.touchTarget, padding: spacing.md }}
+      style={{ alignItems: largeText ? 'stretch' : 'flex-start', backgroundColor: colors.errorFixed, borderColor: colors.error, borderRadius: radii.card, borderWidth: 1, flexDirection: 'column', gap: spacing.sm, padding: spacing.md }}
     >
-      <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={{ flex: largeText ? undefined : 1, marginBottom: largeText ? spacing.xs : undefined, marginRight: largeText ? undefined : spacing.sm }}>{message}</UiText>
+      <View testID="inline-error-icon" style={{ alignItems: 'center', backgroundColor: alpha(colors.error, 0.1), borderRadius: spacing.md + spacing.xs, height: 40, justifyContent: 'center', width: 40 }}>
+        <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="alert-circle-outline" size={20} color={colors.error} />
+      </View>
+      <View style={{ minWidth: 0 }}>
+        <UiText variant="bodyMedium" style={{ color: colors.error, fontWeight: '600' }}>{title ?? t('errorGeneric')}</UiText>
+        <UiText accessibilityRole="alert" variant="bodySmall" tone="muted" style={{ marginTop: spacing.xs }}>{message}</UiText>
+      </View>
       {onRetry ? <Button label={retryLabel ?? t('retry')} onPress={onRetry} variant="secondary" accessibilityLabel={retryLabel ?? t('retry')} /> : null}
     </View>
   );
@@ -414,7 +437,7 @@ export function FormField({ label, error, hint, required = false, style, ...inpu
       </UiText>
       <TextInput
         {...input}
-        multiline={input.multiline ?? true}
+        multiline={input.multiline ?? false}
         onFocus={(event) => { setFocused(true); input.onFocus?.(event); }}
         onBlur={(event) => { setFocused(false); input.onBlur?.(event); }}
         accessibilityLabel={input.accessibilityLabel ?? label}

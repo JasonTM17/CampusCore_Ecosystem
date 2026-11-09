@@ -171,7 +171,7 @@ describe('text scaling at 2.0', () => {
     const pill = label.parent;
     expect(pill).not.toBeNull();
     const style = StyleSheet.flatten(pill?.props.style);
-    expect(style.minHeight).toBeGreaterThanOrEqual(tokens.spacing.xl);
+    expect(style.minHeight).toBeGreaterThanOrEqual(Math.ceil(tokens.typography.meta.lineHeight * 1.3));
     expect(style.height).toBeUndefined();
   });
 

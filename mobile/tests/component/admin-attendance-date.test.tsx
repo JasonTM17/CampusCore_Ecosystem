@@ -29,6 +29,19 @@ afterEach(() => {
 });
 
 describe('admin attendance date filter', () => {
+  test('filter fields are single-line like the web inputs', async () => {
+    await render(
+      <ThemeProvider forcedScheme="light">
+        <LocaleProvider initialLocale="vi">
+          <AdminAttendanceScreen />
+        </LocaleProvider>
+      </ThemeProvider>,
+    );
+    await waitFor(() => expect(api.attendance).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Mã lớp học phần').props.multiline).toBe(false);
+    expect(screen.getByLabelText('Mã sinh viên').props.multiline).toBe(false);
+  });
+
   test('the maximum is the campus day, not the device calendar day', async () => {
     jest.useFakeTimers({
       now: new Date('2026-11-02T17:30:00Z'),

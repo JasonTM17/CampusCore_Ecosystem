@@ -17,11 +17,11 @@ export const statusLabel = (copy: OperationsCopy, status: MarkStatus): string =>
   EXCUSED: copy.statusExcused,
 })[status];
 
-const statusToneMap: Record<MarkStatus, 'success' | 'error' | 'warning' | 'primary'> = {
+const statusToneMap: Record<MarkStatus, 'success' | 'error' | 'warning' | 'info'> = {
   PRESENT: 'success',
   ABSENT: 'error',
   LATE: 'warning',
-  EXCUSED: 'primary',
+  EXCUSED: 'info',
 };
 
 const largeTextChipLayout = { flexGrow: 0, flexShrink: 1, maxWidth: '100%' as const };

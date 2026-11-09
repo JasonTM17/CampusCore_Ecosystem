@@ -78,7 +78,7 @@ describe('DataList', () => {
     expect(screen.getByLabelText('Đang tải…')).toBeOnTheScreen();
 
     await rerender(wrap(<DataList data={[]} keyExtractor={(r: { id: string }) => r.id} renderItem={() => null} />));
-    expect(screen.getByText('Chưa có dữ liệu')).toBeOnTheScreen();
+    expect(screen.getByText('Không có dữ liệu')).toBeOnTheScreen();
 
     await rerender(wrap(<DataList data={[]} keyExtractor={(r: { id: string }) => r.id} renderItem={() => null} error="Mất kết nối" onRetry={onRetry} />));
     expect(screen.getByRole('alert')).toBeOnTheScreen();

@@ -12,7 +12,7 @@ import { Button } from './Button';
 import { UiText } from './UiText';
 
 export type UiIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
-export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error';
+export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info';
 
 export interface IconChipProps {
   icon: UiIconName;
@@ -70,18 +70,21 @@ export interface StatusPillProps {
 
 export function StatusPill({ label, tone = 'neutral', icon }: StatusPillProps) {
   const { colors } = useTheme();
-  const ink = tone === 'neutral' ? colors.textMuted : colors[tone];
-  const fill = tone === 'neutral' ? colors.surfaceLow : colors[`${tone}Fixed`];
+  const ink = tone === 'neutral' ? colors.textMuted : tone === 'info' ? colors.primary : colors[tone];
+  const fill = tone === 'neutral' ? colors.surfaceLow
+    : tone === 'info' ? colors.primaryFixed
+      : colors[tone === 'primary' ? 'primaryFixed' : tone === 'success' ? 'successFixed' : tone === 'warning' ? 'warningFixed' : 'errorFixed'];
   return (
     <View style={[styles.pill, { backgroundColor: fill }]}>
       {icon ? <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={icon} size={14} color={ink} /> : null}
-      <UiText variant="meta" maxFontSizeMultiplier={compactFontScaleCap} style={{ color: ink, flexShrink: 1 }}>{label}</UiText>
+      <UiText variant="meta" maxFontSizeMultiplier={compactFontScaleCap} style={{ color: ink, flexShrink: 1, fontWeight: '500' }}>{label}</UiText>
     </View>
   );
 }
 
 export interface SectionCardProps {
   title: string;
+  eyebrow?: string;
   icon?: UiIconName;
   count?: string;
   actionLabel?: string;
@@ -90,14 +93,21 @@ export interface SectionCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function SectionCard({ title, icon, count, actionLabel, onAction, children, style }: SectionCardProps) {
+export function SectionCard({ title, eyebrow, icon, count, actionLabel, onAction, children, style }: SectionCardProps) {
   const { colors, window } = useTheme();
   return (
     <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.outlineVariant }, style]}>
       <View style={[styles.sectionHeader, { borderBottomColor: colors.outlineVariant }, window.fontScale >= 1.3 ? styles.wrap : undefined]}>
         <View style={styles.sectionTitle}>
           {icon ? <IconChip icon={icon} size={32} /> : null}
-          <UiText accessibilityRole="header" variant="headlineSmall" style={{ flex: 1 }}>{title}</UiText>
+          <View style={styles.sectionCopy}>
+            {eyebrow ? (
+              <View style={[styles.eyebrowChip, { backgroundColor: colors.primaryFixed, borderColor: colors.primary }]}>
+                <UiText variant="meta" style={[styles.eyebrowText, { color: colors.primary }]}>{eyebrow.toUpperCase()}</UiText>
+              </View>
+            ) : null}
+            <UiText accessibilityRole="header" variant="headlineSmall" style={{ flexShrink: 1 }}>{title}</UiText>
+          </View>
           {count ? <StatusPill label={count} tone="primary" /> : null}
         </View>
         {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} variant="text" /> : null}
@@ -150,12 +160,12 @@ export function FilterChip({ label, selected, onPress, icon, count, disabled = f
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled}
       onPress={onPress} style={({ pressed }) => [styles.filter, {
         borderColor: selected ? colors.primary : colors.outlineVariant,
-        backgroundColor: selected || pressed ? colors.primaryFixed : colors.card,
+        backgroundColor: selected ? colors.primary : pressed ? colors.surface : colors.surfaceLow,
         opacity: disabled ? 0.5 : 1,
       }]}>
-      {icon ? <MaterialCommunityIcons accessible={false} name={icon} color={selected ? colors.primary : colors.textMuted} size={20} /> : null}
-      <UiText variant="label" tone={selected ? 'primary' : 'muted'} style={{ flexShrink: 1 }}>{label}</UiText>
-      {count !== undefined ? <UiText variant="meta" tone={selected ? 'primary' : 'muted'}>{count}</UiText> : null}
+      {icon ? <MaterialCommunityIcons accessible={false} name={icon} color={selected ? colors.onPrimary : colors.textMuted} size={20} /> : null}
+      <UiText variant="label" tone={selected ? 'onPrimary' : 'muted'} style={{ flexShrink: 1 }}>{label}</UiText>
+      {count !== undefined ? <UiText variant="meta" tone={selected ? 'onPrimary' : 'muted'}>{count}</UiText> : null}
     </Pressable>
   );
 }
@@ -177,10 +187,13 @@ const compact = tokens.spacing.sm + tokens.spacing.xs;
 const styles = StyleSheet.create({
   chip: { alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radii.control, flexShrink: 0 },
   iconButton: { alignItems: 'center', justifyContent: 'center', minHeight: minTapTarget, minWidth: minTapTarget, borderRadius: tokens.radii.control },
-  pill: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, borderRadius: tokens.radii.pill, flexShrink: 1, maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+  pill: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, borderRadius: tokens.radii.control - 2, flexShrink: 1, maxWidth: '100%', minHeight: Math.ceil(tokens.typography.meta.lineHeight * 1.3) + tokens.spacing.xs, paddingHorizontal: tokens.spacing.sm + tokens.spacing.xs / 2, paddingVertical: tokens.spacing.xs / 2 },
   sectionCard: { borderWidth: 1, borderRadius: tokens.radii.card, minWidth: 0 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   sectionTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, minWidth: 0 },
+  sectionCopy: { flex: 1, minWidth: 0 },
+  eyebrowChip: { alignSelf: 'flex-start', borderRadius: tokens.spacing.xs, borderWidth: 1, marginBottom: tokens.spacing.xs, paddingHorizontal: 14, paddingVertical: 2 },
+  eyebrowText: { fontWeight: '700', textTransform: 'uppercase' },
   sectionBody: { paddingHorizontal: compact, paddingVertical: tokens.spacing.xs },
   wrap: { flexDirection: 'column', alignItems: 'stretch' },
   stats: { borderWidth: 1, borderRadius: tokens.radii.card, overflow: 'hidden' },

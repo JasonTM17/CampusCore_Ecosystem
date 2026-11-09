@@ -22,7 +22,7 @@ export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
   return Math.round(rows.reduce((sum, row) => sum + row.present, 0) * 100 / total);
 }
 
-const tone = (status: string) => status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : status === 'EXCUSED' ? 'primary' : status === 'LATE' ? 'warning' : 'neutral';
+const tone = (status: string) => status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : status === 'EXCUSED' ? 'info' : status === 'LATE' ? 'warning' : 'neutral';
 const rateTone = (rate: number) => (rate >= 90 ? 'success' : rate >= 70 ? 'warning' : 'error');
 
 const recordSectionLabel = (record: AttendanceRecordRow) => {

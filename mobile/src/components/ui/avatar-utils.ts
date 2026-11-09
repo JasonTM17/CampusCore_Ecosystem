@@ -82,20 +82,10 @@ export type AvatarToneKey =
 
 export const AVATAR_PALETTE_LIGHT: readonly AvatarToneKey[] = [
   'primary',
-  'primaryContainer',
-  'secondary',
-  'success',
-  'role.student',
-  'role.admin',
 ];
 
 export const AVATAR_PALETTE_DARK: readonly AvatarToneKey[] = [
   'primary',
-  'role.student',
-  'role.lecturer',
-  'success',
-  'role.admin',
-  'warning',
 ];
 
 /** '#RRGGBB' → 'rgba(r,g,b,a)'; passes through anything else unchanged. */
