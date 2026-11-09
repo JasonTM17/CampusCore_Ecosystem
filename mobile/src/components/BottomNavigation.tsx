@@ -64,10 +64,10 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu, unread
                   )}
                 </View>
                 <UiText
-                  adjustsFontSizeToFit={false}
+                  adjustsFontSizeToFit
                   maxFontSizeMultiplier={chromeFontScaleCap}
-                  minimumFontScale={1}
-                  numberOfLines={2}
+                  minimumFontScale={0.75}
+                  numberOfLines={1}
                   variant="meta"
                   style={styles.label}
                   tone={active ? 'primary' : 'muted'}

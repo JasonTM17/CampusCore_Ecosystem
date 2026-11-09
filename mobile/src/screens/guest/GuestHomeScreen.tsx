@@ -9,6 +9,7 @@ import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 import { IconChip, StatusPill } from '../../components/ui/institutional';
 import type { UiIconName } from '../../components/ui/institutional';
 import { chromeFor } from '../../design/chrome';
+import { chromeFontScaleCap } from '../../design/font-scale';
 import { minTapTarget, tokens } from '../../design/tokens';
 import { useTheme, useThemedStyles } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
@@ -117,7 +118,16 @@ export function GuestHomeScreen({ navigation }: MobileScreenProps) {
               style={styles.brandMark}
             />
             <View style={styles.brandCopy}>
-              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
+              <UiText
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+                maxFontSizeMultiplier={chromeFontScaleCap}
+                numberOfLines={1}
+                variant="headlineMedium"
+                style={{ color: chrome.onSurface, flexShrink: 1, minWidth: 0 }}
+              >
+                CampusUTE
+              </UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.brandSubtitle}</UiText>
             </View>
             <LanguageToggleButton />
