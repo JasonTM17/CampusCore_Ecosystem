@@ -277,3 +277,54 @@ test('buildCumulativeGpaTrendPoints avoids phantom credits for zero-credit terms
   const pointsWithServerOverride = buildCumulativeGpaTrendPoints(semesters, 'vi', 3.11);
   assert.equal(pointsWithServerOverride[1].gpa, 3.11);
 });
+
+test('buildCumulativeGpaTrendPoints avoids distorting cumulative GPA with null semester GPA pass/fail terms', () => {
+  const semesters = [
+    {
+      semesterId: 'sem-3',
+      semesterName: 'HK1 2026-2027',
+      gpa: 3.2,
+      creditsAttempted: 10,
+      records: [],
+    },
+    {
+      semesterId: 'sem-2',
+      semesterName: 'HK2 2025-2026',
+      gpa: null,
+      creditsAttempted: 2,
+      records: [],
+    },
+    {
+      semesterId: 'sem-1',
+      semesterName: 'HK1 2025-2026',
+      gpa: 3.0,
+      creditsAttempted: 10,
+      records: [],
+    },
+  ];
+
+  const points = buildCumulativeGpaTrendPoints(semesters, 'vi', 3.10);
+  assert.equal(points.length, 3);
+  assert.equal(points[0].gpa, 3.0);
+  assert.equal(points[1].gpa, 3.0);
+  assert.equal(points[2].gpa, 3.10);
+
+  const passFailOnly = [
+    {
+      semesterId: 'sem-pf',
+      semesterName: 'HK1 2025-2026',
+      gpa: null,
+      creditsAttempted: 2,
+      records: [],
+    },
+  ];
+  const pfPoints = buildCumulativeGpaTrendPoints(passFailOnly, 'vi', null);
+  assert.equal(pfPoints.length, 1);
+  assert.equal(pfPoints[0].gpa, null);
+});
+
+test('TranscriptCharts accessible table does not format null values as 0.00 via Number().toFixed(2)', () => {
+  const charts = read('src/components/dashboard/TranscriptCharts.tsx');
+  assert.doesNotMatch(charts, /Number\(value\)\.toFixed\(2\)/);
+  assert.match(charts, /typeof value === 'number' && Number\.isFinite\(value\) \? value\.toFixed\(2\) : '—'/);
+});

@@ -421,6 +421,16 @@ class OpenApiAccuracyContractTest {
         assertThat(count).as("operations documenting a queryParameters map").isGreaterThanOrEqualTo(35);
     }
 
+    @Test
+    void studentConductSummaryDocumentsNullableCumulativeFields() throws Exception {
+        JsonNode schemas = openApiDocument().path("components").path("schemas");
+        JsonNode conduct = schemas.path("StudentConductSummaryDto");
+        assertThat(conduct.path("properties").path("cumulativeAverageScore").path("type").toString())
+                .contains("null");
+        assertThat(conduct.path("properties").path("cumulativeClassificationVi").path("type").toString())
+                .contains("null");
+    }
+
     private JsonNode openApiDocument() throws Exception {
         MvcResult result = mvc.perform(get("/v3/api-docs").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())

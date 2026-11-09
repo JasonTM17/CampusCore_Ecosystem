@@ -88,7 +88,7 @@ export default function TranscriptPage() {
   const transcriptMessages = messages.studentPages.transcript;
   const [transcriptData, setTranscriptData] = useState<{
     summary: {
-      cumulativeGpa: number;
+      cumulativeGpa: number | null;
       totalCreditsEarned: number;
       totalCreditsAttempted: number;
       basisNote?: string | { vi?: string; en?: string };

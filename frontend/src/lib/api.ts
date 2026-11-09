@@ -2328,8 +2328,8 @@ export interface StudentConductSummary {
   studentId: string;
   studentCode: string;
   fullName: string;
-  cumulativeAverageScore: number;
-  cumulativeClassificationVi: string;
+  cumulativeAverageScore: number | null;
+  cumulativeClassificationVi: string | null;
   currentSemester: ConductSemesterScore | null;
   history: ConductSemesterScore[];
 }

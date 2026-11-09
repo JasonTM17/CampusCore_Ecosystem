@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 export interface GpaTrendPoint {
   label: string;
   fullLabel: string;
-  gpa: number;
+  gpa: number | null;
 }
 
 export interface GradeDistributionBucket {
@@ -102,8 +102,8 @@ const valueLabelsPlugin = {
  * the actual data instead, so real movement is visible while the axis stays
  * honest (round ticks, no distortion).
  */
-function paddedDomain(values: number[], fallback: [number, number], cap?: number): { min: number; max: number } {
-  const real = values.filter((value) => Number.isFinite(value));
+function paddedDomain(values: (number | null | undefined)[], fallback: [number, number], cap?: number): { min: number; max: number } {
+  const real = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   if (real.length === 0) return { min: fallback[0], max: fallback[1] };
   const dataMin = Math.min(...real);
   const dataMax = Math.max(...real);
@@ -273,8 +273,10 @@ export function GpaTrendChart({
       ...options.plugins?.tooltip,
       callbacks: {
         title: (items) => fullLabels[items[0]?.dataIndex ?? 0] ?? '',
-        label: (item) =>
-          `${item.dataset.label}: ${Number(item.raw).toFixed(2)}${mode === 'both' ? '' : ' / 4.0'}`,
+        label: (item) => {
+          const val = typeof item.raw === 'number' && Number.isFinite(item.raw) ? item.raw.toFixed(2) : '—';
+          return `${item.dataset.label}: ${val}${mode === 'both' ? '' : ' / 4.0'}`;
+        },
       },
     },
   };
@@ -294,7 +296,7 @@ export function GpaTrendChart({
           dataset.data.map((value, index) => [
             fullLabels[index] ?? labels[index] ?? '',
             String(dataset.label ?? ''),
-            Number(value).toFixed(2),
+            typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—',
           ] as [string, string, string]),
         )}
       />
@@ -347,7 +349,10 @@ export function TenScaleTrendChart({
       ...options.plugins?.tooltip,
       callbacks: {
         title: (items) => fullLabels[items[0]?.dataIndex ?? 0] ?? '',
-        label: (item) => `${Number(item.raw).toFixed(1)} / 10`,
+        label: (item) => {
+          const val = typeof item.raw === 'number' && Number.isFinite(item.raw) ? item.raw.toFixed(1) : '—';
+          return `${val} / 10`;
+        },
       },
     },
   };
@@ -382,7 +387,7 @@ export function TenScaleTrendChart({
         rows={points.map((point, index) => [
           fullLabels[index] ?? labels[index] ?? '',
           chartLabels.tenScaleAvg,
-          `${Number(point.gpa).toFixed(1)}/10`,
+          typeof point.gpa === 'number' && Number.isFinite(point.gpa) ? `${point.gpa.toFixed(1)}/10` : '—',
         ] as [string, string, string])}
       />
     </div>
