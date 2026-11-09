@@ -236,9 +236,9 @@ describe('vertical rhythm in student transient states and notices', () => {
     };
     mockPost.mockResolvedValueOnce({ message: 'ok' });
     const view = await renderScreen(<RegistrationScreen {...props} />);
-    const dropBtn = await screen.findByRole('button', { name: `Rút lớp: ${previewSections[0].courseCode}` });
+    const dropBtn = await screen.findByRole('button', { name: `Hủy đăng ký: ${previewSections[0].courseCode}` });
     await fireEvent.press(dropBtn);
-    const confirmBtn = await screen.findByRole('button', { name: 'Rút lớp' });
+    const confirmBtn = await screen.findByRole('button', { name: 'Hủy đăng ký' });
     await fireEvent.press(confirmBtn);
     expect(await screen.findByText('Đã rút lớp')).toBeTruthy();
 
