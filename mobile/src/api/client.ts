@@ -559,6 +559,11 @@ export interface LecturerScheduleEntry {
   courseName?: string;
   courseNameEn?: string;
   courseNameVi?: string;
+  departmentName?: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
+  credits?: number;
+  status?: string;
   semesterId?: string;
   semesterName?: string;
   enrolledCount?: number;
@@ -579,8 +584,11 @@ export interface LecturerGradingSection {
   courseName?: string;
   courseNameEn?: string;
   courseNameVi?: string;
+  semester?: string;
   semesterId?: string;
   semesterName?: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   enrolledCount: number;
   gradedCount: number;
   publishedCount: number;
@@ -1569,7 +1577,8 @@ export const campusApi = {
       '/me/registration/summary' + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
     ),
   transcript: () => apiClient.get<JsonObject>('/enrollments/my/transcript'),
-  announcements: () => apiClient.get<MobileAnnouncementPage>('/announcements/my'),
+  announcements: (page?: number, limit?: number) =>
+    apiClient.get<MobileAnnouncementPage>(`/announcements/my${page === undefined && limit === undefined ? '' : `?page=${page ?? 1}&limit=${limit ?? 20}`}`),
   updateProfile: (body: JsonObject) => apiClient.put<AuthUser>('/auth/profile', body),
   changePassword: (oldPassword: string, newPassword: string) =>
     apiClient.post<JsonObject>('/auth/change-password', { oldPassword, newPassword }),

@@ -26,6 +26,7 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   metricLeft: { marginRight: tokens.spacing.sm },
   scheduleCard: { marginBottom: tokens.spacing.sm, padding: tokens.spacing.md, gap: tokens.spacing.xs },
   scheduleHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.sm },
+  viewToggle: { marginBottom: tokens.spacing.md },
   topicCopy: { flex: 1, paddingRight: tokens.spacing.sm, gap: tokens.spacing.xs },
   gradingHero: { marginBottom: tokens.spacing.md, padding: tokens.spacing.lg },
   courseHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },

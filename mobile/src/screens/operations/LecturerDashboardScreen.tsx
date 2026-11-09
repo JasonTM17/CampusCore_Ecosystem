@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
 
+import { campusApi } from '../../api/client';
 import {
   Button,
   Divider,
   HeroCard,
   ListRow,
+  ProgressBar,
   ScreenSpacer,
   SectionCard,
   SectionHeading,
@@ -21,8 +23,24 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { lecturerApi } from './lecturer-api';
-import { courseTitle, dayNumberOf, normalizeDay } from './lecturer-model';
-import { HandoffButton, OpsShell, isOpsPreview, sectionLabel, slotText, useOpsQuery } from './lecturer-ui';
+import {
+  courseTitle,
+  dashboardMetrics,
+  dayNumberOf,
+  departmentTitle,
+  gradedPercent,
+  normalizeDay,
+  termTitle,
+} from './lecturer-model';
+import {
+  HandoffButton,
+  OpsShell,
+  isOpsPreview,
+  sectionStatusLabel,
+  sectionLabel,
+  slotText,
+  useOpsQuery,
+} from './lecturer-ui';
 import { useOpsCopy } from './shared/helpers';
 import { previewGrading, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
@@ -30,36 +48,51 @@ import { useOpsStyles } from './shared/styles';
 export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
-  const { formatNumber } = useLocale();
+  const { formatDateTime, formatNumber } = useLocale();
   const preview = isOpsPreview();
   const schedule = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const grading = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
-  const pull = usePullToRefresh(() => Promise.all([schedule.reload(), grading.reload()]));
+  const announcements = useOpsQuery('lecturer:announcements', () => campusApi.announcements(1, 5), copy);
+  const profile = useOpsQuery('lecturer:profile', () => campusApi.profile(), copy);
+  const pull = usePullToRefresh(() => Promise.all([schedule.reload(), grading.reload(), announcements.reload()]));
 
   const sections = useMemo(() => (preview ? previewSchedule : schedule.data ?? []), [preview, schedule.data]);
   const gradingSections = useMemo(() => (preview ? previewGrading : grading.data ?? []), [preview, grading.data]);
+  const announcementRows = useMemo(() => (preview ? [] : announcements.data?.data ?? []), [preview, announcements.data]);
+  const announcementsTotal = preview ? 0 : announcements.data?.meta?.total ?? announcementRows.length;
+  const firstName = preview ? undefined : profile.data?.firstName ?? undefined;
 
+  const metrics = dashboardMetrics(sections, gradingSections, announcementsTotal);
   const pending = gradingSections.reduce((total, section) => total + Math.max(section.enrolledCount - section.gradedCount, 0), 0);
-  const students = sections.reduce((total, section) => total + (section.enrolledCount ?? 0), 0);
 
   const today = dayNumberOf(new Date());
   const todayClasses = sections
     .flatMap((section) => (section.schedules ?? []).filter((slot) => normalizeDay(slot.dayOfWeek) === today).map((slot) => ({ section, slot })))
     .sort((left, right) => left.slot.startTime.localeCompare(right.slot.startTime));
 
-  const loading = !preview && (schedule.isLoading || grading.isLoading);
-  const error = preview ? null : schedule.error ?? grading.error;
-  const warning = preview ? null : schedule.warning ?? grading.warning;
-  const reload = () => { void schedule.reload(); void grading.reload(); };
+  const announcementItems = useMemo(() => announcementRows.map((item) => {
+    const title = typeof item.title === 'string' ? item.title : '';
+    const content = typeof item.content === 'string' ? item.content.replace(/<[^>]*>/g, '').trim() : '';
+    const createdAt = typeof item.createdAt === 'string' ? item.createdAt : undefined;
+    return { id: typeof item.id === 'string' ? item.id : title, title, content, createdAt };
+  }).filter((item) => item.title), [announcementRows]);
+
+  const loading = !preview && (schedule.isLoading || grading.isLoading || announcements.isLoading);
+  const error = preview ? null : schedule.error ?? grading.error ?? announcements.error;
+  const warning = preview ? null : schedule.warning ?? grading.warning ?? announcements.warning;
+  const reload = () => { void schedule.reload(); void grading.reload(); void announcements.reload(); };
+  const title = firstName ? fillCopy(copy.dashboardTitleNamed, { name: firstName }) : copy.dashboardTitle;
 
   const heroTitle = todayClasses.length > 0
     ? fillCopy(countForm(todayClasses.length, copy.todayClassesCountOne, copy.todayClassesCount), { n: formatNumber(todayClasses.length) })
     : copy.noClassToday;
-  const heroDetail = fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(students) });
+  const heroDetail = fillCopy(countForm(metrics.students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(metrics.students) });
 
   return (
     <OpsShell
-      title={copy.dashboardTitle}
+      title={title}
+      eyebrow={copy.dashboardEyebrow}
+      subtitle={copy.dashboardDescription}
       loading={loading}
       error={error}
       warning={warning}
@@ -67,67 +100,22 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       onRefresh={preview ? undefined : pull.onRefresh}
       refreshing={!preview && pull.refreshing}
     >
-      {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyDashboard} />
-      ) : (
-        <View>
-          <HeroCard
-            icon="school-outline"
-            eyebrow={copy.todayTitle}
-            title={heroTitle}
-            detail={heroDetail}
-          >
-            <Button
-              icon="calendar-clock-outline"
-              label={copy.scheduleTitle}
-              onPress={() => navigation.navigate('lecturer.schedule')}
-              variant="secondary"
-              onBrand
-            />
-          </HeroCard>
+      <StatStrip
+        style={styles.stats}
+        items={[
+          { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(metrics.sections) },
+          { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(metrics.students) },
+          { icon: 'file-document-edit-outline', label: copy.metricReadyToPublish, value: formatNumber(metrics.readyToPublish) },
+          { icon: 'bullhorn-outline', label: copy.metricFreshNotices, value: formatNumber(metrics.freshNotices) },
+        ]}
+      />
 
-          <StatStrip
-            style={styles.stats}
-            items={[
-              { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: formatNumber(sections.length) },
-              { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(students) },
-              { icon: 'clipboard-edit-outline', label: copy.metricToGrade, value: formatNumber(pending) },
-            ]}
-          />
-
-          <ScreenSpacer />
-          <SectionCard
-            icon="calendar-clock-outline"
-            title={copy.scheduleTitle}
-          >
-            {todayClasses.length === 0 ? (
-              <UiText variant="bodySmall" tone="muted" style={{ paddingVertical: 12 }}>
-                {copy.noClassToday}
-              </UiText>
-            ) : (
-              todayClasses.map(({ section, slot }, index) => (
-                <View key={`${section.sectionId}-${slot.id ?? index}`}>
-                  {index > 0 ? <Divider /> : null}
-                  <ListRow
-                    icon="book-open-outline"
-                    title={courseTitle(section, locale) || sectionLabel(section, copy, locale)}
-                    subtitle={slotText(slot, copy)}
-                    trailing={<StatusPill label={section.courseCode ?? section.sectionId} tone="primary" />}
-                    stackedMeta
-                  />
-                </View>
-              ))
-            )}
-          </SectionCard>
-          <ScreenSpacer />
-        </View>
-      )}
-
+      <ScreenSpacer />
       <SectionCard icon="briefcase-outline" title={copy.shortcutsTitle}>
         <ListRow
           icon="calendar-month-outline"
           title={copy.scheduleTitle}
-          subtitle={fillCopy(countForm(students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(students) })}
+          subtitle={fillCopy(countForm(metrics.students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(metrics.students) })}
           onPress={() => navigation.navigate('lecturer.schedule')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -149,11 +137,116 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       </SectionCard>
 
       <ScreenSpacer />
+      <SectionCard icon="file-document-edit-outline" title={copy.gradingQueueTitle}>
+        {gradingSections.length === 0 ? (
+          <StatePanel kind="empty" title={copy.gradingQueueEmptyTitle} />
+        ) : (
+          gradingSections.slice(0, 4).map((section, index) => (
+            <View key={section.sectionId}>
+              {index > 0 ? <Divider /> : null}
+              <ListRow
+                icon="file-document-edit-outline"
+                title={`${section.courseCode ?? ''} - ${courseTitle(section, locale)}`}
+                subtitle={[section.sectionNumber ? `${copy.sectionPrefix} ${section.sectionNumber}` : copy.sectionPrefix, termTitle(section, locale)].filter(Boolean).join(' - ')}
+                trailing={<StatusPill label={section.canPublish ? copy.queueStatusReady : copy.queueStatusProgress} />}
+              />
+              <ProgressBar
+                value={gradedPercent(section.gradedCount, section.enrolledCount)}
+                label={`${formatNumber(section.gradedCount)}/${formatNumber(section.enrolledCount)} ${copy.gradedSuffix}`}
+                tone={section.canPublish ? 'success' : 'primary'}
+              />
+            </View>
+          ))
+        )}
+      </SectionCard>
+
+      <ScreenSpacer />
+      <SectionCard icon="calendar-month-outline" title={copy.sectionsInScopeTitle}>
+        {sections.length === 0 ? (
+          <StatePanel kind="empty" title={copy.sectionsInScopeEmptyTitle} />
+        ) : (
+          sections.slice(0, 5).map((section, index) => (
+            <View key={section.sectionId}>
+              {index > 0 ? <Divider /> : null}
+              <ListRow
+                icon="book-open-outline"
+                title={`${section.courseCode ?? ''} - ${courseTitle(section, locale)}`}
+                subtitle={[section.sectionNumber ? `${copy.sectionPrefix} ${section.sectionNumber}` : copy.sectionPrefix, departmentTitle(section, locale)].filter(Boolean).join(' - ')}
+                meta={`${formatNumber(section.enrolledCount ?? 0)}${section.capacity ? `/${formatNumber(section.capacity)}` : ''} ${copy.studentsSuffix}`}
+                trailing={<StatusPill label={sectionStatusLabel(section.status, copy)} />}
+                stackedMeta
+              />
+            </View>
+          ))
+        )}
+      </SectionCard>
+
+      <ScreenSpacer />
+      <SectionCard icon="bullhorn-outline" title={copy.announcementsTitle}>
+        {announcementItems.length === 0 ? (
+          <StatePanel kind="empty" title={copy.announcementsEmptyTitle} />
+        ) : (
+          announcementItems.map((item, index) => (
+            <View key={item.id}>
+              {index > 0 ? <Divider /> : null}
+              <ListRow
+                icon="bullhorn-outline"
+                title={item.title}
+                subtitle={item.content || undefined}
+                meta={item.createdAt ? formatDateTime(item.createdAt) : undefined}
+                stackedMeta
+              />
+            </View>
+          ))
+        )}
+      </SectionCard>
+
+      <ScreenSpacer />
+      <HeroCard
+        icon="school-outline"
+        eyebrow={copy.todayTitle}
+        title={heroTitle}
+        detail={heroDetail}
+      >
+        <Button
+          icon="calendar-clock-outline"
+          label={copy.scheduleTitle}
+          onPress={() => navigation.navigate('lecturer.schedule')}
+          variant="secondary"
+          onBrand
+        />
+      </HeroCard>
+
+      <ScreenSpacer />
+      <SectionCard icon="calendar-clock-outline" title={copy.scheduleTitle}>
+        {todayClasses.length === 0 ? (
+          <UiText variant="bodySmall" tone="muted" style={{ paddingVertical: 12 }}>
+            {copy.noClassToday}
+          </UiText>
+        ) : (
+          todayClasses.map(({ section, slot }, index) => (
+            <View key={`${section.sectionId}-${slot.id ?? index}`}>
+              {index > 0 ? <Divider /> : null}
+              <ListRow
+                icon="book-open-outline"
+                title={courseTitle(section, locale) || sectionLabel(section, copy, locale)}
+                subtitle={slotText(slot, copy)}
+                trailing={<StatusPill label={section.courseCode ?? section.sectionId} tone="primary" />}
+                stackedMeta
+              />
+            </View>
+          ))
+        )}
+      </SectionCard>
+
+      <ScreenSpacer />
       <LaneEntries groups={['dean', 'staff']} navigation={navigation} />
       <SectionHeading title={copy.handoffTitle} />
       <HandoffButton label={copy.mailTitle} path="/dashboard/lecturer/mail" />
       <HandoffButton label={copy.importTitle} path="/dashboard/lecturer/grades" />
       <HandoffButton label={copy.printTitle} path="/dashboard/lecturer/grades" />
+      <HandoffButton label={copy.announcementsAction} path="/dashboard/lecturer/announcements" />
+      <HandoffButton label={copy.materialsTitle} path="/dashboard/lecturer/learn" />
     </OpsShell>
   );
 }
