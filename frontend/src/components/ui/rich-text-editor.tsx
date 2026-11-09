@@ -165,10 +165,14 @@ Tài liệu quy định chi tiết về đánh giá điểm học phần và đi
 - **Điểm quá trình (40-50%)**: Bao gồm điểm chuyên cần, bài tập nhóm và kiểm tra giữa kỳ.
 - **Điểm thi kết thúc (50-60%)**: Đánh giá toàn diện chuẩn đầu ra của học phần.
 - **Điểm chữ quy đổi**:
-  - \`A\` / \`A+\`: 8.5 - 10.0 (Tương đương 4.0 GPA)
-  - \`B\` / \`B+\`: 7.0 - 8.4 (Tương đương 3.0 - 3.5 GPA)
-  - \`C\` / \`C+\`: 5.5 - 6.9 (Tương đương 2.0 - 2.5 GPA)
-  - \`D\` / \`D+\`: 4.0 - 5.4 (Tương đương 1.0 - 1.5 GPA)
+  - \`A+\`: 9.0 - 10.0 (Tương đương 4.0 GPA)
+  - \`A\`: 8.5 - 8.9 (Tương đương 4.0 GPA)
+  - \`B+\`: 8.0 - 8.4 (Tương đương 3.5 GPA)
+  - \`B\`: 7.0 - 7.9 (Tương đương 3.0 GPA)
+  - \`C+\`: 6.5 - 6.9 (Tương đương 2.5 GPA)
+  - \`C\`: 5.5 - 6.4 (Tương đương 2.0 GPA)
+  - \`D+\`: 5.0 - 5.4 (Tương đương 1.5 GPA)
+  - \`D\`: 4.0 - 4.9 (Tương đương 1.0 GPA)
   - \`F\`: Dưới 4.0 (Không đạt, phải đăng ký học lại)
 
 ### 2. Điều kiện nhận khóa luận tốt nghiệp
@@ -183,10 +187,14 @@ This document sets out the detailed rules on course assessment and the condition
 - **Coursework (40-50%)**: attendance, group assignments and the midterm test.
 - **Final examination (50-60%)**: a comprehensive assessment of the course learning outcomes.
 - **Converted letter grades**:
-  - \`A\` / \`A+\`: 8.5 - 10.0 (equivalent to 4.0 GPA)
-  - \`B\` / \`B+\`: 7.0 - 8.4 (equivalent to 3.0 - 3.5 GPA)
-  - \`C\` / \`C+\`: 5.5 - 6.9 (equivalent to 2.0 - 2.5 GPA)
-  - \`D\` / \`D+\`: 4.0 - 5.4 (equivalent to 1.0 - 1.5 GPA)
+  - \`A+\`: 9.0 - 10.0 (equivalent to 4.0 GPA)
+  - \`A\`: 8.5 - 8.9 (equivalent to 4.0 GPA)
+  - \`B+\`: 8.0 - 8.4 (equivalent to 3.5 GPA)
+  - \`B\`: 7.0 - 7.9 (equivalent to 3.0 GPA)
+  - \`C+\`: 6.5 - 6.9 (equivalent to 2.5 GPA)
+  - \`C\`: 5.5 - 6.4 (equivalent to 2.0 GPA)
+  - \`D+\`: 5.0 - 5.4 (equivalent to 1.5 GPA)
+  - \`D\`: 4.0 - 4.9 (equivalent to 1.0 GPA)
   - \`F\`: Below 4.0 (not passed; the course must be retaken)
 
 ### 2. Eligibility for the graduation thesis
