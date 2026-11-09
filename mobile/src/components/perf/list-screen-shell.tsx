@@ -28,7 +28,9 @@ export function ListScreenShell<T>({ title, eyebrow, subtitle, headerAction, hid
         {hideHeader ? null : <View style={styles.heading}>
           <View style={styles.copy}>
             {eyebrow ? <UiText variant="meta" tone="primary" style={styles.eyebrow}>{eyebrow.toUpperCase()}</UiText> : null}
-            <UiText accessibilityRole="header" variant="headlineMedium">{title}</UiText>
+            <View testID="page-title-tab" style={[styles.pageTab, { backgroundColor: colors.primary }]}>
+              <UiText accessibilityRole="header" variant="label" style={[styles.pageTabTitle, { color: colors.onPrimary }]}>{title}</UiText>
+            </View>
             {subtitle ? <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>{subtitle}</UiText> : null}
           </View>
           {headerAction}
@@ -45,5 +47,7 @@ const styles = StyleSheet.create({
   heading: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
   copy: { flex: 1, paddingRight: tokens.spacing.sm },
   eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
+  pageTab: { alignSelf: 'flex-start', borderTopLeftRadius: tokens.radii.card, borderTopRightRadius: tokens.radii.card, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10 },
+  pageTabTitle: { fontSize: 14, lineHeight: 20 },
   subtitle: { marginTop: tokens.spacing.xs },
 });

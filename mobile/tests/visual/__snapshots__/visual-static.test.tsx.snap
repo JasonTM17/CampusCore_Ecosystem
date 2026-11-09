@@ -2016,7 +2016,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                                 "Học vụ",
                                               ],
                                               "s": {
-                                                "color": "#98BDD7",
+                                                "color": "#12151C",
                                                 "fontSize": 13,
                                               },
                                               "t": "Text",
@@ -2026,7 +2026,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "role": "tab",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#98BDD7",
                                             "borderColor": "#98BDD7",
                                             "borderRadius": 6,
                                             "flex": 1,
@@ -2085,7 +2085,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
-                                            "fontSize": 13,
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -2166,13 +2166,25 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "󱉴",
+                                    {
+                                      "c": [
+                                        "󱉴",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 20,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 24,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1C314A",
+                                    "borderRadius": 8,
+                                    "justifyContent": "center",
+                                    "width": 40,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                                 {
                                   "c": [
@@ -2182,25 +2194,27 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       ],
                                       "s": {
                                         "color": "#EDF0F2",
-                                        "fontSize": 13,
+                                        "fontSize": 18,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "flex": 1,
+                                    "alignItems": "center",
+                                    "width": "100%",
                                   },
                                   "t": "View",
                                 },
                               ],
                               "s": {
                                 "alignItems": "center",
-                                "backgroundColor": "#1E2229",
+                                "backgroundColor": "#13161B",
                                 "borderColor": "#33363D",
                                 "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "padding": 16,
+                                "flexDirection": "column",
+                                "gap": 16,
+                                "justifyContent": "center",
+                                "padding": 24,
                               },
                               "t": "View",
                             },
@@ -2223,7 +2237,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2251,7 +2265,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2279,7 +2293,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2307,7 +2321,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2426,7 +2440,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   ],
                                   "s": {
                                     "color": "#12151C",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -2543,7 +2557,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                                 "Học vụ",
                                               ],
                                               "s": {
-                                                "color": "#98BDD7",
+                                                "color": "#12151C",
                                                 "fontSize": 13,
                                               },
                                               "t": "Text",
@@ -2553,7 +2567,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "role": "tab",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#98BDD7",
                                             "borderColor": "#98BDD7",
                                             "borderRadius": 6,
                                             "flex": 1,
@@ -2612,7 +2626,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           ],
                                           "s": {
                                             "color": "#98BDD7",
-                                            "fontSize": 13,
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -2693,13 +2707,25 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "󱉴",
+                                    {
+                                      "c": [
+                                        "󱉴",
+                                      ],
+                                      "s": {
+                                        "color": "#98BDD7",
+                                        "fontSize": 20,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 24,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#1C314A",
+                                    "borderRadius": 8,
+                                    "justifyContent": "center",
+                                    "width": 40,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                                 {
                                   "c": [
@@ -2709,25 +2735,27 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       ],
                                       "s": {
                                         "color": "#EDF0F2",
-                                        "fontSize": 13,
+                                        "fontSize": 18,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "flex": 1,
+                                    "alignItems": "center",
+                                    "width": "100%",
                                   },
                                   "t": "View",
                                 },
                               ],
                               "s": {
                                 "alignItems": "center",
-                                "backgroundColor": "#1E2229",
+                                "backgroundColor": "#13161B",
                                 "borderColor": "#33363D",
                                 "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "padding": 16,
+                                "flexDirection": "column",
+                                "gap": 16,
+                                "justifyContent": "center",
+                                "padding": 24,
                               },
                               "t": "View",
                             },
@@ -2750,7 +2778,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2778,7 +2806,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2806,7 +2834,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2834,7 +2862,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#15181E",
                                     "borderColor": "#33363D",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -2955,7 +2983,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   ],
                                   "s": {
                                     "color": "#12151C",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -3076,7 +3104,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                                 "Học vụ",
                                               ],
                                               "s": {
-                                                "color": "#003F87",
+                                                "color": "#FFFFFF",
                                                 "fontSize": 13,
                                               },
                                               "t": "Text",
@@ -3086,7 +3114,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "role": "tab",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#003F87",
                                             "borderColor": "#003F87",
                                             "borderRadius": 6,
                                             "flex": 1,
@@ -3145,7 +3173,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           ],
                                           "s": {
                                             "color": "#003F87",
-                                            "fontSize": 13,
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -3226,13 +3254,25 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "󱉴",
+                                    {
+                                      "c": [
+                                        "󱉴",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 20,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 24,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#E6F0FF",
+                                    "borderRadius": 8,
+                                    "justifyContent": "center",
+                                    "width": 40,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                                 {
                                   "c": [
@@ -3242,25 +3282,27 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       ],
                                       "s": {
                                         "color": "#17243A",
-                                        "fontSize": 13,
+                                        "fontSize": 18,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "flex": 1,
+                                    "alignItems": "center",
+                                    "width": "100%",
                                   },
                                   "t": "View",
                                 },
                               ],
                               "s": {
                                 "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
+                                "backgroundColor": "#F9F9FF",
                                 "borderColor": "#C9D5E4",
                                 "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "padding": 16,
+                                "flexDirection": "column",
+                                "gap": 16,
+                                "justifyContent": "center",
+                                "padding": 24,
                               },
                               "t": "View",
                             },
@@ -3283,7 +3325,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3311,7 +3353,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3339,7 +3381,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3367,7 +3409,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3486,7 +3528,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -3603,7 +3645,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                                 "Học vụ",
                                               ],
                                               "s": {
-                                                "color": "#003F87",
+                                                "color": "#FFFFFF",
                                                 "fontSize": 13,
                                               },
                                               "t": "Text",
@@ -3613,7 +3655,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           "role": "tab",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#003F87",
                                             "borderColor": "#003F87",
                                             "borderRadius": 6,
                                             "flex": 1,
@@ -3672,7 +3714,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                           ],
                                           "s": {
                                             "color": "#003F87",
-                                            "fontSize": 13,
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -3753,13 +3795,25 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                               "c": [
                                 {
                                   "c": [
-                                    "󱉴",
+                                    {
+                                      "c": [
+                                        "󱉴",
+                                      ],
+                                      "s": {
+                                        "color": "#003F87",
+                                        "fontSize": 20,
+                                      },
+                                      "t": "Text",
+                                    },
                                   ],
                                   "s": {
-                                    "color": "#526174",
-                                    "fontSize": 24,
+                                    "alignItems": "center",
+                                    "backgroundColor": "#E6F0FF",
+                                    "borderRadius": 8,
+                                    "justifyContent": "center",
+                                    "width": 40,
                                   },
-                                  "t": "Text",
+                                  "t": "View",
                                 },
                                 {
                                   "c": [
@@ -3769,25 +3823,27 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                       ],
                                       "s": {
                                         "color": "#17243A",
-                                        "fontSize": 13,
+                                        "fontSize": 18,
                                       },
                                       "t": "Text",
                                     },
                                   ],
                                   "s": {
-                                    "flex": 1,
+                                    "alignItems": "center",
+                                    "width": "100%",
                                   },
                                   "t": "View",
                                 },
                               ],
                               "s": {
                                 "alignItems": "center",
-                                "backgroundColor": "#FFFFFF",
+                                "backgroundColor": "#F9F9FF",
                                 "borderColor": "#C9D5E4",
                                 "borderRadius": 8,
-                                "flexDirection": "row",
-                                "gap": 8,
-                                "padding": 16,
+                                "flexDirection": "column",
+                                "gap": 16,
+                                "justifyContent": "center",
+                                "padding": 24,
                               },
                               "t": "View",
                             },
@@ -3810,7 +3866,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3838,7 +3894,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3866,7 +3922,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -3894,7 +3950,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#F1F5FB",
                                     "borderColor": "#C9D5E4",
                                     "borderRadius": 8,
                                     "flexDirection": "row",
@@ -4015,7 +4071,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -5153,14 +5209,25 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                       "c": [
                         {
                           "c": [
-                            "Học phần",
+                            {
+                              "c": [
+                                "Học phần",
+                              ],
+                              "role": "header",
+                              "s": {
+                                "color": "#12151C",
+                                "fontSize": 14,
+                              },
+                              "t": "Text",
+                            },
                           ],
-                          "role": "header",
                           "s": {
-                            "color": "#EDF0F2",
-                            "fontSize": 22,
+                            "backgroundColor": "#98BDD7",
+                            "maxWidth": "100%",
+                            "paddingHorizontal": 20,
+                            "paddingVertical": 10,
                           },
-                          "t": "Text",
+                          "t": "View",
                         },
                       ],
                       "s": {
@@ -5379,12 +5446,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -5404,12 +5471,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -5539,12 +5606,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -5564,12 +5631,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -5664,8 +5731,8 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                             "Đăng ký học phần",
                           ],
                           "s": {
-                            "color": "#98BDD7",
-                            "fontSize": 13,
+                            "color": "#EDF0F2",
+                            "fontSize": 14,
                           },
                           "t": "Text",
                         },
@@ -5729,14 +5796,25 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                       "c": [
                         {
                           "c": [
-                            "Học phần",
+                            {
+                              "c": [
+                                "Học phần",
+                              ],
+                              "role": "header",
+                              "s": {
+                                "color": "#12151C",
+                                "fontSize": 14,
+                              },
+                              "t": "Text",
+                            },
                           ],
-                          "role": "header",
                           "s": {
-                            "color": "#EDF0F2",
-                            "fontSize": 22,
+                            "backgroundColor": "#98BDD7",
+                            "maxWidth": "100%",
+                            "paddingHorizontal": 20,
+                            "paddingVertical": 10,
                           },
-                          "t": "Text",
+                          "t": "View",
                         },
                       ],
                       "s": {
@@ -5957,12 +6035,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#1C314A",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -5982,12 +6060,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#1C314A",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -6112,12 +6190,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#1C314A",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -6137,12 +6215,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#1C314A",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -6244,8 +6322,8 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                             "Đăng ký học phần",
                           ],
                           "s": {
-                            "color": "#98BDD7",
-                            "fontSize": 13,
+                            "color": "#EDF0F2",
+                            "fontSize": 14,
                           },
                           "t": "Text",
                         },
@@ -6315,14 +6393,25 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                       "c": [
                         {
                           "c": [
-                            "Học phần",
+                            {
+                              "c": [
+                                "Học phần",
+                              ],
+                              "role": "header",
+                              "s": {
+                                "color": "#FFFFFF",
+                                "fontSize": 14,
+                              },
+                              "t": "Text",
+                            },
                           ],
-                          "role": "header",
                           "s": {
-                            "color": "#17243A",
-                            "fontSize": 22,
+                            "backgroundColor": "#003F87",
+                            "maxWidth": "100%",
+                            "paddingHorizontal": 20,
+                            "paddingVertical": 10,
                           },
-                          "t": "Text",
+                          "t": "View",
                         },
                       ],
                       "s": {
@@ -6541,12 +6630,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -6566,12 +6655,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -6701,12 +6790,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -6726,12 +6815,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -6826,8 +6915,8 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                             "Đăng ký học phần",
                           ],
                           "s": {
-                            "color": "#003F87",
-                            "fontSize": 13,
+                            "color": "#17243A",
+                            "fontSize": 14,
                           },
                           "t": "Text",
                         },
@@ -6891,14 +6980,25 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                       "c": [
                         {
                           "c": [
-                            "Học phần",
+                            {
+                              "c": [
+                                "Học phần",
+                              ],
+                              "role": "header",
+                              "s": {
+                                "color": "#FFFFFF",
+                                "fontSize": 14,
+                              },
+                              "t": "Text",
+                            },
                           ],
-                          "role": "header",
                           "s": {
-                            "color": "#17243A",
-                            "fontSize": 22,
+                            "backgroundColor": "#003F87",
+                            "maxWidth": "100%",
+                            "paddingHorizontal": 20,
+                            "paddingVertical": 10,
                           },
-                          "t": "Text",
+                          "t": "View",
                         },
                       ],
                       "s": {
@@ -7119,12 +7219,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#E6F0FF",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -7144,12 +7244,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#E6F0FF",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -7274,12 +7374,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#E6F0FF",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -7299,12 +7399,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                                           "s": {
                                             "alignItems": "center",
                                             "backgroundColor": "#E6F0FF",
-                                            "borderRadius": 999,
+                                            "borderRadius": 6,
                                             "flexDirection": "row",
                                             "gap": 4,
                                             "maxWidth": "100%",
-                                            "paddingHorizontal": 8,
-                                            "paddingVertical": 4,
+                                            "paddingHorizontal": 10,
+                                            "paddingVertical": 2,
                                           },
                                           "t": "View",
                                         },
@@ -7406,8 +7506,8 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                             "Đăng ký học phần",
                           ],
                           "s": {
-                            "color": "#003F87",
-                            "fontSize": 13,
+                            "color": "#17243A",
+                            "fontSize": 14,
                           },
                           "t": "Text",
                         },
@@ -7551,7 +7651,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                         "Sự kiện",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#12151C",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -7561,7 +7661,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#98BDD7",
                                     "borderColor": "#98BDD7",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -7640,7 +7740,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -7668,7 +7768,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -7696,7 +7796,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -7724,7 +7824,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -7752,7 +7852,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -7859,12 +7959,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#203C2F",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -8005,12 +8105,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -8200,7 +8300,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                         "Sự kiện",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#12151C",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -8210,7 +8310,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#98BDD7",
                                     "borderColor": "#98BDD7",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -8289,7 +8389,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8317,7 +8417,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8345,7 +8445,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8373,7 +8473,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8401,7 +8501,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#1E2229",
+                                            "backgroundColor": "#15181E",
                                             "borderColor": "#33363D",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8508,12 +8608,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#203C2F",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -8654,12 +8754,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#1C314A",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -8851,7 +8951,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                         "Sự kiện",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#FFFFFF",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -8861,7 +8961,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#003F87",
                                     "borderColor": "#003F87",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -8940,7 +9040,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8968,7 +9068,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -8996,7 +9096,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9024,7 +9124,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9052,7 +9152,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9159,12 +9259,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#DFF4E4",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -9305,12 +9405,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -9500,7 +9600,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                         "Sự kiện",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#FFFFFF",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -9510,7 +9610,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#003F87",
                                     "borderColor": "#003F87",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -9589,7 +9689,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9617,7 +9717,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9645,7 +9745,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9673,7 +9773,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9701,7 +9801,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                           "role": "button",
                                           "s": {
                                             "alignItems": "center",
-                                            "backgroundColor": "#FFFFFF",
+                                            "backgroundColor": "#F1F5FB",
                                             "borderColor": "#C9D5E4",
                                             "borderRadius": 8,
                                             "flexDirection": "row",
@@ -9808,12 +9908,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#DFF4E4",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -9954,12 +10054,12 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                       "s": {
                                         "alignItems": "center",
                                         "backgroundColor": "#E6F0FF",
-                                        "borderRadius": 999,
+                                        "borderRadius": 6,
                                         "flexDirection": "row",
                                         "gap": 4,
                                         "maxWidth": "100%",
-                                        "paddingHorizontal": 8,
-                                        "paddingVertical": 4,
+                                        "paddingHorizontal": 10,
+                                        "paddingVertical": 2,
                                       },
                                       "t": "View",
                                     },
@@ -10162,7 +10262,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                         "Tất cả thông báo",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#12151C",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -10172,7 +10272,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#98BDD7",
                                     "borderColor": "#98BDD7",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -10239,8 +10339,8 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                             "Đánh dấu đã đọc tất cả",
                                           ],
                                           "s": {
-                                            "color": "#98BDD7",
-                                            "fontSize": 13,
+                                            "color": "#EDF0F2",
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -10378,12 +10478,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#1C314A",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -10425,7 +10525,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -10583,12 +10683,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#1C314A",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -10630,7 +10730,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -10974,7 +11074,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                         "Tất cả thông báo",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
+                                        "color": "#12151C",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -10984,7 +11084,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
+                                    "backgroundColor": "#98BDD7",
                                     "borderColor": "#98BDD7",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -11051,8 +11151,8 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                             "Đánh dấu đã đọc tất cả",
                                           ],
                                           "s": {
-                                            "color": "#98BDD7",
-                                            "fontSize": 13,
+                                            "color": "#EDF0F2",
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -11190,12 +11290,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#1C314A",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -11237,7 +11337,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -11395,12 +11495,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#1C314A",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -11442,7 +11542,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -11788,7 +11888,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                         "Tất cả thông báo",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#FFFFFF",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -11798,7 +11898,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#003F87",
                                     "borderColor": "#003F87",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -11865,8 +11965,8 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                             "Đánh dấu đã đọc tất cả",
                                           ],
                                           "s": {
-                                            "color": "#003F87",
-                                            "fontSize": 13,
+                                            "color": "#17243A",
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -12004,12 +12104,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#E6F0FF",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -12051,7 +12151,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -12209,12 +12309,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#E6F0FF",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -12256,7 +12356,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -12600,7 +12700,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                         "Tất cả thông báo",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
+                                        "color": "#FFFFFF",
                                         "fontSize": 13,
                                       },
                                       "t": "Text",
@@ -12610,7 +12710,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
+                                    "backgroundColor": "#003F87",
                                     "borderColor": "#003F87",
                                     "borderRadius": 6,
                                     "flex": 1,
@@ -12677,8 +12777,8 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                             "Đánh dấu đã đọc tất cả",
                                           ],
                                           "s": {
-                                            "color": "#003F87",
-                                            "fontSize": 13,
+                                            "color": "#17243A",
+                                            "fontSize": 14,
                                           },
                                           "t": "Text",
                                         },
@@ -12816,12 +12916,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#E6F0FF",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -12863,7 +12963,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -13021,12 +13121,12 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#E6F0FF",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -13068,7 +13168,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -13338,14 +13438,25 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Tổng quan học tập",
+                        {
+                          "c": [
+                            "Tổng quan học tập",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#12151C",
+                            "fontSize": 14,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 22,
+                        "backgroundColor": "#98BDD7",
+                        "maxWidth": "100%",
+                        "paddingHorizontal": 20,
+                        "paddingVertical": 10,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
@@ -13471,7 +13582,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#EDF0F2",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -13820,15 +13931,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Lịch học hôm nay & sắp tới",
+                                {
+                                  "c": [
+                                    "Lịch học hôm nay & sắp tới",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -13849,7 +13967,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#98BDD7",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -14120,15 +14238,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Tiến độ học tập",
+                                {
+                                  "c": [
+                                    "Tiến độ học tập",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -14282,15 +14407,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Môn học hiện tại",
+                                {
+                                  "c": [
+                                    "Môn học hiện tại",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                             {
                               "c": [
@@ -14308,12 +14440,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
+                                "borderRadius": 6,
                                 "flexDirection": "row",
                                 "gap": 4,
                                 "maxWidth": "100%",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
+                                "paddingHorizontal": 10,
+                                "paddingVertical": 2,
                               },
                               "t": "View",
                             },
@@ -14391,12 +14523,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -14474,12 +14606,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -14557,12 +14689,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -14591,8 +14723,8 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                         "Thời khóa biểu",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "color": "#EDF0F2",
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -14628,7 +14760,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -14686,18 +14818,23 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Truy cập nhanh",
+                        {
+                          "c": [
+                            "Truy cập nhanh",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 18,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
-                      "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 18,
-                      },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
-                    "alignItems": "center",
+                    "alignItems": "flex-start",
                     "flexDirection": "row",
                     "gap": 8,
                     "justifyContent": "space-between",
@@ -15056,14 +15193,25 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Tổng quan học tập",
+                        {
+                          "c": [
+                            "Tổng quan học tập",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#12151C",
+                            "fontSize": 14,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 22,
+                        "backgroundColor": "#98BDD7",
+                        "maxWidth": "100%",
+                        "paddingHorizontal": 20,
+                        "paddingVertical": 10,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
@@ -15189,7 +15337,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#EDF0F2",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -15538,15 +15686,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Lịch học hôm nay & sắp tới",
+                                {
+                                  "c": [
+                                    "Lịch học hôm nay & sắp tới",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -15567,7 +15722,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#98BDD7",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -15838,15 +15993,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Tiến độ học tập",
+                                {
+                                  "c": [
+                                    "Tiến độ học tập",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -16000,15 +16162,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Môn học hiện tại",
+                                {
+                                  "c": [
+                                    "Môn học hiện tại",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#EDF0F2",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#EDF0F2",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                             {
                               "c": [
@@ -16026,12 +16195,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
+                                "borderRadius": 6,
                                 "flexDirection": "row",
                                 "gap": 4,
                                 "maxWidth": "100%",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
+                                "paddingHorizontal": 10,
+                                "paddingVertical": 2,
                               },
                               "t": "View",
                             },
@@ -16109,12 +16278,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -16192,12 +16361,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -16275,12 +16444,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#15181E",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -16309,8 +16478,8 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                         "Thời khóa biểu",
                                       ],
                                       "s": {
-                                        "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "color": "#EDF0F2",
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -16346,7 +16515,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                       ],
                                       "s": {
                                         "color": "#98BDD7",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -16404,18 +16573,23 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Truy cập nhanh",
+                        {
+                          "c": [
+                            "Truy cập nhanh",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 18,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
-                      "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 18,
-                      },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
-                    "alignItems": "center",
+                    "alignItems": "flex-start",
                     "flexDirection": "row",
                     "gap": 8,
                     "justifyContent": "space-between",
@@ -16778,14 +16952,25 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Tổng quan học tập",
+                        {
+                          "c": [
+                            "Tổng quan học tập",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#FFFFFF",
+                            "fontSize": 14,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 22,
+                        "backgroundColor": "#003F87",
+                        "maxWidth": "100%",
+                        "paddingHorizontal": 20,
+                        "paddingVertical": 10,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
@@ -16911,7 +17096,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -17260,15 +17445,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Lịch học hôm nay & sắp tới",
+                                {
+                                  "c": [
+                                    "Lịch học hôm nay & sắp tới",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -17289,7 +17481,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#003F87",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -17560,15 +17752,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Tiến độ học tập",
+                                {
+                                  "c": [
+                                    "Tiến độ học tập",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -17722,15 +17921,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Môn học hiện tại",
+                                {
+                                  "c": [
+                                    "Môn học hiện tại",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                             {
                               "c": [
@@ -17748,12 +17954,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
+                                "borderRadius": 6,
                                 "flexDirection": "row",
                                 "gap": 4,
                                 "maxWidth": "100%",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
+                                "paddingHorizontal": 10,
+                                "paddingVertical": 2,
                               },
                               "t": "View",
                             },
@@ -17831,12 +18037,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -17914,12 +18120,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -17997,12 +18203,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -18031,8 +18237,8 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                         "Thời khóa biểu",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
-                                        "fontSize": 13,
+                                        "color": "#17243A",
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -18068,7 +18274,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -18126,18 +18332,23 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Truy cập nhanh",
+                        {
+                          "c": [
+                            "Truy cập nhanh",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 18,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
-                      "s": {
-                        "color": "#17243A",
-                        "fontSize": 18,
-                      },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
-                    "alignItems": "center",
+                    "alignItems": "flex-start",
                     "flexDirection": "row",
                     "gap": 8,
                     "justifyContent": "space-between",
@@ -18496,14 +18707,25 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Tổng quan học tập",
+                        {
+                          "c": [
+                            "Tổng quan học tập",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#FFFFFF",
+                            "fontSize": 14,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 22,
+                        "backgroundColor": "#003F87",
+                        "maxWidth": "100%",
+                        "paddingHorizontal": 20,
+                        "paddingVertical": 10,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
@@ -18629,7 +18851,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#FFFFFF",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -18978,15 +19200,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Lịch học hôm nay & sắp tới",
+                                {
+                                  "c": [
+                                    "Lịch học hôm nay & sắp tới",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -19007,7 +19236,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   ],
                                   "s": {
                                     "color": "#003F87",
-                                    "fontSize": 13,
+                                    "fontSize": 14,
                                   },
                                   "t": "Text",
                                 },
@@ -19278,15 +19507,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Tiến độ học tập",
+                                {
+                                  "c": [
+                                    "Tiến độ học tập",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                           ],
                           "s": {
@@ -19440,15 +19676,22 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Môn học hiện tại",
+                                {
+                                  "c": [
+                                    "Môn học hiện tại",
+                                  ],
+                                  "role": "header",
+                                  "s": {
+                                    "color": "#17243A",
+                                    "fontSize": 18,
+                                  },
+                                  "t": "Text",
+                                },
                               ],
-                              "role": "header",
                               "s": {
-                                "color": "#17243A",
                                 "flex": 1,
-                                "fontSize": 18,
                               },
-                              "t": "Text",
+                              "t": "View",
                             },
                             {
                               "c": [
@@ -19466,12 +19709,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "s": {
                                 "alignItems": "center",
                                 "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
+                                "borderRadius": 6,
                                 "flexDirection": "row",
                                 "gap": 4,
                                 "maxWidth": "100%",
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
+                                "paddingHorizontal": 10,
+                                "paddingVertical": 2,
                               },
                               "t": "View",
                             },
@@ -19549,12 +19792,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -19632,12 +19875,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -19715,12 +19958,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                   "s": {
                                     "alignItems": "center",
                                     "backgroundColor": "#F1F5FB",
-                                    "borderRadius": 999,
+                                    "borderRadius": 6,
                                     "flexDirection": "row",
                                     "gap": 4,
                                     "maxWidth": "100%",
-                                    "paddingHorizontal": 8,
-                                    "paddingVertical": 4,
+                                    "paddingHorizontal": 10,
+                                    "paddingVertical": 2,
                                   },
                                   "t": "View",
                                 },
@@ -19749,8 +19992,8 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                         "Thời khóa biểu",
                                       ],
                                       "s": {
-                                        "color": "#003F87",
-                                        "fontSize": 13,
+                                        "color": "#17243A",
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -19786,7 +20029,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                       ],
                                       "s": {
                                         "color": "#003F87",
-                                        "fontSize": 13,
+                                        "fontSize": 14,
                                       },
                                       "t": "Text",
                                     },
@@ -19844,18 +20087,23 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Truy cập nhanh",
+                        {
+                          "c": [
+                            "Truy cập nhanh",
+                          ],
+                          "role": "header",
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 18,
+                          },
+                          "t": "Text",
+                        },
                       ],
-                      "role": "header",
-                      "s": {
-                        "color": "#17243A",
-                        "fontSize": 18,
-                      },
-                      "t": "Text",
+                      "t": "View",
                     },
                   ],
                   "s": {
-                    "alignItems": "center",
+                    "alignItems": "flex-start",
                     "flexDirection": "row",
                     "gap": 8,
                     "justifyContent": "space-between",

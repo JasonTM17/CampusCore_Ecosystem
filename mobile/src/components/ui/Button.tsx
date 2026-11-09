@@ -51,7 +51,7 @@ export function Button({
   const { colors, layout, scheme } = useTheme();
   const chrome = chromeFor(scheme);
   const [focused, setFocused] = useState(false);
-  const textColor = variant === 'destructive' ? colors.card : onBrand ? chrome.onSurface : variant === 'primary' ? colors.onPrimary : colors.primary;
+  const textColor = variant === 'destructive' ? colors.card : onBrand ? chrome.onSurface : variant === 'primary' ? colors.onPrimary : variant === 'secondary' ? colors.text : colors.primary;
   const isDisabled = disabled || loading;
   const small = variant === 'text';
 
@@ -80,7 +80,7 @@ export function Button({
         {loading ? <ActivityIndicator color={textColor} size="small" /> : icon ? (
           <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={textColor} name={icon} size={20} />
         ) : null}
-        <UiText variant="label" style={{ color: textColor, flexShrink: 1, textAlign: 'center' }}>
+        <UiText variant="label" style={{ color: textColor, flexShrink: 1, fontSize: 14, lineHeight: 20, textAlign: 'center' }}>
           {label}
         </UiText>
       </View>
