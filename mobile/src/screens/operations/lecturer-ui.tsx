@@ -86,6 +86,14 @@ export function sectionLabel(section: SectionLike, copy: OperationsCopy, locale:
   return section.sectionNumber ? `${code} · ${fillCopy(copy.sectionLine, { n: section.sectionNumber })}` : code;
 }
 
+export function sectionStatusLabel(status: string | undefined, copy: OperationsCopy): string {
+  const normalized = status?.toUpperCase();
+  if (normalized === 'OPEN') return copy.statusOpen;
+  if (normalized === 'CLOSED') return copy.statusClosed;
+  if (normalized === 'CANCELLED') return copy.statusCancelled;
+  return copy.statusUnknown;
+}
+
 export interface SectionPickerProps {
   sections: readonly SectionLike[];
   value: string;

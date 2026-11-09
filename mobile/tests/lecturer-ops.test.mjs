@@ -218,6 +218,40 @@ test('grade drafts send only changed rows and flag invalid input before any requ
   assert.equal(model.parseScore('abc'), undefined);
 });
 
+test('dashboard metrics are the web set: sections, students, ready to publish and fresh notices', () => {
+  const sections = [
+    { sectionId: 'a', enrolledCount: 16 },
+    { sectionId: 'b', enrolledCount: 18 },
+    { sectionId: 'c' },
+  ];
+  const grading = [
+    { sectionId: 'a', canPublish: true },
+    { sectionId: 'b', canPublish: false },
+    { sectionId: 'c', canPublish: true },
+  ];
+  assert.deepEqual(model.dashboardMetrics(sections, grading, 7), {
+    sections: 3,
+    students: 34,
+    readyToPublish: 2,
+    freshNotices: 7,
+  });
+});
+
+test('department labels fall back across the available languages', () => {
+  assert.equal(model.departmentTitle({ departmentNameVi: 'Khoa Công nghệ thông tin', departmentName: 'CNTT' }, 'vi'), 'Khoa Công nghệ thông tin');
+  assert.equal(model.departmentTitle({ departmentNameEn: 'Faculty of IT', departmentName: 'CNTT' }, 'en'), 'Faculty of IT');
+  assert.equal(model.departmentTitle({ departmentName: 'CNTT' }, 'en'), 'CNTT');
+  assert.equal(model.departmentTitle({}, 'vi'), '');
+});
+
+test('semester labels fall back across the available languages', () => {
+  assert.equal(model.termTitle({ semesterNameVi: 'Học kỳ 1', semesterName: 'HK1' }, 'vi'), 'Học kỳ 1');
+  assert.equal(model.termTitle({ semesterNameEn: 'Semester 1', semesterName: 'HK1' }, 'en'), 'Semester 1');
+  assert.equal(model.termTitle({ semester: 'HK1' }, 'en'), 'HK1');
+  assert.equal(model.termTitle({ semesterName: 'HK1' }, 'vi'), 'HK1');
+  assert.equal(model.termTitle({}, 'vi'), '');
+});
+
 test('weekday numbering is 1 = Sunday like the backend', () => {
   assert.equal(model.dayNumberOf(new Date(2026, 9, 25)), 1);
   assert.equal(model.dayNumberOf(new Date(2026, 9, 26)), 2);

@@ -176,11 +176,12 @@ beforeEach(() => {
   mockRuntime.saveGrades.mockReset().mockResolvedValue(undefined);
 });
 
-test('lecturer dashboard pull-to-refresh reloads both dashboard queries', async () => {
+test('lecturer dashboard pull-to-refresh reloads its dashboard queries', async () => {
   await renderScreen(<LecturerDashboardScreen {...props} />);
   await fireEvent.press(screen.getByTestId('pull-to-refresh'));
   expect(mockRuntime.reloads['lecturer:schedule']).toHaveBeenCalledTimes(1);
   expect(mockRuntime.reloads['lecturer:grading']).toHaveBeenCalledTimes(1);
+  expect(mockRuntime.reloads['lecturer:announcements']).toHaveBeenCalledTimes(1);
 });
 
 test('lecturer schedule pull-to-refresh reloads its schedule query', async () => {
