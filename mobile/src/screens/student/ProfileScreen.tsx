@@ -32,10 +32,23 @@ import { setExitNotice, type ExitNotice } from '../account/exit-notice';
 import { checkPasswordPolicy } from '../account/password-policy';
 import type { TwoFactorAction } from '../account/two-factor-flow';
 import { useAccountCopy } from '../account/use-account-copy';
+import { parseConduct } from '../content/records-model';
 import { useStudentStyles } from './shared/styles';
 
 /** Fields the profile endpoint returns beyond the shared `AuthUser` shape. */
 type AccountProfile = AuthUser & { phone?: string | null; address?: string | null; dateOfBirth?: string | null };
+
+/**
+ * Office student code (MSSV). `/auth/me` `studentId` is the profile key
+ * (`student-profile`), which must never be printed as the student number.
+ * The conduct summary's `studentCode` is the column the web shows.
+ */
+function officeStudentCode(value: string | null | undefined): string | undefined {
+  const code = value?.trim() ?? '';
+  if (!code || code === 'null' || code === 'undefined') return undefined;
+  if (code === 'student-profile' || code.startsWith('student-profile-')) return undefined;
+  return code;
+}
 
 const PHONE_PATTERN = /^$|^\+?[0-9][0-9\s()./-]{4,78}$/;
 
@@ -58,6 +71,16 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     errorMessage: copy.errors.unknown,
     mapError: (failure) => errorMessage(classifyError(failure), copy.errors),
   });
+  const conduct = useScreenQuery<unknown>(
+    'profile.student-code',
+    () => apiClient.get<unknown>('/conduct/my'),
+    {
+      enabled: isLive && role === 'student',
+      scope: { locale: 'neutral' },
+      errorMessage: copy.errors.unknown,
+      mapError: (failure) => errorMessage(classifyError(failure), copy.errors),
+    },
+  );
   const accountRef = useRef(account);
   accountRef.current = account;
   const seededAccountId = useRef<string | null | undefined>(undefined);
@@ -209,7 +232,14 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     ? 'Nguyễn Đức Minh'
     : [account?.lastName, account?.firstName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
-  const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
+  const studentCode = role === 'student' ? officeStudentCode(parseConduct(conduct.data)?.studentCode) : undefined;
+  const displayId = !isLive
+    ? '2022SE0417'
+    : role === 'lecturer'
+      ? (account?.lecturerId ?? '—')
+      : role === 'student'
+        ? studentCode
+        : (account?.studentId ?? '—');
 
   if (isLoading || error) {
     return (
