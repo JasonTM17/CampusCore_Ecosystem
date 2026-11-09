@@ -131,7 +131,7 @@ export interface ThesisTopicList extends ThesisQueryState {
   loadMore: () => void;
 }
 
-export function useThesisTopics(roundId: string | null, search = ''): ThesisTopicList {
+export function useThesisTopics(roundId: string | null, search = '', enabled = true): ThesisTopicList {
   const { copy, locale } = useThesisCopy();
   const preview = isPreview();
   const sample = usePreviewData(locale);
@@ -146,7 +146,7 @@ export function useThesisTopics(roundId: string | null, search = ''): ThesisTopi
       const result = await thesisApi.topics(key, topicPageOptions(0, term));
       return { key: pageKey, items: result.items, total: result.total, hasMore: result.hasMore };
     },
-    { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
+    { enabled: !preview && roundId !== null && enabled, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
   const first = query.data && query.data.key === pageKey ? query.data : undefined;
 
@@ -282,6 +282,8 @@ interface GroupSnapshot {
   key: string;
   studentId: string | null;
   group: ThesisGroup | null;
+  /** The round has only a cancelled group; no active group exists. */
+  cancelled: boolean;
   progress: ThesisProgress | null;
   /** The derived progress read failed; the group itself is still known. */
   progressFailed: boolean;
@@ -303,6 +305,7 @@ async function loadMyGroups(): Promise<ThesisGroup[]> {
 export interface ThesisGroupState extends ThesisQueryState {
   studentId: string | null;
   group: ThesisGroup | null;
+  cancelled: boolean;
   progress: ThesisProgress | null;
   /** Unknown progress is never reported as 0%. */
   progressFailed: boolean;
@@ -334,7 +337,10 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
       ]);
       const inRound = groups.filter((group) => group.roundId === key);
       const group = inRound.find((item) => item.status !== 'CANCELLED') ?? null;
-      return { key, studentId: me.studentId ?? null, group, progress, progressFailed };
+      return {
+        key, studentId: me.studentId ?? null, group, progress, progressFailed,
+        cancelled: !group && inRound.some((item) => item.status === 'CANCELLED'),
+      };
     },
     { enabled: !preview && roundId !== null, errorMessage: copy.errors.generic, mapError: (error) => thesisErrorMessage(copy, error) },
   );
@@ -344,18 +350,19 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
   const applyGroup = useCallback((next: ThesisGroup) => {
     if (preview) return;
     setData({
-      key, studentId: live?.studentId ?? null, group: next,
+      key, studentId: live?.studentId ?? null, group: next, cancelled: false,
       progress: live?.progress ?? null, progressFailed: live?.progressFailed ?? false,
     });
     void reload();
   }, [preview, setData, reload, key, live]);
 
   const snapshot: GroupSnapshot | undefined = preview
-    ? { key, studentId: 'preview-student-1', group: sample.group, progress: sample.progress, progressFailed: false }
+    ? { key, studentId: 'preview-student-1', group: sample.group, cancelled: false, progress: sample.progress, progressFailed: false }
     : live;
   return {
     studentId: snapshot?.studentId ?? null,
     group: snapshot?.group ?? null,
+    cancelled: snapshot?.cancelled ?? false,
     progress: snapshot?.progress ?? null,
     progressFailed: snapshot?.progressFailed ?? false,
     isLeader: isGroupLeader(snapshot?.group, snapshot?.studentId),

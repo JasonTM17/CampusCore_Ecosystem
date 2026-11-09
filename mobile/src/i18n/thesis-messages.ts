@@ -17,6 +17,12 @@ export interface ThesisCopy {
 
   search: string;
   searchLabel: string;
+  searchPlaceholder: string;
+  catalogRequiredTitle: string;
+  catalogRequiredDescription: string;
+  catalogViewAll: string;
+  catalogQuickSuggest: string;
+  catalogQuickPills: string[];
   loadMore: string;
   loadingMore: string;
   loading: string;
@@ -48,6 +54,10 @@ export interface ThesisCopy {
   topicGroupsMaxOne: string;
   topicBrief: string;
   topicNotFound: string;
+  topicDetailDescription: string;
+  topicGroupCancelled: string;
+  noGroup: string;
+  noGroupDescription: string;
   openTopic: string;
   register: string;
   myGroup: string;
@@ -55,6 +65,9 @@ export interface ThesisCopy {
   supervisorsEmpty: string;
   advisorsEmpty: string;
   advisorsBody: string;
+  advisorsStudentEmpty: string;
+  advisorsStudentEmptyBody: string;
+  openTopicCatalog: string;
   advisorTopics: string;
   advisorTopicsOne: string;
   advisorsCapped: string;
@@ -94,6 +107,8 @@ export interface ThesisCopy {
   previewNotice: string;
 
   progressPercent: string;
+  progressCurrentStage: string;
+  progressAttention: string;
   progressNoGroup: string;
   progressNoGroupBody: string;
   progressFailed: string;
@@ -178,6 +193,20 @@ const vi: ThesisCopy = {
 
   search: 'Tìm đề tài',
   searchLabel: 'Tìm đề tài',
+  searchPlaceholder: 'Nhập tên đề tài, chuyên ngành hoặc từ khóa…',
+  catalogRequiredTitle: 'Tìm kiếm để xem danh mục đề tài',
+  catalogRequiredDescription: 'Bạn có thể nhập từ khóa, chọn chuyên ngành gợi ý hoặc bấm "Xem tất cả đề tài đợt này".',
+  catalogViewAll: 'Xem tất cả đề tài đợt này',
+  catalogQuickSuggest: 'Gợi ý chuyên ngành:',
+  catalogQuickPills: [
+    'Trí tuệ nhân tạo (AI)',
+    'Phần mềm & Web',
+    'Cơ điện tử & Robot',
+    'Hệ thống thông tin',
+    'IoT & Viễn thông',
+    'Kỹ thuật Ô tô',
+    'Xây dựng',
+  ],
   loadMore: 'Tải thêm',
   loadingMore: 'Đang tải thêm',
   loading: 'Đang tải',
@@ -205,17 +234,24 @@ const vi: ThesisCopy = {
   emptyTopics: 'Chưa có đề tài được công bố',
   emptyTopicsFiltered: 'Không có đề tài khớp',
   topicDepartment: 'Bộ môn',
-  topicGroupsMax: 'Tối đa {count} nhóm',
-  topicGroupsMaxOne: 'Tối đa {count} nhóm',
+  topicGroupsMax: '{count} nhóm đề tài',
+  topicGroupsMaxOne: '{count} nhóm đề tài',
   topicBrief: 'Mô tả',
   topicNotFound: 'Không tìm thấy đề tài',
-  openTopic: 'Xem đề tài',
-  register: 'Đăng ký đề tài',
+  topicDetailDescription: 'Xem mô tả, số nhóm, bộ môn và trạng thái chọn.',
+  topicGroupCancelled: 'Nhóm của bạn đã bị hủy và không tiếp tục trong đợt này.',
+  noGroup: 'Bạn chưa có nhóm trong đợt này.',
+  noGroupDescription: 'Tạo nhóm khi đợt đăng ký mở.',
+  openTopic: 'Chi tiết đề tài',
+  register: 'Chọn đề tài',
   myGroup: 'Nhóm của tôi',
   supervisors: 'Giảng viên hướng dẫn',
   supervisorsEmpty: 'Chưa phân công giảng viên',
   advisorsEmpty: 'Chưa có giảng viên hướng dẫn',
   advisorsBody: 'Tổng hợp từ các đề tài đã công bố trong đợt.',
+  advisorsStudentEmpty: 'Mục này dành cho giảng viên và quản trị viên',
+  advisorsStudentEmptyBody: 'Thông tin người hướng dẫn theo từng đề tài có trong Danh mục đề tài — nơi bạn chọn đề tài và xem giảng viên phụ trách.',
+  openTopicCatalog: 'Mở danh mục đề tài',
   advisorTopics: '{count} đề tài',
   advisorTopicsOne: '{count} đề tài',
   advisorsCapped: 'Hiển thị tối đa {count} đề tài đầu tiên.',
@@ -225,7 +261,7 @@ const vi: ThesisCopy = {
   groupTitle: 'Nhóm',
   groupCreate: 'Tạo nhóm',
   groupNone: 'Bạn chưa có nhóm trong đợt này',
-  groupRule: 'Mỗi nhóm cần từ 3 đến 5 thành viên.',
+  groupRule: 'Nhóm khóa luận cần từ 3 đến 5 thành viên, với đúng một nhóm trưởng, trước khi được xét duyệt. Nhóm nháp có 1 hoặc 2 thành viên có thể tiếp tục bổ sung trước khi duyệt.',
   groupMembersCount: '{count} thành viên',
   groupMembersCountOne: '{count} thành viên',
   groupLeader: 'Nhóm trưởng',
@@ -255,6 +291,8 @@ const vi: ThesisCopy = {
   previewNotice: 'Dữ liệu mẫu. Đăng nhập để đăng ký thật.',
 
   progressPercent: '{value}%',
+  progressCurrentStage: 'Giai đoạn hiện tại',
+  progressAttention: 'Cần lưu ý',
   progressNoGroup: 'Bạn chưa tham gia đợt này',
   progressNoGroupBody: 'Tạo nhóm và chọn đề tài để bắt đầu.',
   progressFailed: 'Không tải được tiến độ.',
@@ -273,17 +311,17 @@ const vi: ThesisCopy = {
     NOT_QUALIFIED: 'Không đủ điều kiện bảo vệ - điểm phản biện dưới 5,0',
   },
   milestones: {
-    ROUND_SELECTED: 'Chọn đợt',
-    GROUP_CREATED: 'Lập nhóm',
-    TOPIC_ASSIGNED: 'Chọn đề tài',
-    GROUP_APPROVED: 'Nhóm được duyệt',
-    REPORT_SUBMITTED: 'Nộp báo cáo',
-    COUNCIL_ASSIGNED: 'Có hội đồng',
-    SCORE_FINALIZED: 'Có điểm',
-    RESULTS_PUBLISHED: 'Công bố kết quả',
+    ROUND_SELECTED: 'Đã chọn đợt',
+    GROUP_CREATED: 'Đã tạo nhóm',
+    TOPIC_ASSIGNED: 'Đã được gán đề tài',
+    GROUP_APPROVED: 'Nhóm đã được duyệt',
+    REPORT_SUBMITTED: 'Đã nộp báo cáo',
+    COUNCIL_ASSIGNED: 'Đã phân công hội đồng',
+    SCORE_FINALIZED: 'Đã chốt điểm',
+    RESULTS_PUBLISHED: 'Đã công bố kết quả',
   },
   milestoneCurrent: 'Hiện tại',
-  milestoneDone: 'Xong',
+  milestoneDone: 'Đã xong',
   milestonePending: 'Chưa',
   milestoneSkipped: 'Không áp dụng',
 
@@ -332,9 +370,9 @@ const vi: ThesisCopy = {
 
   status: {
     DRAFT: 'Nháp',
-    PROPOSAL_OPEN: 'Nhận đề xuất',
+    PROPOSAL_OPEN: 'Giai đoạn đề tài',
     PROPOSALS_PUBLISHED: 'Đã công bố đề tài',
-    REGISTRATION_OPEN: 'Đang đăng ký',
+    REGISTRATION_OPEN: 'Đang mở đăng ký',
     REGISTRATION_CLOSED: 'Đã đóng đăng ký',
     RESULTS_PUBLISHED: 'Đã công bố kết quả',
     CLOSED: 'Đã đóng',
@@ -406,6 +444,20 @@ const en: ThesisCopy = {
 
   search: 'Search topics',
   searchLabel: 'Search topics',
+  searchPlaceholder: 'Enter topic title, specialization, or keyword…',
+  catalogRequiredTitle: 'Search to view the topic catalog',
+  catalogRequiredDescription: 'Enter a keyword, click a quick suggestion, or click "Browse all topics in this round".',
+  catalogViewAll: 'Browse all topics in this round',
+  catalogQuickSuggest: 'Suggested topics:',
+  catalogQuickPills: [
+    'Artificial Intelligence',
+    'Software & Web',
+    'Robotics & Mechatronics',
+    'Information Systems',
+    'IoT & Telecom',
+    'Automotive',
+    'Civil Engineering',
+  ],
   loadMore: 'Load more',
   loadingMore: 'Loading more',
   loading: 'Loading',
@@ -433,17 +485,24 @@ const en: ThesisCopy = {
   emptyTopics: 'No published topics',
   emptyTopicsFiltered: 'No matching topics',
   topicDepartment: 'Department',
-  topicGroupsMax: 'Up to {count} groups',
-  topicGroupsMaxOne: 'Up to {count} group',
+  topicGroupsMax: '{count} thesis groups',
+  topicGroupsMaxOne: '{count} thesis group',
   topicBrief: 'Brief',
   topicNotFound: 'Topic not found',
-  openTopic: 'View topic',
-  register: 'Register for this topic',
+  topicDetailDescription: 'Review the brief, capacity, department, and selection state.',
+  topicGroupCancelled: 'Your group was cancelled and no longer advances this round.',
+  noGroup: 'You do not have a group in this round yet.',
+  noGroupDescription: 'Create a group when registration opens.',
+  openTopic: 'Topic detail',
+  register: 'Choose topic',
   myGroup: 'My group',
   supervisors: 'Advisors',
   supervisorsEmpty: 'No advisor assigned yet',
   advisorsEmpty: 'No advisors yet',
   advisorsBody: 'Collected from the topics published in this round.',
+  advisorsStudentEmpty: 'This section is for lecturers and administrators',
+  advisorsStudentEmptyBody: 'Per-topic supervisor information lives in the topic catalog, where you pick a topic and see its supervising lecturer.',
+  openTopicCatalog: 'Open the topic catalog',
   advisorTopics: '{count} topics',
   advisorTopicsOne: '{count} topic',
   advisorsCapped: 'Showing the first {count} topics only.',
@@ -453,7 +512,7 @@ const en: ThesisCopy = {
   groupTitle: 'Group',
   groupCreate: 'Create group',
   groupNone: 'You have no group in this round',
-  groupRule: 'A group needs 3 to 5 members.',
+  groupRule: 'A thesis group needs 3 to 5 members, with exactly one group leader, before it can be approved. A draft with 1 or 2 members can be completed before approval.',
   groupMembersCount: '{count} members',
   groupMembersCountOne: '{count} member',
   groupLeader: 'Leader',
@@ -483,6 +542,8 @@ const en: ThesisCopy = {
   previewNotice: 'Sample data. Sign in to register for real.',
 
   progressPercent: '{value}%',
+  progressCurrentStage: 'Current stage',
+  progressAttention: 'Attention needed',
   progressNoGroup: 'You are not in this round',
   progressNoGroupBody: 'Create a group and choose a topic to begin.',
   progressFailed: 'Progress could not be loaded.',
@@ -501,13 +562,13 @@ const en: ThesisCopy = {
     NOT_QUALIFIED: 'Not eligible for defense - counter-review score below 5.0',
   },
   milestones: {
-    ROUND_SELECTED: 'Round chosen',
-    GROUP_CREATED: 'Group formed',
-    TOPIC_ASSIGNED: 'Topic chosen',
+    ROUND_SELECTED: 'Round selected',
+    GROUP_CREATED: 'Group created',
+    TOPIC_ASSIGNED: 'Topic assigned',
     GROUP_APPROVED: 'Group approved',
     REPORT_SUBMITTED: 'Report submitted',
     COUNCIL_ASSIGNED: 'Council assigned',
-    SCORE_FINALIZED: 'Score final',
+    SCORE_FINALIZED: 'Score finalized',
     RESULTS_PUBLISHED: 'Results published',
   },
   milestoneCurrent: 'Current',
@@ -560,7 +621,7 @@ const en: ThesisCopy = {
 
   status: {
     DRAFT: 'Draft',
-    PROPOSAL_OPEN: 'Accepting proposals',
+    PROPOSAL_OPEN: 'Topic stage',
     PROPOSALS_PUBLISHED: 'Topics published',
     REGISTRATION_OPEN: 'Registration open',
     REGISTRATION_CLOSED: 'Registration closed',

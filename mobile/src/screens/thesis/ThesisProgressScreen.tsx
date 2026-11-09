@@ -38,6 +38,9 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
   const attention = !notQualified && progress && progress.attentionState !== 'NONE' ? copy.attention[progress.attentionState] : '';
   const idle = !state.loading && !state.error;
   const milestoneLabel = (milestone: string) => copy.milestones[milestone] ?? milestone;
+  const currentStage = progress
+    ? milestoneLabel(THESIS_MILESTONES[Math.max(THESIS_MILESTONES.indexOf(progress.currentMilestone as (typeof THESIS_MILESTONES)[number]), 0)])
+    : '';
   const stateLabel = (value: MilestoneState) => {
     if (value === 'skipped') return copy.milestoneSkipped;
     return value === 'done' ? copy.milestoneDone : value === 'current' ? copy.milestoneCurrent : copy.milestonePending;
@@ -52,6 +55,11 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
       {active.round ? (
         <>
           <ThesisRoundPicker rounds={active.rounds} current={active.round} onSelect={active.select} copy={copy} />
+          {progress ? (
+            <View style={styles.stage}>
+              <Badge label={`${copy.progressCurrentStage}: ${currentStage}`} tone="neutral" />
+            </View>
+          ) : null}
           <QueryNotices state={{ ...state, preview: false }} copy={copy} />
 
           {idle && !group ? (
@@ -79,9 +87,15 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                 </View>
                 {progress ? <ProgressBar value={percent} tone={percent === 100 && !notQualified ? 'success' : 'primary'} /> : null}
                 {outcome ? (
-                  <UiText accessibilityRole="alert" variant="label" tone="warning" style={styles.line}>{outcome}</UiText>
+                  <>
+                    <SectionHeading title={copy.progressAttention} />
+                    <UiText accessibilityRole="alert" variant="label" tone="warning" style={styles.line}>{outcome}</UiText>
+                  </>
                 ) : attention ? (
-                  <UiText accessibilityRole="alert" variant="bodySmall" tone="warning" style={styles.line}>{attention}</UiText>
+                  <>
+                    <SectionHeading title={copy.progressAttention} />
+                    <UiText accessibilityRole="alert" variant="bodySmall" tone="warning" style={styles.line}>{attention}</UiText>
+                  </>
                 ) : null}
                 {group.approvalStatus === 'REJECTED' && group.rejectionReason ? (
                   <UiText variant="bodySmall" tone="error" style={styles.line}>{`${copy.groupRejectedReason}: ${group.rejectionReason}`}</UiText>
@@ -169,6 +183,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   card: { marginBottom: tokens.spacing.md, padding: tokens.spacing.lg },
+  stage: { alignSelf: 'flex-start', marginBottom: tokens.spacing.sm },
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   grow: { flex: 1, minWidth: 0 },
   line: { marginTop: tokens.spacing.sm },
