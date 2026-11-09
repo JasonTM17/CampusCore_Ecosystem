@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
-import { ChoiceField, SegmentedControl, StatusPill } from '../../components/ui/index';
+import { ChoiceField, SegmentedControl } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileLearningAssignment, MobileLearningMaterial, MobileLearningSection } from '../../api/client';
 import { tokens } from '../../design/tokens';
+import { useTheme } from '../../design/theme';
 import { learningMessages } from '../../i18n/learning-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { AssignmentDetail } from '../content/AssignmentDetail';
@@ -25,9 +27,10 @@ type Tab = 'materials' | 'assignments';
 /** Student learning: pick a section, read its materials, work on assignments. Enrollment and deadlines are server-owned. */
 export function LearningScreen(_props: MobileScreenProps) {
   const { locale, formatDateTime } = useContentCopy();
+  const { colors } = useTheme();
   const copy = learningMessages[locale];
   const live = apiClient.mode === 'live';
-  const [tab, setTab] = useState<Tab>('assignments');
+  const [tab, setTab] = useState<Tab>('materials');
   const [picked, setPicked] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
@@ -77,14 +80,14 @@ export function LearningScreen(_props: MobileScreenProps) {
         label={copy.section}
         value={sectionId}
         onChange={(value) => { setPicked(value); setAssignmentId(null); }}
-        options={sections.map((entry) => ({ value: entry.sectionId, label: `${entry.courseCode} · ${entry.courseName}` }))}
+        options={sections.map((entry) => ({ value: entry.sectionId, label: `${entry.courseCode} · ${entry.sectionNumber} · ${entry.courseName}` }))}
       />
       {live && sectionsQuery.warning ? <DataNotice message={sectionsQuery.warning} /> : null}
       <SegmentedControl
         accessibilityLabel={copy.title}
         value={tab}
         onChange={(value) => setTab(value as Tab)}
-        options={[{ value: 'assignments', label: copy.assignments }, { value: 'materials', label: copy.materials }]}
+        options={[{ value: 'materials', label: copy.materials }, { value: 'assignments', label: copy.assignments }]}
       />
     </View>
   );
@@ -101,20 +104,28 @@ export function LearningScreen(_props: MobileScreenProps) {
         <Card>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={joinMeta([item.title, copy.statusLabels[item.mySubmissionStatus ?? item.status] ?? item.status, item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline])}
+            accessibilityLabel={joinMeta([
+              item.title,
+              copy.deadline,
+              item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline,
+              copy.statusLabels[item.status] ?? item.status,
+              item.mySubmissionStatus ? copy.statusLabels[item.mySubmissionStatus] ?? item.mySubmissionStatus : null,
+            ])}
             onPress={() => setAssignmentId(item.id)}
             style={styles.rowMain}
           >
             <ContentIconChip icon="clipboard-text-outline" />
             <View style={styles.rowCopy}>
               <UiText variant="label">{item.title}</UiText>
-              <View style={styles.chips}>
-                <StatusPill
-                  label={`${copy.deadline}: ${item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline}`}
-                  tone={item.deadlineAt ? 'warning' : 'neutral'}
-                />
-                <StatusChip code={item.mySubmissionStatus ?? item.status} labels={copy.statusLabels} />
+              <View style={styles.deadline}>
+                <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={colors.textMuted} name="calendar-blank-outline" size={14} />
+                <UiText variant="meta" tone="muted">{item.deadlineAt ? formatDateTime(item.deadlineAt) : '—'}</UiText>
               </View>
+              <View style={styles.chips}>
+                <StatusChip code={item.status} labels={copy.statusLabels} />
+                {item.mySubmissionStatus ? <StatusChip code={item.mySubmissionStatus} labels={copy.statusLabels} /> : null}
+              </View>
+              {item.description ? <UiText variant="bodySmall" tone="muted" numberOfLines={2}>{item.description}</UiText> : null}
             </View>
             <ContentChevron />
           </Pressable>
@@ -151,5 +162,6 @@ const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
+  deadline: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

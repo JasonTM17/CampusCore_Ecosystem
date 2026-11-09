@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { formatDateTime } from '../../src/i18n/locale';
 import { eventsMessages } from '../../src/i18n/events-messages';
 import { eventAction } from '../../src/screens/content/content-rules';
 import type { MobileScreenProps } from '../../src/navigation/types';
@@ -68,7 +69,7 @@ afterEach(() => { jest.restoreAllMocks(); });
 
 const event = {
   id: 'evt-1', title: 'Ngày hội tình nguyện', status: 'REGISTRATION_OPEN', seatsRemaining: 5,
-  organizer: 'CLB', location: 'Hội trường', startsAt: '2026-12-01T01:00:00Z',
+  organizer: 'CLB', location: 'Hội trường', startsAt: '2026-12-01T01:00:00Z', endsAt: '2026-12-01T03:30:00Z',
   myRegistrationStatus: null, myRegistrationId: null,
 };
 const emptyPage = { items: [], hasMore: false };
@@ -227,6 +228,55 @@ test('the event action keeps its right alignment at the default text scale', asy
   const actionRow = registerAction().parent;
   expect(actionRow).not.toBeNull();
   expect(StyleSheet.flatten(actionRow?.props.style).alignItems).toBe('flex-end');
+});
+
+test('an event card shows the end time and the seats as remaining over capacity', async () => {
+  const timed = { ...event, capacity: 50, endsAt: '2026-12-01T03:30:00Z' };
+  mockQueries['content.events'] = { data: { items: [timed], hasMore: false } };
+  await render(screenElement(<EventsScreen {...props} />));
+
+  expect(screen.getByText(new RegExp(formatDateTime(timed.endsAt, 'vi')))).toBeOnTheScreen();
+  expect(screen.getByText(/5\/50/)).toBeOnTheScreen();
+});
+
+test('a full event keeps a disabled register button', async () => {
+  const full = { ...event, capacity: 50, seatsRemaining: 0 };
+  mockQueries['content.events'] = { data: { items: [full], hasMore: false } };
+  await render(screenElement(<EventsScreen {...props} />));
+
+  expect(screen.getByRole('button', { name: `${copy.register}: ${full.title}` })).toBeDisabled();
+});
+
+test('a registered row keeps the event lifecycle chip beside the registration chip', async () => {
+  const closed = { ...event, status: 'REGISTRATION_CLOSED', myRegistrationStatus: 'REGISTERED', myRegistrationId: 'reg-1' };
+  mockQueries['content.events'] = { data: { items: [closed], hasMore: false } };
+  await render(screenElement(<EventsScreen {...props} />));
+
+  const row = screen.getAllByRole('button').find((button) =>
+    typeof button.props.accessibilityLabel === 'string' && button.props.accessibilityLabel.startsWith(`${closed.title} ·`),
+  );
+  expect(row?.props.accessibilityLabel).toContain(copy.statusLabels.REGISTRATION_CLOSED);
+  expect(row?.props.accessibilityLabel).toContain(copy.statusLabels.REGISTERED);
+});
+
+test('a registration row shows when it was registered and the event status', async () => {
+  mockQueries['content.events.mine'] = {
+    data: {
+      items: [{
+        registrationId: 'reg-1',
+        registrationStatus: 'REGISTERED',
+        attendanceStatus: 'ATTENDED',
+        registeredAt: '2026-11-01T01:00:00Z',
+        event: { ...event, status: 'CANCELLED' },
+      }],
+      hasMore: false,
+    },
+  };
+  await render(screenElement(<EventsScreen {...props} />));
+  await fireEvent.press(screen.getByRole('tab', { name: copy.mine }));
+
+  expect(screen.getByText(new RegExp(formatDateTime('2026-11-01T01:00:00Z', 'vi')))).toBeOnTheScreen();
+  expect(screen.getByText(new RegExp(copy.statusLabels.CANCELLED))).toBeOnTheScreen();
 });
 
 test('the registered action on the mine tab also takes the card width at large text', async () => {
