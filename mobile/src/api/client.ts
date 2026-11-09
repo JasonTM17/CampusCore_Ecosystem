@@ -580,6 +580,7 @@ export interface LecturerGradingSection {
   courseNameEn?: string;
   courseNameVi?: string;
   semesterId?: string;
+  semesterName?: string;
   enrolledCount: number;
   gradedCount: number;
   publishedCount: number;
@@ -604,6 +605,18 @@ export interface AttendanceRecord {
   status: string;
   date?: string;
   notes?: string;
+}
+
+/** GET /attendance/section/{sectionId}/summary — the web's term section rate. */
+export interface SectionAttendanceSummary {
+  sectionId?: string;
+  attendanceRate?: number;
+  totalSessions?: number;
+  present?: number;
+  absent?: number;
+  late?: number;
+  excused?: number;
+  totalRecords?: number;
 }
 
 /** GET /sections/{id}/grades — SectionGradesResponse.enrollments item. */
@@ -633,6 +646,7 @@ export interface StudentGradeRow {
   studentId?: string;
   studentCode?: string;
   studentName?: string;
+  email?: string;
   calculatedTotal?: number;
   finalGrade?: number | null;
   letterGrade?: string | null;
@@ -666,6 +680,7 @@ export function sectionGradeRows(response: SectionGradesResponse): StudentGradeR
     studentId: entry.studentId,
     studentCode: entry.studentCode,
     studentName: entry.studentName,
+    email: entry.email,
     processScore: entry.processScore,
     finalExamScore: entry.finalExamScore,
     finalGrade: entry.finalGrade,
@@ -1599,6 +1614,10 @@ export const campusApi = {
   attendanceRoster: (sectionId: string) =>
     apiClient.get<AttendanceRosterEntry[]>(
       `/attendance/section/${encodeURIComponent(sectionId)}/roster`,
+    ),
+  attendanceSectionSummary: (sectionId: string) =>
+    apiClient.get<SectionAttendanceSummary>(
+      `/attendance/section/${encodeURIComponent(sectionId)}/summary`,
     ),
   sectionAttendance: (sectionId: string, date?: string) =>
     apiClient.get<AttendanceRecord[]>(

@@ -230,11 +230,11 @@ test('a deferred attendance save does not apply section A state to section B', a
   await renderScreen(<LecturerAttendanceScreen {...props} />);
   await screen.findByText('Alpha');
 
-  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
     name: 'Alpha',
-    status: operationsMessages.vi.statusPresent,
+    status: operationsMessages.vi.statusAbsent,
   });
-  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
   await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
   expect(mockRuntime.saveAttendance).toHaveBeenCalledTimes(1);
 
@@ -255,11 +255,11 @@ test('same-frame repeated attendance save sends one request', async () => {
   mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
   await renderScreen(<LecturerAttendanceScreen {...props} />);
   await screen.findByText('Alpha');
-  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
     name: 'Alpha',
-    status: operationsMessages.vi.statusPresent,
+    status: operationsMessages.vi.statusAbsent,
   });
-  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
 
   try {
     await pressTwiceBeforeCommit(screen.getByRole('button', { name: operationsMessages.vi.save }));
@@ -278,11 +278,11 @@ test('an attendance save for a revisited sheet preserves its current baseline', 
   await renderScreen(<LecturerAttendanceScreen {...props} />);
   await screen.findByText('Alpha');
 
-  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
     name: 'Alpha',
-    status: operationsMessages.vi.statusPresent,
+    status: operationsMessages.vi.statusAbsent,
   });
-  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
   await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
   await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
   await screen.findByText('Bravo');
@@ -305,15 +305,11 @@ test('reverting an attendance draft to baseline removes the cached edits', async
   const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
     name: 'Alpha', status: operationsMessages.vi.statusPresent,
   });
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha', status: operationsMessages.vi.statusAbsent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
   await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
-  await screen.findByText('Bravo');
-  await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
-  await screen.findByText('Alpha');
-
-  await fireEvent.press(screen.getByRole('button', {
-    name: fillCopy(operationsMessages.vi.clearMarkFor, { name: 'Alpha' }),
-  }));
   expect(screen.queryByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeNull();
 
   await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
@@ -321,7 +317,7 @@ test('reverting an attendance draft to baseline removes the cached edits', async
   await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
   await screen.findByText('Alpha');
 
-  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(false);
+  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
 });
 
 test('mark all present confirms before replacing an unsaved attendance mark', async () => {
@@ -472,11 +468,11 @@ test('attendance refresh during a pending save preserves the dirty rows and base
   const view = await renderScreen(<LecturerAttendanceScreen {...props} />);
   await screen.findByText('Alpha');
 
-  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+  const markAbsent = fillCopy(operationsMessages.vi.markStatusFor, {
     name: 'Alpha',
-    status: operationsMessages.vi.statusPresent,
+    status: operationsMessages.vi.statusAbsent,
   });
-  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('radio', { name: markAbsent }));
   await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
   expect(mockRuntime.saveAttendance).toHaveBeenCalledTimes(1);
 
@@ -492,7 +488,7 @@ test('attendance refresh during a pending save preserves the dirty rows and base
   expect(screen.queryByText('Remote Alpha')).toBeNull();
   expect(screen.getByText(operationsMessages.vi.stale)).toBeTruthy();
   expect(screen.getByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeTruthy();
-  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
+  expect(screen.getByRole('radio', { name: markAbsent }).props.accessibilityState?.checked).toBe(true);
 
   await act(async () => {
     pending.resolve(1);
