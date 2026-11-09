@@ -519,6 +519,9 @@ export interface MobilePublicAnnouncement {
   coverImageUrl?: string | null;
   priority?: string | null;
   categoryId?: string | null;
+  /** Inbox rows carry audience scoping; the public feed never does. */
+  isGlobal?: boolean | null;
+  targetRoles?: string[] | null;
   slug?: string | null;
   publishAt?: string | null;
   expiresAt?: string | null;

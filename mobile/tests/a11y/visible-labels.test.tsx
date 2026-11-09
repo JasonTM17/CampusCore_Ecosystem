@@ -39,7 +39,7 @@ test('the announcements filter count is included in its accessible name', async 
   );
 
   await fireEvent.press(screen.getByRole('button', { name: 'Bộ lọc' }));
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Khẩn' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Khẩn cấp' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Áp dụng' }));
 
   expect(screen.getByText('Bộ lọc (1)')).toBeOnTheScreen();

@@ -6,7 +6,6 @@ import {
   Card,
   DataNotice,
   Dialog,
-  Divider,
   Field,
   IdentityHeader,
   ListRow,
@@ -21,6 +20,8 @@ import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { formatDate } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { SecureField } from '../account/SecureField';
 import { SignOutDialog } from '../account/SignOutDialog';
@@ -34,7 +35,7 @@ import { useAccountCopy } from '../account/use-account-copy';
 import { useStudentStyles } from './shared/styles';
 
 /** Fields the profile endpoint returns beyond the shared `AuthUser` shape. */
-type AccountProfile = AuthUser & { phone?: string | null; address?: string | null };
+type AccountProfile = AuthUser & { phone?: string | null; address?: string | null; dateOfBirth?: string | null };
 
 const PHONE_PATTERN = /^$|^\+?[0-9][0-9\s()./-]{4,78}$/;
 
@@ -43,6 +44,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const { colors, scheme } = useTheme();
   const chrome = chromeFor(scheme);
   const copy = useAccountCopy();
+  const { locale } = useLocale();
   const isLive = apiClient.mode === 'live';
   const {
     data: account,
@@ -211,7 +213,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
 
   if (isLoading || error) {
     return (
-      <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow}>
+      <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow} subtitle={copy.profile.description}>
         <StatePanel
           kind={isLoading ? 'loading' : 'error'}
           title={isLoading ? copy.profile.loading : copy.profile.errorTitle}
@@ -236,7 +238,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   }
 
   return (
-    <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow}>
+    <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow} subtitle={copy.profile.description}>
       {warning ? <View style={profileStyles.notice}><DataNotice message={warning} /></View> : null}
       <Card style={[styles.profileHero, { backgroundColor: chrome.surface, borderColor: colors.outlineVariant }]}>
         <IdentityHeader
@@ -251,11 +253,17 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       </Card>
       <ScreenSpacer />
       <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
-        <ListRow icon="email-outline" title={copy.profile.email} subtitle={displayEmail} />
         {isLive ? (
           <>
-            <Divider />
+            {account?.firstName ? (
+              <Field label={copy.profile.firstName} value={account.firstName} editable={false} multiline={false} />
+            ) : null}
+            {account?.lastName ? (
+              <Field label={copy.profile.lastName} value={account.lastName} editable={false} multiline={false} />
+            ) : null}
+            <Field label={copy.profile.email} value={displayEmail} editable={false} multiline={false} />
             <Field label={copy.profile.phone} value={phone} onChangeText={updatePhone} keyboardType="phone-pad" autoComplete="tel" editable={!isSavingProfile} maxLength={80} />
+            <Field label={copy.profile.dateOfBirth} value={formatDate(account?.dateOfBirth, locale)} editable={false} multiline={false} />
             <Field label={copy.profile.address} value={address} onChangeText={updateAddress} autoComplete="street-address" editable={!isSavingProfile} maxLength={500} />
             {profileMessage?.kind === 'error' ? (
               <View accessible accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.cardCopy}>
@@ -271,12 +279,15 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
               onPress={() => void saveProfile()}
             />
           </>
-        ) : null}
+        ) : (
+          <ListRow icon="email-outline" title={copy.profile.email} subtitle={displayEmail} />
+        )}
       </SectionCard>
       {isLive ? (
         <>
           <ScreenSpacer />
           <SectionCard title={copy.password.title} icon="lock-outline">
+            <UiText variant="bodySmall" tone="muted" style={styles.cardCopy}>{copy.password.description}</UiText>
             <SecureField
               label={copy.password.current}
               value={oldPassword}
@@ -295,6 +306,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
               showLabel={copy.common.showPassword}
               hideLabel={copy.common.hidePassword}
             />
+            <UiText variant="bodySmall" tone="muted" style={styles.cardCopy}>{copy.password.hint}</UiText>
             <SecureField
               label={copy.password.confirm}
               value={confirmPassword}
@@ -322,6 +334,12 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
           <TwoFactorCard email={account?.email} onCompleted={handleTwoFactorDone} />
         </>
       ) : null}
+      <ScreenSpacer />
+      <SectionCard title={copy.profile.whatChangesTitle} icon="information-outline">
+        {copy.profile.whatChanges.map((paragraph) => (
+          <UiText key={paragraph} variant="bodySmall" tone="muted" style={styles.cardCopy}>{paragraph}</UiText>
+        ))}
+      </SectionCard>
       <ScreenSpacer />
       <LanguageSetting />
       <ScreenSpacer />

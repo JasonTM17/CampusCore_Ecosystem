@@ -171,11 +171,14 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.notificationsTitle}
+        description={copy.notificationsDescription}
         icon="bell-outline"
         list={list}
         items={optimisticRows}
         keyOf={(item) => item.id}
         emptyTitle={tab === 'unread' ? copy.notificationsUnreadEmpty : copy.notificationsEmpty}
+        emptyActionLabel={copy.openDashboard}
+        onEmptyAction={() => navigation.navigate('dashboard.student')}
         flash={flash}
         header={(
           <View style={styles.header}>
@@ -206,7 +209,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
           <Card style={[styles.rowCard, !item.isRead ? { borderColor: colors.primaryFixed } : undefined]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, title, item.message, formatDateTime(item.createdAt)])}
+              accessibilityLabel={joinMeta([item.isRead ? copy.read : copy.unread, title, item.message, formatDateTime(item.createdAt)])}
               accessibilityHint={hasLink ? center.openHint : item.isRead ? undefined : copy.markRead}
               disabled={list.preview || (!hasLink && (item.isRead || busy || offline))}
               onPress={() => openItem(item)}
@@ -222,6 +225,18 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
                 <UiText variant="meta" tone="muted">{formatDateTime(item.createdAt)}</UiText>
               </View>
             </Pressable>
+            <View style={styles.rowFooter}>
+              {item.isRead ? (
+                <UiText variant="meta" tone="muted">{copy.read}</UiText>
+              ) : (
+                <Button
+                  label={copy.markRead}
+                  variant="text"
+                  disabled={busy || offline || list.preview}
+                  onPress={() => markRead(item)}
+                />
+              )}
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${copy.deleteNotification}: ${title}`}
@@ -248,6 +263,7 @@ const styles = StyleSheet.create({
   rowIcon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
   rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
   rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: minTapTarget },
+  rowFooter: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.spacing.lg },
   titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: minTapTarget },
   title: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm },
