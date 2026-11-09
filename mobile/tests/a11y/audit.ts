@@ -45,10 +45,18 @@ function hiddenOnPurpose(node: JsonNode): boolean {
 }
 
 function flatSize(node: JsonNode): { h?: number; w?: number } {
-  const flat = (StyleSheet.flatten(node.props?.style) ?? {}) as { minHeight?: number; height?: number; minWidth?: number; width?: number };
+  const flat = (StyleSheet.flatten(node.props?.style) ?? {}) as {
+    flex?: number;
+    minHeight?: number;
+    height?: number;
+    minWidth?: number;
+    width?: number;
+  };
+  const flexGrow = flat.flex === 1;
+  const minWidth = flat.minWidth ?? flat.width;
   return {
     h: flat.minHeight ?? flat.height,
-    w: flat.minWidth ?? flat.width,
+    w: flexGrow && minWidth === 0 ? undefined : minWidth,
   };
 }
 

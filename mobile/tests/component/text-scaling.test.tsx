@@ -175,7 +175,7 @@ describe('text scaling at 2.0', () => {
     expect(style.height).toBeUndefined();
   });
 
-  test('the week strip wraps and keeps 44dp day cells at 2.0', async () => {
+  test('the week strip keeps equal single-line cells without growing past 1.2x at 2.0', async () => {
     setFontScale(2);
     const days = weekDates(new Date(2026, 10, 2));
     await render(wrap(
@@ -187,14 +187,17 @@ describe('text scaling at 2.0', () => {
         onSelect={() => {}}
       />,
     ));
-    expect(StyleSheet.flatten(screen.getByTestId('week-strip').props.style).flexWrap).toBe('wrap');
+    expect(StyleSheet.flatten(screen.getByTestId('week-strip').props.style).flexWrap).toBe('nowrap');
     const cells = screen.getAllByRole('button');
     expect(cells).toHaveLength(7);
     for (const cell of cells) {
       const style = StyleSheet.flatten(cell.props.style);
+      expect(style.flex).toBe(1);
+      expect(style.minWidth).toBe(0);
       expect(style.minHeight).toBeGreaterThanOrEqual(tokens.layout.touchTarget);
       expect(style.height).toBeUndefined();
     }
-    expect(screen.getByText('T2').props.numberOfLines).toBeUndefined();
+    expect(screen.getByText('T2').props.numberOfLines).toBe(1);
+    expect(screen.getByText('T2').props.maxFontSizeMultiplier).toBe(1.2);
   });
 });
