@@ -23,12 +23,14 @@ export interface DeanOverview {
   round?: { id?: string; name?: string; status?: string };
   stats?: {
     totalGroups?: number; groupsPendingApproval?: number; groupsApproved?: number; groupsRejected?: number;
-    groupsWithoutTopic?: number; totalMembers?: number; supervisorCount?: number;
+    groupsWithoutTopic?: number; totalMembers?: number; facultyTopics?: number; supervisorCount?: number;
     byDepartment?: Array<{ departmentId?: string; departmentName?: string; groupCount?: number; topicCount?: number }>;
   };
   groups?: Array<{
     id?: string; status?: string; approvalStatus?: string; topicTitle?: string; departmentName?: string;
-    supervisors?: Array<{ displayName?: string }>; members?: unknown[];
+    rejectionReason?: string;
+    supervisors?: Array<{ lecturerId?: string; displayName?: string; employeeId?: string; departmentName?: string }>;
+    members?: Array<{ displayName?: string; studentNumber?: string; isLeader?: boolean; isExternal?: boolean }>;
   }>;
   supervisors?: Array<{ lecturerId?: string; displayName?: string; departmentName?: string; supervisedGroups?: number; supervisedTopics?: number }>;
 }
