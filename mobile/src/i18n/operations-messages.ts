@@ -56,7 +56,7 @@ const vi = {
   date: 'Ngày điểm danh',
   statusPresent: 'Có mặt',
   statusAbsent: 'Vắng',
-  statusLate: 'Trễ',
+  statusLate: 'Đi muộn',
   statusExcused: 'Có phép',
   unmarked: 'Chưa điểm danh',
   markAllPresent: 'Tất cả có mặt',
