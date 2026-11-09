@@ -263,13 +263,14 @@ export interface TrendPoint {
  * cumulative value when present so the chart ends on the official number.
  */
 export function cumulativeTrend(terms: readonly TranscriptTerm[], serverCumulative: number | null, prefix = 'T'): TrendPoint[] {
-  const chronological = [...terms].reverse();
+  const chronological = [...terms].reverse().filter((term) => typeof term.gpa === 'number');
   let points = 0;
   let credits = 0;
   return chronological.map((term, index) => {
-    const termGpa = term.gpa ?? 0;
-    points += termGpa * term.creditsAttempted;
-    credits += term.creditsAttempted;
+    const termGpa = term.gpa!;
+    const termCredits = term.creditsAttempted ?? 0;
+    points += termGpa * termCredits;
+    credits += termCredits;
     let value = credits > 0 ? points / credits : termGpa;
     if (index === chronological.length - 1 && serverCumulative !== null) value = serverCumulative;
     return { label: `${prefix}${index + 1}`, value: Math.round(value * 100) / 100 };

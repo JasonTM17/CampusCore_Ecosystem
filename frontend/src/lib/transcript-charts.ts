@@ -4,7 +4,7 @@ import { studentPagesEn, studentPagesVi } from '@/i18n/messages-student-pages';
 export interface GpaTrendPoint {
   label: string;
   fullLabel: string;
-  gpa: number;
+  gpa: number | null;
 }
 
 export interface GradeDistributionBucket {
@@ -34,7 +34,7 @@ export function buildGpaTrendPoints(
           ? semester.semesterNameVi ?? semester.semesterNameEn
           : semester.semesterNameEn ?? semester.semesterNameVi) ??
         semester.semesterName,
-      gpa: semester.gpa,
+      gpa: typeof semester.gpa === 'number' && Number.isFinite(semester.gpa) ? semester.gpa : null,
     }));
 }
 
@@ -52,10 +52,14 @@ export function buildCumulativeGpaTrendPoints(
 
   return chronological.map((semester, index) => {
     const semCredits = semester.creditsAttempted ?? 0;
-    accumulatedPoints += semester.gpa * semCredits;
-    accumulatedCredits += semCredits;
-    let cumulativeGpa =
-      accumulatedCredits > 0 ? accumulatedPoints / accumulatedCredits : semester.gpa;
+    if (typeof semester.gpa === 'number' && semCredits > 0) {
+      accumulatedPoints += semester.gpa * semCredits;
+      accumulatedCredits += semCredits;
+    }
+    let cumulativeGpa: number | null =
+      accumulatedCredits > 0
+        ? accumulatedPoints / accumulatedCredits
+        : (typeof semester.gpa === 'number' ? semester.gpa : null);
 
     if (index === chronological.length - 1 && typeof serverCumulativeGpa === 'number') {
       cumulativeGpa = serverCumulativeGpa;
@@ -68,7 +72,7 @@ export function buildCumulativeGpaTrendPoints(
           ? semester.semesterNameVi ?? semester.semesterNameEn
           : semester.semesterNameEn ?? semester.semesterNameVi) ??
         semester.semesterName,
-      gpa: Math.round(cumulativeGpa * 100) / 100,
+      gpa: cumulativeGpa != null ? Math.round(cumulativeGpa * 100) / 100 : null,
     };
   });
 }

@@ -270,6 +270,8 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     expect(screen.queryByText('3,50')).toBeNull();
+    expect(screen.queryByText('0,00')).toBeNull();
+    expect(screen.getByText('Chưa có số liệu')).toBeOnTheScreen();
   });
 
   test('a payload that is not a transcript is not rendered', async () => {
