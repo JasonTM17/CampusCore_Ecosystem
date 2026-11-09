@@ -130,7 +130,6 @@ test('a second careers withdraw during the applications refresh is ignored', asy
   mockReload.mockImplementation(() => reload.promise);
   await render(screenElement(<CareersScreen {...props} />));
 
-  await fireEvent.press(screen.getByRole('tab', { name: copy.myApplications }));
   await fireEvent.press(screen.getByRole('button', {
     name: joinMeta([application.opportunityTitle, copy.statusLabels.SUBMITTED, application.organizationName]),
   }));
@@ -166,7 +165,6 @@ test('same-frame repeated careers confirmation sends one request', async () => {
   mockPost.mockImplementation(() => request.promise);
   await render(screenElement(<CareersScreen {...props} />));
 
-  await fireEvent.press(screen.getByRole('tab', { name: copy.myApplications }));
   await fireEvent.press(screen.getByRole('button', {
     name: joinMeta([application.opportunityTitle, copy.statusLabels.SUBMITTED, application.organizationName]),
   }));

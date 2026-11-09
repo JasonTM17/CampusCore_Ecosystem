@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { tokens } from '../../src/design/tokens';
 import { ThemeProvider } from '../../src/design/theme';
 import { formatDateTime } from '../../src/i18n/locale';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'preview' as 'preview' | 'live' };
 type QueryField<T> = T | ((key: string) => T);
@@ -73,6 +74,9 @@ const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as Mob
 const props = { navigation, role: 'student' } as MobileScreenProps;
 
 const renderThemed = (element: ReactElement) => render(<ThemeProvider forcedScheme="light">{element}</ThemeProvider>);
+const renderThemedLocale = (element: ReactElement, locale: 'vi' | 'en') => render(
+  <ThemeProvider forcedScheme="light"><LocaleProvider initialLocale={locale}>{element}</LocaleProvider></ThemeProvider>,
+);
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -131,7 +135,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     await renderThemed(<CareersScreen {...props} />);
     expect(screen.getByRole('header', { name: careersMessages.vi.title })).toBeOnTheScreen();
     expect(screen.getByText(careersMessages.vi.simulatedBanner)).toBeOnTheScreen();
-    expect(screen.getByText('Thực tập sinh Backend')).toBeOnTheScreen();
+    expect(screen.getAllByText('Thực tập sinh Backend').length).toBeGreaterThan(0);
   });
 
   test('admissions shows the simulated banner and the returned application', async () => {
@@ -179,7 +183,6 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
     expect(screen.getByRole('header', { name: learningMessages.vi.title })).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
     await fireEvent.press(screen.getByRole('button', { name: new RegExp('Bài thực hành 1') }));
     expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
     expect(screen.queryByRole('button', { name: learningMessages.vi.startDraft })).toBeNull();
@@ -187,7 +190,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
 });
 
 describe('service screens in live mode', () => {
-  test('learning shows a stale section warning while keeping tabs available', async () => {
+  test('learning shows both sections while a stale section warning is visible', async () => {
     mockApi.mode = 'live';
     mockQuery.value = {
       data: (key: string) => key === 'content.learning.sections'
@@ -200,7 +203,9 @@ describe('service screens in live mode', () => {
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
     expect(screen.getByText('Showing cached sections.')).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: learningMessages.vi.assignments })).toBeOnTheScreen();
+    expect(screen.getByText(learningMessages.vi.materials)).toBeOnTheScreen();
+    expect(screen.getByText(learningMessages.vi.assignments)).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: learningMessages.vi.assignments })).toBeNull();
   });
 
   test('certificates keep partial curriculum data visible and retry only the failed source', async () => {
@@ -329,12 +334,18 @@ describe('service screens in live mode', () => {
     expect(screen.getByRole('tab', { name: /CS101 · 01/ })).toBeOnTheScreen();
   });
 
-  test('learning opens on materials and lists materials before assignments', async () => {
+  test('learning shows materials and assignments together', async () => {
     mockApi.mode = 'live';
+    const material = { id: 'material-1', sectionId: 'section-1', title: 'Lecture slides', fileName: null };
+    const assignment = {
+      id: 'assignment-1', sectionId: 'section-1', title: 'Lab report', status: 'PUBLISHED',
+      mySubmissionStatus: null, version: 1,
+    };
     mockQuery.value = {
       data: (key: string) => key === 'content.learning.sections'
         ? [{ sectionId: 'section-1', sectionNumber: '01', courseCode: 'CS101', courseName: 'Introduction' }]
-        : [],
+        : key.startsWith('content.learning.materials.') ? [material]
+          : key.startsWith('content.learning.assignments.') ? [assignment] : [],
       error: null,
       warning: null,
       isLoading: false,
@@ -342,10 +353,9 @@ describe('service screens in live mode', () => {
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
 
-    const names = screen.getAllByRole('tab').map((tab) => String(tab.props.accessibilityLabel ?? ''));
-    expect(names.indexOf(learningMessages.vi.materials)).toBeLessThan(names.indexOf(learningMessages.vi.assignments));
-    expect(screen.getByRole('tab', { name: learningMessages.vi.materials }).props.accessibilityState?.selected).toBe(true);
-    expect(screen.getByRole('tab', { name: learningMessages.vi.assignments }).props.accessibilityState?.selected).toBe(false);
+    expect(screen.getByText(material.title)).toBeOnTheScreen();
+    expect(screen.getByText(assignment.title)).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: learningMessages.vi.assignments })).toBeNull();
   });
 
   test('learning keeps the assignment lifecycle chip beside the submission chip', async () => {
@@ -364,7 +374,6 @@ describe('service screens in live mode', () => {
     };
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
-    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
 
     expect(screen.getByText(learningMessages.vi.statusLabels.CLOSED)).toBeOnTheScreen();
     expect(screen.getByText(learningMessages.vi.statusLabels.SUBMITTED)).toBeOnTheScreen();
@@ -387,7 +396,6 @@ describe('service screens in live mode', () => {
     };
     setWidth(360);
     await renderThemed(<LearningScreen {...props} />);
-    await fireEvent.press(screen.getByRole('tab', { name: learningMessages.vi.assignments }));
 
     expect(screen.getByText('Write the lab report')).toBeOnTheScreen();
     const deadline = screen.getByText(formatDateTime(assignment.deadlineAt, 'vi'));
@@ -460,7 +468,6 @@ describe('service screens in live mode', () => {
     };
     setWidth(360);
     await renderThemed(<CareersScreen {...props} />);
-    await fireEvent.press(screen.getByRole('tab', { name: careersMessages.vi.myApplications }));
 
     const pill = screen.getByText(careersMessages.vi.statusLabels.SUBMITTED).parent;
     expect(pill).toHaveStyle({ backgroundColor: tokens.colors.warningFixed });
@@ -480,5 +487,96 @@ describe('service screens in live mode', () => {
     );
 
     expect(screen.getByRole('button', { name: careersMessages.vi.withdraw })).toBeOnTheScreen();
+  });
+
+  test('careers shows the application reason inline and opens its detail from the row', async () => {
+    mockApi.mode = 'live';
+    const reason = 'Please attach a signed CV.';
+    const application = {
+      id: 'app-1', opportunityId: 'opp-1', opportunityTitle: 'Backend Developer',
+      organizationName: 'CampusCore', status: 'SUBMITTED', version: 1,
+      submittedAt: '2026-10-01T00:00:00Z', moderationReason: reason, attachments: [],
+    };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [], hasMore: false }
+        : key === 'content.careers.applications' ? [application] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+
+    expect(screen.queryByText(`${careersMessages.vi.reason}: ${reason}`)).toBeOnTheScreen();
+    expect(screen.getByText(`CampusCore · ${careersMessages.vi.submittedAt}: ${formatDateTime(application.submittedAt, 'vi')}`)).toBeOnTheScreen();
+    const row = screen.getAllByRole('button').find((button) =>
+      typeof button.props.accessibilityLabel === 'string'
+        && button.props.accessibilityLabel.startsWith(`${application.opportunityTitle} ·`),
+    );
+    expect(row).toBeDefined();
+    await fireEvent.press(row!);
+    expect(screen.getByRole('button', { name: careersMessages.vi.withdraw })).toBeOnTheScreen();
+  });
+
+  test('careers uses web page wording and page navigation when a total is returned', async () => {
+    mockApi.mode = 'live';
+    const opportunity = { id: 'opp-page', title: 'Backend Developer', status: 'PUBLISHED' };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [opportunity], total: 41, hasMore: true }
+        : key === 'content.careers.applications' ? [] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+
+    expect(screen.getByText('Hiển thị 1 đến 1 trên 41 kết quả')).toBeOnTheScreen();
+    const previous = screen.getByRole('button', { name: 'Trang trước' });
+    const next = screen.getByRole('button', { name: 'Trang sau' });
+    expect(previous).toBeDisabled();
+    expect(StyleSheet.flatten(next.props.style).minHeight).toBeGreaterThanOrEqual(48);
+    await fireEvent.press(next);
+    expect(screen.getByText('Hiển thị 21 đến 21 trên 41 kết quả')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Trang trước' })).toBeEnabled();
+  });
+
+  test('careers page controls use the web English wording', async () => {
+    mockApi.mode = 'live';
+    const opportunity = { id: 'opp-page', title: 'Backend Developer', status: 'PUBLISHED' };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [opportunity], total: 41, hasMore: true }
+        : key === 'content.careers.applications' ? [] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemedLocale(<CareersScreen {...props} />, 'en');
+
+    expect(screen.getByText('Showing 1 to 1 of 41 results')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Go to next page' })).toBeEnabled();
+  });
+
+  test('careers keeps load more when the response has no total count', async () => {
+    mockApi.mode = 'live';
+    const opportunity = { id: 'opp-page', title: 'Backend Developer', status: 'PUBLISHED' };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [opportunity], hasMore: true }
+        : key === 'content.careers.applications' ? [] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+
+    expect(screen.getByRole('button', { name: 'Tải thêm' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Trang sau' })).toBeNull();
   });
 });

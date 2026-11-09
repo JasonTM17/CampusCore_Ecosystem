@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
-import { ChoiceField, SegmentedControl } from '../../components/ui/index';
+import { ChoiceField } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileLearningAssignment, MobileLearningMaterial, MobileLearningSection } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -22,15 +22,12 @@ import {
 import { useContentQuery } from '../content/use-content-query';
 import { useListQuery } from '../content/use-list-query';
 
-type Tab = 'materials' | 'assignments';
-
 /** Student learning: pick a section, read its materials, work on assignments. Enrollment and deadlines are server-owned. */
 export function LearningScreen(_props: MobileScreenProps) {
   const { locale, formatDateTime } = useContentCopy();
   const { colors } = useTheme();
   const copy = learningMessages[locale];
   const live = apiClient.mode === 'live';
-  const [tab, setTab] = useState<Tab>('materials');
   const [picked, setPicked] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
@@ -83,25 +80,20 @@ export function LearningScreen(_props: MobileScreenProps) {
         options={sections.map((entry) => ({ value: entry.sectionId, label: `${entry.courseCode} · ${entry.sectionNumber} · ${entry.courseName}` }))}
       />
       {live && sectionsQuery.warning ? <DataNotice message={sectionsQuery.warning} /> : null}
-      <SegmentedControl
-        accessibilityLabel={copy.title}
-        value={tab}
-        onChange={(value) => setTab(value as Tab)}
-        options={[{ value: 'materials', label: copy.materials }, { value: 'assignments', label: copy.assignments }]}
-      />
+      <UiText accessibilityRole="header" variant="headlineSmall">{copy.materials}</UiText>
     </View>
   );
 
-  return tab === 'assignments' ? (
-    <ListFrame
-      title={copy.title}
-      icon="book-open-variant"
-      list={assignments}
-      keyOf={(item) => item.id}
-      emptyTitle={copy.emptyAssignments}
-      header={header}
-      renderItem={(item) => (
-        <Card>
+  const assignmentSection = (
+    <View style={styles.section}>
+      <UiText accessibilityRole="header" variant="headlineSmall">{copy.assignments}</UiText>
+      {assignments.error ? (
+        <StatePanel kind="error" title={copy.errorTitle} description={assignments.error} actionLabel={copy.retry} onAction={() => void assignments.reload()} />
+      ) : null}
+      {assignments.loading && assignments.items.length === 0 ? <StatePanel kind="loading" title={copy.loading} /> : null}
+      {!assignments.loading && !assignments.error && assignments.items.length === 0 ? <StatePanel kind="empty" title={copy.emptyAssignments} /> : null}
+      {assignments.items.map((item) => (
+        <Card key={item.id}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={joinMeta([
@@ -130,9 +122,11 @@ export function LearningScreen(_props: MobileScreenProps) {
             <ContentChevron />
           </Pressable>
         </Card>
-      )}
-    />
-  ) : (
+      ))}
+    </View>
+  );
+
+  return (
     <ListFrame
       title={copy.title}
       icon="book-open-variant"
@@ -140,6 +134,7 @@ export function LearningScreen(_props: MobileScreenProps) {
       keyOf={(item) => item.id}
       emptyTitle={copy.emptyMaterials}
       header={header}
+      footer={assignmentSection}
       renderItem={(item) => (
         <Card>
           <View style={styles.rowMain}>
@@ -160,6 +155,7 @@ export function LearningScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
+  section: { gap: tokens.spacing.sm, paddingTop: tokens.spacing.md },
   rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   deadline: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs },
