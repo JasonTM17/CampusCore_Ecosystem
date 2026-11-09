@@ -268,13 +268,13 @@ export interface StudentTranscriptSemester {
   semesterNameEn?: string;
   semesterNameVi?: string;
   records: StudentGradeRecord[];
-  gpa: number;
+  gpa: number | null;
   creditsEarned: number;
   creditsAttempted: number;
 }
 
 export interface StudentTranscriptSummary {
-  cumulativeGpa: number;
+  cumulativeGpa: number | null;
   totalCreditsEarned: number;
   totalCreditsAttempted: number;
 }
