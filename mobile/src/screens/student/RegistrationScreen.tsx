@@ -157,7 +157,10 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   }, [workspace?.enrollments, roundSemesterId]);
 
   const groups = useMemo(() => browseSections(sections, browse), [sections, browse]);
-  const roundOpen = workspace?.roundOpen ?? false;
+  const cohortIneligible = workspace?.closedReason === 'COHORT_INELIGIBLE'
+    || workspace?.eligibility?.eligible === false
+    || (workspace?.eligibilityError as { code?: string } | null)?.code === 'COHORT_INELIGIBLE';
+  const roundOpen = (workspace?.roundOpen ?? false) && !cohortIneligible;
 
   const toView = useCallback((section: BrowseSection): SectionView => {
     // The basket joins the checks: a second section must fit beside the picks.
@@ -419,15 +422,27 @@ return (
           onSubmitted={setLocalApplication}
         />
       ) : null}
-      {workspace?.eligibilityError ? (
+      {workspace?.eligibilityError && !cohortIneligible ? (
         <View style={academicStyles.card}>
           <InlineError message={academicErrorMessage(copy, workspace.eligibilityError, copy.generic)} onRetry={() => void query.reload()} retryLabel={copy.retry} />
         </View>
       ) : null}
-      {!roundOpen ? <View style={academicStyles.card}><StatePanel kind="empty" title={workspace?.closedReason ? (copy.studentErrors[workspace.closedReason] ?? copy.roundClosed) : copy.roundClosed} /></View> : null}
-      <RegistrationControls query={browse} counts={counts} resultCount={resultCount} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
-      <ScreenSpacer />
-      {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
+      {!roundOpen ? (
+        <View style={academicStyles.card}>
+          <StatePanel
+            kind="empty"
+            title={cohortIneligible ? copy.roundCohortIneligible : copy.roundClosed}
+            description={cohortIneligible ? copy.cohortIneligibleDescription : copy.roundClosedDescription}
+          />
+        </View>
+      ) : null}
+      {roundOpen ? (
+        <>
+          <RegistrationControls query={browse} counts={counts} resultCount={resultCount} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
+          <ScreenSpacer />
+        </>
+      ) : null}
+      {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} description={copy.noSectionsDescription} /> : null}
       </AcademicShell>
   );
 }
