@@ -181,7 +181,10 @@ export const recordsMessages = {
     "certificatesMandatory": "Học phần bắt buộc còn lại",
     "certificatesConduct": "Điểm rèn luyện toàn khóa",
     "certificatesOpenCurriculum": "Xem chương trình đào tạo",
-    "missing": "Chưa có"
+    "missing": "Chưa có",
+    "announcementsReadingProgress": "Tiến trình đọc bài viết",
+    "announcementsShare": "Chia sẻ",
+    "announcementsShareTitle": "Sao chép liên kết bài viết"
   },
   "en": {
     "announcementsTitle": "Campus News & Academic Notices",
@@ -364,6 +367,9 @@ export const recordsMessages = {
     "certificatesMandatory": "Mandatory courses remaining",
     "certificatesConduct": "Cumulative conduct score",
     "certificatesOpenCurriculum": "View curriculum",
-    "missing": "Not on record"
+    "missing": "Not on record",
+    "announcementsReadingProgress": "Reading progress",
+    "announcementsShare": "Share",
+    "announcementsShareTitle": "Copy notice link"
   }
 };

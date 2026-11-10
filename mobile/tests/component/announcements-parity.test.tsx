@@ -240,6 +240,8 @@ describe('announcements page parity', () => {
     expect(screen.getByText(localeCopy.announcementsDispatchSheet.ministryName)).toBeOnTheScreen();
     expect(screen.getByText(`V/v ${'Course registration opens'}`)).toBeOnTheScreen();
     expect(screen.getByText(localeCopy.announcementsDispatchClose)).toBeOnTheScreen();
+    expect(screen.getByLabelText(localeCopy.announcementsReadingProgress)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: localeCopy.announcementsShare })).toBeOnTheScreen();
     expect(screen.getByText('Course registration opens nội dung')).toBeOnTheScreen();
   });
 
