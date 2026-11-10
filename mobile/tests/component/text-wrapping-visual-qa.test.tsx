@@ -39,6 +39,7 @@ jest.mock('../../src/screens/content/use-paged-list', () => ({
     reload: jest.fn(async () => {}),
   }),
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
 const mockQueries: Record<string, { data?: unknown }> = {
   'academic.grades': {
     data: [{ id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],

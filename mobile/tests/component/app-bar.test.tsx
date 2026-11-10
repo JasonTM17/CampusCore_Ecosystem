@@ -6,6 +6,8 @@ const mockApi = { mode: 'preview' as 'preview' | 'live' };
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode }; },
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ data: undefined }) }));
 
 import { AppBar } from '../../src/components/AppBar';
 import { ThemeProvider } from '../../src/design/theme';
