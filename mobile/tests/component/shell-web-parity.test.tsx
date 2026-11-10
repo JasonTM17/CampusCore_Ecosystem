@@ -7,6 +7,8 @@ const mockProfile = { firstName: 'Đức Minh', lastName: 'Nguyễn', email: 'mi
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'live' },
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ data: undefined }) }));
 
 import { AppBar } from '../../src/components/AppBar';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
