@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { campusApi } from '../../api/client';
@@ -41,7 +41,8 @@ import {
   slotText,
   useOpsQuery,
 } from './lecturer-ui';
-import { useOpsCopy } from './shared/helpers';
+import { openPortalPath, useOpsCopy } from './shared/helpers';
+import { configuredPortalUrl } from './shared/portal-url';
 import { previewGrading, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
@@ -83,6 +84,18 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const reload = () => { void schedule.reload(); void grading.reload(); void announcements.reload(); };
   const title = firstName ? fillCopy(copy.dashboardTitleNamed, { name: firstName }) : copy.dashboardTitle;
 
+  const [announceNote, setAnnounceNote] = useState<string | null>(null);
+  const openAnnouncements = () => {
+    if (!configuredPortalUrl()) {
+      setAnnounceNote(copy.webUnavailable);
+      return;
+    }
+    setAnnounceNote(null);
+    void openPortalPath('/dashboard/lecturer/announcements').then((opened) => {
+      if (!opened) setAnnounceNote(copy.webOpenFailed);
+    });
+  };
+
   const heroTitle = todayClasses.length > 0
     ? fillCopy(countForm(todayClasses.length, copy.todayClassesCountOne, copy.todayClassesCount), { n: formatNumber(todayClasses.length) })
     : copy.noClassToday;
@@ -103,19 +116,20 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       <StatStrip
         style={styles.stats}
         items={[
-          { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(metrics.sections) },
-          { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(metrics.students) },
-          { icon: 'file-document-edit-outline', label: copy.metricReadyToPublish, value: formatNumber(metrics.readyToPublish) },
-          { icon: 'bullhorn-outline', label: copy.metricFreshNotices, value: formatNumber(metrics.freshNotices) },
+          { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(metrics.sections), detail: copy.metricDetailSections },
+          { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(metrics.students), detail: copy.metricDetailStudents },
+          { icon: 'file-document-edit-outline', label: copy.metricReadyToPublish, value: formatNumber(metrics.readyToPublish), detail: copy.metricDetailReady },
+          { icon: 'bullhorn-outline', label: copy.metricFreshNotices, value: formatNumber(metrics.freshNotices), detail: copy.metricDetailNotices },
         ]}
       />
 
       <ScreenSpacer />
-      <SectionCard icon="briefcase-outline" title={copy.shortcutsTitle}>
+      <SectionCard icon="briefcase-outline" title={copy.quickActionsTitle}>
+        <UiText variant="bodySmall" tone="muted">{copy.quickActionsDescription}</UiText>
         <ListRow
           icon="calendar-month-outline"
           title={copy.scheduleTitle}
-          subtitle={fillCopy(countForm(metrics.students, copy.studentsCountOne, copy.studentsCount), { n: formatNumber(metrics.students) })}
+          subtitle={copy.scheduleQuickDescription}
           onPress={() => navigation.navigate('lecturer.schedule')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -123,10 +137,16 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="file-document-edit-outline"
           title={copy.gradingTitle}
-          subtitle={pending > 0 ? fillCopy(countForm(pending, copy.scoresPendingOne, copy.scoresPending), { n: formatNumber(pending) }) : copy.allCaughtUp}
+          subtitle={copy.gradingQuickDescription}
           onPress={() => navigation.navigate('lecturer.grading')}
           trailing={pending > 0 ? <StatusPill label={formatNumber(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
+        <Divider />
+        <View style={styles.stack}>
+          <UiText variant="bodySmall" tone="muted">{copy.announcementsQuickDescription}</UiText>
+          <Button icon="bullhorn-outline" label={copy.announcementsAction} variant="secondary" onPress={openAnnouncements} />
+          {announceNote ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{announceNote}</UiText> : null}
+        </View>
         <Divider />
         <ListRow
           icon="account-check-outline"
@@ -138,8 +158,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
 
       <ScreenSpacer />
       <SectionCard icon="file-document-edit-outline" title={copy.gradingQueueTitle}>
+        <UiText variant="bodySmall" tone="muted">{copy.gradingQueueDescription}</UiText>
         {gradingSections.length === 0 ? (
-          <StatePanel kind="empty" title={copy.gradingQueueEmptyTitle} />
+          <StatePanel kind="empty" title={copy.gradingQueueEmptyTitle} description={copy.gradingQueueEmptyDescription} />
         ) : (
           gradingSections.slice(0, 4).map((section, index) => (
             <View key={section.sectionId}>
@@ -162,8 +183,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
 
       <ScreenSpacer />
       <SectionCard icon="calendar-month-outline" title={copy.sectionsInScopeTitle}>
+        <UiText variant="bodySmall" tone="muted">{copy.sectionsInScopeDescription}</UiText>
         {sections.length === 0 ? (
-          <StatePanel kind="empty" title={copy.sectionsInScopeEmptyTitle} />
+          <StatePanel kind="empty" title={copy.sectionsInScopeEmptyTitle} description={copy.sectionsInScopeEmptyDescription} />
         ) : (
           sections.slice(0, 5).map((section, index) => (
             <View key={section.sectionId}>
@@ -183,8 +205,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
 
       <ScreenSpacer />
       <SectionCard icon="bullhorn-outline" title={copy.announcementsTitle}>
+        <UiText variant="bodySmall" tone="muted">{copy.announcementsDescription}</UiText>
         {announcementItems.length === 0 ? (
-          <StatePanel kind="empty" title={copy.announcementsEmptyTitle} />
+          <StatePanel kind="empty" title={copy.announcementsEmptyTitle} description={copy.announcementsEmptyDescription} />
         ) : (
           announcementItems.map((item, index) => (
             <View key={item.id}>

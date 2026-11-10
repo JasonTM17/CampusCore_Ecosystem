@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import type { LecturerScheduleEntry } from '../../api/client';
-import { Button, Card, IconChip, SegmentedControl, Sheet, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, SegmentedControl, Sheet, StatePanel, StatStrip, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { useTheme } from '../../design/theme';
@@ -14,16 +14,20 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { DAY_ORDER, civilKey, weekDates, weekStartOf } from '../academic/academic-model';
 import { WeekStrip } from '../academic/WeekStrip';
 import { lecturerApi } from './lecturer-api';
+import { LecturerWeekGrid } from './LecturerWeekGrid';
 import {
   courseTitle,
   dayNumberOf,
   departmentTitle,
   filterSections,
   normalizeDay,
+  scheduleLoadStats,
+  teachingGrid,
   termOptions,
   windowOf,
 } from './lecturer-model';
 import {
+  HandoffButton,
   OpsShell,
   isOpsPreview,
   sectionLabel,
@@ -37,7 +41,7 @@ import { useOpsStyles } from './shared/styles';
 
 const PAGE_SIZE = 10;
 
-type View_ = 'list' | 'day';
+type View_ = 'grid' | 'day' | 'list';
 
 /** Sections by term with search; the endpoint returns the whole teaching load, so rows are windowed on the device. */
 export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
@@ -52,7 +56,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
   const [term, setTerm] = useState('');
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
-  const [view, setView] = useState<View_>('list');
+  const [view, setView] = useState<View_>('grid');
   const [dayIndex, setDayIndex] = useState(() => Math.max(0, DAY_ORDER.indexOf(dayNumberOf(new Date()))));
   const [detail, setDetail] = useState<LecturerScheduleEntry | null>(null);
 
@@ -70,6 +74,9 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
       schedules: (section.schedules ?? []).filter((slot) => normalizeDay(slot.dayOfWeek) === selectedDay),
     })), [view, matches, selectedDay]);
   const { rows, hasMore } = windowOf(dayMatches, pages, PAGE_SIZE);
+  const listed = view === 'grid' ? [] : rows;
+  const stats = scheduleLoadStats(matches);
+  const grid = teachingGrid(matches, copy.roomPending);
 
   return (
     <>
@@ -85,7 +92,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
         refreshing={!preview && pull.refreshing}
 
         list={{
-          data: rows,
+          data: listed,
           keyExtractor: (item, index) => String(item.sectionId),
           numColumns,
           columnWrapperStyle: numColumns > 1 ? styles.columns : undefined,
@@ -148,7 +155,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
             </Card>
           ),
           footer: <>{sections.length === 0 ? null : (<View>
-            {hasMore ? (
+            {view !== 'grid' && hasMore ? (
               <Button
                 label={copy.loadMore}
                 variant="secondary"
@@ -160,8 +167,17 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
         }}
       >
         {sections.length === 0 ? (
-          <StatePanel kind="empty" title={copy.emptySchedule} />
-        ) : (<View>
+          <StatePanel kind="empty" title={copy.scheduleEmptyTitle} description={copy.scheduleEmptyDescription} />
+        ) : (<View style={styles.stack}>
+            <StatStrip
+              style={styles.stats}
+              items={[
+                { icon: 'book-open-page-variant-outline', label: copy.totalSections, value: formatNumber(stats.sections) },
+                { icon: 'clock-outline', label: copy.totalSlots, value: formatNumber(stats.slots) },
+                { icon: 'account-group-outline', label: copy.totalStudents, value: formatNumber(stats.students) },
+              ]}
+            />
+            <HandoffButton label={copy.printSchedule} path="/dashboard/lecturer/schedule" />
             {terms.length > 1 ? (
               <ChoiceField
                 label={copy.semester}
@@ -181,11 +197,33 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
             <View style={styles.viewToggle}>
               <SegmentedControl
                 accessibilityLabel={copy.viewModeLabel}
-                options={[{ value: 'list', label: copy.viewList }, { value: 'day', label: copy.viewDay }]}
+                options={[
+                  { value: 'grid', label: copy.viewGrid },
+                  { value: 'day', label: copy.viewDay },
+                  { value: 'list', label: copy.viewList },
+                ]}
                 value={view}
                 onChange={(value) => { setView(value as View_); setPages(1); }}
               />
             </View>
+            {view === 'list' ? (
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.assignedSectionsList}</UiText>
+            ) : null}
+            {view === 'grid' && matches.length > 0 ? (
+              grid.slots.length === 0 ? (
+                <StatePanel kind="empty" title={copy.noTeachingSlot} description={copy.noTeachingSlotHint} />
+              ) : (
+                <LecturerWeekGrid
+                  sections={matches}
+                  copy={copy}
+                  todayNumber={todayNumber}
+                  onSelect={(sectionId) => {
+                    const section = matches.find((item) => item.sectionId === sectionId);
+                    if (section) setDetail(section);
+                  }}
+                />
+              )
+            ) : null}
             {view === 'day' ? (
               <View>
                 <WeekStrip
@@ -196,7 +234,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
                   todayLabel={copy.todayChip}
                   onSelect={(index) => { setDayIndex(index); setPages(1); }}
                 />
-                {matches.length > 0 && dayMatches.length === 0 ? <StatePanel kind="empty" title={copy.noTeachingSlot} /> : null}
+                {matches.length > 0 && dayMatches.length === 0 ? <StatePanel kind="empty" title={copy.noTeachingSlot} description={copy.noTeachingSlotHint} /> : null}
               </View>
             ) : null}
             {matches.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
