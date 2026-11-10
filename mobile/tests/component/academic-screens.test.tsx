@@ -272,7 +272,7 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />));
 
     expect(screen.getAllByText('P').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Đã công bố')).toBeNull();
+    expect(screen.getByText('Đã công bố')).toBeOnTheScreen();
   });
 
   test('an explicit null transcript GPA stays null and renders the unavailable marker', async () => {
@@ -407,6 +407,35 @@ describe('transcript', () => {
     expect(screen.getByText('Điểm cuối kỳ (ĐCK - 50%)')).toBeOnTheScreen();
     expect(screen.getByText('7,4 / 10')).toBeOnTheScreen();
     expect(screen.getByText('8,6 / 10')).toBeOnTheScreen();
+  });
+
+  test('transcript rows show the section, points and web status pills', async () => {
+    mockQueries['academic.transcript'] = {
+      data: {
+        summary: { cumulativeGpa: 3, totalCreditsEarned: 3, totalCreditsAttempted: 3 },
+        semesters: [{
+          semesterId: 't1', semesterName: 'HK1', gpa: 3, creditsEarned: 3, creditsAttempted: 3,
+          records: [{ id: 'r1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', sectionCode: '02', gradePoint: 3 }],
+        }],
+      },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+    expect(screen.getByText('02')).toBeOnTheScreen();
+    expect(screen.getByText(/Điểm hệ: 3/)).toBeOnTheScreen();
+    const row = screen.getByLabelText(/CS101 Nhập môn lập trình/);
+    expect(row.props.accessibilityLabel).toContain('Đã hoàn tất');
+    expect(row.props.accessibilityLabel).toContain('Đã công bố');
+  });
+
+  test('transcript empty state explains the gap and opens grades', async () => {
+    mockQueries['academic.transcript'] = {
+      data: { summary: { cumulativeGpa: null, totalCreditsEarned: 0, totalCreditsAttempted: 0 }, semesters: [] },
+    };
+    await render(wrap(<TranscriptScreen {...props} />));
+    expect(screen.getByText('Chưa có hồ sơ bảng điểm')).toBeOnTheScreen();
+    expect(screen.getByText('Các môn học hoàn tất và điểm đã công bố sẽ được tích lũy tại đây khi có kết quả học tập.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Mở điểm số' }));
+    expect(navigate).toHaveBeenCalledWith('grades');
   });
 });
 
@@ -733,6 +762,24 @@ describe('grades', () => {
     expect(label).toContain('7,2');
     expect(label).toContain('8,6');
   });
+
+  test('grade rows show the section, lecturer and web status pill', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1', sectionCode: '01', lecturerName: 'ThS. An' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('01')).toBeOnTheScreen();
+    expect(screen.getByText('Giảng viên: ThS. An')).toBeOnTheScreen();
+    expect(screen.getByText('Đã công bố')).toBeOnTheScreen();
+  });
+
+  test('grade rows fall back to the web pending-assignment copy', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByText('Giảng viên: Chờ phân công')).toBeOnTheScreen();
+  });
 });
 
 describe('schedule and attendance', () => {
@@ -955,6 +1002,30 @@ describe('schedule and attendance', () => {
     expect(screen.getByText('Chưa tải được dữ liệu điểm danh')).toBeOnTheScreen();
     expect(screen.getByText('Không tải được dữ liệu điểm danh. Vui lòng kiểm tra kết nối và thử lại.')).toBeOnTheScreen();
     expect(screen.queryByText('Không thể tải dữ liệu')).toBeNull();
+  });
+
+  test('attendance recent log caps at ten rows and shows the web count', async () => {
+    const records = Array.from({ length: 12 }, (_, index) => ({
+      id: `a${index}`,
+      date: `2026-09-${String(index + 1).padStart(2, '0')}`,
+      status: 'PRESENT',
+      sectionId: 's1',
+      section: { sectionNumber: '01', course: { code: 'CS101' } },
+    }));
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 12, present: 12, absent: 0, late: 0, excused: 0, attendanceRate: 100 }] };
+    mockQueries['academic.attendance.records'] = { data: records };
+    await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('Hiển thị 10 / 12 phiên đã ghi')).toBeOnTheScreen();
+    expect(screen.getByLabelText(/12\/09\/2026.*Không có ghi chú/)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/01\/09\/2026/)).toBeNull();
+  });
+
+  test('attendance records show the no-note fallback and the class label', async () => {
+    mockQueries['academic.attendance.summary'] = { data: [{ sectionId: 's1', courseCode: 'CS101', courseName: 'Nhập môn', total: 1, present: 1, absent: 0, late: 0, excused: 0, attendanceRate: 100 }] };
+    mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'PRESENT', sectionId: 's1' }] };
+    await render(wrap(<AttendanceScreen {...props} />));
+    expect(screen.getByText('Không có ghi chú')).toBeOnTheScreen();
+    expect(screen.getByText('Lớp')).toBeOnTheScreen();
   });
 });
 
