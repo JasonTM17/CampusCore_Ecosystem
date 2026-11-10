@@ -31,7 +31,11 @@ import { classifyError, errorMessage } from '../account/account-errors';
 import { setExitNotice, type ExitNotice } from '../account/exit-notice';
 import { checkPasswordPolicy } from '../account/password-policy';
 import type { TwoFactorAction } from '../account/two-factor-flow';
+import { ProfilePhotoControls } from '../account/ProfilePhotoControls';
+import { profileAvatarDirty } from '../account/profile-avatar-model';
+import { readPickedProfileAvatar } from '../account/profile-avatar-io';
 import { useAccountCopy } from '../account/use-account-copy';
+import { getFileAdapter } from '../../files/file-adapter';
 import { parseConduct } from '../content/records-model';
 import { useStudentStyles } from './shared/styles';
 
@@ -102,6 +106,11 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const savingPasswordRef = useRef(false);
   const [confirmPasswordChange, setConfirmPasswordChange] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const avatarPreviewRef = useRef(avatarPreview);
+  avatarPreviewRef.current = avatarPreview;
+  const seededAvatarRef = useRef<string | null>(null);
+  const photoPickFlight = useRef(false);
 
   const updatePhone = (value: string) => {
     phoneRef.current = value;
@@ -135,6 +144,15 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     }
   }, [account?.id, account?.phone, account?.address]);
 
+  useEffect(() => {
+    const saved = account?.avatar ?? '';
+    if (seededAvatarRef.current === null || seededAvatarRef.current !== saved || avatarPreviewRef.current === seededAvatarRef.current) {
+      seededAvatarRef.current = saved;
+      avatarPreviewRef.current = saved;
+      setAvatarPreview(saved);
+    }
+  }, [account?.avatar, account?.id]);
+
   const endSession = useCallback(
     (notice: ExitNotice) => {
       if (signOutFlight.current) return;
@@ -149,6 +167,37 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     (action: TwoFactorAction) => endSession(action === 'enable' ? 'twoFactorEnabled' : 'twoFactorDisabled'),
     [endSession],
   );
+
+  const pickProfilePhoto = async () => {
+    if (photoPickFlight.current || !isLive) return;
+    const adapter = getFileAdapter();
+    if (!adapter.capability('pick').available) return;
+    photoPickFlight.current = true;
+    let release: (() => void) | undefined;
+    try {
+      const result = await adapter.pick({
+        mimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+      });
+      if (result.status === 'cancelled') return;
+      if (result.status !== 'picked') return;
+      release = result.file.release;
+      const read = await readPickedProfileAvatar(result.file);
+      if (!read.ok) {
+        setProfileMessage({ text: copy.profile.photoUploadFailed, kind: 'error' });
+        return;
+      }
+      setProfileMessage(null);
+      setAvatarPreview(read.dataUrl);
+    } finally {
+      release?.();
+      photoPickFlight.current = false;
+    }
+  };
+
+  const removeProfilePhoto = () => {
+    setProfileMessage(null);
+    setAvatarPreview('');
+  };
 
   const saveProfile = async () => {
     if (profileSaveFlight.current) return;
@@ -166,7 +215,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     profileSaveFlight.current = true;
     setIsSavingProfile(true);
     try {
-      await campusApi.updateProfile({ phone: submittedPhone, address: submittedAddress });
+      await campusApi.updateProfile({ phone: submittedPhone, address: submittedAddress, avatar: avatarPreview });
       if (phoneRef.current === phone) {
         seededPhoneRef.current = submittedPhone;
         updatePhone(submittedPhone);
@@ -233,6 +282,9 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     : [account?.lastName, account?.firstName].filter(Boolean).join(' ') || roleLabel;
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
   const studentCode = role === 'student' ? officeStudentCode(parseConduct(conduct.data)?.studentCode) : undefined;
+  const photoPickAvailable = isLive && getFileAdapter().capability('pick').available;
+  const avatarDirty = isLive && profileAvatarDirty(avatarPreview, account?.avatar);
+  const heroImageUrl = isLive ? avatarPreview || undefined : undefined;
   const displayId = !isLive
     ? '2022SE0417'
     : role === 'lecturer'
@@ -273,13 +325,24 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       <Card style={[styles.profileHero, { backgroundColor: chrome.surface, borderColor: colors.outlineVariant }]}>
         <IdentityHeader
           chips={[isLive ? roleLabel : `${roleLabel} · ${copy.profile.preview}`]}
-          imageUrl={isLive ? account?.avatar : undefined}
+          imageUrl={heroImageUrl}
           name={displayName}
           onBrand
           role={role === 'admin' ? 'admin' : role === 'lecturer' ? 'lecturer' : 'student'}
           roleLabel={roleLabel}
           subtitle={displayId}
         />
+        {isLive ? (
+          <ProfilePhotoControls
+            copy={copy.profile}
+            disabled={isSavingProfile}
+            onPick={() => void pickProfilePhoto()}
+            onRemove={removeProfilePhoto}
+            pickAvailable={photoPickAvailable}
+            showRemove={!!avatarPreview}
+            unsaved={avatarDirty}
+          />
+        ) : null}
       </Card>
       <ScreenSpacer />
       <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
