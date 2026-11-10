@@ -180,3 +180,62 @@ test('conduct screen with null average and no terms shows empty state', async ()
   await renderThemed('vi', <ConductScreen {...props} />);
   expect(screen.getByText('Chưa có điểm rèn luyện')).toBeOnTheScreen();
 });
+
+test('conduct shows the web history table with rank and status', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    cumulativeAverageScore: 85,
+    history: [
+      { id: 't1', semesterName: 'Học kỳ 1 năm học 2024-2025', totalScore: 82, classification: 'GOOD', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] },
+      { id: 't2', semesterName: 'Học kỳ 2 năm học 2025-2026', totalScore: 60, classification: 'TRUNG_BINH', classificationVi: 'Trung bình', status: 'PENDING', criteria: [], activities: [] },
+    ],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  expect(screen.getByText('Điểm tổng')).toBeOnTheScreen();
+  expect(screen.getByText('Xếp loại')).toBeOnTheScreen();
+  expect(screen.getByText('Chính thức')).toBeOnTheScreen();
+  expect(screen.getByText('Chờ phê duyệt')).toBeOnTheScreen();
+});
+
+test('conduct criteria show the web index and earned header', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    history: [{
+      id: 'term-1', semesterName: 'Fall 2026', totalScore: 80, classification: 'TOT', classificationVi: 'Tốt', status: 'APPROVED',
+      criteria: [{ code: 'CRITERIA_1', nameVi: 'Tiêu chí 1', nameEn: 'Criterion 1', score: 40, maxScore: 50 }],
+      activities: [],
+    }],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  expect(screen.getByText('Tổng điểm đạt: 80 / 100')).toBeOnTheScreen();
+  expect(screen.getByText('1')).toBeOnTheScreen();
+});
+
+test('conduct term options carry the web score and rank suffix', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    history: [
+      { id: 't1', semesterName: 'Học kỳ 1 năm học 2024-2025', totalScore: 82, classification: 'GOOD', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] },
+    ],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  await fireEvent.press(screen.getByRole('button', { name: /Học kỳ: / }));
+  expect(screen.getByRole('radio', { name: 'Học kỳ 1 năm học 2024-2025 (82 điểm - Tốt)' })).toBeOnTheScreen();
+});
+
+test('conduct activity rows show the web verification badge', async () => {
+  setRecord();
+  await renderThemed('vi', <ConductScreen {...props} />);
+  expect(screen.getByLabelText(/Volunteer day.*Đã duyệt/)).toBeOnTheScreen();
+});
+
+test('conduct activities empty state uses the web copy', async () => {
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    cumulativeAverageScore: 80,
+    history: [{ id: 'term-1', semesterName: 'Fall 2026', totalScore: 80, classification: 'TOT', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] }],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  expect(screen.getByText('Chưa có hoạt động rèn luyện trong học kỳ này')).toBeOnTheScreen();
+  expect(screen.getByText('Hoạt động phong trào đã được duyệt của học kỳ đang chọn sẽ xuất hiện tại đây sau khi được ghi nhận.')).toBeOnTheScreen();
+});

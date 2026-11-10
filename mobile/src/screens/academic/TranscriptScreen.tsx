@@ -19,6 +19,7 @@ import {
   isPublishedGrade,
   letterTone,
   parseTranscript,
+  resolveGradePoint,
   transcriptCourseCounts,
   type TranscriptRecord,
   type TranscriptTerm,
@@ -29,7 +30,9 @@ import {
   GradeScale,
   TermField,
   academicStyles,
+  enrollmentStatusTone,
   isPreviewMode,
+  openRoute,
   useAcademicCopy,
   useAcademicQuery,
   useGpaFormat,
@@ -71,13 +74,15 @@ function TermCard({ entry, onSelect }: { entry: GroupedRow<TranscriptTerm, Trans
             ? record.letterGrade
             : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
         const creditsLabel = fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: formatNumber(record.credits) });
-        const appealedLabel = published && record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
+        const point = resolveGradePoint(record);
+        const enrollmentLabel = copy.status[record.enrollmentStatus ?? 'UNKNOWN'] ?? copy.status.UNKNOWN;
+        const gradeStatusLabel = copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
         const openLabel = fillCopy(copy.openBreakdown, { courseCode: record.courseCode, courseName: record.courseName });
         return (
           <GroupCard edge={entry.last ? 'end' : 'middle'} style={academicStyles.card}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${openLabel}, ${record.courseName}, ${creditsLabel}, ${result}${appealedLabel}`}
+            accessibilityLabel={`${openLabel}, ${record.courseName}, ${creditsLabel}, ${result}, ${enrollmentLabel}, ${gradeStatusLabel}`}
             onPress={() => onSelect(record, term.name)}
             style={styles.rowPress}
           >
@@ -86,19 +91,20 @@ function TermCard({ entry, onSelect }: { entry: GroupedRow<TranscriptTerm, Trans
               <View style={academicStyles.rowCopy}>
                 <StatusPill label={record.courseCode} tone="primary" />
                 <UiText variant="bodyMedium">{record.courseName}</UiText>
+                {record.sectionCode ? <UiText variant="meta" tone="muted">{record.sectionCode}</UiText> : null}
                 <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
+                {point !== null ? <UiText variant="meta" tone="muted">{`${copy.transcriptPoints}: ${formatNumber(point, { maximumFractionDigits: 1 })}`}</UiText> : null}
               </View>
-              {published && record.finalGrade != null ? (
-                <View style={styles.gradeResult}>
+              <View style={styles.gradeResult}>
+                {published && record.finalGrade != null ? (
                   <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
+                ) : null}
+                {published ? (
                   <StatusPill label={record.letterGrade ?? '—'} tone={letterTone(record.letterGrade)} />
-                  {record.gradeStatus === 'APPEALED' ? (
-                    <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
-                  ) : null}
-                </View>
-              ) : published && record.letterGrade
-                ? <StatusPill label={record.letterGrade} tone={letterTone(record.letterGrade)} />
-                : <StatusPill label={result} tone="warning" />}
+                ) : null}
+                <StatusPill label={enrollmentLabel} tone={enrollmentStatusTone(record.enrollmentStatus ?? '')} />
+                <StatusPill label={gradeStatusLabel} tone={record.gradeStatus === 'APPEALED' ? 'warning' : 'neutral'} />
+              </View>
             </View>
           </Pressable>
           </GroupCard>
@@ -106,7 +112,7 @@ function TermCard({ entry, onSelect }: { entry: GroupedRow<TranscriptTerm, Trans
 }
 
 /** Cumulative transcript only; current-term grades live on the grades screen. */
-export function TranscriptScreen(_props: MobileScreenProps) {
+export function TranscriptScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const { formatNumber } = useLocale();
   const gpa = useGpaFormat();
@@ -163,7 +169,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       }}
     >
       {!model || model.terms.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyTranscript} />
+        <StatePanel kind="empty" title={copy.emptyTranscript} description={copy.emptyTranscriptDescription} actionLabel={copy.openGrades} onAction={() => openRoute(navigation, 'grades')} />
       ) : (<View>
           <View style={academicStyles.metrics}>
             <MetricCard icon="chart-donut" label={copy.cumulativeGpa} value={gpa(model.cumulativeGpa)} style={academicStyles.metric} />

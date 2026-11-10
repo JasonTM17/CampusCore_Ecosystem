@@ -22,13 +22,16 @@ export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
   return Math.round(rows.reduce((sum, row) => sum + row.present, 0) * 100 / total);
 }
 
+/** The web recent-session log caps at ten rows and says how many are shown. */
+const RECENT_SESSIONS_CAP = 10;
+
 const tone = (status: string) => status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : status === 'EXCUSED' ? 'info' : status === 'LATE' ? 'warning' : 'neutral';
 const rateTone = (rate: number) => (rate >= 90 ? 'success' : rate >= 70 ? 'warning' : 'error');
 
-const recordSectionLabel = (record: AttendanceRecordRow) => {
+const recordSectionLabel = (record: AttendanceRecordRow, fallback: string) => {
   const code = record.section?.course?.code ?? '';
   const sectionNumber = record.section?.sectionNumber ?? '';
-  return [code, sectionNumber].filter(Boolean).join(' · ');
+  return [code, sectionNumber].filter(Boolean).join(' · ') || fallback;
 };
 
 export function AttendanceScreen({ navigation }: MobileScreenProps) {
@@ -54,6 +57,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const visibleRecords = records
     .filter((record) => !sectionId || record.sectionId === sectionId)
     .sort((left, right) => right.date.localeCompare(left.date));
+  const recentRecords = visibleRecords.slice(0, RECENT_SESSIONS_CAP);
   const sum = (key: 'present' | 'absent' | 'late' | 'excused') => rows.reduce((total, row) => total + row[key], 0);
   const recorded = rows.reduce((total, row) => total + row.total, 0);
   const overall = overallRate(rows);
@@ -100,25 +104,28 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
             </Card>
           ))),
 { key: "static-1", render: () => <>{summary.length === 0 ? null : (<><View>
-          <SectionHeading title={copy.recordsTitle} />
+          <SectionHeading title={copy.recordsTitle} eyebrow={copy.attendanceRecentEyebrow} />
+          {visibleRecords.length > RECENT_SESSIONS_CAP ? (
+            <UiText variant="meta" tone="muted">{fillCopy(copy.attendanceShowingRecent, { count: RECENT_SESSIONS_CAP, total: visibleRecords.length })}</UiText>
+          ) : null}
           {recordsWarning ? <DataNotice message={recordsWarning} /> : null}
-          {recordsLoading ? <StatePanel kind="loading" title={copy.loading} /> : null}
+          {recordsLoading ? <StatePanel kind="loading" title={copy.attendanceLoading} /> : null}
           {recordsError ? (
             <InlineError message={recordsError} onRetry={() => void recordsQuery.reload()} retryLabel={copy.retry} />
           ) : null}
           {!recordsLoading && !recordsError && visibleRecords.length === 0 ? (
             <StatePanel kind="empty" title={copy.noRecords} />
           ) : null}</View></>)}</> },
-...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), null, (record, index) => {
-                const sectionLabel = recordSectionLabel(record);
+...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", recentRecords, (item, index) => String(item.id ?? index), null, (record, index) => {
+                const sectionLabel = recordSectionLabel(record, copy.attendanceCardSection);
                 return (
-                <View key={record.id} accessible accessibilityLabel={[formatDate(record.date), sectionLabel, record.notes, copy.attendanceStatus[record.status] ?? record.status].filter(Boolean).join(', ')}>
+                <View key={record.id} accessible accessibilityLabel={[formatDate(record.date), sectionLabel, record.notes ?? copy.attendanceNoNotes, copy.attendanceStatus[record.status] ?? record.status].filter(Boolean).join(', ')}>
                   {index > 0 ? <Divider /> : null}
                   <View style={academicStyles.row}>
                     <View style={academicStyles.rowCopy}>
                       <UiText variant="bodyMedium">{formatDate(record.date)}</UiText>
                       {sectionLabel ? <UiText variant="bodySmall" tone="muted">{sectionLabel}</UiText> : null}
-                      {record.notes ? <UiText variant="meta" tone="muted">{record.notes}</UiText> : null}
+                      <UiText variant="meta" tone="muted">{record.notes ?? copy.attendanceNoNotes}</UiText>
                     </View>
                     <StatusPill label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
                   </View>
@@ -150,7 +157,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
             <MetricCard icon="check-circle-outline" label={copy.presentSessions} value={formatNumber(sum('present'))} style={academicStyles.metric} />
             <MetricCard icon="alert-circle-outline" label={copy.absentLate} value={formatNumber(sum('absent') + sum('late'))} style={academicStyles.metric} />
           </View>
-          <SectionHeading title={copy.byCourse} />
+          <SectionHeading title={copy.byCourse} eyebrow={copy.attendanceByCourseEyebrow} />
           </View></>)}</AcademicShell>
   );
 }

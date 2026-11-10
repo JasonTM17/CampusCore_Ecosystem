@@ -81,9 +81,10 @@ export function ConductScreen(_props: MobileScreenProps) {
                 {term.evaluatorName ? <UiText variant="bodySmall" tone="muted">{`${copy.conductEvaluator}: ${term.evaluatorName}`}</UiText> : null}
               </View>
               <SectionHeading title={copy.conductCriteria} />
+              <UiText variant="bodySmall" tone="muted">{`${copy.conductEarned}: ${formatNumber(term.totalScore)} / 100`}</UiText>
               {term.criteria.length === 0 ? (
                 <UiText variant="bodySmall" tone="muted">{copy.conductNoCriteria}</UiText>
-              ) : term.criteria.map((criterion) => {
+              ) : term.criteria.map((criterion, index) => {
                 const name = locale === 'vi' ? criterion.nameVi ?? criterion.code : criterion.nameEn ?? criterion.nameVi ?? criterion.code;
                 const description = criterion.description ?? copy.conductCriteriaDescriptions[criterion.code] ?? '—';
                 const ratio = criterion.maxScore > 0 ? Math.round((criterion.score / criterion.maxScore) * 100) : 0;
@@ -91,11 +92,16 @@ export function ConductScreen(_props: MobileScreenProps) {
                   <View
                     key={criterion.code}
                     accessible
-                    accessibilityLabel={`${name}, ${formatNumber(criterion.score)} / ${formatNumber(criterion.maxScore)} ${copy.conductScoreUnit}, ${copy.conductReached} ${ratio}%`}
+                    accessibilityLabel={`${index + 1}. ${name}, ${formatNumber(criterion.score)} / ${formatNumber(criterion.maxScore)} ${copy.conductScoreUnit}, ${copy.conductReached} ${ratio}%`}
                     style={styles.criterion}
                   >
-                    <UiText variant="bodyMedium">{name}</UiText>
-                    <UiText variant="bodySmall" tone="muted">{description}</UiText>
+                    <View style={styles.criterionHead}>
+                      <UiText variant="label" tone="primary" style={styles.criterionIndex}>{index + 1}</UiText>
+                      <View style={styles.criterionCopy}>
+                        <UiText variant="bodyMedium">{name}</UiText>
+                        <UiText variant="bodySmall" tone="muted">{description}</UiText>
+                      </View>
+                    </View>
                     <UiText variant="meta" tone="muted">{`${formatNumber(criterion.score)} / ${formatNumber(criterion.maxScore)} ${copy.conductScoreUnit} · ${copy.conductReached} ${ratio}%`}</UiText>
                     <ProgressBar value={ratio} />
                   </View>
@@ -104,12 +110,15 @@ export function ConductScreen(_props: MobileScreenProps) {
               <Divider />
               <SectionHeading title={copy.conductActivities} />
               {term.activities.length === 0 ? (
-                <UiText variant="bodySmall" tone="muted">{copy.conductNoActivities}</UiText>
+                <View style={styles.emptyActivities}>
+                  <UiText variant="bodySmall" tone="muted">{copy.conductNoActivities}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{copy.conductActivitiesEmptyDescription}</UiText>
+                </View>
               ) : <UiText variant="meta" tone="muted">{fillCopy(copy.conductActivityCount, { n: formatNumber(term.activities.length) })}</UiText>}</>, (activity) => (
               <View key={activity.id} style={styles.activity}>
                 <View
                   accessible
-                  accessibilityLabel={joinMeta([activity.title, activity.category, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
+                  accessibilityLabel={joinMeta([activity.title, activity.category, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null, term.status === 'APPROVED' ? copy.conductApprovedBadge : statusLabel(term.status)])}
                   style={styles.activityCopy}
                 >
                   <UiText variant="label">{activity.title}</UiText>
@@ -117,6 +126,7 @@ export function ConductScreen(_props: MobileScreenProps) {
                     {joinMeta([activity.category, activity.organizer, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
                   </UiText>
                 </View>
+                <StatusPill label={term.status === 'APPROVED' ? copy.conductApprovedBadge : statusLabel(term.status)} tone={term.status === 'APPROVED' ? 'success' : 'neutral'} />
                 {validCertificateUrl(activity.certificateUrl) ? (
                   <Button
                     label={copy.conductCertificate}
@@ -180,13 +190,47 @@ export function ConductScreen(_props: MobileScreenProps) {
               </View>
             ))}
           </Card>
+          {model.terms.length > 0 ? (
+            <Card>
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.conductHistory}</UiText>
+              <View style={styles.historyHeader}>
+                <UiText variant="meta" tone="muted" style={styles.historySemester}>{copy.conductHistorySemester}</UiText>
+                <UiText variant="meta" tone="muted">{copy.conductHistoryTotal}</UiText>
+                <UiText variant="meta" tone="muted">{copy.conductHistoryRank}</UiText>
+                <UiText variant="meta" tone="muted">{copy.conductHistoryStatus}</UiText>
+              </View>
+              {model.terms.map((entry) => {
+                const rankKey = conductRankKey(entry.classification) ?? conductRankKey(entry.classificationVi);
+                const rank = rankLabel(entry.classification, entry.classificationVi);
+                const status = entry.status === 'APPROVED' ? copy.conductOfficial : statusLabel(entry.status);
+                return (
+                  <View
+                    key={entry.id}
+                    accessible
+                    accessibilityLabel={joinMeta([semesterLabel(entry.semesterName), `${formatNumber(entry.totalScore)} ${copy.conductScoreUnit}`, rank, status])}
+                    style={styles.historyRow}
+                  >
+                    <UiText variant="bodySmall" style={styles.historySemester}>{semesterLabel(entry.semesterName)}</UiText>
+                    <UiText variant="label">{formatNumber(entry.totalScore)}</UiText>
+                    <StatusPill label={rank} tone={rankKey === 'XUAT_SAC' ? 'success' : rankKey === 'TOT' ? 'primary' : rankKey === 'KHA' ? 'warning' : 'neutral'} />
+                    <StatusPill label={status} tone={entry.status === 'APPROVED' ? 'success' : 'neutral'} />
+                  </View>
+                );
+              })}
+            </Card>
+          ) : null}
           {trend.length > 1 ? <ChartSummary title={copy.conductHistory} series={trend} /> : null}
           {model.terms.length > 0 ? (
             <ChoiceField
               label={copy.conductTerm}
               display="sheet"
               value={term?.id ?? ''}
-              options={model.terms.map((entry) => ({ value: entry.id, label: semesterLabel(entry.semesterName) }))}
+              options={model.terms.map((entry) => ({
+                value: entry.id,
+                label: entry.totalScore == null
+                  ? semesterLabel(entry.semesterName)
+                  : `${semesterLabel(entry.semesterName)} (${formatNumber(entry.totalScore)} ${copy.conductScoreUnit} - ${rankLabel(entry.classification, entry.classificationVi)})`,
+              }))}
               onChange={setTermId}
             />
           ) : null}
@@ -204,6 +248,13 @@ const styles = StyleSheet.create({
   scaleRange: { fontVariant: ['tabular-nums'] },
   scaleNote: { flex: 1, minWidth: 120 },
   criterion: { gap: 2, marginBottom: tokens.spacing.sm },
+  criterionHead: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: 2 },
+  criterionIndex: { fontVariant: ['tabular-nums'], minWidth: 20 },
+  criterionCopy: { flex: 1, gap: 2, minWidth: 0 },
+  emptyActivities: { gap: 2 },
+  historyHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.xs },
+  historyRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+  historySemester: { flex: 1, minWidth: 96 },
   termMeta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
   activity: { gap: 2, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
   activityCopy: { gap: 2 },
