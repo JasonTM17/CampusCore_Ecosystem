@@ -324,7 +324,7 @@ describe('attendance records read has its own state', () => {
     };
     await render(themed(<AttendanceScreen {...props} />));
 
-    expect(await screen.findByText(academicMessages.vi.loading)).toBeOnTheScreen();
+    expect(await screen.findByText(academicMessages.vi.attendanceLoading)).toBeOnTheScreen();
     expect(screen.queryByText(academicMessages.vi.noRecords)).toBeNull();
   });
 });
