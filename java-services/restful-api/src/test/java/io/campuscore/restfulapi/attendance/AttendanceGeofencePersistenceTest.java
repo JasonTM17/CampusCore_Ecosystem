@@ -277,6 +277,17 @@ class AttendanceGeofencePersistenceTest {
         assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).doesNotContain(sessionId);
         assertThat(store.session(sessionId,false).date()).isEqualTo(sessionDate);
     }
+    @Test void openSessionIsListedOnceWhenTheStudentHasSeveralEnrollmentRowsInTheSection() {
+        Instant now=Instant.parse("2026-10-30T03:00:00Z");
+        String sessionId="duplicate-enrollment-session";
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('section-dup','lecturer','D')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('enroll-dup-1','section-dup','student1','ENROLLED')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('enroll-dup-2','section-dup','student1','ENROLLED')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('enroll-dup-3','section-dup','student1','ENROLLED')");
+        store.createSession(new AttendanceStore.Session(sessionId,"section-dup",LocalDate.of(2026,10,30),"ute-main-placeholder",
+                now.minusSeconds(600),now.plusSeconds(600),10,false,"OPEN",codes.newSecret(sessionId)),"lecturer-user",now.minusSeconds(600));
+        assertThat(store.openForStudent("student1",now)).extracting(OpenSessionResponse::id).containsOnlyOnce(sessionId);
+    }
     @Test void riskHistoryUsesCheckinCampusDayAcrossMidnightAndKeepsAcademicSessionDate() {
         LocalDate sessionDate=LocalDate.of(2026,10,30);
         LocalDate checkinDate=sessionDate.plusDays(1);
