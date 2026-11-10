@@ -24,21 +24,27 @@ const ical = await import(`data:text/javascript;base64,${Buffer.from(icalOutput)
 const MB = 1024 * 1024;
 const PDF = 'application/pdf';
 
-function fixture(overrides = {}) {
+function fixture(overrides = {}, options = {}) {
   const files = new Map();
   const deleted = [];
   const shared = [];
   let sheetError;
   class File {
-    constructor(...parts) { this.uri = parts.map((p, i) => {
-      const value = typeof p === 'string' ? p : p.uri;
-      return i ? value.replace(/^\/+/, '') : value.replace(/\/$/, '');
-    }).join('/'); }
+    constructor(...parts) {
+      this.uri = parts.map((p, i) => {
+        const value = typeof p === 'string' ? p : p.uri;
+        return i ? value.replace(/^\/+/, '') : value.replace(/\/$/, '');
+      }).join('/');
+    }
     get exists() { return files.has(this.uri); }
     get size() { return files.get(this.uri)?.size ?? files.get(this.uri)?.bytes?.length ?? 0; }
     create() { assert.equal(this.exists, false); files.set(this.uri, { bytes: new Uint8Array() }); }
     delete() { deleted.push(this.uri); files.delete(this.uri); }
-    copy(other) { files.set(other.uri, { ...files.get(this.uri) }); }
+    copy(other) {
+      const entry = { ...files.get(this.uri) };
+      if (!options.asyncCopy) { files.set(other.uri, entry); return undefined; }
+      return new Promise(resolve => setTimeout(() => { files.set(other.uri, entry); resolve(); }, 5));
+    }
     write(data, options = {}) { files.set(this.uri, { bytes: new Uint8Array(Buffer.from(data, options.encoding === 'utf8' ? 'utf8' : 'base64')) }); }
     async bytes() { return files.get(this.uri).bytes; }
     open() {
@@ -87,6 +93,13 @@ test('native pick stats the cached copy and sanitizes the display name', async (
   assert.equal(result.file.sizeBytes, 4, 'actual stat beats inaccurate picker metadata');
   assert.match(result.file.uri, /^file:\/\/\/cache\/attachment-[\w-]+\.pdf$/);
   assert.equal(f.files.has(f.source), false, 'picker cache copy is removed');
+});
+
+test('native pick waits for an asynchronous native copy before it stats the destination', async () => {
+  const f = fixture({}, { asyncCopy: true });
+  const result = await f.adapter.pick({ mimeTypes: [PDF], maxBytes: 5 * MB });
+  assert.equal(result.status, 'picked');
+  assert.equal(result.file.sizeBytes, 4);
 });
 
 test('native picked copy exposes a release that deletes it', async () => {
