@@ -451,6 +451,57 @@ describe('service screens in live mode', () => {
     expect(missing).toEqual([]);
   });
 
+  test('careers board shows the web page chrome, search control and posting description', async () => {
+    mockApi.mode = 'live';
+    const opportunity = {
+      id: 'opp-1',
+      title: 'Thực tập sinh Backend',
+      description: 'Làm việc với đội ngũ phát triển nền tảng.',
+      organizationName: 'Công ty A',
+      location: 'TP. Hồ Chí Minh',
+      employmentType: 'INTERNSHIP',
+      salaryText: '15.000.000 ₫',
+      status: 'PUBLISHED',
+    };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [opportunity], hasMore: false }
+        : key === 'content.careers.applications' ? [] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+
+    expect(screen.getByText(careersMessages.vi.eyebrow)).toBeOnTheScreen();
+    expect(screen.getByText(careersMessages.vi.description)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: careersMessages.vi.search })).toBeOnTheScreen();
+    expect(screen.getByText(opportunity.description)).toBeOnTheScreen();
+  });
+
+  test('a reviewing career application uses the web info role', async () => {
+    mockApi.mode = 'live';
+    const application = {
+      id: 'app-1', opportunityId: 'opp-1', opportunityTitle: 'Thực tập sinh Backend',
+      organizationName: 'Công ty A', status: 'REVIEWING', version: 1,
+      submittedAt: '2026-10-01T00:00:00Z', attachments: [],
+    };
+    mockQuery.value = {
+      data: (key: string) => key.startsWith('content.careers.board.')
+        ? { items: [], hasMore: false }
+        : key === 'content.careers.applications' ? [application] : [],
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<CareersScreen {...props} />);
+
+    const pill = screen.getByText(careersMessages.vi.statusLabels.REVIEWING).parent;
+    expect(pill).toHaveStyle({ backgroundColor: tokens.colors.primaryFixed });
+  });
+
   test('a submitted career application uses the web amber role', async () => {
     mockApi.mode = 'live';
     const application = {

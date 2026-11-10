@@ -206,6 +206,7 @@ describe('topics, round and advisors', () => {
   test('opens on the registration round and waits for a search before listing topics', async () => {
     setWidth(360);
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText(copy.topicsTitle)).toBeOnTheScreen();
     expect(await screen.findByText('Tìm kiếm để xem danh mục đề tài')).toBeOnTheScreen();
     expect(screen.queryByText('Trợ lý học vụ')).toBeNull();
     expect(mockApi.topics).not.toHaveBeenCalled();
@@ -873,6 +874,16 @@ describe('progress and report', () => {
     resultReason: 'GVPB_BELOW_THRESHOLD',
     resultResolvedAt: '2026-10-20T08:00:00Z',
     finalScore: null,
+  });
+
+  test('progress screen header and group section use the web catalogue', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('Tiến độ luận văn')).toBeOnTheScreen();
+    expect(screen.getByText('Theo dõi các mốc có bằng chứng của đợt đã chọn.')).toBeOnTheScreen();
+    expect(screen.getByText('Khu nhóm của bạn')).toBeOnTheScreen();
+    expect(screen.getAllByText(ROUNDS[1].name).length).toBeGreaterThan(0);
   });
 
   test('without a group the student is invited to register', async () => {

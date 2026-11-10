@@ -12,12 +12,26 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi, type CareerApplicationView } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
 import { CONTENT_PAGE_SIZE } from '../content/content-paging';
-import { activeOpportunityIds, careerApplicationTone, careerOpportunityTone, employmentTypeLabel, joinMeta } from '../content/content-rules';
+import type { StatusTone } from '../../components/ui/institutional';
+import { activeOpportunityIds, careerOpportunityTone, employmentTypeLabel, joinMeta } from '../content/content-rules';
 import { ContentIconChip, ListFrame, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
 import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
 import { usePagedList } from '../content/use-paged-list';
+
+/** Mirrors `frontend/src/components/careers/CareersBoardPage.tsx` application status tones. */
+function careersApplicationTone(status: string): StatusTone {
+  switch (status) {
+    case 'SUBMITTED': return 'warning';
+    case 'REVIEWING':
+    case 'INTERVIEW': return 'info';
+    case 'OFFER': return 'success';
+    case 'REJECTED': return 'error';
+    case 'WITHDRAWN': return 'neutral';
+    default: return 'neutral';
+  }
+}
 
 /** Candidate careers: published postings, apply, own applications, attachments and withdraw. States are server-owned. */
 export function CareersScreen(_props: MobileScreenProps) {
@@ -152,7 +166,7 @@ export function CareersScreen(_props: MobileScreenProps) {
               </UiText>
               {item.moderationReason ? <UiText variant="bodySmall" tone="error">{copy.reason}: {item.moderationReason}</UiText> : null}
               <View style={styles.chips}>
-                <StatusPill label={copy.statusLabels[item.status] ?? item.status} tone={careerApplicationTone(item.status)} />
+                <StatusPill label={copy.statusLabels[item.status] ?? item.status} tone={careersApplicationTone(item.status)} />
               </View>
             </View>
           </Pressable>
@@ -189,6 +203,8 @@ export function CareersScreen(_props: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.title}
+        eyebrow={copy.eyebrow}
+        description={copy.description}
         icon="briefcase-outline"
         list={boardList}
         filtered={search.length > 0}
@@ -199,15 +215,19 @@ export function CareersScreen(_props: MobileScreenProps) {
         header={(
           <View style={styles.header}>
             {banner}
-            <SearchBar
-              value={input}
-              onChangeText={setInput}
-              onClear={() => { setInput(''); setSearch(''); setPage(0); }}
-              placeholder={copy.searchPlaceholder}
-              accessibilityLabel={copy.search}
-              returnKeyType="search"
-              onSubmitEditing={() => { setPage(0); setSearch(input.trim()); }}
-            />
+            <View style={styles.searchRow}>
+              <SearchBar
+                value={input}
+                onChangeText={setInput}
+                onClear={() => { setInput(''); setSearch(''); setPage(0); }}
+                placeholder={copy.searchPlaceholder}
+                accessibilityLabel={copy.search}
+                returnKeyType="search"
+                onSubmitEditing={() => { setPage(0); setSearch(input.trim()); }}
+                style={styles.searchField}
+              />
+              <Button label={copy.search} variant="secondary" onPress={() => { setPage(0); setSearch(input.trim()); }} />
+            </View>
           </View>
         )}
         renderItem={(item) => (
@@ -230,6 +250,7 @@ export function CareersScreen(_props: MobileScreenProps) {
               <View style={styles.rowCopy}>
                 <UiText variant="label">{item.title}</UiText>
                 <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType), item.salaryText])}</UiText>
+                {item.description ? <UiText variant="bodySmall" tone="muted" style={styles.oppDescription}>{item.description}</UiText> : null}
                 <View style={styles.chips}>
                   <StatusPill label={copy.opportunityStatusLabels[item.status] ?? item.status} tone={careerOpportunityTone(item.status)} />
                   {liveIds.has(item.id) ? <StatusPill label={copy.appliedBadge} tone="success" /> : null}
@@ -246,6 +267,9 @@ export function CareersScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
+  searchRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  searchField: { flex: 1, minWidth: 160 },
+  oppDescription: { minWidth: 0 },
   applicationsSection: { gap: tokens.spacing.sm, paddingTop: tokens.spacing.md },
   listFooter: { gap: tokens.spacing.md },
   pagination: { alignItems: 'center', borderTopColor: tokens.colors.outlineVariant, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', paddingTop: tokens.spacing.md },
