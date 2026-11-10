@@ -16,6 +16,7 @@ import { previewGrades } from '../academic/academic-preview';
 import { letterTone, parseTranscript, publishedOnly, semesterProgressCards, summarizeBestAttempts } from '../academic/gpa';
 import { localizedName } from '../academic/academic-model';
 import { GradeDetailSheet } from '../academic/GradeDetailSheet';
+import { GradeMiniBar } from './GradeMiniBar';
 import {
   AcademicShell,
   TermField,
@@ -126,7 +127,10 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                   </View>
                   <View style={styles.gradeResult}>
                     {record.finalGrade != null ? (
-                      <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
+                      <>
+                        <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
+                        <GradeMiniBar score={record.finalGrade} />
+                      </>
                     ) : null}
                     <StatusPill
                       label={record.letterGrade ?? copy.noGrade}
