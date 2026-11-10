@@ -137,6 +137,12 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
       </View>
       <UiText variant="bodySmall" tone="muted" style={styles.gap}>{text.description}</UiText>
 
+      {state.enabled !== null && email ? (
+        <UiText variant="meta" tone="muted" style={styles.gap}>
+          {`${text.otpEmailLabel}: ${email}`}
+        </UiText>
+      ) : null}
+
       {state.enabled === null ? (
         <View style={styles.gap}>
           <UiText accessibilityLiveRegion="polite" variant="bodySmall" tone={state.statusFailed ? 'error' : 'muted'}>
@@ -155,12 +161,16 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
       ) : null}
 
       {state.stage === 'idle' && state.enabled !== null && state.completed === null ? (
-        <Button
-          label={state.enabled ? text.disable : text.enable}
-          onPress={() => dispatch({ type: 'begin', action: state.enabled ? 'disable' : 'enable' })}
-          variant={state.enabled ? 'secondary' : 'primary'}
-          style={styles.gap}
-        />
+        <View style={styles.gap}>
+          <UiText variant="bodySmall" tone="muted">
+            {state.enabled ? text.disableHint : text.enableHint}
+          </UiText>
+          <Button
+            label={state.enabled ? text.disable : text.enable}
+            onPress={() => dispatch({ type: 'begin', action: state.enabled ? 'disable' : 'enable' })}
+            variant={state.enabled ? 'secondary' : 'primary'}
+          />
+        </View>
       ) : null}
 
       {state.stage === 'password' ? (
