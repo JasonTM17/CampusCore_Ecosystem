@@ -2,12 +2,13 @@ export type LearningLocale = 'vi' | 'en';
 export const learningMessages = {
   "vi": {
     "title": "Học liệu & Bài tập",
+    "description": "Tài liệu môn học, bài tập theo lớp học phần và nộp bài với lịch sử phiên bản bất biến.",
     "unavailable": "Không thể tải học liệu.",
     "loading": "Đang tải học liệu…",
     "errorTitle": "Không thể tải học liệu",
     "retry": "Thử lại",
     "section": "Lớp học phần",
-    "emptySections": "Chưa có lớp học phần",
+    "emptySections": "Bạn chưa có lớp học phần nào đang học.",
     "materials": "Học liệu",
     "emptyMaterials": "Chưa có học liệu nào.",
     "assignments": "Bài tập",
@@ -25,7 +26,7 @@ export const learningMessages = {
     "submitBody": "Sau khi nộp, phiên bản được lưu và không thể sửa.",
     "resubmit": "Nộp lại",
     "submitted": "Đã nộp bài — phiên bản được lưu bất biến.",
-    "saved": "Đã lưu bản nháp.",
+    "saved": "Đã lưu nháp.",
     "needContent": "Nhập câu trả lời hoặc chọn một tệp.",
     "submitFailed": "Nộp bài chưa thành công. Vui lòng thử lại.",
     "pastDeadline": "Đã quá hạn nộp theo giờ máy chủ.",
@@ -34,9 +35,10 @@ export const learningMessages = {
     "revision": "Lần nộp {n}",
     "emptyRevisions": "Chưa có lần nộp",
     "feedback": "Nhận xét & điểm",
-    "emptyFeedback": "Chưa có nhận xét",
+    "emptyFeedback": "Chưa có nhận xét.",
     "score": "Điểm",
     "answerFile": "Tệp bài nộp",
+    "openAssignment": "Mở bài tập",
     "statusLabels": {
       "DRAFT": "Bản nháp",
       "PUBLISHED": "Đã công bố",
@@ -49,17 +51,20 @@ export const learningMessages = {
       "ENROLLED": "Đang học",
       "CONFIRMED": "Đã xác nhận",
       "PENDING": "Chờ xử lý",
+      "DROPPED": "Đã hủy",
+      "CANCELLED": "Đã hủy",
       "COMPLETED": "Hoàn thành"
     } as Record<string, string>
   },
   "en": {
     "title": "Materials & Assignments",
+    "description": "Course materials, section assignments and submissions with immutable revision history.",
     "unavailable": "Learning materials are unavailable.",
     "loading": "Loading materials…",
     "errorTitle": "Learning materials unavailable",
     "retry": "Try again",
     "section": "Section",
-    "emptySections": "No sections yet",
+    "emptySections": "You are not enrolled in any active section.",
     "materials": "Materials",
     "emptyMaterials": "No materials yet.",
     "assignments": "Assignments",
@@ -86,9 +91,10 @@ export const learningMessages = {
     "revision": "Submission {n}",
     "emptyRevisions": "No submissions yet",
     "feedback": "Feedback & score",
-    "emptyFeedback": "No feedback yet",
+    "emptyFeedback": "No feedback yet.",
     "score": "Score",
     "answerFile": "Submission file",
+    "openAssignment": "Open assignment",
     "statusLabels": {
       "DRAFT": "Draft",
       "PUBLISHED": "Published",
@@ -101,6 +107,8 @@ export const learningMessages = {
       "ENROLLED": "Enrolled",
       "CONFIRMED": "Confirmed",
       "PENDING": "Pending",
+      "DROPPED": "Dropped",
+      "CANCELLED": "Cancelled",
       "COMPLETED": "Completed"
     } as Record<string, string>
   }

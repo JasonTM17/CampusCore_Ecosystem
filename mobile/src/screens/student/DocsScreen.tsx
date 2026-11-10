@@ -70,6 +70,8 @@ export function DocsScreen(_props: MobileScreenProps) {
       filtered={search.length > 0}
       keyOf={(item) => item.slug}
       emptyTitle={copy.emptyDocs}
+      errorTitle={copy.docsLoadErrorTitle}
+      errorDescription={copy.docsLoadError}
       header={(
         <View style={[styles.searchRow, searchStacked ? styles.searchStacked : undefined]}>
           <SearchBar
