@@ -300,19 +300,36 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
   const { colors, spacing, radii, layout, typography } = useTheme();
   const { t } = useLocale();
   const clear = onClear ?? (() => onChangeText(''));
+  const showPlaceholder = value.length === 0 && Boolean(placeholder);
   return (
     <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: minTapTarget, minWidth: 0, paddingLeft: spacing.xs }, style]}>
-      <TextInput
-        {...input}
-        multiline={false}
-        maxFontSizeMultiplier={searchFieldFontScaleCap}
-        value={value}
-        onChangeText={onChangeText}
-        accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
-        placeholder={placeholder}
-        placeholderTextColor={colors.outline}
-        style={{ color: colors.text, flex: 1, flexShrink: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, minWidth: 0, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm }}
-      />
+      <View style={{ flex: 1, justifyContent: 'center', minHeight: minTapTarget, minWidth: 0 }}>
+        {showPlaceholder ? (
+          <UiText
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            numberOfLines={2}
+            maxFontSizeMultiplier={searchFieldFontScaleCap}
+            style={{ color: colors.outline, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm }}
+          >
+            {placeholder}
+          </UiText>
+        ) : null}
+        <TextInput
+          {...input}
+          multiline={false}
+          maxFontSizeMultiplier={searchFieldFontScaleCap}
+          value={value}
+          onChangeText={onChangeText}
+          accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
+          placeholder={placeholder}
+          placeholderTextColor={showPlaceholder ? 'transparent' : colors.outline}
+          style={[
+            { color: colors.text, flex: 1, flexShrink: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: minTapTarget, minWidth: 0, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm },
+            showPlaceholder ? StyleSheet.absoluteFill : null,
+          ]}
+        />
+      </View>
       {value.length > 0 ? (
         <Pressable
           accessibilityRole="button"
