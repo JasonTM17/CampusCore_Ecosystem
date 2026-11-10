@@ -14,7 +14,7 @@ import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
 import type { OperationsCopy } from '../../i18n/operations-messages';
 import { csvShareAvailable, shareCsv } from './lecturer-api';
-import { courseTitle, normalizeDay, type SectionLike } from './lecturer-model';
+import { courseTitle, meetingRoom, normalizeDay, type SectionLike } from './lecturer-model';
 import { openPortalPath, opsErrorMessage, useOpsCopy } from './shared/helpers';
 import { configuredPortalUrl } from './shared/portal-url';
 import { useOpsStyles } from './shared/styles';
@@ -77,7 +77,7 @@ export function slotText(
   copy: OperationsCopy,
 ): string {
   const day = copy.dayLong[normalizeDay(slot.dayOfWeek)] ?? '';
-  const room = `${slot.classroom?.building ?? ''} ${slot.classroom?.roomNumber ?? ''}`.trim() || copy.roomPending;
+  const room = meetingRoom(slot.classroom?.building, slot.classroom?.roomNumber, copy.roomPending);
   return `${day} · ${slot.startTime}–${slot.endTime} · ${room}`;
 }
 

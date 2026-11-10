@@ -289,9 +289,9 @@ describe('attendance bulk and clear actions', () => {
     await renderThemed(
       <LecturerAttendanceScreen navigation={nav} role="lecturer" selectedThesisTopicId={null} />,
     );
-    await waitFor(() => expect(screen.getByText('Tất cả có mặt')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Đánh dấu tất cả có mặt')).toBeTruthy());
     await fireEvent.changeText(screen.getByLabelText('Tìm sinh viên'), 'duc');
-    expect(screen.getByText('Tất cả có mặt (1 đang lọc)')).toBeTruthy();
+    expect(screen.getByText('Đánh dấu tất cả có mặt (1 đang lọc)')).toBeTruthy();
   });
 
   test('the clear control clears a marked status', async () => {
