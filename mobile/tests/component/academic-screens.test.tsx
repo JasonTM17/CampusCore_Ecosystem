@@ -780,6 +780,22 @@ describe('grades', () => {
     await render(wrap(<GradesScreen {...props} />));
     expect(screen.getByText('Giảng viên: Chờ phân công')).toBeOnTheScreen();
   });
+
+  test('grade rows render the web score mini bar beside the numeric final grade', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: 8.1, letterGrade: 'B', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getByTestId('grade-mini-bar', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  test('grade rows omit the score mini bar when the final grade is missing', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn lập trình', credits: 3, finalGrade: null, letterGrade: 'P', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.queryByTestId('grade-mini-bar')).toBeNull();
+  });
 });
 
 describe('schedule and attendance', () => {
