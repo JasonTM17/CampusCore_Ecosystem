@@ -47,7 +47,7 @@ test('preview catalogue search filters the displayed titles on submit', async ()
   expect(screen.queryByText('Introduction to data structures')).toBeNull();
 });
 
-test('loan row accessibility label includes the requested and due dates', async () => {
+test('loan row accessibility label matches the web meta fields', async () => {
   await render(
     <ThemeProvider forcedScheme="light">
       <LocaleProvider initialLocale="en">
@@ -58,6 +58,6 @@ test('loan row accessibility label includes the requested and due dates', async 
   await fireEvent.press(screen.getByRole('tab', { name: libraryMessages.en.myLoans }));
 
   const loan = screen.getByLabelText(/Introduction to data structures/);
-  expect(loan.props.accessibilityLabel).toContain('Requested: Oct 1, 2026');
+  expect(loan.props.accessibilityLabel).not.toContain('Requested:');
   expect(loan.props.accessibilityLabel).toContain('Due: Oct 17, 2026');
 });

@@ -1,6 +1,8 @@
 export type EventsLocale = 'vi' | 'en';
 export const eventsMessages = {
   "vi": {
+    "eyebrow": "ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG",
+    "studentHint": "Bạn đang xem sự kiện với vai trò người tham gia.",
     "title": "Sự kiện & Hoạt động Đoàn–Hội",
     "unavailable": "Không thể tải sự kiện.",
     "full": "Sự kiện đã hết chỗ.",
@@ -50,6 +52,8 @@ export const eventsMessages = {
     }
   },
   "en": {
+    "eyebrow": "UNION & ASSOCIATION • CAMPUS EVENTS",
+    "studentHint": "You are browsing events as a participant.",
     "title": "Events & Union Activities",
     "unavailable": "Events are unavailable.",
     "full": "This event is full.",

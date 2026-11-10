@@ -8595,12 +8595,34 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                               "c": [
                                 {
                                   "c": [
+                                    "ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG",
+                                  ],
+                                  "s": {
+                                    "color": "#D1E8FA",
+                                    "fontSize": 12,
+                                    "marginBottom": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "Sự kiện & Hoạt động Đoàn–Hội",
                                   ],
                                   "role": "header",
                                   "s": {
                                     "color": "#EDF0F2",
                                     "fontSize": 22,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Bạn đang xem sự kiện với vai trò người tham gia.",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B8CE",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
                                   },
                                   "t": "Text",
                                 },
@@ -8925,7 +8947,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
+                                    "14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -8996,7 +9018,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · 14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9071,7 +9093,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
+                                    "15:00 21/11/2026 → 17:00 21/11/2026 · B2.04",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -9142,7 +9164,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w360 
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · 15:00 21/11/2026 → 17:00 21/11/2026 · B2.04 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9244,12 +9266,34 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                               "c": [
                                 {
                                   "c": [
+                                    "ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG",
+                                  ],
+                                  "s": {
+                                    "color": "#D1E8FA",
+                                    "fontSize": 12,
+                                    "marginBottom": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "Sự kiện & Hoạt động Đoàn–Hội",
                                   ],
                                   "role": "header",
                                   "s": {
                                     "color": "#EDF0F2",
                                     "fontSize": 22,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Bạn đang xem sự kiện với vai trò người tham gia.",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B8CE",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
                                   },
                                   "t": "Text",
                                 },
@@ -9574,7 +9618,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
+                                    "14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -9645,7 +9689,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · 14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9720,7 +9764,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
+                                    "15:00 21/11/2026 → 17:00 21/11/2026 · B2.04",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -9791,7 +9835,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · 15:00 21/11/2026 → 17:00 21/11/2026 · B2.04 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -9895,12 +9939,34 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                               "c": [
                                 {
                                   "c": [
+                                    "ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG",
+                                  ],
+                                  "s": {
+                                    "color": "#D1E8FA",
+                                    "fontSize": 12,
+                                    "marginBottom": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "Sự kiện & Hoạt động Đoàn–Hội",
                                   ],
                                   "role": "header",
                                   "s": {
                                     "color": "#FFFFFF",
                                     "fontSize": 22,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Bạn đang xem sự kiện với vai trò người tham gia.",
+                                  ],
+                                  "s": {
+                                    "color": "#C9D8F0",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
                                   },
                                   "t": "Text",
                                 },
@@ -10225,7 +10291,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
+                                    "14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10296,7 +10362,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · 14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -10371,7 +10437,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
+                                    "15:00 21/11/2026 → 17:00 21/11/2026 · B2.04",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10442,7 +10508,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w360
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · 15:00 21/11/2026 → 17:00 21/11/2026 · B2.04 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -10544,12 +10610,34 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                               "c": [
                                 {
                                   "c": [
+                                    "ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG",
+                                  ],
+                                  "s": {
+                                    "color": "#D1E8FA",
+                                    "fontSize": 12,
+                                    "marginBottom": 4,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
                                     "Sự kiện & Hoạt động Đoàn–Hội",
                                   ],
                                   "role": "header",
                                   "s": {
                                     "color": "#FFFFFF",
                                     "fontSize": 22,
+                                  },
+                                  "t": "Text",
+                                },
+                                {
+                                  "c": [
+                                    "Bạn đang xem sự kiện với vai trò người tham gia.",
+                                  ],
+                                  "s": {
+                                    "color": "#C9D8F0",
+                                    "fontSize": 14,
+                                    "marginTop": 4,
                                   },
                                   "t": "Text",
                                 },
@@ -10874,7 +10962,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                 },
                                 {
                                   "c": [
-                                    "Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026",
+                                    "14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10945,7 +11033,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                               "t": "Text",
                             },
                           ],
-                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · Đoàn Thanh niên · Hội trường A · 14:30 05/11/2026 → 17:30 05/11/2026 · Còn trống: 36/120",
+                          "label": "Ngày hội tình nguyện · Đang mở đăng ký · 14:30 05/11/2026 → 17:30 05/11/2026 · Hội trường A · Còn trống: 36/120",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
@@ -11020,7 +11108,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                                 },
                                 {
                                   "c": [
-                                    "Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026",
+                                    "15:00 21/11/2026 → 17:00 21/11/2026 · B2.04",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -11091,7 +11179,7 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                               "t": "Text",
                             },
                           ],
-                          "label": "Hội thảo kỹ năng mềm · Đã công bố · Hội Sinh viên · B2.04 · 15:00 21/11/2026 → 17:00 21/11/2026 · Còn trống: 40/40",
+                          "label": "Hội thảo kỹ năng mềm · Đã công bố · 15:00 21/11/2026 → 17:00 21/11/2026 · B2.04 · Còn trống: 40/40",
                           "role": "button",
                           "s": {
                             "alignItems": "flex-start",
