@@ -11,6 +11,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useStableCallback } from '../../hooks/use-stable-callback';
 import { GradeRowCard } from './GradeRowCard';
+import { LecturerStatStrip } from './lecturer-stat-strip';
 import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
 import { calculateGrade, calculateTotalScore, generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
 import {
@@ -445,7 +446,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
           <UiText variant="bodySmall" tone="muted">
             {fillCopy(copy.gradesDescription, { semester: semesterLabel })}
           </UiText>
-          <StatStrip
+          <LecturerStatStrip
             style={styles.stats}
             items={[
               { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(queueStats.sections), detail: copy.gradesDetailSections },
