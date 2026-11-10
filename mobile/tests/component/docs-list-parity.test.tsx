@@ -105,7 +105,7 @@ test('shows the web documents subtitle in English', async () => {
   expect(screen.getByText('Published regulations, guides, and reference material.')).toBeOnTheScreen();
 });
 
-test('the search button submits the typed query', async () => {
+test('shows the search button submitting the typed query', async () => {
   const view = await renderThemed(<DocsScreen {...props} />);
   await fireEvent.changeText(screen.getByPlaceholderText('Tìm tài liệu (tiếng Việt hoặc tiếng Anh)…'), 'quy chế');
   await fireEvent.press(screen.getByRole('button', { name: 'Tìm kiếm' }));
@@ -114,4 +114,13 @@ test('the search button submits the typed query', async () => {
   );
 
   expect(mockState.key).toContain('quy chế');
+});
+
+test('shows the docs-specific error title and retry sentence', async () => {
+  mockState.error = 'Không thể tải dữ liệu';
+  await renderThemed(<DocsScreen {...props} />);
+
+  expect(screen.getByText('Tài liệu chưa khả dụng')).toBeOnTheScreen();
+  expect(screen.getByText('Không tải được tài liệu. Vui lòng thử lại.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Thử lại' })).toBeOnTheScreen();
 });
