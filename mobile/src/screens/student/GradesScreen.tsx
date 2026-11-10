@@ -104,13 +104,13 @@ const creditsLabel = fillCopy(countForm(record.credits ?? 0, copy.creditsOne, co
 const componentScores = record.processScore != null || record.finalExamScore != null
   ? `${copy.processScore} ${formatNumber(record.processScore, { maximumFractionDigits: 1 })} · ${copy.finalExam} ${formatNumber(record.finalExamScore, { maximumFractionDigits: 1 })}`
   : null;
-const appealedLabel = record.gradeStatus === 'APPEALED' ? `, ${copy.gradeStatus.APPEALED ?? 'APPEALED'}` : '';
+const statusLabel = copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
 const openLabel = fillCopy(copy.openBreakdown, { courseCode: record.courseCode, courseName });
 return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
               <Pressable
                 key={record.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${openLabel}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}, ${creditsLabel}${componentScores ? `, ${componentScores}` : ''}${appealedLabel}`}
+                accessibilityLabel={`${openLabel}, ${record.finalGrade ?? ''} ${record.letterGrade ?? ''}, ${creditsLabel}${componentScores ? `, ${componentScores}` : ''}, ${statusLabel}`}
                 onPress={() => setSelected(record)}
                 style={styles.rowPress}
               >
@@ -119,20 +119,20 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                   <View style={styles.gradeCopy}>
                     <StatusPill label={record.courseCode} tone="primary" />
                     <UiText variant="bodyMedium">{courseName}</UiText>
+                    {record.sectionCode ? <UiText variant="meta" tone="muted">{record.sectionCode}</UiText> : null}
                     <UiText variant="meta" tone="muted">{creditsLabel}</UiText>
                     {componentScores ? <UiText variant="meta" tone="muted">{componentScores}</UiText> : null}
+                    <UiText variant="meta" tone="muted">{`${copy.lecturer}: ${record.lecturerName ?? copy.pendingAssignment}`}</UiText>
                   </View>
                   <View style={styles.gradeResult}>
                     {record.finalGrade != null ? (
                       <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
                     ) : null}
                     <StatusPill
-                      label={record.letterGrade ?? copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade}
+                      label={record.letterGrade ?? copy.noGrade}
                       tone={letterTone(record.letterGrade)}
                     />
-                    {record.gradeStatus === 'APPEALED' ? (
-                      <StatusPill label={copy.gradeStatus.APPEALED ?? 'APPEALED'} tone="warning" />
-                    ) : null}
+                    <StatusPill label={statusLabel} tone="neutral" />
                   </View>
                 </View>
               </Pressable>
