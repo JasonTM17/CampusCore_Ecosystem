@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { Button, Card, Notice, ProgressBar, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, Notice, ProgressBar, StatePanel, StatStrip, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { campusIsoDate, countForm } from '../../i18n/locale';
+import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useStableCallback } from '../../hooks/use-stable-callback';
 import { GradeRowCard } from './GradeRowCard';
@@ -19,10 +20,14 @@ import {
   dirtyGradeCount,
   filterSections,
   gradedPercent,
+  gradedRecordCount,
+  gradingQueueStats,
   mergeGradeEdits,
   normalizeOperationsSearch,
   sameGradeSheet,
+  sectionCredits,
   termOptions,
+  termTitle,
   windowOf,
   type GradeDraft,
   type ScoreEdit,
@@ -41,6 +46,7 @@ type Banner = { tone: 'success' | 'error' | 'warning'; message: string } | null;
 export function LecturerGradingScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
+  const { formatNumber } = useLocale();
   const preview = isOpsPreview();
   const params = useLocalSearchParams<{ sectionId?: string }>();
   const sectionsQuery = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
@@ -335,6 +341,11 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const loading = !preview && (sectionsQuery.isLoading || (Boolean(sectionId) && !sheet && !queryError));
   const canPublish = !preview && Boolean(section?.canPublish) && dirty === 0 && busy === null;
   const publishHint = dirty > 0 ? copy.publishUnsavedFirst : section && !section.canPublish && status !== 'PUBLISHED' ? copy.publishBlocked : null;
+  const queueStats = gradingQueueStats(visibleSections);
+  const credits = section ? sectionCredits(section) : undefined;
+  const semesterLabel = term
+    ? termTitle(visibleSections.find((item) => item.semesterId === term) ?? { sectionId: term }, locale) || copy.gradesAllSemesters
+    : copy.gradesAllSemesters;
 
   return (
     <OpsShell
@@ -409,6 +420,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                   rows={rows.length}
                 />
                 <UiText variant="bodySmall" tone="muted">{copy.importPrintWeb}</UiText>
+                <HandoffButton label={copy.printTitle} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
                 <HandoffButton label={copy.openOnWeb} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
               </View>
             </View>)}
@@ -426,8 +438,21 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       }}
     >
       {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptySchedule} />
-      ) : (<View>
+        <StatePanel kind="empty" title={copy.gradesEmptyTitle} description={copy.gradesEmptyDescription} />
+      ) : (<View style={styles.stack}>
+          <UiText accessibilityRole="header" variant="headlineSmall">{copy.gradesQueueTitle}</UiText>
+          <UiText variant="bodySmall" tone="muted">{copy.gradesQueueDescription}</UiText>
+          <UiText variant="bodySmall" tone="muted">
+            {fillCopy(copy.gradesDescription, { semester: semesterLabel })}
+          </UiText>
+          <StatStrip
+            style={styles.stats}
+            items={[
+              { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(queueStats.sections), detail: copy.gradesDetailSections },
+              { icon: 'file-document-edit-outline', label: copy.gradesCaptured, value: formatNumber(queueStats.captured), detail: copy.gradesDetailCaptured },
+              { icon: 'check-decagram', label: copy.metricReadyToPublish, value: formatNumber(queueStats.ready), detail: copy.gradesDetailReady },
+            ]}
+          />
           {termList.length > 1 ? (
             <ChoiceField
               label={copy.semester}
@@ -438,6 +463,28 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
             />
           ) : null}
           <SectionPicker sections={visibleSections} value={sectionId} onChange={switchSection} />
+          {section ? (
+            <View style={styles.stack}>
+              <UiText variant="bodySmall" tone="muted">
+                {fillCopy(copy.gradeEntryDescription, { courseName: courseTitle(section, locale) || section.courseCode || '' })}
+              </UiText>
+              {credits !== undefined ? (
+                <UiText variant="bodySmall">{`${formatNumber(credits)} ${copy.gradesCredits}`}</UiText>
+              ) : null}
+              <UiText variant="bodySmall">
+                {section.enrolledCount === 0
+                  ? copy.gradesNoEnrollments
+                  : `${formatNumber(section.enrolledCount)} ${copy.gradesEnrolled} · ${formatNumber(section.gradedCount)} ${copy.gradedSuffix} · ${formatNumber(section.publishedCount)} ${copy.gradesPublished}`}
+              </UiText>
+              <StatStrip
+                style={styles.stats}
+                items={[
+                  { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(rows.length) },
+                  { icon: 'account-check-outline', label: copy.gradeGradedRecords, value: formatNumber(gradedRecordCount(rows)) },
+                ]}
+              />
+            </View>
+          ) : null}
           <Card style={styles.gradingHero}>
             <View style={styles.courseHeader}>
               <View style={styles.topicCopy}>
@@ -453,7 +500,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
             <ProgressBar label={copy.gradedProgress} value={gradedPercent(graded, enrolled)} />
           </Card>
           {rows.length === 0 ? (
-            <StatePanel kind="empty" title={copy.rosterEmpty} />
+            <StatePanel kind="empty" title={copy.gradeEntryEmptyTitle} description={copy.gradeEntryEmptyDescription} />
           ) : (<View>
               <SearchBar
                 value={search}

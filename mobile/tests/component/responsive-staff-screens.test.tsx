@@ -97,11 +97,9 @@ describe('responsive staff screens and assistant layout', () => {
   test('Finding 2: LecturerScheduleScreen cards adapt to 2-column grid on expanded window', async () => {
     setWindow(1000);
     await renderThemed(<LecturerScheduleScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Danh sách' }));
 
-    const headers = screen.getAllByRole('header');
-    // headers[0] is the screen title; headers.slice(1) are course cards
-    expect(headers.length).toBeGreaterThan(1);
-    const cardHeader = headers[1];
+    const cardHeader = screen.getByRole('header', { name: 'Kiến trúc phần mềm' });
     const firstCard = cardHeader.parent?.parent?.parent;
     const cardStyle = StyleSheet.flatten(firstCard?.props.style);
     expect(cardStyle?.width).toBe('48.5%');
@@ -188,6 +186,7 @@ describe('responsive staff screens and assistant layout', () => {
   test('Finding 7: LecturerScheduleScreen action buttons have flexGrow: 1 to fill row width evenly', async () => {
     setWindow(360);
     await renderThemed(<LecturerScheduleScreen {...props} />);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Danh sách' }));
 
     const attendanceBtns = screen.getAllByRole('button', { name: /Điểm danh/i });
     expect(attendanceBtns.length).toBeGreaterThan(0);

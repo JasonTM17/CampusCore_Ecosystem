@@ -124,6 +124,121 @@ export const windowOf = <T>(items: readonly T[], pages: number, limit: number): 
   hasMore: items.length > pages * limit,
 });
 
+/** Monday-first week, matching the web teaching timetable. */
+export const TEACHING_WEEK = [2, 3, 4, 5, 6, 7, 1] as const;
+
+export interface MeetingSource {
+  sectionId: string;
+  courseCode?: string;
+  sectionNumber?: string;
+  schedules?: readonly {
+    id?: string;
+    dayOfWeek: number;
+    startTime?: string;
+    endTime?: string;
+    classroom?: { building?: string; roomNumber?: string };
+  }[];
+}
+
+export interface TeachingMeeting {
+  key: string;
+  sectionId: string;
+  courseCode: string;
+  sectionNumber: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+}
+
+/** `A2-204`, matching the teaching timetable. A missing room number stays the pending label. */
+export function meetingRoom(building?: string, roomNumber?: string, pending = ''): string {
+  const room = (roomNumber ?? '').trim();
+  if (!room) return pending;
+  const block = (building ?? '').trim();
+  return block ? `${block}-${room}` : room;
+}
+
+/** Section chip beside the course code. A number that repeats the code keeps only the suffix. */
+export function sectionSuffix(courseCode: string, sectionNumber?: string): string {
+  const number = (sectionNumber ?? '').trim();
+  if (!number) return '';
+  const escaped = courseCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return number.replace(new RegExp(`^${escaped}[-\\s]?`), '') || number;
+}
+
+/** Sections, weekly meetings and enrolled students for the schedule stat cards. */
+export function scheduleLoadStats(sections: readonly { enrolledCount?: number; schedules?: readonly unknown[] }[]): {
+  sections: number;
+  slots: number;
+  students: number;
+} {
+  return {
+    sections: sections.length,
+    slots: sections.reduce((total, section) => total + (section.schedules?.length ?? 0), 0),
+    students: sections.reduce((total, section) => total + (section.enrolledCount ?? 0), 0),
+  };
+}
+
+/** Day columns and start-time rows for the teaching timetable. Incomplete meetings are dropped. */
+export function teachingGrid(sections: readonly MeetingSource[], roomPending: string): {
+  days: readonly number[];
+  slots: string[];
+  cells: Record<string, TeachingMeeting[]>;
+} {
+  const cells: Record<string, TeachingMeeting[]> = {};
+  const slotSet = new Set<string>();
+  sections.forEach((section, sectionIndex) => {
+    (section.schedules ?? []).forEach((slot, slotIndex) => {
+      const day = normalizeDay(slot.dayOfWeek);
+      const start = (slot.startTime ?? '').trim();
+      if (!start || day < 1 || day > 7) return;
+      const courseCode = section.courseCode?.trim() || section.sectionId;
+      const room = meetingRoom(slot.classroom?.building, slot.classroom?.roomNumber, roomPending);
+      const meeting: TeachingMeeting = {
+        key: slot.id ?? `${section.sectionId}-${sectionIndex}-${slotIndex}`,
+        sectionId: section.sectionId,
+        courseCode,
+        sectionNumber: sectionSuffix(courseCode, section.sectionNumber),
+        dayOfWeek: day,
+        startTime: start,
+        endTime: (slot.endTime ?? '').trim(),
+        room,
+      };
+      (cells[`${day}-${start}`] ??= []).push(meeting);
+      slotSet.add(start);
+    });
+  });
+  return { days: TEACHING_WEEK, slots: [...slotSet].sort((left, right) => left.localeCompare(right)), cells };
+}
+
+/** Queue totals for the grade-management list: sections, captured grades, publish-ready sections. */
+export function gradingQueueStats(sections: readonly { gradedCount?: number; canPublish?: boolean }[]): {
+  sections: number;
+  captured: number;
+  ready: number;
+} {
+  return {
+    sections: sections.length,
+    captured: sections.reduce((total, section) => total + (section.gradedCount ?? 0), 0),
+    ready: sections.filter((section) => section.canPublish).length,
+  };
+}
+
+/** Rows that already have a letter or both component scores, the web's graded-record count. */
+export function gradedRecordCount(rows: readonly { processScore?: number | null; finalExamScore?: number | null; letterGrade?: string | null }[]): number {
+  return rows.filter((row) => {
+    if (typeof row.letterGrade === 'string' && row.letterGrade.trim() !== '') return true;
+    return typeof row.processScore === 'number' && typeof row.finalExamScore === 'number';
+  }).length;
+}
+
+/** Credits when the grading payload carries them; absent fields stay hidden. */
+export function sectionCredits(section: object): number | undefined {
+  const credits = (section as { credits?: unknown }).credits;
+  return typeof credits === 'number' ? credits : undefined;
+}
+
 /* ---------- attendance ---------- */
 
 export interface RosterEntryLike {
@@ -229,6 +344,10 @@ export const setRowStatus = (rows: readonly RosterRow[], studentId: string, stat
 /** Sets every row, or only `ids` when given, so a filtered view marks just what is shown. */
 export const setAllStatus = (rows: readonly RosterRow[], status: MarkStatus, ids?: ReadonlySet<string>): RosterRow[] =>
   rows.map((row) => (!ids || ids.has(row.studentId) ? { ...row, status } : row));
+
+/** Clears every mark and note. Stored rows become RESET records on the next save. */
+export const clearRosterMarks = (rows: readonly RosterRow[]): RosterRow[] =>
+  rows.map((row) => ({ ...row, status: null, notes: '' }));
 
 /** The web roll-call default: rows with no stored mark start Present but stay unsaved. */
 export function defaultUnmarkedStatus(rows: readonly RosterRow[], status: MarkStatus): {
