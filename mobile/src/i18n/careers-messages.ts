@@ -1,10 +1,13 @@
 export type CareersLocale = 'vi' | 'en';
 export const careersMessages = {
   "vi": {
+    "eyebrow": "VIỆC LÀM • MÔ PHỎNG",
     "title": "Việc làm & thực tập",
+    "description": "Tin tuyển dụng được kiểm duyệt từ các tổ chức đối tác — mọi dữ liệu đều mô phỏng.",
     "simulatedBanner": "Môi trường mô phỏng — tin tuyển dụng và hồ sơ ở đây KHÔNG phải việc làm hay nhà tuyển dụng thật.",
     "unavailable": "Không thể tải dữ liệu việc làm.",
-    "loading": "Đang tải dữ liệu việc làm…",
+    "loading": "Đang tải việc làm",
+    "refresh": "Làm mới",
     "errorTitle": "Không thể tải việc làm",
     "failed": "Thao tác chưa thành công — thử lại.",
     "retry": "Thử lại",
@@ -15,7 +18,7 @@ export const careersMessages = {
     "apply": "Ứng tuyển",
     "applyTitle": "Ứng tuyển vị trí này?",
     "coverLetter": "Thư giới thiệu",
-    "coverLetterPlaceholder": "Giới thiệu ngắn về bản thân…",
+    "coverLetterPlaceholder": "Giới thiệu ngắn gọn về bản thân và động lực ứng tuyển…",
     "applied": "Đã nộp hồ sơ ứng tuyển.",
     "appliedBadge": "Đã ứng tuyển",
     "alreadyApplied": "Bạn đã có hồ sơ đang xử lý cho tin này.",
@@ -64,10 +67,13 @@ export const careersMessages = {
     } as Record<string, string>
   },
   "en": {
+    "eyebrow": "CAREERS • SIMULATED",
     "title": "Jobs & internships",
+    "description": "Moderated postings from partner organizations — every record is simulated.",
     "simulatedBanner": "Simulated environment — the postings and applications here are NOT real jobs or employers.",
     "unavailable": "Careers data is unavailable.",
-    "loading": "Loading careers data…",
+    "loading": "Loading careers",
+    "refresh": "Refresh",
     "errorTitle": "Careers unavailable",
     "failed": "Action failed — try again.",
     "retry": "Try again",
@@ -78,7 +84,7 @@ export const careersMessages = {
     "apply": "Apply",
     "applyTitle": "Apply for this posting?",
     "coverLetter": "Cover letter",
-    "coverLetterPlaceholder": "Briefly introduce yourself…",
+    "coverLetterPlaceholder": "Briefly introduce yourself and your motivation…",
     "applied": "Application submitted.",
     "appliedBadge": "Applied",
     "alreadyApplied": "You already have an active application for this posting.",

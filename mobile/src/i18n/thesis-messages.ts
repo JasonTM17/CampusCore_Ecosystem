@@ -7,6 +7,8 @@ export interface ThesisCopy {
   detailTitle: string;
   registrationTitle: string;
   progressTitle: string;
+  progressDescription: string;
+  groupsTitle: string;
   roundTitle: string;
   advisorsTitle: string;
 
@@ -177,10 +179,12 @@ export interface ThesisCopy {
 }
 
 const vi: ThesisCopy = {
-  topicsTitle: 'Đề tài khóa luận',
+  topicsTitle: 'Chọn đề tài',
   detailTitle: 'Chi tiết đề tài',
   registrationTitle: 'Đăng ký khóa luận',
-  progressTitle: 'Tiến độ khóa luận',
+  progressTitle: 'Tiến độ luận văn',
+  progressDescription: 'Theo dõi các mốc có bằng chứng của đợt đã chọn.',
+  groupsTitle: 'Khu nhóm của bạn',
   roundTitle: 'Đợt khóa luận',
   advisorsTitle: 'Giảng viên hướng dẫn',
 
@@ -292,7 +296,7 @@ const vi: ThesisCopy = {
   progressCurrentStage: 'Giai đoạn hiện tại',
   progressAttention: 'Cần lưu ý',
   progressNoGroup: 'Bạn chưa tham gia đợt này',
-  progressNoGroupBody: 'Tạo nhóm và chọn đề tài để bắt đầu.',
+  progressNoGroupBody: 'Hãy tạo hoặc tham gia nhóm để xem tiến độ gắn với nhóm.',
   progressFailed: 'Không tải được tiến độ.',
   startRegistration: 'Bắt đầu đăng ký',
   finalScore: 'Điểm cuối',
@@ -426,10 +430,12 @@ const vi: ThesisCopy = {
 };
 
 const en: ThesisCopy = {
-  topicsTitle: 'Thesis topics',
+  topicsTitle: 'Choose a topic',
   detailTitle: 'Topic detail',
   registrationTitle: 'Thesis registration',
   progressTitle: 'Thesis progress',
+  progressDescription: 'Follow evidence-backed milestones for your selected round.',
+  groupsTitle: 'Your group area',
   roundTitle: 'Thesis round',
   advisorsTitle: 'Advisors',
 
@@ -541,7 +547,7 @@ const en: ThesisCopy = {
   progressCurrentStage: 'Current stage',
   progressAttention: 'Attention needed',
   progressNoGroup: 'You are not in this round',
-  progressNoGroupBody: 'Create a group and choose a topic to begin.',
+  progressNoGroupBody: 'Create or join a group to see group-specific progress.',
   progressFailed: 'Progress could not be loaded.',
   startRegistration: 'Start registration',
   finalScore: 'Final score',

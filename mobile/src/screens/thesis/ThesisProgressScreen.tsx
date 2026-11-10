@@ -47,7 +47,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
   };
 
   return (
-    <ScreenShell title={copy.progressTitle}>
+    <ScreenShell title={copy.progressTitle} subtitle={copy.progressDescription}>
       <QueryNotices state={active} copy={copy} />
       {!active.loading && !active.error && !active.round ? (
         <StatePanel kind="empty" title={copy.noRounds} description={copy.noRoundsBody} />
@@ -116,7 +116,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
 
               {progress ? (
                 <>
-                  <SectionHeading title={copy.progressTitle} />
+                  <SectionHeading title={active.round.name} />
                   <Card style={styles.card}>
                     {THESIS_MILESTONES.map((milestone, index) => {
                       const value = milestoneState(progress, milestone);
@@ -146,7 +146,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                 </>
               ) : null}
 
-              <SectionHeading title={copy.myGroup} actionLabel={copy.registrationTitle} onAction={() => navigation.navigate('thesis.registration')} />
+              <SectionHeading title={copy.groupsTitle} actionLabel={copy.registrationTitle} onAction={() => navigation.navigate('thesis.registration')} />
               <Card style={styles.card}>
                 <View style={styles.header}>
                   <UiText variant="bodySmall" tone="muted" style={styles.grow}>
