@@ -20,6 +20,7 @@ import {
   baselineOf,
   buildAttendanceRecords,
   buildRosterRows,
+  clearRosterMarks,
   commitRows,
   courseTitle,
   defaultUnmarkedStatus,
@@ -35,7 +36,7 @@ import {
   type MarkStatus,
   type RosterRow,
 } from './lecturer-model';
-import { CsvExport, OpsShell, SectionPicker, isOpsPreview, useOpsQuery } from './lecturer-ui';
+import { CsvExport, HandoffButton, OpsShell, SectionPicker, isOpsPreview, useOpsQuery } from './lecturer-ui';
 import { opsErrorMessage, useOpsCopy } from './shared/helpers';
 import { previewRoster, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
@@ -95,6 +96,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [pages, setPages] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingDiscard, setPendingDiscard] = useState<'markAll' | 'reload' | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const editRevisionByKey = useRef<Record<string, number>>({});
   // A dirty sheet stays keyed to its own (section, date) while the lecturer
   // looks at another one, so switching never silently discards marks.
@@ -197,6 +199,18 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     applyMarkAll();
   };
 
+  const askReset = () => {
+    if (!rows.some((row) => row.status !== null || row.notes.trim() !== '')) return;
+    setConfirmReset(true);
+  };
+
+  const applyReset = () => {
+    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
+    setRows((current) => clearRosterMarks(current));
+    setSave({ kind: 'idle' });
+    setConfirmReset(false);
+  };
+
   const applyReloadSheet = () => {
     setSave({ kind: 'idle' });
     if (sheet) applySheet(sheet);
@@ -286,6 +300,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   return (
     <OpsShell
       title={copy.attendanceTitle}
+      eyebrow={copy.attendanceEyebrow}
+      subtitle={copy.attendanceDescription}
       loading={loading}
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
@@ -316,7 +332,15 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
                   disabled={preview || remoteChanged}
                   onPress={() => void saveAttendance()}
                 />
+                <Button
+                  icon="backup-restore"
+                  label={copy.resetStatuses}
+                  variant="secondary"
+                  onPress={askReset}
+                  disabled={busy}
+                />
                 <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
+                <HandoffButton label={copy.printRoster} path="/dashboard/lecturer/attendance" />
               </View>
             </View>)}
         </View>)}
@@ -324,7 +348,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       }}
     >
       {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptySchedule} />
+        <StatePanel kind="empty" title={copy.attendanceNoSectionsTitle} description={copy.attendanceNoSectionsDescription} />
       ) : (<View>
           {termList.length > 1 ? (
             <ChoiceField
@@ -338,8 +362,9 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
           <SectionPicker sections={visibleSections} value={sectionId} onChange={(next) => switchSheet(next, date)} />
           <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && switchSheet(sectionId, next)} />
           {rows.length === 0 ? (
-            <StatePanel kind="empty" title={copy.rosterEmpty} />
+            <StatePanel kind="empty" title={copy.attendanceNoStudentsTitle} description={copy.attendanceNoStudentsDescription} />
           ) : (<View>
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.sheetTitle}</UiText>
               <StatStrip
                 style={styles.stats}
                 items={[
@@ -383,6 +408,16 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
         destructive
         onConfirm={confirmDiscard}
         onCancel={() => setPendingDiscard(null)}
+      />
+      <Dialog
+        visible={confirmReset}
+        title={copy.resetTitle}
+        description={copy.resetMessage}
+        confirmLabel={copy.resetConfirm}
+        cancelLabel={copy.resetCancel}
+        destructive
+        onConfirm={applyReset}
+        onCancel={() => setConfirmReset(false)}
       />
     </OpsShell>
   );

@@ -72,6 +72,7 @@ test('today is marked on the meeting that falls on the current day', async () =>
 
 test('section details show department, credits, capacity and status', async () => {
   await renderScreen();
+  await fireEvent.press(screen.getByRole('tab', { name: 'Danh sách' }));
   await fireEvent.press(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
   expect(screen.getByRole('header', { name: 'Chi tiết lớp học phần' })).toBeOnTheScreen();
   expect(screen.getByText('Lớp HP')).toBeOnTheScreen();
