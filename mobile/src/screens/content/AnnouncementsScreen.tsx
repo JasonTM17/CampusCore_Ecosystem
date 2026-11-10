@@ -24,36 +24,12 @@ import {
 import { ContentIconChip, ListFrame, StatusChip, useContentCopy } from './content-ui';
 import { previewAnnouncements } from './preview-data';
 import { htmlToPlainText, isHtmlBody, summaryOrExcerpt } from './rich-text';
+import { dispatchAudienceBadge, dispatchReference } from './announcement-dispatch';
+import { DispatchReaderSheet } from './DispatchReaderSheet';
 import { usePagedList } from './use-paged-list';
 
 const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 type AnnouncementView = 'magazine' | 'dispatch';
-
-function dispatchReference(item: MobilePublicAnnouncement) {
-  const docHash = Math.abs(
-    (item.id || 'notice')
-      .split('')
-      .reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 100),
-  ) % 900 + 100;
-  const publisher = (item.publishedBy || '').toLowerCase();
-  const isRectorDoc = publisher.includes('ban giám hiệu')
-    || publisher.includes('hiệu trưởng')
-    || (item.title || '').toLowerCase().startsWith('quyết định');
-  const isFacultyDoc = publisher.includes('khoa');
-  const suffix = isRectorDoc ? 'TB-ĐHCNKT' : isFacultyDoc ? 'TB-CNTT' : 'TB-ĐHCNKT-ĐT';
-  return `${docHash}/${suffix}`;
-}
-
-function audienceBadge(item: MobilePublicAnnouncement, labels: Readonly<Record<string, string>>) {
-  if (item.isGlobal) return { label: labels.GLOBAL, tone: 'info' as const };
-  const roles = (item.targetRoles ?? []).map((role) => role.trim().toUpperCase());
-  const hasStudent = roles.includes('STUDENT');
-  const hasLecturer = roles.includes('LECTURER');
-  if (hasStudent && hasLecturer) return { label: labels.GLOBAL, tone: 'info' as const };
-  if (hasStudent) return { label: labels.STUDENT, tone: 'primary' as const };
-  if (hasLecturer) return { label: labels.LECTURER, tone: 'primary' as const };
-  return { label: labels.OTHER, tone: 'neutral' as const };
-}
 
 /** Academic announcement inbox for the signed-in student: paged, category/search/priority filters, read in place. */
 export function AnnouncementsScreen(_props: MobileScreenProps) {
@@ -61,6 +37,7 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
   const { colors } = useTheme();
   const copy = recordsMessages[locale];
   const [open, setOpen] = useState<string | null>(null);
+  const [dispatchReader, setDispatchReader] = useState<MobilePublicAnnouncement | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<FilterValue>({});
   const [category, setCategory] = useState<AnnouncementCategory>('ALL');
@@ -173,7 +150,7 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
           );
           if (view === 'dispatch') {
             const reference = copy.announcementsDispatchReference.replace('{ref}', dispatchReference(item));
-            const audience = audienceBadge(item, copy.announcementsAudienceBadges);
+            const audience = dispatchAudienceBadge(item, copy.announcementsAudienceBadges);
             const priority = item.priority ? copy.priorityLabels[item.priority] ?? item.priority : '—';
             const date = publishLabel ?? '—';
             return (
@@ -181,7 +158,7 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={joinMeta([reference, item.title, audience.label, priority, date])}
-                  onPress={() => setOpen(expanded ? null : item.id)}
+                  onPress={() => setDispatchReader(item)}
                   style={styles.dispatchSummary}
                 >
                   <UiText variant="meta" tone="muted">{reference}</UiText>
@@ -192,8 +169,6 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
                   </View>
                   <UiText variant="meta" tone="muted">{date}</UiText>
                 </Pressable>
-                {noticeBody(item, expanded)}
-                {expanded ? toggle : null}
               </Card>
             );
           }
@@ -255,6 +230,11 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
         }]}
         value={filter}
         onApply={setFilter}
+      />
+      <DispatchReaderSheet
+        item={dispatchReader}
+        visible={dispatchReader !== null}
+        onClose={() => setDispatchReader(null)}
       />
     </>
   );
