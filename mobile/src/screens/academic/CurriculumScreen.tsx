@@ -123,6 +123,13 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
     ? null
     : `${formatNumber(course.finalGrade, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${course.letterGrade ? ` (${course.letterGrade})` : ''}`);
   const creditLabel = (course: CurriculumCourse) => fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: formatNumber(course.credits) });
+  const filteredEmptyState = {
+    ALL: { title: copy.filterAll, description: copy.curriculumAllEmpty },
+    AVAILABLE: { title: copy.filterAvailable, description: copy.curriculumAvailableEmpty },
+    COMPLETED: { title: copy.completed, description: copy.curriculumCompletedEmpty },
+    IN_PROGRESS: { title: copy.inProgress, description: copy.curriculumInProgressEmpty },
+    NOT_STARTED: { title: copy.notStarted, description: copy.curriculumNotStartedEmpty },
+  }[filter];
 
   const requirementChips = (course: CurriculumCourse) => {
     const prerequisites = course.prerequisites ?? [];
@@ -210,7 +217,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
       }}
     >
       {!data || data.courses.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyCurriculum} />
+        <StatePanel kind="empty" title={copy.emptyCurriculum} description={copy.emptyCurriculumDescription} />
       ) : (<View>
           <View style={academicStyles.metrics}>
             <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(earned)} style={academicStyles.metric} />
@@ -325,7 +332,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
               { value: 'NOT_STARTED', label: copy.notStarted },
             ]}
           />
-          {groups.length === 0 ? <StatePanel kind="empty" title={copy.emptyCurriculumFiltered} /> : null}
+          {groups.length === 0 ? <StatePanel kind="empty" title={filteredEmptyState.title} description={filteredEmptyState.description} /> : null}
           </View>)}</AcademicShell>
   );
 }
