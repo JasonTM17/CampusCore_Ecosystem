@@ -473,7 +473,7 @@ describe('notifications centre parity', () => {
     showRows([row('n1', 'Thông báo chung', null)]);
     await renderThemed(<NotificationsScreen {...props} />);
 
-    expect(screen.getByRole('tab', { name: recordsMessages.vi.tabAll })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: `${recordsMessages.vi.tabAll} (1)` })).toBeOnTheScreen();
     expect(screen.getByText(recordsMessages.vi.notificationsDescription)).toBeOnTheScreen();
   });
 
@@ -510,8 +510,25 @@ describe('notifications centre parity', () => {
     showRows([]);
     await renderThemed(<NotificationsScreen {...props} />);
 
-    await fireEvent.press(screen.getByRole('tab', { name: recordsMessages.vi.tabUnread }));
+    await fireEvent.press(screen.getByRole('tab', { name: new RegExp(`^${recordsMessages.vi.tabUnread}`) }));
     expect(screen.getByText(recordsMessages.vi.notificationsUnreadEmpty)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: recordsMessages.vi.openDashboard })).toBeOnTheScreen();
+  });
+
+  test('exposes the web refresh control and open-related action on linked rows', async () => {
+    showRows([row('link-1', 'Thông báo lớp', '/dashboard/schedule')]);
+    await renderThemed(<NotificationsScreen {...props} />);
+    expect(screen.getByRole('button', { name: notificationsCenterMessages.vi.refresh })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: notificationsCenterMessages.vi.openRelated })).toBeOnTheScreen();
+  });
+
+  test('mark all as read reports how many notifications were updated', async () => {
+    jest.mocked(contentApi.markAllNotificationsRead).mockResolvedValue({ updated: 2 });
+    showRows([row('m1', 'Unread one', null), row('m2', 'Unread two', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: recordsMessages.vi.markAllRead }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: recordsMessages.vi.markAllRead }).length).toBeGreaterThan(1));
+    await fireEvent.press(screen.getAllByRole('button', { name: recordsMessages.vi.markAllRead })[1]);
+    await waitFor(() => expect(screen.getByText('Đã đánh dấu 2 thông báo là đã đọc.')).toBeOnTheScreen());
   });
 });

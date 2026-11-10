@@ -306,20 +306,20 @@ describe('two-factor card', () => {
     const onCompleted = jest.fn();
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={onCompleted} />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật 2FA' }));
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
-    await screen.findByText('Mã 6 chữ số đã được gửi tới s***@example.edu.');
+    await screen.findByText(/Mã xác thực 6 chữ số đã được gửi tới s\*\*\*@example\.edu\./);
     expect(accountApi.beginTwoFactorEnable).toHaveBeenCalledWith(FAKE_PASSWORD);
     expect(JSON.stringify(screen.toJSON())).not.toContain(FAKE_PASSWORD);
 
     await fireEvent.changeText(screen.getByLabelText('Mã xác thực'), '12');
-    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận mã' }));
     expect(screen.getByText('Mã gồm đúng 6 chữ số.')).toBeOnTheScreen();
     expect(accountApi.confirmTwoFactorEnable).not.toHaveBeenCalled();
 
     await fireEvent.changeText(screen.getByLabelText('Mã xác thực'), '123 456');
-    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận mã' }));
     await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('enable'));
     expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalledWith('fake-challenge', '123456');
   });
@@ -332,11 +332,11 @@ describe('two-factor card', () => {
     const onCompleted = jest.fn();
     const view = await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={onCompleted} />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật 2FA' }));
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
     await fireEvent.changeText(await screen.findByLabelText('Mã xác thực'), '123456');
-    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận mã' }));
     await waitFor(() => expect(accountApi.confirmTwoFactorEnable).toHaveBeenCalled());
     await view.unmount();
 
@@ -354,14 +354,14 @@ describe('two-factor card', () => {
     const onCompleted = jest.fn();
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={onCompleted} />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật 2FA' }));
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
     await fireEvent.changeText(await screen.findByLabelText('Mã xác thực'), '123456');
-    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận mã' }));
     await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('enable'));
 
-    expect(screen.queryByRole('button', { name: 'Tắt xác thực hai yếu tố' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tắt 2FA' })).toBeNull();
   });
 
   test('a same-frame repeat tap requests only one two-factor challenge', async () => {
@@ -369,7 +369,7 @@ describe('two-factor card', () => {
     const request = deferred<{ challengeId: string }>();
     mocked(accountApi.beginTwoFactorEnable).mockReturnValue(request.promise);
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={jest.fn()} />);
-    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật 2FA' }));
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await pressTwiceBeforeCommit(screen.getByRole('button', { name: 'Gửi mã' }));
 
@@ -388,7 +388,7 @@ describe('two-factor card', () => {
     mocked(accountApi.confirmTwoFactorEnable).mockRejectedValue({ status: 400, code: 'TWO_FACTOR_CODE_LOCKED' });
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={jest.fn()} />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Bật 2FA' }));
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
     await screen.findByText('Mật khẩu không đúng.');
@@ -396,15 +396,15 @@ describe('two-factor card', () => {
     await fireEvent.changeText(screen.getByLabelText('Mật khẩu của bạn'), FAKE_PASSWORD);
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi mã' }));
     await fireEvent.changeText(await screen.findByLabelText('Mã xác thực'), '123456');
-    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Xác nhận mã' }));
     await screen.findByText('Bạn đã thử quá nhiều lần. Hãy bắt đầu lại để nhận mã mới.');
-    expect(screen.getByRole('button', { name: 'Bật xác thực hai yếu tố' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Bật 2FA' })).toBeOnTheScreen();
   });
 
   test('turning 2FA off asks for confirmation before any request', async () => {
     mocked(accountApi.twoFactorStatus).mockResolvedValue({ enabled: true });
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={jest.fn()} />);
-    await fireEvent.press(await screen.findByRole('button', { name: 'Tắt xác thực hai yếu tố' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Tắt 2FA' }));
     expect(screen.getByText('Tắt xác thực hai yếu tố?')).toBeOnTheScreen();
     expect(accountApi.beginTwoFactorDisable).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole('button', { name: 'Hủy' }));
@@ -416,9 +416,9 @@ describe('two-factor card', () => {
     mocked(accountApi.twoFactorStatus).mockResolvedValueOnce({ enabled: false });
     await renderApp(<TwoFactorCard email="student@example.edu" onCompleted={jest.fn()} />);
     expect(await screen.findByText('Chưa thể tải trạng thái.')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Bật xác thực hai yếu tố' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Bật 2FA' })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
-    expect(await screen.findByRole('button', { name: 'Bật xác thực hai yếu tố' })).toBeOnTheScreen();
+    expect(await screen.findByRole('button', { name: 'Bật 2FA' })).toBeOnTheScreen();
   });
 });
 
