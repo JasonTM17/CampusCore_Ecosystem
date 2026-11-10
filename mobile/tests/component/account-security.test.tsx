@@ -10,9 +10,21 @@ import { tokens } from '../../src/design/tokens';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { auditTree } from '../a11y/audit';
 
+const mockRelease = jest.fn();
+const mockPick = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockFileCapability = jest.fn<(operation: string) => { available: boolean; reason?: string }>(
+  () => ({ available: false, reason: 'unavailable' }),
+);
+const mockFileAdapter = {
+  capability: (operation: string) => mockFileCapability(operation),
+  pick: (...args: unknown[]) => mockPick(...args),
+  share: async () => ({ status: 'done' as const }),
+  save: async () => ({ status: 'done' as const }),
+};
+
 const mockProfileQuery = {
   value: {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17', avatar: 'https://campus.example/avatar.png' },
     error: null as string | null,
     warning: null as string | null,
     isLoading: false,
@@ -50,6 +62,15 @@ jest.mock('../../src/screens/account/account-api', () => ({
   },
 }));
 jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
+jest.mock('../../src/files/file-adapter', () => ({ getFileAdapter: () => mockFileAdapter }));
+jest.mock('expo-file-system', () => ({
+  File: class MockFile {
+    constructor(_path: string) {}
+    async bytes() {
+      return new Uint8Array([137, 80, 78, 71]);
+    }
+  },
+}));
 
 import { apiClient, campusApi } from '../../src/api/client';
 import { accountApi } from '../../src/screens/account/account-api';
@@ -110,8 +131,9 @@ const expectAccessible = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockFileCapability.mockImplementation(() => ({ available: false, reason: 'unavailable' }));
   mockProfileQuery.value = {
-    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17' },
+    data: { id: 'u1', email: 'minh.nguyen@ute.edu.vn', firstName: 'Minh', lastName: 'Nguyen', studentId: '2022SE0417', studentCode: '2022SE0417', phone: '', address: '', dateOfBirth: '2002-05-17', avatar: 'https://campus.example/avatar.png' },
     error: null,
     warning: null,
     isLoading: false,
@@ -736,5 +758,83 @@ describe('profile account security', () => {
     await renderApp(<ProfileScreen {...props} />);
     expect(screen.queryByText('student-profile')).toBeNull();
     expect(screen.queryByText('—')).toBeNull();
+  });
+
+  describe('profile photo upload', () => {
+    const tinyPngDataUrl = 'data:image/png;base64,iVBORw==';
+
+    beforeEach(() => {
+      mockRelease.mockReset();
+      mockPick.mockReset();
+      mockFileCapability.mockImplementation((operation: string) =>
+        operation === 'pick' ? { available: true } : { available: false, reason: 'unavailable' });
+    });
+
+    test('picking a photo stages the preview and includes avatar on save', async () => {
+      mockPick.mockResolvedValueOnce({
+        status: 'picked',
+        file: {
+          uri: 'file:///cache/avatar.png',
+          name: 'avatar.png',
+          mimeType: 'image/png',
+          sizeBytes: 4,
+          release: mockRelease,
+        },
+      });
+      mocked(campusApi.updateProfile).mockResolvedValueOnce({});
+
+      await renderApp(<ProfileScreen {...props} />);
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.uploadPhoto }));
+      await waitFor(() => expect(screen.getByText(accountMessages.vi.profile.photoUnsaved)).toBeOnTheScreen());
+      expect(mockRelease).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+      await waitFor(() => expect(campusApi.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ avatar: tinyPngDataUrl }),
+      ));
+    });
+
+    test('remove clears the staged photo and save sends an empty avatar', async () => {
+      mockPick.mockResolvedValueOnce({
+        status: 'picked',
+        file: {
+          uri: 'file:///cache/avatar.png',
+          name: 'avatar.png',
+          mimeType: 'image/png',
+          sizeBytes: 4,
+          release: mockRelease,
+        },
+      });
+      mocked(campusApi.updateProfile).mockResolvedValueOnce({});
+
+      await renderApp(<ProfileScreen {...props} />);
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.uploadPhoto }));
+      await waitFor(() => screen.getByRole('button', { name: accountMessages.vi.profile.removePhoto }));
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.removePhoto }));
+      expect(screen.queryByRole('button', { name: accountMessages.vi.profile.removePhoto })).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.save }));
+      await waitFor(() => expect(campusApi.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ avatar: '' }),
+      ));
+    });
+
+    test('unsupported pick results show localized feedback', async () => {
+      mockPick.mockResolvedValueOnce({
+        status: 'picked',
+        file: {
+          uri: 'file:///cache/doc.pdf',
+          name: 'doc.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 4,
+          release: mockRelease,
+        },
+      });
+
+      await renderApp(<ProfileScreen {...props} />);
+      await fireEvent.press(screen.getByRole('button', { name: accountMessages.vi.profile.uploadPhoto }));
+      expect(await screen.findByText(accountMessages.vi.profile.photoUploadFailed)).toBeOnTheScreen();
+      expect(screen.queryByText(accountMessages.vi.profile.photoUnsaved)).toBeNull();
+    });
   });
 });
