@@ -24,6 +24,30 @@ export const recordsMessages = {
     "announcementsViewMagazine": "Dạng Bản tin",
     "announcementsViewDispatch": "Dạng Công văn",
     "announcementsDispatchReference": "Số: {ref}",
+    "announcementsSemesterPrefix": "Học kỳ",
+    "announcementsSectionPrefix": "Lớp học phần",
+    "announcementsDispatchClose": "Đóng cửa sổ đọc",
+    "announcementsDispatchCloseA11y": "Đóng cửa sổ đọc (Esc)",
+    "announcementsDispatchSalutation": {
+      "student": "Toàn thể sinh viên, học viên Nhà trường",
+      "lecturer": "Quý Thầy/Cô, Cán bộ giảng dạy và Nghiên cứu viên Nhà trường",
+      "global": "Toàn thể cán bộ, giảng viên, học viên và sinh viên Nhà trường"
+    },
+    "announcementsDispatchSheet": {
+      "ministryName": "BỘ GIÁO DỤC VÀ ĐÀO TẠO",
+      "universityName": "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM",
+      "departmentName": "KHOA CÔNG NGHỆ THÔNG TIN & PHÒNG ĐÀO TẠO",
+      "nationalMotto1": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+      "nationalMotto2": "Độc lập - Tự do - Hạnh phúc",
+      "datePrefix": "TP. Hồ Chí Minh, ngày {date}",
+      "docRef": "Số: {ref}",
+      "noticeHeader": "THÔNG BÁO",
+      "audience": "Đối tượng áp dụng",
+      "section": "Lớp học phần",
+      "salutation": "Kính gửi",
+      "issuedByLabel": "Đơn vị ban hành",
+      "signOffHint": "Thông báo được ban hành điện tử trên Cổng học vụ"
+    },
     "announcementsAudienceBadges": {
       "GLOBAL": "🌐 Thông báo toàn trường",
       "STUDENT": "🎓 Dành riêng cho Sinh viên",
@@ -155,6 +179,30 @@ export const recordsMessages = {
     "announcementsViewMagazine": "Magazine Feed",
     "announcementsViewDispatch": "Official Dispatches",
     "announcementsDispatchReference": "Ref: {ref}",
+    "announcementsSemesterPrefix": "Semester",
+    "announcementsSectionPrefix": "Class",
+    "announcementsDispatchClose": "Close reader",
+    "announcementsDispatchCloseA11y": "Close reader (Esc)",
+    "announcementsDispatchSalutation": {
+      "student": "All students and trainees of the University",
+      "lecturer": "All Faculty Members, Lecturers, and Researchers of the University",
+      "global": "All faculty members, staff, researchers, and students of the University"
+    },
+    "announcementsDispatchSheet": {
+      "ministryName": "MINISTRY OF EDUCATION AND TRAINING",
+      "universityName": "HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING",
+      "departmentName": "FACULTY OF IT & ACADEMIC AFFAIRS OFFICE",
+      "nationalMotto1": "SOCIALIST REPUBLIC OF VIETNAM",
+      "nationalMotto2": "Independence - Freedom - Happiness",
+      "datePrefix": "Ho Chi Minh City, {date}",
+      "docRef": "Ref: {ref}",
+      "noticeHeader": "ANNOUNCEMENT",
+      "audience": "Target audience",
+      "section": "Section",
+      "salutation": "To",
+      "issuedByLabel": "Issuing unit",
+      "signOffHint": "Published electronically on the Campus Portal"
+    },
     "announcementsAudienceBadges": {
       "GLOBAL": "🌐 Campus-wide Notice",
       "STUDENT": "🎓 Student Dedicated",

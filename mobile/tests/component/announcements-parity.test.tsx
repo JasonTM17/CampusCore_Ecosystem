@@ -235,7 +235,33 @@ describe('announcements page parity', () => {
     expect(screen.getByText(priority)).toBeOnTheScreen();
     expect(screen.getByText(date)).toBeOnTheScreen();
     await fireEvent.press(row);
+    const localeCopy = recordsMessages[locale];
+    expect(screen.getByText(localeCopy.announcementsDispatchSheet.noticeHeader)).toBeOnTheScreen();
+    expect(screen.getByText(localeCopy.announcementsDispatchSheet.ministryName)).toBeOnTheScreen();
+    expect(screen.getByText(`V/v ${'Course registration opens'}`)).toBeOnTheScreen();
+    expect(screen.getByText(localeCopy.announcementsDispatchClose)).toBeOnTheScreen();
     expect(screen.getByText('Course registration opens nội dung')).toBeOnTheScreen();
+  });
+
+  test.each([
+    { locale: 'vi' as const, dispatch: 'Dạng Công văn', header: 'THÔNG BÁO', close: 'Đóng cửa sổ đọc' },
+    { locale: 'en' as const, dispatch: 'Official Dispatches', header: 'ANNOUNCEMENT', close: 'Close reader' },
+  ])('dispatch reader lists attachments like the web in $locale', async ({ locale, dispatch, header, close }) => {
+    mockPagedLists['content.announcements'] = {
+      items: [notice('attachment', 'Thông báo có tệp', {
+        content: '<p>Danh sách đính kèm bên dưới.</p>[Danh sách lớp](https://files.example.test/danh-sach.pdf)',
+      })],
+    };
+    await renderThemed(<AnnouncementsScreen {...props} />, locale);
+
+    await fireEvent.press(screen.getByRole('tab', { name: dispatch }));
+    await fireEvent.press(screen.getByRole('button', { name: /Thông báo có tệp/ }));
+
+    const localeCopy = recordsMessages[locale];
+    expect(screen.getByText(header)).toBeOnTheScreen();
+    expect(screen.getByText(close)).toBeOnTheScreen();
+    expect(screen.getByText(localeCopy.announcementsAttachments)).toBeOnTheScreen();
+    expect(screen.getByRole('link', { name: 'Danh sách lớp' })).toBeOnTheScreen();
   });
 
   test('an HTML notice body renders its headings and list items', async () => {
