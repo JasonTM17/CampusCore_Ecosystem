@@ -1,6 +1,8 @@
 export type LibraryLocale = 'vi' | 'en';
 export const libraryMessages = {
   "vi": {
+    "eyebrow": "THƯ VIỆN • MÔ PHỎNG",
+    "description": "Tra cứu danh mục, giữ chỗ bản sao và theo dõi đơn mượn — tất cả dữ liệu đều mô phỏng.",
     "title": "Thư viện",
     "simulatedBanner": "Môi trường mô phỏng — danh mục và đơn mượn ở đây KHÔNG phải sách hay thẻ thư viện thật.",
     "unavailable": "Không thể tải dữ liệu thư viện.",
@@ -52,6 +54,8 @@ export const libraryMessages = {
     } as Record<string, string>
   },
   "en": {
+    "eyebrow": "LIBRARY • SIMULATED",
+    "description": "Browse the catalogue, hold a copy and track your loans — everything is simulated.",
     "title": "Library",
     "simulatedBanner": "Simulated environment — the catalogue and loans here are NOT real books or library records.",
     "unavailable": "Library data is unavailable.",

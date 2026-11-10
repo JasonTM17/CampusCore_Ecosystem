@@ -21,6 +21,11 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
   const { locale, formatDateTime } = useContentCopy();
   const copy = eventsMessages[locale];
   const action = eventAction(event);
+  const heroStatusCodes = event.status === 'CANCELLED' || event.status === 'COMPLETED'
+    ? [event.status]
+    : event.myRegistrationStatus === 'REGISTERED'
+      ? [event.status, 'REGISTERED']
+      : [event.status];
   return (
     <DetailFrame title={copy.details} onBack={onBack}>
       <View style={{ gap: 12 }}>
@@ -32,7 +37,9 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
             detail={[event.organizer, event.location, formatDateTime(event.startsAt)].filter(Boolean).join(' · ')}
           >
             <View style={styles.heroPills}>
-              <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={copy.statusLabels as Record<string, string>} />
+              {heroStatusCodes.map((code) => (
+                <StatusChip key={code} code={code} labels={copy.statusLabels as Record<string, string>} />
+              ))}
             </View>
           </ContentHero>
           {event.description ? <UiText variant="bodyLarge" style={styles.body}>{event.description}</UiText> : null}
