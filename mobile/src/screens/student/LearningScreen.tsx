@@ -118,6 +118,7 @@ export function LearningScreen(_props: MobileScreenProps) {
                 {item.mySubmissionStatus ? <StatusChip code={item.mySubmissionStatus} labels={copy.statusLabels} /> : null}
               </View>
               {item.description ? <UiText variant="bodySmall" tone="muted" numberOfLines={2}>{item.description}</UiText> : null}
+              <UiText variant="label" tone="primary">{copy.openAssignment}</UiText>
             </View>
             <ContentChevron />
           </Pressable>
@@ -129,10 +130,13 @@ export function LearningScreen(_props: MobileScreenProps) {
   return (
     <ListFrame
       title={copy.title}
+      description={copy.description}
       icon="book-open-variant"
       list={materials}
       keyOf={(item) => item.id}
       emptyTitle={copy.emptyMaterials}
+      errorTitle={copy.errorTitle}
+      errorDescription={copy.unavailable}
       header={header}
       footer={assignmentSection}
       renderItem={(item) => (
