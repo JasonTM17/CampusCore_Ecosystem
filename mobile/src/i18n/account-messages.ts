@@ -114,6 +114,11 @@ const vi = {
     roleAdmin: 'Quản trị',
     preview: 'xem thử',
     openAssistant: 'Hỏi trợ lý',
+    photoLabel: 'Ảnh hồ sơ',
+    photoUnsaved: 'Ảnh chưa được lưu — hãy bấm "Lưu thay đổi" để giữ lại.',
+    uploadPhoto: 'Tải ảnh lên',
+    removePhoto: 'Gỡ ảnh',
+    photoUploadFailed: 'Chọn ảnh PNG, JPEG hoặc WebP dưới 200 KB sau khi nén.',
   },
   password: {
     title: 'Mật khẩu và an toàn đăng nhập',
@@ -319,6 +324,11 @@ const en: Messages = {
     roleAdmin: 'Admin',
     preview: 'preview',
     openAssistant: 'Ask the assistant',
+    photoLabel: 'Profile photo',
+    photoUnsaved: 'Photo not saved yet — click "Save changes" to keep it.',
+    uploadPhoto: 'Upload photo',
+    removePhoto: 'Remove photo',
+    photoUploadFailed: 'Choose a PNG, JPEG, or WebP photo under 200 KB after resizing.',
   },
   password: {
     title: 'Password and sign-in safety',
