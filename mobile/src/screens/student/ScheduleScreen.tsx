@@ -26,10 +26,11 @@ import {
 } from '../academic/academic-model';
 import { previewEnrollments, previewSemester } from '../academic/academic-preview';
 import { ScheduleExport } from '../academic/ScheduleExport';
+import { WeekGrid } from '../academic/WeekGrid';
 import { WeekStrip } from '../academic/WeekStrip';
 import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 
-type View_ = 'week' | 'term';
+type View_ = 'grid' | 'week' | 'term';
 
 const weekChevronHitSlop = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -129,7 +130,9 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
   const weekLabel = `${formatDate(civilKey(days[0]))} – ${formatDate(civilKey(days[6]))}`;
   const toggle = useCallback((id: string) => setOpenId((current) => (current === id ? null : id)), []);
   const selectedItems = agendaForDate(agenda, days[selectedDayIndex], semester);
-  const scheduleRows: ScheduleRow[] = view === 'week'
+  const scheduleRows: ScheduleRow[] = view === 'grid'
+    ? []
+    : view === 'week'
     ? selectedItems.map((item) => ({ kind: 'session', item }))
     : DAY_ORDER.flatMap((day, index): ScheduleRow[] => {
       const items = agenda.filter((item) => item.dayOfWeek === day);
@@ -165,7 +168,11 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
         label={copy.viewLabel}
         value={view}
         onChange={(value) => setView(value as View_)}
-        options={[{ value: 'week', label: copy.viewWeek }, { value: 'term', label: copy.viewTerm }]}
+        options={[
+          { value: 'grid', label: copy.viewGrid },
+          { value: 'week', label: copy.viewWeek },
+          { value: 'term', label: copy.viewTerm },
+        ]}
       />
       <ScreenSpacer />
       {registeredEnrollments.length === 0 ? (
@@ -185,6 +192,13 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
       )}
       <ScreenSpacer />
       {registeredEnrollments.length > 0 && agenda.length === 0 && view === 'term' ? <StatePanel kind="empty" title={copy.noMeetings} description={copy.noMeetingsHint} /> : null}
+      {registeredEnrollments.length > 0 && view === 'grid' ? (
+        <View style={styles.gridSection}>
+          <UiText accessibilityRole="header" variant="label">{copy.weeklyAgenda}</UiText>
+          <UiText variant="meta" tone="muted" style={styles.gridHint}>{copy.clickToViewDetails}</UiText>
+          <WeekGrid items={agenda} todayDow={dayOfWeekOf(today)} expandedId={openId} onToggle={toggle} />
+        </View>
+      ) : null}
       {registeredEnrollments.length > 0 && view === 'week' ? (
         <View>
           <View style={styles.weekLabelRow}>
@@ -247,6 +261,8 @@ export const ScheduleScreen = memo(function ScheduleScreen({ navigation }: Mobil
 });
 
 const styles = StyleSheet.create({
+  gridSection: { marginTop: tokens.spacing.sm, minWidth: 0 },
+  gridHint: { marginTop: tokens.spacing.xs },
   weekLabelRow: { marginTop: tokens.spacing.sm },
   weekPicker: { alignItems: 'center', flexDirection: 'row', flexWrap: 'nowrap', marginTop: tokens.spacing.xs, minWidth: 0 },
   weekChevron: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing.xs },
