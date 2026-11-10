@@ -308,7 +308,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
           <UiText
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            numberOfLines={2}
+            numberOfLines={3}
             maxFontSizeMultiplier={searchFieldFontScaleCap}
             style={{ color: colors.outline, paddingHorizontal: spacing.xs, paddingVertical: spacing.sm }}
           >

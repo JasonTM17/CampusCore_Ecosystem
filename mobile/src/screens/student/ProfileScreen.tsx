@@ -179,7 +179,10 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
         mimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
       });
       if (result.status === 'cancelled') return;
-      if (result.status !== 'picked') return;
+      if (result.status !== 'picked') {
+        setProfileMessage({ text: copy.profile.photoUploadFailed, kind: 'error' });
+        return;
+      }
       release = result.file.release;
       const read = await readPickedProfileAvatar(result.file);
       if (!read.ok) {
