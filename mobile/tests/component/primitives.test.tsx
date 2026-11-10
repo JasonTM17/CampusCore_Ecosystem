@@ -68,8 +68,21 @@ describe('SearchBar', () => {
     const onChangeText = jest.fn();
     await render(<SearchBar value="" onChangeText={onChangeText} placeholder="Tìm lớp" />);
     const input = screen.getByLabelText('Tìm lớp');
+    expect(input.props.multiline).toBe(false);
     fireEvent.changeText(input, 'Toán');
     expect(onChangeText).toHaveBeenCalledWith('Toán');
+  });
+
+  test('submits from the keyboard', async () => {
+    const onSubmitEditing = jest.fn();
+    await render(<SearchBar value="" onChangeText={() => {}} onSubmitEditing={onSubmitEditing} placeholder="Tìm lớp" />);
+    const input = screen.getByLabelText('Tìm lớp');
+    fireEvent(input, 'submitEditing');
+    expect(onSubmitEditing).toHaveBeenCalledTimes(1);
+  });
+  test('hides the placeholder once typed', async () => {
+    await render(<SearchBar value="Toán" onChangeText={() => {}} placeholder="Tìm lớp" />);
+    expect(screen.queryByText('Tìm lớp')).toBeNull();
   });
   test('clear calls onClear', async () => {
     const onClear = jest.fn();
