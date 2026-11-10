@@ -13,6 +13,7 @@ import type { UserRole } from '../navigation/routes';
 import { PreviewPill } from './PreviewPill';
 import { LanguageToggleButton } from './LanguageToggleButton';
 import { ThemeToggleButton } from './ThemeToggleButton';
+import { AppBarAccountAvatar } from './AppBarAccountAvatar';
 import { brandWordmarkFit, compactSingleLineFit } from './ui/primitives';
 import { UiText } from './ui/UiText';
 import { unreadBadgeLabel } from './unread-badge';
@@ -24,6 +25,8 @@ const AppBarInsetsContext = SafeAreaInsetsContext ?? createContext<{ top: number
 export interface AppBarProps {
   /** Signed-in view: role and a profile shortcut. */
   role?: UserRole;
+  /** Signed-in view: the account portrait; omitted reads the saved profile. */
+  avatar?: string | null;
   /** Signed-in admissions-only view for an account without an academic role. */
   applicant?: boolean;
   /** Signed-in view: the notification preview control and its unread count. */
@@ -40,7 +43,7 @@ export interface AppBarProps {
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
-export function AppBar({ role, applicant = false, unreadCount = 0, onNotifications, onProfile, onSignOut, onSignIn }: AppBarProps) {
+export function AppBar({ role, avatar, applicant = false, unreadCount = 0, onNotifications, onProfile, onSignOut, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
@@ -127,7 +130,7 @@ export function AppBar({ role, applicant = false, unreadCount = 0, onNotificatio
             onPress={onProfile}
             style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
           >
-            <MaterialCommunityIcons color={chrome.onSurface} name="account-circle-outline" size={26} />
+            <AppBarAccountAvatar avatar={avatar} color={chrome.onSurface} />
           </Pressable>
         ) : null}
         {onSignOut ? (

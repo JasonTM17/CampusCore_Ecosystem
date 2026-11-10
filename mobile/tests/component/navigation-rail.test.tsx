@@ -30,7 +30,8 @@ jest.mock('expo-router', () => {
     useRouter: jest.fn(),
   };
 });
-jest.mock('../../src/session/SessionContext', () => ({ useSession: jest.fn() }));
+jest.mock('../../src/session/SessionContext', () => ({ useSession: jest.fn(), useOptionalSession: () => null }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ data: undefined }) }));
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' } }));
 jest.mock('../../src/hooks/use-dashboard-prefetch', () => ({ useDashboardPrefetch: jest.fn() }));
 jest.mock('../../src/screens/content/use-content-query', () => ({
