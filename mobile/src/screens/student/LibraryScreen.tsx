@@ -131,12 +131,15 @@ export function LibraryScreen(_props: MobileScreenProps) {
       {tab === 'catalogue' ? (
         <ListFrame
           title={copy.title}
+          eyebrow={copy.eyebrow}
+          description={copy.description}
           icon="bookshelf"
           list={catalogue}
           items={rows}
           filtered={availableOnly || search.length > 0}
           keyOf={(item) => item.id}
           emptyTitle={copy.emptyCatalogue}
+          emptyFilteredTitle={copy.emptyCatalogue}
           flash={flash}
           header={(
             <View style={styles.header}>
@@ -184,6 +187,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
       ) : (
         <ListFrame
           title={copy.title}
+          eyebrow={copy.eyebrow}
+          description={copy.description}
           icon="book-check-outline"
           list={loans}
           items={filterLoans(loans.items, loanTab)}
@@ -204,8 +209,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
             </View>
           )}
           renderItem={(loan) => {
+            const identifier = loan.title ?? loan.barcode ?? loan.copyId;
             const dates = joinMeta([
-              `${copy.requestedAt}: ${formatDateTime(loan.requestedAt)}`,
               loan.barcode,
               loan.expiresAt ? `${copy.expiresAt}: ${formatDateTime(loan.expiresAt)}` : null,
               loan.dueAt ? `${copy.dueAt}: ${formatDateTime(loan.dueAt)}` : null,
@@ -213,7 +218,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
             ]);
             return (
               <Card>
-                <View accessible accessibilityLabel={joinMeta([loan.title ?? loan.barcode, copy.statusLabels[loan.status] ?? loan.status, dates])} style={styles.rowMain}>
+                <View accessible accessibilityLabel={joinMeta([identifier, copy.statusLabels[loan.status] ?? loan.status, dates])} style={styles.rowMain}>
                   <ContentIconChip icon="book-check-outline" />
                   <View style={styles.rowCopy}>
                     <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
@@ -224,7 +229,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
                   </View>
                 </View>
                 {isLoanCancellable(loan) ? (
-                  <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${loan.title ?? loan.barcode ?? ''}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
+                  <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${identifier}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
                 ) : null}
               </Card>
             );
