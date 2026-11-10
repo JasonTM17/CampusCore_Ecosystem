@@ -23,6 +23,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'preview', role: 'student', switchRole: jest.fn() }),
+  useOptionalSession: () => null,
 }));
 jest.mock('../../src/i18n/locale', () => ({
   ...jest.requireActual<typeof import('../../src/i18n/locale')>('../../src/i18n/locale'),

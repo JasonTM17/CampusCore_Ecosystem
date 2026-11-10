@@ -11,6 +11,7 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';

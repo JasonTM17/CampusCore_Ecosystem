@@ -88,6 +88,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 }));
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'signedOut', role: 'student', capabilities: [], bootStatus: 'ready' }),
+  useOptionalSession: () => null,
 }));
 jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })) }));
 jest.mock('../../src/auth/mobile-session-store', () => ({

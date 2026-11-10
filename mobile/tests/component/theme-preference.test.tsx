@@ -5,6 +5,8 @@ import { Dimensions, Pressable, StyleSheet, Text } from 'react-native';
 jest.mock('../../src/api/client', () => ({
   apiClient: { mode: 'preview' },
 }));
+jest.mock('../../src/session/SessionContext', () => ({ useOptionalSession: () => null }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ data: undefined }) }));
 
 import { AppBar } from '../../src/components/AppBar';
 import { ThemeProvider, useTheme } from '../../src/design/theme';
