@@ -108,10 +108,10 @@ public class AttendanceStore {
     public List<OpenSessionResponse> openForStudent(String student, Instant now) {
         return jdbc.query("""
                 SELECT s."id",s."sectionId",sec."sectionNumber",s."closesAt",s."requireCode",g."name"
-                FROM academic."AttendanceSession" s JOIN academic."Enrollment" e ON e."sectionId"=s."sectionId"
+                FROM academic."AttendanceSession" s
                 JOIN academic."Section" sec ON sec."id"=s."sectionId"
                 JOIN academic."AttendanceGeofence" g ON g."id"=s."geofenceId"
-                WHERE e."studentId"=? AND e."status" NOT IN ('DROPPED','CANCELLED')
+                WHERE EXISTS (SELECT 1 FROM academic."Enrollment" e WHERE e."sectionId"=s."sectionId" AND e."studentId"=? AND e."status" NOT IN ('DROPPED','CANCELLED'))
                 AND s."status"='OPEN' AND s."opensAt"<=? AND s."closesAt">? AND g."isActive"=TRUE
                 AND NOT EXISTS (SELECT 1 FROM academic."AttendanceCheckin" ac WHERE ac."sessionId"=s."id" AND ac."studentId"=? AND ac."decision"<>'REJECTED')
                 ORDER BY s."closesAt",s."id"
