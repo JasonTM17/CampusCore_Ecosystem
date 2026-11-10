@@ -1,7 +1,7 @@
 import { cardRows } from './content-card-rows';
 import { contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
-import { useMemo, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
@@ -15,7 +15,11 @@ import { contentApi } from './content-api';
 import { joinMeta } from './content-rules';
 import { isPreviewMode, useContentCopy } from './content-ui';
 import { previewConduct } from './preview-data';
-import { conductRankKey, conductSemesterName, conductStatusKey, parseConduct } from './records-model';
+import { academicApi } from '../academic/academic-api';
+import { localizedName } from '../academic/academic-model';
+import { useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { conductRankKey, conductSemesterName, conductStatusKey, parseConduct, type ConductActivity, type ConductTerm } from './records-model';
+import { ConductActivityDetailSheet } from './ConductActivityDetailSheet';
 import { useContentQuery } from './use-content-query';
 
 function validCertificateUrl(value: string | null | undefined): string | null {
@@ -33,24 +37,73 @@ export function ConductScreen(_props: MobileScreenProps) {
   const { locale, copy: shared, formatDate, formatNumber, t } = useContentCopy();
   const copy = recordsMessages[locale];
   const preview = isPreviewMode();
+  const { copy: academicCopy } = useAcademicCopy();
   const query = useContentQuery<unknown>('content.conduct', () => contentApi.conduct());
-  const [termId, setTermId] = useState('');
+  const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), academicCopy, !preview);
+  const [selectedSemesterId, setSelectedSemesterId] = useState('');
+  const [selectedActivity, setSelectedActivity] = useState<ConductActivity | null>(null);
   const [certificateErrorId, setCertificateErrorId] = useState<string | null>(null);
 
   const raw = preview ? previewConduct(locale) : query.data;
   const model = useMemo(() => (raw === undefined ? null : parseConduct(raw)), [raw]);
   const malformed = !preview && query.data !== undefined && model === null;
-  const term = model ? model.terms.find((entry) => entry.id === termId) ?? model.terms[0] ?? null : null;
   const semesterLabel = (name: string | null | undefined) => conductSemesterName(name, locale);
-  const trend = model ? [...model.terms].reverse().filter((entry) => entry.totalScore !== null).map((entry) => ({ label: semesterLabel(entry.semesterName), value: entry.totalScore as number })) : [];
-  const failure = preview ? null : malformed ? copy.conductMalformed : query.error;
-
   const rankLabel = (classification: string | null, classificationVi: string | null): string => {
     const key = conductRankKey(classification) ?? conductRankKey(classificationVi);
     if (key) return copy.conductClassifications[key];
     const rawLabel = locale === 'vi' ? classificationVi ?? classification : classification ?? classificationVi;
     return rawLabel?.trim() ? rawLabel : copy.conductClassifications.NOT_CLASSIFIED;
   };
+  const termKey = (entry: ConductTerm) => entry.semesterId ?? entry.id;
+  const recordBySemester = useMemo(() => {
+    const map = new Map<string, ConductTerm>();
+    for (const entry of model?.terms ?? []) map.set(termKey(entry), entry);
+    return map;
+  }, [model?.terms]);
+  const semesterOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { value: string; label: string; record?: ConductTerm }[] = [];
+    for (const semester of preview ? [] : semestersQuery.data ?? []) {
+      seen.add(semester.id);
+      const record = recordBySemester.get(semester.id);
+      const name = localizedName(semester, locale, semester.name ?? semester.id);
+      options.push({
+        value: semester.id,
+        label: record?.totalScore == null
+          ? conductSemesterName(name, locale)
+          : `${conductSemesterName(name, locale)} (${formatNumber(record.totalScore)} ${copy.conductScoreUnit} - ${rankLabel(record.classification, record.classificationVi)})`,
+        record,
+      });
+    }
+    for (const entry of model?.terms ?? []) {
+      const key = termKey(entry);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      options.push({
+        value: key,
+        label: entry.totalScore == null
+          ? semesterLabel(entry.semesterName)
+          : `${semesterLabel(entry.semesterName)} (${formatNumber(entry.totalScore)} ${copy.conductScoreUnit} - ${rankLabel(entry.classification, entry.classificationVi)})`,
+        record: entry,
+      });
+    }
+    return options;
+  }, [copy.conductClassifications, copy.conductScoreUnit, formatNumber, locale, model?.terms, preview, recordBySemester, semestersQuery.data]);
+  useEffect(() => {
+    if (!model || semesterOptions.length === 0) return;
+    if (selectedSemesterId && semesterOptions.some((option) => option.value === selectedSemesterId)) return;
+    const preferred =
+      recordBySemester.keys().next().value
+      ?? semesterOptions[0]?.value
+      ?? '';
+    if (preferred) setSelectedSemesterId(preferred);
+  }, [model, recordBySemester, selectedSemesterId, semesterOptions]);
+  const term = model
+    ? recordBySemester.get(selectedSemesterId)
+      ?? (selectedSemesterId ? null : model.terms[0] ?? null)
+    : null;
+  const trend = model ? [...model.terms].reverse().filter((entry) => entry.totalScore !== null).map((entry) => ({ label: semesterLabel(entry.semesterName), value: entry.totalScore as number })) : [];
+  const failure = preview ? null : malformed ? copy.conductMalformed : query.error;
   const statusLabel = (status: string | null): string => copy.conductStatuses[conductStatusKey(status)] ?? copy.conductStatuses.UNKNOWN;
 
   const activities = term?.activities ?? [];
@@ -67,6 +120,7 @@ export function ConductScreen(_props: MobileScreenProps) {
   ];
 
   return (
+    <>
     <ScreenShell title={copy.conductTitle} eyebrow={copy.conductEyebrow} subtitle={copy.conductDescription}
       list={{ data: [...((!preview && query.isLoading) ? [] : (failure) ? [] : (!model || (model.terms.length === 0 && model.cumulativeAverage === null)) ? [] : (term) ? cardRows("section-1", (term.activities.length === 0) ? [] : term.activities, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{semesterLabel(term.semesterName)}</UiText>
@@ -116,16 +170,22 @@ export function ConductScreen(_props: MobileScreenProps) {
                 </View>
               ) : <UiText variant="meta" tone="muted">{fillCopy(copy.conductActivityCount, { n: formatNumber(term.activities.length) })}</UiText>}</>, (activity) => (
               <View key={activity.id} style={styles.activity}>
-                <View
-                  accessible
-                  accessibilityLabel={joinMeta([activity.title, activity.category, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null, term.status === 'APPROVED' ? copy.conductApprovedBadge : statusLabel(term.status)])}
-                  style={styles.activityCopy}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${copy.conductActivityOpenDetail}, ${joinMeta([activity.title, activity.category, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null, term.status === 'APPROVED' ? copy.conductApprovedBadge : statusLabel(term.status)])}`}
+                  onPress={() => {
+                    setCertificateErrorId(null);
+                    setSelectedActivity(activity);
+                  }}
+                  style={styles.activityPress}
                 >
-                  <UiText variant="label">{activity.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">
-                    {joinMeta([activity.category, activity.organizer, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
-                  </UiText>
-                </View>
+                  <View style={styles.activityCopy}>
+                    <UiText variant="label">{activity.title}</UiText>
+                    <UiText variant="bodySmall" tone="muted">
+                      {joinMeta([activity.category, activity.organizer, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
+                    </UiText>
+                  </View>
+                </Pressable>
                 <StatusPill label={term.status === 'APPROVED' ? copy.conductApprovedBadge : statusLabel(term.status)} tone={term.status === 'APPROVED' ? 'success' : 'neutral'} />
                 {validCertificateUrl(activity.certificateUrl) ? (
                   <Button
@@ -220,21 +280,31 @@ export function ConductScreen(_props: MobileScreenProps) {
             </Card>
           ) : null}
           {trend.length > 1 ? <ChartSummary title={copy.conductHistory} series={trend} /> : null}
-          {model.terms.length > 0 ? (
+          {semesterOptions.length > 0 ? (
             <ChoiceField
               label={copy.conductTerm}
               display="sheet"
-              value={term?.id ?? ''}
-              options={model.terms.map((entry) => ({
-                value: entry.id,
-                label: entry.totalScore == null
-                  ? semesterLabel(entry.semesterName)
-                  : `${semesterLabel(entry.semesterName)} (${formatNumber(entry.totalScore)} ${copy.conductScoreUnit} - ${rankLabel(entry.classification, entry.classificationVi)})`,
-              }))}
-              onChange={setTermId}
+              value={selectedSemesterId}
+              options={semesterOptions.map((entry) => ({ value: entry.value, label: entry.label }))}
+              onChange={setSelectedSemesterId}
             />
           ) : null}
           </View></>)}</>)}</>)}</ScreenShell>
+    <ConductActivityDetailSheet
+      activity={selectedActivity}
+      termStatus={term?.status ?? null}
+      studentCode={model?.studentCode ?? null}
+      fullName={model?.fullName ?? null}
+      certificateError={selectedActivity ? certificateErrorId === selectedActivity.id : false}
+      onClose={() => setSelectedActivity(null)}
+      onOpenCertificate={(url) => {
+        setCertificateErrorId(null);
+        void Linking.openURL(url).catch(() => {
+          if (selectedActivity) setCertificateErrorId(selectedActivity.id);
+        });
+      }}
+    />
+    </>
   );
 }
 
@@ -257,5 +327,6 @@ const styles = StyleSheet.create({
   historySemester: { flex: 1, minWidth: 96 },
   termMeta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
   activity: { gap: 2, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
-  activityCopy: { gap: 2 },
+  activityPress: { flex: 1, minHeight: tokens.layout.touchTarget, minWidth: 0 },
+  activityCopy: { gap: 2, minWidth: 0 },
 });
