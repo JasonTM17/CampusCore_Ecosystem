@@ -8,11 +8,38 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const mockQuery = { value: { data: null as unknown, error: null as string | null, warning: null as string | null } };
+let mockSemesterCatalog: Array<{ id: string; name: string; nameVi?: string; nameEn?: string }> = [];
 
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' } }));
 jest.mock('../../src/screens/content/content-api', () => ({ contentApi: { conduct: jest.fn() } }));
 jest.mock('../../src/screens/content/use-content-query', () => ({
   useContentQuery: () => ({ ...mockQuery.value, errorStatus: null, isLoading: false, isStale: false, reload: jest.fn(async () => {}) }),
+}));
+jest.mock('../../src/hooks/useScreenQuery', () => ({
+  useScreenQuery: (key: string) => {
+    if (key === 'academic.semesters') {
+      return {
+        data: mockSemesterCatalog,
+        error: null,
+        warning: null,
+        errorStatus: null,
+        isLoading: false,
+        isStale: false,
+        reload: jest.fn(async () => {}),
+        setData: jest.fn(),
+      };
+    }
+    return {
+      data: undefined,
+      error: null,
+      warning: null,
+      errorStatus: null,
+      isLoading: false,
+      isStale: false,
+      reload: jest.fn(async () => {}),
+      setData: jest.fn(),
+    };
+  },
 }));
 
 import { ConductScreen } from '../../src/screens/content/ConductScreen';
@@ -27,6 +54,7 @@ function setRecord() {
     cumulativeClassificationVi: 'Tốt',
     history: [{
       id: 'term-1',
+      semesterId: 'term-1',
       semesterName: 'Fall 2026',
       totalScore: 82,
       classification: 'GOOD',
@@ -48,6 +76,7 @@ const renderThemed = (locale: 'vi' | 'en', element: ReactElement) => render(
 afterEach(() => {
   jest.restoreAllMocks();
   mockQuery.value = { data: null, error: null, warning: null };
+  mockSemesterCatalog = [];
 });
 
 test('conduct status and Vietnamese classification are localized', async () => {
@@ -212,15 +241,42 @@ test('conduct criteria show the web index and earned header', async () => {
 });
 
 test('conduct term options carry the web score and rank suffix', async () => {
+  mockSemesterCatalog = [{ id: 't1', name: 'Học kỳ 1 năm học 2024-2025', nameVi: 'Học kỳ 1 năm học 2024-2025' }];
   mockQuery.value.data = {
     studentCode: 'S-1',
     history: [
-      { id: 't1', semesterName: 'Học kỳ 1 năm học 2024-2025', totalScore: 82, classification: 'GOOD', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] },
+      { id: 't1', semesterId: 't1', semesterName: 'Học kỳ 1 năm học 2024-2025', totalScore: 82, classification: 'GOOD', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] },
     ],
   };
   await renderThemed('vi', <ConductScreen {...props} />);
   await fireEvent.press(screen.getByRole('button', { name: /Học kỳ: / }));
   expect(screen.getByRole('radio', { name: 'Học kỳ 1 năm học 2024-2025 (82 điểm - Tốt)' })).toBeOnTheScreen();
+});
+
+test('conduct semester selector lists the full semester catalogue', async () => {
+  mockSemesterCatalog = [
+    { id: 't1', name: 'Học kỳ 1 năm học 2024-2025', nameVi: 'Học kỳ 1 năm học 2024-2025' },
+    { id: 't2', name: 'Học kỳ 2 năm học 2025-2026', nameVi: 'Học kỳ 2 năm học 2025-2026' },
+  ];
+  mockQuery.value.data = {
+    studentCode: 'S-1',
+    history: [
+      { id: 't1', semesterId: 't1', semesterName: 'Học kỳ 1 năm học 2024-2025', totalScore: 82, classification: 'GOOD', classificationVi: 'Tốt', status: 'APPROVED', criteria: [], activities: [] },
+    ],
+  };
+  await renderThemed('vi', <ConductScreen {...props} />);
+  await fireEvent.press(screen.getByRole('button', { name: /Học kỳ: / }));
+  expect(screen.getByRole('radio', { name: 'Học kỳ 1 năm học 2024-2025 (82 điểm - Tốt)' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: 'Học kỳ 2 năm học 2025-2026' })).toBeOnTheScreen();
+});
+
+test('tapping a conduct activity row opens the web metadata preview sheet', async () => {
+  setRecord();
+  await renderThemed('vi', <ConductScreen {...props} />);
+  await fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết hoạt động, Volunteer day/ }));
+  expect(screen.getByText('Hồ sơ hoạt động — bản xem trước')).toBeOnTheScreen();
+  expect(screen.getByText('HỒ SƠ HOẠT ĐỘNG RÈN LUYỆN (BẢN XEM TRƯỚC)')).toBeOnTheScreen();
+  expect(screen.getAllByRole('button', { name: 'Xem giấy chứng nhận: Volunteer day' }).length).toBeGreaterThan(0);
 });
 
 test('conduct activity rows show the web verification badge', async () => {
