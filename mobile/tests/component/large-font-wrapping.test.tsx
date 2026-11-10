@@ -162,12 +162,12 @@ describe('Q-005 search field at large font', () => {
     expect(style.minWidth).toBe(0);
   });
 
-  test('renders a long placeholder as a wrapped two-line label when empty', async () => {
+  test('renders a long placeholder as a wrapped label of up to three lines when empty', async () => {
     setFontScale(1.3, 411);
     const placeholder = campusMessages.vi.searchPlaceholder;
     await render(wrap(<SearchBar value="" onChangeText={() => {}} placeholder={placeholder} />));
     const hint = screen.getByText(placeholder, { includeHiddenElements: true });
-    expect(hint.props.numberOfLines).toBe(2);
+    expect(hint.props.numberOfLines).toBe(3);
     expect(hint.props.maxFontSizeMultiplier).toBe(searchFieldFontScaleCap);
     const input = screen.getByLabelText(placeholder);
     expect(input.props.placeholder).toBe(placeholder);

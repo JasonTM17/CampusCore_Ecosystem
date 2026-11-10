@@ -60,7 +60,7 @@ interface DiskFile {
   readonly size: number;
   create(): void;
   delete(): void;
-  copy(destination: DiskFile): void;
+  copy(destination: DiskFile): void | Promise<void>;
   write(content: string, options: { encoding: 'base64' | 'utf8' }): void;
   open(): { writeBytes(bytes: Uint8Array): void; close(): void };
   bytes(): Promise<Uint8Array>;
@@ -188,10 +188,12 @@ export function createNativeFileRuntime(modules: NativeFileModules) {
         // Stat the copied file: picker metadata can be absent or wrong.
         validate(source.size, mime, options.maxBytes ?? ATTACHMENT_MAX_BYTES, types);
         copy = fresh(mime);
-        source.copy(copy);
-        validate(copy.size, mime, options.maxBytes ?? ATTACHMENT_MAX_BYTES, types);
+        // The native copy completes asynchronously: stat the destination only after it settles.
+        await source.copy(copy);
+        const copiedSize = new fs.File(copy.uri).size;
+        validate(copiedSize, mime, options.maxBytes ?? ATTACHMENT_MAX_BYTES, types);
         const picked = copy;
-        return { status: 'picked', file: { uri: picked.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: picked.size, release: () => remove(picked) } };
+        return { status: 'picked', file: { uri: picked.uri, name: sanitizeFileName(asset.name), mimeType: mime, sizeBytes: copiedSize, release: () => remove(picked) } };
       } catch (error) {
         if (copy) {
           try { remove(copy); } catch { return { status: 'failed', reason: 'ERROR' }; }
