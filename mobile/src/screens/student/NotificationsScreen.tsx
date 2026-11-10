@@ -85,19 +85,24 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
   const busyRef = useRef(false);
   const { rows: optimisticRows, begin } = useOptimisticRows(list.items, identity);
 
-  const run = useCallback(async (action: () => Promise<unknown>, transform: (row: InboxNotification) => InboxNotification | null, ok: string | null) => {
+  const run = useCallback(async (
+    action: () => Promise<unknown>,
+    transform: (row: InboxNotification) => InboxNotification | null,
+    ok: string | null | ((result: unknown) => string | null),
+  ) => {
     if (busyRef.current || offline || apiClient.mode !== 'live') return;
     busyRef.current = true;
     setBusy(true);
     const rollback = begin(transform);
     try {
-      await action();
+      const result = await action();
       if (identityRef.current !== identity) return;
       list.patch(transform);
       for (const resource of ['content.notifications.all', 'content.notifications.unread', 'content.notifications.unread-count']) {
         evictQueryCache(queryCacheKey(session?.accountId ?? null, resource, cacheScope));
       }
-      if (ok) success(ok);
+      const okMessage = typeof ok === 'function' ? ok(result) : ok;
+      if (okMessage) success(okMessage);
       // Read the count outside the screen's own query: opening a notification
       // navigates away, and a write to the shared cache still reaches the badge
       // in the app shell, which a reload from an unmounted screen never would.
@@ -163,9 +168,31 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     onConfirm: () => void run(
       () => contentApi.markAllNotificationsRead(),
       (row) => (tab === 'unread' ? null : { ...row, isRead: true }),
-      copy.markedAll,
+      (result) => {
+        const updated = typeof (result as { updated?: number })?.updated === 'number'
+          ? (result as { updated: number }).updated
+          : 0;
+        if (updated <= 0) return copy.markedAll;
+        return fillCopy(updated === 1 ? copy.markedAllOne : copy.markedAllCount, { n: updated });
+      },
     ),
   });
+
+  const tabCounts = useMemo(() => {
+    const allCount = list.total ?? list.items.length;
+    const unreadTabCount = apiClient.mode === 'live' && unread.data != null
+      ? unread.data
+      : loadedUnread;
+    return { all: allCount, unread: unreadTabCount };
+  }, [list.total, list.items.length, loadedUnread, unread.data]);
+
+  const tabOptions = useMemo(
+    () => ([
+      { value: 'all', label: `${copy.tabAll} (${tabCounts.all})` },
+      { value: 'unread', label: `${copy.tabUnread} (${tabCounts.unread})` },
+    ]),
+    [copy.tabAll, copy.tabUnread, tabCounts.all, tabCounts.unread],
+  );
 
   return (
     <>
@@ -186,18 +213,28 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
               accessibilityLabel={copy.notificationsTitle}
               value={tab}
               onChange={(value) => setTab(value as NotificationTab)}
-              options={[{ value: 'all', label: copy.tabAll }, { value: 'unread', label: copy.tabUnread }]}
+              options={tabOptions}
             />
             {offline ? <Notice tone="info" message={center.offlineReadOnly} /> : null}
             <View style={styles.summary}>
               <UiText variant="label" tone="primary" accessibilityLiveRegion="polite">{unreadCountLabel}</UiText>
-              <Button
-                label={copy.markAllRead}
-                variant="secondary"
-                loading={busy}
-                disabled={busy || offline || list.preview || !hasUnread}
-                onPress={markAll}
-              />
+              <View style={styles.summaryActions}>
+                <Button
+                  label={center.refresh}
+                  variant="secondary"
+                  icon="refresh"
+                  loading={list.refreshing}
+                  disabled={busy || offline || list.preview || list.refreshing}
+                  onPress={() => void list.refresh()}
+                />
+                <Button
+                  label={copy.markAllRead}
+                  variant="secondary"
+                  loading={busy}
+                  disabled={busy || offline || list.preview || !hasUnread}
+                  onPress={markAll}
+                />
+              </View>
             </View>
             {PUSH_OPT_IN_ENABLED ? <PushOptInCard /> : null}
           </View>
@@ -221,11 +258,19 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
               </View>
               {item.message ? <UiText variant="bodySmall" tone="muted">{item.message}</UiText> : null}
               <View style={styles.metaRow}>
-                {item.isRead ? null : <StatusPill icon="circle-small" label={copy.unread} tone="primary" />}
+                {item.isRead ? null : <StatusPill icon="circle-small" label={copy.unread} tone="info" />}
                 <UiText variant="meta" tone="muted">{formatDateTime(item.createdAt)}</UiText>
               </View>
             </Pressable>
             <View style={styles.rowFooter}>
+              {hasLink ? (
+                <Button
+                  label={center.openRelated}
+                  variant="text"
+                  disabled={busy || offline || list.preview}
+                  onPress={() => openItem(item)}
+                />
+              ) : null}
               {item.isRead ? (
                 <UiText variant="meta" tone="muted">{copy.read}</UiText>
               ) : (
@@ -259,11 +304,12 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   summary: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
+  summaryActions: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end' },
   rowCard: { position: 'relative', padding: tokens.spacing.md },
   rowIcon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
   rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: minTapTarget, justifyContent: 'center', width: minTapTarget },
   rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: minTapTarget },
-  rowFooter: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.spacing.lg },
+  rowFooter: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, minHeight: tokens.spacing.lg },
   titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: minTapTarget },
   title: { flex: 1, minWidth: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm },
