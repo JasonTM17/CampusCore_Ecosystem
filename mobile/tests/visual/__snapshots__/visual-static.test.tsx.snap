@@ -11339,7 +11339,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả thông báo",
+                                        "Tất cả thông báo (3)",
                                       ],
                                       "s": {
                                         "color": "#12151C",
@@ -11348,7 +11348,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả thông báo",
+                                  "label": "Tất cả thông báo (3)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -11366,7 +11366,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Chưa đọc",
+                                        "Chưa đọc (2)",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -11375,7 +11375,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Chưa đọc",
+                                  "label": "Chưa đọc (2)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -11416,33 +11416,90 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "c": [
                                         {
                                           "c": [
-                                            "Đánh dấu đã đọc tất cả",
+                                            {
+                                              "c": [
+                                                "󰑐",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 20,
+                                              },
+                                              "t": "Text",
+                                            },
+                                            {
+                                              "c": [
+                                                "Làm mới thông báo",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
                                           ],
                                           "s": {
-                                            "color": "#EDF0F2",
-                                            "fontSize": 14,
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
                                           },
-                                          "t": "Text",
+                                          "t": "View",
                                         },
                                       ],
+                                      "label": "Làm mới thông báo",
+                                      "role": "button",
                                       "s": {
                                         "alignItems": "center",
-                                        "flexDirection": "row",
-                                        "gap": 8,
+                                        "backgroundColor": "#1E2229",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Đánh dấu đã đọc tất cả",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "s": {
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Đánh dấu đã đọc tất cả",
+                                      "role": "button",
+                                      "s": {
+                                        "alignItems": "center",
+                                        "backgroundColor": "#1E2229",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Đánh dấu đã đọc tất cả",
-                                  "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
-                                    "borderColor": "#33363D",
-                                    "borderRadius": 8,
-                                    "justifyContent": "center",
-                                    "paddingHorizontal": 16,
-                                    "paddingVertical": 12,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "flex-end",
                                   },
                                   "t": "View",
                                 },
@@ -11634,6 +11691,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -11839,6 +11897,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -11984,6 +12043,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -12151,7 +12211,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả thông báo",
+                                        "Tất cả thông báo (3)",
                                       ],
                                       "s": {
                                         "color": "#12151C",
@@ -12160,7 +12220,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả thông báo",
+                                  "label": "Tất cả thông báo (3)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -12178,7 +12238,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                   "c": [
                                     {
                                       "c": [
-                                        "Chưa đọc",
+                                        "Chưa đọc (2)",
                                       ],
                                       "s": {
                                         "color": "#A9B1BC",
@@ -12187,7 +12247,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Chưa đọc",
+                                  "label": "Chưa đọc (2)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -12228,33 +12288,90 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                                       "c": [
                                         {
                                           "c": [
-                                            "Đánh dấu đã đọc tất cả",
+                                            {
+                                              "c": [
+                                                "󰑐",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 20,
+                                              },
+                                              "t": "Text",
+                                            },
+                                            {
+                                              "c": [
+                                                "Làm mới thông báo",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
                                           ],
                                           "s": {
-                                            "color": "#EDF0F2",
-                                            "fontSize": 14,
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
                                           },
-                                          "t": "Text",
+                                          "t": "View",
                                         },
                                       ],
+                                      "label": "Làm mới thông báo",
+                                      "role": "button",
                                       "s": {
                                         "alignItems": "center",
-                                        "flexDirection": "row",
-                                        "gap": 8,
+                                        "backgroundColor": "#1E2229",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Đánh dấu đã đọc tất cả",
+                                              ],
+                                              "s": {
+                                                "color": "#EDF0F2",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "s": {
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Đánh dấu đã đọc tất cả",
+                                      "role": "button",
+                                      "s": {
+                                        "alignItems": "center",
+                                        "backgroundColor": "#1E2229",
+                                        "borderColor": "#33363D",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Đánh dấu đã đọc tất cả",
-                                  "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#1E2229",
-                                    "borderColor": "#33363D",
-                                    "borderRadius": 8,
-                                    "justifyContent": "center",
-                                    "paddingHorizontal": 16,
-                                    "paddingVertical": 12,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "flex-end",
                                   },
                                   "t": "View",
                                 },
@@ -12446,6 +12563,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -12651,6 +12769,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -12796,6 +12915,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications dar
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -12965,7 +13085,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả thông báo",
+                                        "Tất cả thông báo (3)",
                                       ],
                                       "s": {
                                         "color": "#FFFFFF",
@@ -12974,7 +13094,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả thông báo",
+                                  "label": "Tất cả thông báo (3)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -12992,7 +13112,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Chưa đọc",
+                                        "Chưa đọc (2)",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -13001,7 +13121,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Chưa đọc",
+                                  "label": "Chưa đọc (2)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -13042,33 +13162,90 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "c": [
                                         {
                                           "c": [
-                                            "Đánh dấu đã đọc tất cả",
+                                            {
+                                              "c": [
+                                                "󰑐",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 20,
+                                              },
+                                              "t": "Text",
+                                            },
+                                            {
+                                              "c": [
+                                                "Làm mới thông báo",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
                                           ],
                                           "s": {
-                                            "color": "#17243A",
-                                            "fontSize": 14,
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
                                           },
-                                          "t": "Text",
+                                          "t": "View",
                                         },
                                       ],
+                                      "label": "Làm mới thông báo",
+                                      "role": "button",
                                       "s": {
                                         "alignItems": "center",
-                                        "flexDirection": "row",
-                                        "gap": 8,
+                                        "backgroundColor": "#FFFFFF",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Đánh dấu đã đọc tất cả",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "s": {
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Đánh dấu đã đọc tất cả",
+                                      "role": "button",
+                                      "s": {
+                                        "alignItems": "center",
+                                        "backgroundColor": "#FFFFFF",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Đánh dấu đã đọc tất cả",
-                                  "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
-                                    "borderColor": "#C9D5E4",
-                                    "borderRadius": 8,
-                                    "justifyContent": "center",
-                                    "paddingHorizontal": 16,
-                                    "paddingVertical": 12,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "flex-end",
                                   },
                                   "t": "View",
                                 },
@@ -13260,6 +13437,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -13465,6 +13643,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -13610,6 +13789,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -13777,7 +13957,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Tất cả thông báo",
+                                        "Tất cả thông báo (3)",
                                       ],
                                       "s": {
                                         "color": "#FFFFFF",
@@ -13786,7 +13966,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Tất cả thông báo",
+                                  "label": "Tất cả thông báo (3)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -13804,7 +13984,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                   "c": [
                                     {
                                       "c": [
-                                        "Chưa đọc",
+                                        "Chưa đọc (2)",
                                       ],
                                       "s": {
                                         "color": "#526174",
@@ -13813,7 +13993,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "t": "Text",
                                     },
                                   ],
-                                  "label": "Chưa đọc",
+                                  "label": "Chưa đọc (2)",
                                   "role": "tab",
                                   "s": {
                                     "alignItems": "center",
@@ -13854,33 +14034,90 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                                       "c": [
                                         {
                                           "c": [
-                                            "Đánh dấu đã đọc tất cả",
+                                            {
+                                              "c": [
+                                                "󰑐",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 20,
+                                              },
+                                              "t": "Text",
+                                            },
+                                            {
+                                              "c": [
+                                                "Làm mới thông báo",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
                                           ],
                                           "s": {
-                                            "color": "#17243A",
-                                            "fontSize": 14,
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
                                           },
-                                          "t": "Text",
+                                          "t": "View",
                                         },
                                       ],
+                                      "label": "Làm mới thông báo",
+                                      "role": "button",
                                       "s": {
                                         "alignItems": "center",
-                                        "flexDirection": "row",
-                                        "gap": 8,
+                                        "backgroundColor": "#FFFFFF",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            {
+                                              "c": [
+                                                "Đánh dấu đã đọc tất cả",
+                                              ],
+                                              "s": {
+                                                "color": "#17243A",
+                                                "fontSize": 14,
+                                              },
+                                              "t": "Text",
+                                            },
+                                          ],
+                                          "s": {
+                                            "alignItems": "center",
+                                            "flexDirection": "row",
+                                            "gap": 8,
+                                          },
+                                          "t": "View",
+                                        },
+                                      ],
+                                      "label": "Đánh dấu đã đọc tất cả",
+                                      "role": "button",
+                                      "s": {
+                                        "alignItems": "center",
+                                        "backgroundColor": "#FFFFFF",
+                                        "borderColor": "#C9D5E4",
+                                        "borderRadius": 8,
+                                        "justifyContent": "center",
+                                        "paddingHorizontal": 16,
+                                        "paddingVertical": 12,
                                       },
                                       "t": "View",
                                     },
                                   ],
-                                  "label": "Đánh dấu đã đọc tất cả",
-                                  "role": "button",
                                   "s": {
                                     "alignItems": "center",
-                                    "backgroundColor": "#FFFFFF",
-                                    "borderColor": "#C9D5E4",
-                                    "borderRadius": 8,
-                                    "justifyContent": "center",
-                                    "paddingHorizontal": 16,
-                                    "paddingVertical": 12,
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "flex-end",
                                   },
                                   "t": "View",
                                 },
@@ -14072,6 +14309,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -14277,6 +14515,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
@@ -14422,6 +14661,7 @@ exports[`static visual snapshots (structure/token, not pixels) Notifications lig
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
+                            "gap": 8,
                           },
                           "t": "View",
                         },
