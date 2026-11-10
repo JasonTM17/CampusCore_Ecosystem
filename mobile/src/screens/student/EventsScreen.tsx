@@ -130,9 +130,8 @@ export function EventsScreen(_props: MobileScreenProps) {
     return fillCopy(countForm(remaining, copy.seatsOne, copy.seats), { remaining, capacity: event.capacity });
   };
   const eventMeta = (event: MobileEvent) => joinMeta([
-    event.organizer,
-    event.location,
     `${formatDateTime(event.startsAt)} → ${formatDateTime(event.endsAt)}`,
+    event.location,
   ]);
 
   const tabs = (
@@ -166,6 +165,8 @@ export function EventsScreen(_props: MobileScreenProps) {
       {tab === 'catalog' ? (
         <ListFrame
           title={copy.title}
+          eyebrow={copy.eyebrow}
+          description={copy.studentHint}
           icon="calendar-star-outline"
           list={catalog}
           items={rows}
@@ -204,6 +205,8 @@ export function EventsScreen(_props: MobileScreenProps) {
       ) : (
         <ListFrame
           title={copy.title}
+          eyebrow={copy.eyebrow}
+          description={copy.studentHint}
           icon="calendar-check-outline"
           list={mine}
           keyOf={(item) => item.registrationId}

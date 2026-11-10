@@ -26,6 +26,44 @@ const event: MobileEvent = {
   myAttendanceStatus: 'ATTENDED',
 };
 
+test('event detail keeps the lifecycle chip when the student is registered', async () => {
+  const registered: MobileEvent = {
+    ...event,
+    status: 'REGISTRATION_OPEN',
+    myRegistrationStatus: 'REGISTERED',
+    myRegistrationId: 'reg-1',
+  };
+  await render(
+    <ThemeProvider forcedScheme="light">
+      <LocaleProvider initialLocale="vi">
+        <EventDetail event={registered} busy={false} flash={null} onBack={() => {}} onRegister={() => {}} onCancel={() => {}} />
+      </LocaleProvider>
+    </ThemeProvider>,
+  );
+  expect(screen.getByText(eventsMessages.vi.statusLabels.REGISTRATION_OPEN)).toBeOnTheScreen();
+  expect(screen.getByText(eventsMessages.vi.statusLabels.REGISTERED)).toBeOnTheScreen();
+});
+
+test('event detail prioritises a terminal lifecycle status over registration', async () => {
+  const cancelled: MobileEvent = {
+    ...event,
+    status: 'CANCELLED',
+    myRegistrationStatus: 'REGISTERED',
+    myRegistrationId: 'reg-1',
+    myAttendanceStatus: null,
+  };
+  await render(
+    <ThemeProvider forcedScheme="light">
+      <LocaleProvider initialLocale="vi">
+        <EventDetail event={cancelled} busy={false} flash={null} onBack={() => {}} onRegister={() => {}} onCancel={() => {}} />
+      </LocaleProvider>
+    </ThemeProvider>,
+  );
+
+  expect(screen.getByText(eventsMessages.vi.statusLabels.CANCELLED)).toBeOnTheScreen();
+  expect(screen.queryByText(eventsMessages.vi.statusLabels.REGISTERED)).toBeNull();
+});
+
 test('event detail shows the current attendance status', async () => {
   await render(
     <ThemeProvider forcedScheme="light">
