@@ -83,11 +83,12 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const counts = tabCounts(enrollments, term || null);
   const rows = filterEnrollments(enrollments, tab, term || null);
   const selected = selectedId ? enrollments.find((item) => item.id === selectedId) ?? null : null;
+  const emptyEnrollmentList = tab === 'active' && enrollments.length === 0;
   const openDrop = (item: AcademicEnrollment) => {
     setDropTarget(item);
     setConfirmOpen(true);
   };
-  const emptyTitle = tab === 'active' ? copy.emptyActive : tab === 'past' ? copy.emptyPast : copy.emptyWithdrawn;
+  const emptyTitle = emptyEnrollmentList ? copy.emptyCoursesTitle : tab === 'active' ? copy.emptyActive : tab === 'past' ? copy.emptyPast : copy.emptyWithdrawn;
   const headingSemester = term ? semesters.find((entry) => entry.id === term) : undefined;
   const termEnrollments = term ? enrollments.filter((item) => item.semesterId === term) : [];
   const headingCredits = termEnrollments.reduce((sum, item) => sum + (item.section?.course?.credits ?? 0), 0);
@@ -167,7 +168,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                 </Pressable>
               );
             },
-        footer: <>{selected ? null : (<>
+        footer: <>{selected || emptyEnrollmentList ? null : (<>
           <ScreenSpacer />
           <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
         </>)}
@@ -210,7 +211,15 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
               </UiText>
             </View>
           ) : null}
-          {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
+          {rows.length === 0 ? (
+            <StatePanel
+              kind="empty"
+              title={emptyTitle}
+              description={emptyEnrollmentList ? copy.emptyCoursesDescription : undefined}
+              actionLabel={emptyEnrollmentList ? copy.browseClasses : undefined}
+              onAction={emptyEnrollmentList ? () => navigation.navigate('registration') : undefined}
+            />
+          ) : null}
         </View>)}
       <Dialog
         visible={confirmOpen}

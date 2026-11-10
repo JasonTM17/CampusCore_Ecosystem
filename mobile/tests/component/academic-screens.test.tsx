@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { RefreshControl, StyleSheet } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { ReactElement } from 'react';
@@ -1072,15 +1072,21 @@ describe('curriculum', () => {
     expect(label).toContain('Tiên quyết: MA101');
   });
 
-  test.each<['vi' | 'en', string, string, string]>([
-    ['vi', 'Trạng thái: Tất cả', 'Chưa học', 'Không có học phần nào phù hợp với trạng thái đã chọn.'],
-    ['en', 'Status: All', 'Not started', 'No courses match the selected status.'],
-  ])('shows filter-specific empty copy in %s', async (locale, filterLabel, optionLabel, expected) => {
+  test.each<['vi' | 'en', string, string, string, string, 'COMPLETED' | 'NOT_STARTED', string[]]>([
+    ['vi', 'Trạng thái: Tất cả', 'Có thể đăng ký', 'Có thể đăng ký', 'Không còn môn nào được mở khóa — các môn còn lại đều chờ học phần tiên quyết hoặc bạn đã hoàn thành chương trình.', 'NOT_STARTED', ['PREREQ']],
+    ['vi', 'Trạng thái: Tất cả', 'Đã hoàn tất', 'Đã hoàn tất', 'Chưa có môn hoàn tất — các môn đã qua sẽ hiện ở đây.', 'NOT_STARTED', []],
+    ['vi', 'Trạng thái: Tất cả', 'Đang học', 'Đang học', 'Không có môn nào đang học.', 'NOT_STARTED', []],
+    ['vi', 'Trạng thái: Tất cả', 'Chưa học', 'Chưa học', 'Không còn môn chưa học nào trong chương trình.', 'COMPLETED', []],
+    ['en', 'Status: All', 'Ready to register', 'Ready to register', 'No unblocked courses left — every remaining course still waits on a prerequisite or you have finished the plan.', 'NOT_STARTED', ['PREREQ']],
+    ['en', 'Status: All', 'Completed', 'Completed', 'No completed courses yet — finished courses will appear here.', 'NOT_STARTED', []],
+    ['en', 'Status: All', 'In progress', 'In progress', 'No courses in progress right now.', 'NOT_STARTED', []],
+    ['en', 'Status: All', 'Not started', 'Not started', 'No not-started courses remain in this plan.', 'COMPLETED', []],
+  ])('shows the web empty state for the selected curriculum filter in %s: %s', async (locale, filterLabel, optionLabel, expectedTitle, expectedDescription, courseStatus, prerequisites) => {
     mockQueries['academic.curriculum'] = {
       data: {
         curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
         courses: [
-          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: 'COMPLETED' },
+          { courseId: 'a', code: 'MA101', name: 'Giải tích', credits: 3, year: 1, semester: 1, isMandatory: true, status: courseStatus, prerequisites },
         ],
       },
     };
@@ -1088,8 +1094,25 @@ describe('curriculum', () => {
     await fireEvent.press(screen.getByRole('button', { name: filterLabel }));
     await fireEvent.press(screen.getByRole('radio', { name: optionLabel }));
 
-    expect(screen.getByText(expected)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('state-panel')).getByText(expectedTitle)).toBeOnTheScreen();
+    expect(screen.getByText(expectedDescription)).toBeOnTheScreen();
     expect(screen.queryByText(academicMessages[locale].emptyCurriculum)).toBeNull();
+  });
+
+  test.each<['vi' | 'en', string, string]>([
+    ['vi', 'Chưa có chương trình đào tạo', 'Hồ sơ sinh viên của bạn chưa được gán chương trình đào tạo. Vui lòng liên hệ Phòng Đào tạo để được cấp khung chương trình.'],
+    ['en', 'No curriculum assigned', 'Your student profile has no study program attached yet. Contact the Academic Office to have one assigned.'],
+  ])('explains the unassigned curriculum in %s', async (locale, title, description) => {
+    mockQueries['academic.curriculum'] = {
+      data: {
+        curriculum: { id: 'c', code: 'SE2026', name: 'Kỹ thuật phần mềm', totalCredits: 120 },
+        courses: [],
+      },
+    };
+    await render(wrap(<CurriculumScreen {...props} />, locale));
+
+    expect(within(screen.getByTestId('state-panel')).getByText(title)).toBeOnTheScreen();
+    expect(screen.getByText(description)).toBeOnTheScreen();
   });
 });
 
@@ -1264,7 +1287,8 @@ describe('registration', () => {
     await view.rerender(wrap(<RegistrationScreen {...props} />));
     expect(screen.queryByText('Đã chọn (1)')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Đăng ký các lớp đã chọn' })).toBeNull();
-    expect(await screen.findByText('Đợt đăng ký hiện không mở.')).toBeOnTheScreen();
+    expect(await screen.findByText('Hiện chưa có đợt đăng ký đang mở.')).toBeOnTheScreen();
+    expect(screen.getByText('Vui lòng quay lại khi Phòng Đào tạo mở cửa sổ đăng ký hoặc đăng ký/huỷ môn cho học kỳ của bạn.')).toBeOnTheScreen();
     expect(mockPost).not.toHaveBeenCalled();
   });
 
@@ -1304,7 +1328,12 @@ describe('registration', () => {
     };
     await render(wrap(<RegistrationScreen {...props} />));
 
-    expect(screen.getByText('Khóa của bạn chưa được đăng ký ở đợt này.')).toBeOnTheScreen();
+    const emptyState = within(screen.getByTestId('state-panel'));
+    expect(emptyState.getByText('Bạn không thuộc đối tượng của đợt đăng ký này.')).toBeOnTheScreen();
+    expect(emptyState.getByText('Đợt đăng ký này chỉ dành cho một nhóm lớp/khóa cụ thể. Liên hệ Phòng Đào tạo nếu bạn cho rằng mình thuộc nhóm đó.')).toBeOnTheScreen();
+    expect(screen.queryByText('Khóa của bạn chưa được đăng ký ở đợt này.')).toBeNull();
+    expect(screen.queryByLabelText('Tìm lớp học phần')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Chọn lớp: CSL2 Lớp 01' })).toBeNull();
   });
 
   test('search narrows the catalog without losing the selection', async () => {
@@ -1320,7 +1349,45 @@ describe('registration', () => {
   test('a closed round is a state, not an empty catalog', async () => {
     mockQueries['academic.registration'] = { data: registrationData([], false) };
     await render(wrap(<RegistrationScreen {...props} />));
-    expect(screen.getByText('Hiện không có đợt đăng ký nào đang mở')).toBeOnTheScreen();
+    expect(screen.getByText('Hiện chưa có đợt đăng ký đang mở.')).toBeOnTheScreen();
+    expect(screen.getByText('Vui lòng quay lại khi Phòng Đào tạo mở cửa sổ đăng ký hoặc đăng ký/huỷ môn cho học kỳ của bạn.')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Tìm lớp học phần')).toBeNull();
+  });
+
+  test.each<['vi' | 'en', string, string]>([
+    ['vi', 'Hiện chưa có đợt đăng ký đang mở.', 'Vui lòng quay lại khi Phòng Đào tạo mở cửa sổ đăng ký hoặc đăng ký/huỷ môn cho học kỳ của bạn.'],
+    ['en', 'No registration round is open right now.', 'Come back when the registrar opens the registration or add/drop window for your semester.'],
+  ])('shows the web closed-window state in %s', async (locale, title, description) => {
+    mockQueries['academic.registration'] = { data: { ...registrationData([], false), closedReason: 'WINDOW_CLOSED' } };
+    await render(wrap(<RegistrationScreen {...props} />, locale));
+
+    const emptyState = within(screen.getByTestId('state-panel'));
+    expect(emptyState.getByText(title)).toBeOnTheScreen();
+    expect(emptyState.getByText(description)).toBeOnTheScreen();
+  });
+
+  test.each<['vi' | 'en', string, string]>([
+    ['vi', 'Bạn không thuộc đối tượng của đợt đăng ký này.', 'Đợt đăng ký này chỉ dành cho một nhóm lớp/khóa cụ thể. Liên hệ Phòng Đào tạo nếu bạn cho rằng mình thuộc nhóm đó.'],
+    ['en', 'You are not in the audience for this registration round.', 'This round is limited to a specific cohort. Contact the Academic Office if you believe you belong to it.'],
+  ])('explains cohort restrictions using the web copy in %s', async (locale, title, description) => {
+    mockQueries['academic.registration'] = { data: { ...registrationData([], false), closedReason: 'COHORT_INELIGIBLE' } };
+    await render(wrap(<RegistrationScreen {...props} />, locale));
+
+    const emptyState = within(screen.getByTestId('state-panel'));
+    expect(emptyState.getByText(title)).toBeOnTheScreen();
+    expect(emptyState.getByText(description)).toBeOnTheScreen();
+  });
+
+  test.each<['vi' | 'en', string, string]>([
+    ['vi', 'Chưa có lớp học phần phù hợp', 'Thử đổi học kỳ hoặc từ khóa tìm kiếm.'],
+    ['en', 'No matching sections', 'Try another semester or search term.'],
+  ])('explains when no registration sections match in %s', async (locale, title, description) => {
+    mockQueries['academic.registration'] = { data: registrationData([]) };
+    await render(wrap(<RegistrationScreen {...props} />, locale));
+
+    const emptyState = within(screen.getByTestId('state-panel'));
+    expect(emptyState.getByText(title)).toBeOnTheScreen();
+    expect(emptyState.getByText(description)).toBeOnTheScreen();
   });
 
   test('an API error is an error state, not preview data', async () => {

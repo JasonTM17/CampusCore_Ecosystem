@@ -457,6 +457,20 @@ describe('enrollment workspace parity', () => {
     expect(screen.getByRole('header', { name: 'Môn học của tôi' })).toBeOnTheScreen();
   });
 
+  test.each<['vi' | 'en', string, string, string]>([
+    ['vi', 'Chưa có môn học', 'Khi bạn đăng ký một lớp học phần, lịch học và thông tin lớp sẽ xuất hiện ở đây.', 'Xem lớp học phần'],
+    ['en', 'No courses yet', 'Once you enroll in a class, its schedule and details will appear here.', 'Browse classes'],
+  ])('the empty enrollment state follows the web copy and action in %s', async (locale, title, description, action) => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries['academic.semesters'] = { data: [] };
+    await render(wrap(<EnrollmentsScreen {...props} />, locale));
+
+    expect(screen.getByText(title)).toBeOnTheScreen();
+    expect(screen.getByText(description)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: action }));
+    expect(navigate).toHaveBeenCalledWith('registration');
+  });
+
   test('a meeting without a room says the room is pending', async () => {
     mockQueries['academic.enrollments'] = {
       data: [{ id: 'e3', sectionId: 's3', semesterId: 't2', status: 'ENROLLED', section: { sectionNumber: '01', course: course('PH101', 'Vật lý'), schedules: [{ dayOfWeek: 3, startTime: '09:00', endTime: '10:00' }] } }],
