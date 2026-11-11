@@ -29,7 +29,7 @@ flowchart TB
         mobile["<b>Expo mobile app</b><br/>Android / iOS"]
     end
     subgraph edge["Edge + public API"]
-        caddy["<b>Caddy edge</b><br/>TLS · /api/v1 · /oauth2"]
+        caddy["<b>Caddy edge</b><br/>TLS · /api/v1 · web"]
         api["<b>Spring Boot REST API</b><br/>OIDC issuer · academics · thesis<br/>grades · attendance · files"]
     end
     subgraph assistant["Private assistant"]
@@ -85,7 +85,7 @@ flowchart TB
     end
     subgraph backend["Backend"]
         direction LR
-        caddy["<b>Caddy edge</b><br/>/api/v1 · /oauth2"] --> api["<b>Spring Boot REST API</b><br/>OIDC issuer · domain API"] -->|SQL| pg[("<b>PostgreSQL</b>")]
+        caddy["<b>Caddy edge</b><br/>/api/v1 · web"] --> api["<b>Spring Boot REST API</b><br/>OIDC issuer · domain API"] -->|SQL| pg[("<b>PostgreSQL</b>")]
     end
     nav --> screens
     screens -->|fetch · pick / save| services
