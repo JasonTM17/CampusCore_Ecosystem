@@ -288,7 +288,6 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                 <UiText accessibilityRole="header" variant="headlineSmall">{copy.availableTitle}</UiText>
                 <StatusPill label={formatNumber(availableCourses.length)} tone="primary" />
               </View>
-              <UiText variant="bodySmall" tone="muted">{copy.availableDescription}</UiText>
               {availableCourses.map((course) => {
                 const openCount = openSectionCounts?.get(course.courseId) ?? null;
                 const openLabel = openCount === null

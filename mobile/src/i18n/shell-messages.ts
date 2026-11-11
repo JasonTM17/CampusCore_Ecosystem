@@ -14,6 +14,8 @@ const vi = {
   language: 'Ngôn ngữ',
   languageOptions: { vi: 'Tiếng Việt', en: 'English' },
   theme: {
+    title: 'Giao diện',
+    options: { light: 'Sáng', dark: 'Tối', system: 'Hệ thống' },
     system: 'Theo hệ thống',
     light: 'Giao diện sáng',
     dark: 'Giao diện tối',
@@ -317,6 +319,8 @@ const en: ShellCopy = {
   language: 'Language',
   languageOptions: { vi: 'Tiếng Việt', en: 'English' },
   theme: {
+    title: 'Appearance',
+    options: { light: 'Light', dark: 'Dark', system: 'System' },
     system: 'System',
     light: 'Light theme',
     dark: 'Dark theme',

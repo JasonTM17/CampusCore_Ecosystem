@@ -66,7 +66,7 @@ const renderScreen = () => render(
 test('today is marked on the meeting that falls on the current day', async () => {
   await renderScreen();
   expect(screen.getByText('CỔNG GIẢNG VIÊN')).toBeOnTheScreen();
-  expect(screen.getByText('Thời khóa biểu giảng dạy và lịch công tác học kỳ của giảng viên.')).toBeOnTheScreen();
+  expect(screen.queryByText('Thời khóa biểu giảng dạy và lịch công tác học kỳ của giảng viên.')).toBeNull();
   expect(screen.getAllByText('HÔM NAY').length).toBeGreaterThanOrEqual(1);
 });
 

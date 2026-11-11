@@ -669,7 +669,7 @@ describe('profile account security', () => {
     await renderApp(<ProfileScreen {...props} />);
     expect(screen.getByRole('header', { name: accountMessages.vi.profile.title })).toBeOnTheScreen();
     expect(screen.getByText(accountMessages.vi.profile.eyebrow.toUpperCase())).toBeOnTheScreen();
-    expect(screen.getByText(accountMessages.vi.profile.description)).toBeOnTheScreen();
+    expect(screen.queryByText(accountMessages.vi.profile.description)).toBeNull();
   });
 
   test('the password card carries the web title, description and policy hint', async () => {

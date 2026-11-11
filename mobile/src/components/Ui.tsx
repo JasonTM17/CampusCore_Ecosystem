@@ -161,11 +161,6 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
             <View testID="page-title-tab" style={styles.pageTab}>
               <UiText accessibilityRole="header" variant="label" style={styles.pageTabTitle}>{title}</UiText>
             </View>
-            {subtitle ? (
-              <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>
-                {subtitle}
-              </UiText>
-            ) : null}
           </View>
           {headerAction}
         </View>}

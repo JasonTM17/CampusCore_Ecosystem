@@ -190,7 +190,7 @@ describe('transcript', () => {
     await render(wrap(<TranscriptScreen {...props} />));
     expect(screen.getByRole('header', { name: 'Bảng điểm' })).toBeOnTheScreen();
     expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
-    expect(screen.getByText('GPA hệ 4 và tín chỉ tính tích lũy toàn khóa; chọn học kỳ để xem kết quả từng môn học.')).toBeOnTheScreen();
+    expect(screen.queryByText('GPA hệ 4 và tín chỉ tính tích lũy toàn khóa; chọn học kỳ để xem kết quả từng môn học.')).toBeNull();
     expect(screen.getAllByText('3,42').length).toBeGreaterThan(0);
     expect(screen.getByText('GPA hệ 4 tích lũy toàn khóa')).toBeOnTheScreen();
     expect(screen.getByText('Tín chỉ đã đạt')).toBeOnTheScreen();
@@ -937,7 +937,7 @@ describe('schedule and attendance', () => {
     mockQueries['academic.attendance.records'] = { data: [{ id: 'a1', date: '2026-09-07', status: 'ABSENT', sectionId: 's1', notes: 'Điểm danh bù đã duyệt', section: { sectionNumber: '02', course: { code: 'CS101' } } }] };
     await render(wrap(<AttendanceScreen {...props} />));
     expect(screen.getByText('KHU VỰC SINH VIÊN')).toBeOnTheScreen();
-    expect(screen.getByText('Điểm danh do giảng viên ghi nhận: tổng hợp theo môn học trước, sau đó là các phiên học gần nhất.')).toBeOnTheScreen();
+    expect(screen.queryByText('Điểm danh do giảng viên ghi nhận: tổng hợp theo môn học trước, sau đó là các phiên học gần nhất.')).toBeNull();
     expect(screen.getAllByText('90%').length).toBeGreaterThan(0);
     expect(screen.getByText('Tỷ lệ có mặt')).toBeOnTheScreen();
     expect(screen.getByText('số phiên có mặt ÷ số phiên đã ghi')).toBeOnTheScreen();
@@ -1067,7 +1067,7 @@ describe('curriculum', () => {
     mockQueries['academic.registrationSections'] = { data: [{ id: 's1', courseId: 'b', status: 'OPEN' }] };
     await render(wrap(<CurriculumScreen {...props} />));
     expect(screen.getByText('CỔNG SINH VIÊN')).toBeOnTheScreen();
-    expect(screen.getByText('Khung chương trình của ngành bạn, chuỗi học phần tiên quyết và các môn bạn có thể đăng ký ngay.')).toBeOnTheScreen();
+    expect(screen.queryByText('Khung chương trình của ngành bạn, chuỗi học phần tiên quyết và các môn bạn có thể đăng ký ngay.')).toBeNull();
     expect(screen.getByText('Đã hoàn tất 8,5 (B)')).toBeOnTheScreen();
     expect(screen.getByText('Năm học 1')).toBeOnTheScreen();
     expect(screen.getByText('Học kỳ 2 - 1 môn')).toBeOnTheScreen();
