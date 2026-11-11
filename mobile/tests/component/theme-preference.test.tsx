@@ -11,6 +11,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ da
 import { AppBar } from '../../src/components/AppBar';
 import { ThemeProvider, useTheme } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { ThemeSetting } from '../../src/screens/account/ThemeSetting';
 
 const THEME_KEY = 'campusute.theme';
 
@@ -44,7 +45,7 @@ function appBar(storage = storageWith(null), preference?: 'system' | 'light' | '
   return (
     <ThemeProvider storage={storage} initialPreference={preference}>
       <LocaleProvider initialLocale={locale}>
-        <AppBar role="student" onProfile={() => {}} />
+        <AppBar onSignIn={() => {}} />
         <ThemeProbe />
       </LocaleProvider>
     </ThemeProvider>
@@ -161,5 +162,39 @@ describe('AppBar theme control', () => {
     } finally {
       jest.restoreAllMocks();
     }
+  });
+});
+
+describe('Profile appearance setting', () => {
+  test('offers light, dark and system in Vietnamese and saves the choice', async () => {
+    const storage = storageWith(null);
+    await render(
+      <ThemeProvider storage={storage} initialPreference="system">
+        <LocaleProvider initialLocale="vi">
+          <ThemeSetting />
+          <ThemeProbe />
+        </LocaleProvider>
+      </ThemeProvider>,
+    );
+    expect(screen.getByText('Giao diện')).toBeOnTheScreen();
+    expect(screen.getByText('Sáng')).toBeOnTheScreen();
+    expect(screen.getByText('Hệ thống')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('Tối'));
+    expect(screen.getByTestId('preference').props.children).toBe('dark');
+    expect(storage.setItem).toHaveBeenCalledWith(THEME_KEY, 'dark');
+  });
+
+  test('uses English labels', async () => {
+    await render(
+      <ThemeProvider storage={storageWith(null)} initialPreference="light">
+        <LocaleProvider initialLocale="en">
+          <ThemeSetting />
+        </LocaleProvider>
+      </ThemeProvider>,
+    );
+    expect(screen.getByText('Appearance')).toBeOnTheScreen();
+    expect(screen.getByText('Light')).toBeOnTheScreen();
+    expect(screen.getByText('Dark')).toBeOnTheScreen();
+    expect(screen.getByText('System')).toBeOnTheScreen();
   });
 });

@@ -184,11 +184,20 @@ describe('web-aligned header', () => {
     expect(screen.getByText('99+', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  test('switches the interface language from the header with the shared setter', async () => {
-    await render(wrap(<AppBar role="student" onProfile={() => {}} />));
+  test('keeps the signed-in header to brand, role and account without language or theme buttons', async () => {
+    await render(wrap(<AppBar role="student" onNotifications={() => {}} onProfile={() => {}} />));
 
     expect(screen.getByText(shellMessages.vi.roles.student)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages.vi.screens.profile })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages.vi.notifications.title })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: shellMessages.vi.language })).toBeNull();
+    expect(screen.queryByRole('button', { name: /giao diện/i })).toBeNull();
+  });
+
+  test('switches the interface language from the signed-out header with the shared setter', async () => {
+    await render(wrap(<AppBar onSignIn={() => {}} />));
+
     await fireEvent.press(screen.getByRole('button', { name: shellMessages.vi.language }));
-    expect(screen.getByText(shellMessages.en.roles.student)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages.en.language })).toBeOnTheScreen();
   });
 });

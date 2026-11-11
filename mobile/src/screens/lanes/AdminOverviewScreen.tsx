@@ -45,13 +45,12 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
     >
       <View>
         <SectionHeading title={copy.adminOverviewTitle} />
-        <UiText variant="bodySmall" tone="muted" style={styles.overviewDescription}>{copy.adminOverviewDescription}</UiText>
         <StatStrip
           items={[
-            { icon: 'account-group-outline', label: copy.adminTotalUsers, value: formatNumber(data?.totals?.students ?? 0), detail: copy.adminUsersDetail },
-            { icon: 'account-tie-outline', label: copy.adminTotalLecturers, value: formatNumber(data?.totals?.lecturers ?? 0), detail: copy.adminLecturersDetail },
-            { icon: 'book-open-page-variant-outline', label: copy.adminTotalCourses, value: formatNumber(data?.totals?.courses ?? 0), detail: copy.adminCoursesDetail },
-            { icon: 'clipboard-list-outline', label: copy.adminTotalEnrollments, value: formatNumber(data?.totals?.enrollments ?? 0), detail: copy.adminEnrollmentsDetail },
+            { icon: 'account-group-outline', label: copy.adminTotalUsers, value: formatNumber(data?.totals?.students ?? 0) },
+            { icon: 'account-tie-outline', label: copy.adminTotalLecturers, value: formatNumber(data?.totals?.lecturers ?? 0) },
+            { icon: 'book-open-page-variant-outline', label: copy.adminTotalCourses, value: formatNumber(data?.totals?.courses ?? 0) },
+            { icon: 'clipboard-list-outline', label: copy.adminTotalEnrollments, value: formatNumber(data?.totals?.enrollments ?? 0) },
           ]}
         />
         <ScreenSpacer />
@@ -84,7 +83,6 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
         </View>
         <ScreenSpacer />
         <SectionCard icon="tune-vertical-variant" title={copy.adminTools}>
-          <UiText variant="bodySmall" tone="muted" style={styles.toolsDescription}>{copy.adminToolsDescription}</UiText>
           {DETAIL_LANES.map(({ id, icon }, index) => (
             <View key={id}>
               {index > 0 ? <Divider /> : null}

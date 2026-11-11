@@ -87,11 +87,11 @@ test('the dashboard greets the lecturer and shows the web metric set', async () 
   await renderScreen('vi');
   expect(screen.getByRole('header', { name: 'Chào mừng quay lại, Minh' })).toBeOnTheScreen();
   expect(screen.getByText('CỔNG GIẢNG VIÊN')).toBeOnTheScreen();
-  expect(screen.getByText('Giữ công việc lớp học, hàng chờ chấm điểm và cập nhật giảng dạy trong cùng Cổng Giảng viên.')).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Lớp học phần: 2, ${operationsMessages.vi.metricDetailSections}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Sinh viên: 34, ${operationsMessages.vi.metricDetailStudents}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Sẵn sàng công bố: 1, ${operationsMessages.vi.metricDetailReady}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Thông báo mới: 3, ${operationsMessages.vi.metricDetailNotices}`)).toBeOnTheScreen();
+  expect(screen.queryByText('Giữ công việc lớp học, hàng chờ chấm điểm và cập nhật giảng dạy trong cùng Cổng Giảng viên.')).toBeNull();
+  expect(screen.getByLabelText('Lớp học phần: 2')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Sinh viên: 34')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Sẵn sàng công bố: 1')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Thông báo mới: 3')).toBeOnTheScreen();
 });
 
 test('the dashboard lists grading progress with the ready-to-publish state', async () => {
@@ -134,11 +134,11 @@ test('the English dashboard uses the web wording for the added blocks', async ()
   await renderScreen('en');
   expect(screen.getByRole('header', { name: 'Welcome back, Minh' })).toBeOnTheScreen();
   expect(screen.getByText('LECTURER AREA')).toBeOnTheScreen();
-  expect(screen.getByText('Keep class work, grading queues, and teaching updates in one lecturer-focused area.')).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Sections: 2, ${operationsMessages.en.metricDetailSections}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Students: 34, ${operationsMessages.en.metricDetailStudents}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Ready to publish: 1, ${operationsMessages.en.metricDetailReady}`)).toBeOnTheScreen();
-  expect(screen.getByLabelText(`Fresh notices: 3, ${operationsMessages.en.metricDetailNotices}`)).toBeOnTheScreen();
+  expect(screen.queryByText('Keep class work, grading queues, and teaching updates in one lecturer-focused area.')).toBeNull();
+  expect(screen.getByLabelText('Sections: 2')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Students: 34')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Ready to publish: 1')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Fresh notices: 3')).toBeOnTheScreen();
   expect(screen.getByRole('header', { name: 'Grading queue' })).toBeOnTheScreen();
   expect(screen.getByText('Class 01 - Semester 1')).toBeOnTheScreen();
   expect(screen.getByRole('header', { name: 'Sections in scope' })).toBeOnTheScreen();

@@ -111,7 +111,6 @@ export function GuestNewsTeaser({ navigation }: { navigation: MobileNavigation }
         <View style={styles.headCopy}>
           <UiText variant="meta" tone="primary" style={styles.eyebrow}>{copy.newsEyebrow}</UiText>
           <UiText accessibilityRole="header" variant="headlineMedium">{copy.newsTitle}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.newsDescription}</UiText>
         </View>
         <Pressable
           accessibilityLabel={copy.seeAll}
@@ -243,7 +242,6 @@ export function GuestDocsTeaser({ navigation }: { navigation: MobileNavigation }
         <View style={styles.headCopy}>
           <UiText variant="meta" tone="primary" style={styles.eyebrow}>CampusUTE</UiText>
           <UiText accessibilityRole="header" variant="headlineMedium">{shellMessages[locale].screens.docs}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.docsDescription}</UiText>
         </View>
         <Pressable
           accessibilityLabel={copy.docsSeeAll}

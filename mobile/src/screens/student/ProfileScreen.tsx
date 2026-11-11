@@ -26,6 +26,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { SecureField } from '../account/SecureField';
 import { SignOutDialog } from '../account/SignOutDialog';
 import { LanguageSetting } from '../account/LanguageSetting';
+import { ThemeSetting } from '../account/ThemeSetting';
 import { TwoFactorCard } from '../account/TwoFactorCard';
 import { classifyError, errorMessage } from '../account/account-errors';
 import { setExitNotice, type ExitNotice } from '../account/exit-notice';
@@ -309,6 +310,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
         <ScreenSpacer />
         <LanguageSetting />
         <ScreenSpacer />
+        <ThemeSetting />
+        <ScreenSpacer />
         <Button icon="logout" label={copy.signOut.button} onPress={() => setConfirmSignOut(true)} variant="destructive" style={styles.signOut} />
         <SignOutDialog
           visible={confirmSignOut}
@@ -438,6 +441,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       </SectionCard>
       <ScreenSpacer />
       <LanguageSetting />
+      <ScreenSpacer />
+      <ThemeSetting />
       <ScreenSpacer />
       <Card>
         <ListRow icon="robot-outline" title={copy.profile.openAssistant} onPress={() => navigation.navigate('assistant.chat')} />

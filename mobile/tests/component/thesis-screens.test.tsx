@@ -521,7 +521,7 @@ describe('topic detail', () => {
     await renderThemed(detail());
     expect(await screen.findByText('Mô tả Trợ lý học vụ')).toBeOnTheScreen();
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
-    expect(screen.getByText('Xem mô tả, số nhóm, bộ môn và trạng thái chọn.')).toBeOnTheScreen();
+    expect(screen.queryByText('Xem mô tả, số nhóm, bộ môn và trạng thái chọn.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Chọn đề tài' })).toBeOnTheScreen();
     await fireEvent.press(await screen.findByRole('button', { name: copy.register }));
     expect(navigate).toHaveBeenCalledWith('thesis.registration', { thesisTopicId: 't1' });
@@ -881,7 +881,7 @@ describe('progress and report', () => {
     seed({ group: approvedGroup(), progress: approvedProgress });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect(await screen.findByText('Tiến độ luận văn')).toBeOnTheScreen();
-    expect(screen.getByText('Theo dõi các mốc có bằng chứng của đợt đã chọn.')).toBeOnTheScreen();
+    expect(screen.queryByText('Theo dõi các mốc có bằng chứng của đợt đã chọn.')).toBeNull();
     expect(screen.getByText('Khu nhóm của bạn')).toBeOnTheScreen();
     expect(screen.getAllByText(ROUNDS[1].name).length).toBeGreaterThan(0);
   });
