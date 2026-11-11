@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
+import { contentMessages } from '../../src/i18n/content-messages';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const mockRelease = jest.fn();
@@ -37,9 +38,9 @@ const pickedFile = () => ({
   release: mockRelease,
 });
 
-const renderPicker = (upload: jest.Mock<(...args: unknown[]) => Promise<unknown>>, onUploaded: jest.Mock) => render(
+const renderPicker = (upload: jest.Mock<(...args: unknown[]) => Promise<unknown>>, onUploaded: jest.Mock, locale: 'vi' | 'en' = 'vi') => render(
   <ThemeProvider forcedScheme="light">
-    <LocaleProvider initialLocale="vi">
+    <LocaleProvider initialLocale={locale}>
       <UploadPicker intent="test" policy={DOCUMENT_POLICY} upload={upload} onUploaded={onUploaded} />
     </LocaleProvider>
   </ThemeProvider>,
@@ -63,6 +64,24 @@ afterEach(() => {
 });
 
 describe('picked attachment lifecycle', () => {
+  test.each(['vi', 'en'] as const)('a failed file pick shows a localized error (%s)', async locale => {
+    mockPick.mockImplementationOnce(async () => ({ status: 'failed', reason: 'PICK_FAILED' }));
+    await renderPicker(jest.fn(), jest.fn(), locale);
+
+    await fireEvent.press(screen.getByRole('button', { name: contentMessages[locale].pickFile }));
+
+    expect(await screen.findByText(contentMessages[locale].generic)).toBeOnTheScreen();
+  });
+
+  test.each(['vi', 'en'] as const)('an unavailable file pick shows a localized error (%s)', async locale => {
+    mockPick.mockImplementationOnce(async () => ({ status: 'unavailable', reason: 'PICK_UNAVAILABLE' }));
+    await renderPicker(jest.fn(), jest.fn(), locale);
+
+    await fireEvent.press(screen.getByRole('button', { name: contentMessages[locale].pickFile }));
+
+    expect(await screen.findByText(contentMessages[locale].pickUnavailable)).toBeOnTheScreen();
+  });
+
   test('a successful upload releases the picked cache copy', async () => {
     const upload = jest.fn(async () => ({ id: 'attachment-1' }));
     const onUploaded = jest.fn();
