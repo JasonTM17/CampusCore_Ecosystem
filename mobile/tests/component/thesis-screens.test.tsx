@@ -881,7 +881,7 @@ describe('progress and report', () => {
     seed({ group: approvedGroup(), progress: approvedProgress });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect(await screen.findByText('Tiến độ luận văn')).toBeOnTheScreen();
-    expect(screen.getByText('Theo dõi các mốc có bằng chứng của đợt đã chọn.')).toBeOnTheScreen();
+    expect(screen.queryByText('Theo dõi các mốc có bằng chứng của đợt đã chọn.')).toBeNull();
     expect(screen.getByText('Khu nhóm của bạn')).toBeOnTheScreen();
     expect(screen.getAllByText(ROUNDS[1].name).length).toBeGreaterThan(0);
   });

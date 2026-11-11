@@ -31,7 +31,7 @@ export function ListScreenShell<T>({ title, eyebrow, subtitle, headerAction, hid
             <View testID="page-title-tab" style={[styles.pageTab, { backgroundColor: colors.primary }]}>
               <UiText accessibilityRole="header" variant="label" style={[styles.pageTabTitle, { color: colors.onPrimary }]}>{title}</UiText>
             </View>
-            {subtitle ? <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>{subtitle}</UiText> : null}
+            {/* Mobile keeps headers to the title; long subtitles are web-only copy. */}
           </View>
           {headerAction}
         </View>}

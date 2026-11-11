@@ -5164,17 +5164,6 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                           },
                           "t": "View",
                         },
-                        {
-                          "c": [
-                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 14,
-                            "marginTop": 4,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -5969,17 +5958,6 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                             "paddingVertical": 10,
                           },
                           "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 14,
-                            "marginTop": 4,
-                          },
-                          "t": "Text",
                         },
                       ],
                       "s": {
@@ -6786,17 +6764,6 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                           },
                           "t": "View",
                         },
-                        {
-                          "c": [
-                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 14,
-                            "marginTop": 4,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "flex": 1,
@@ -7591,17 +7558,6 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                             "paddingVertical": 10,
                           },
                           "t": "View",
-                        },
-                        {
-                          "c": [
-                            "Theo dõi chương trình đào tạo và các lớp đã đăng ký.",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 14,
-                            "marginTop": 4,
-                          },
-                          "t": "Text",
                         },
                       ],
                       "s": {

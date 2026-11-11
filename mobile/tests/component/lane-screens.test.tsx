@@ -614,7 +614,7 @@ describe('admin overview web parity', () => {
     });
   });
 
-  test('KPI labels and detail lines match the web', async () => {
+  test('KPI labels match the web without the long detail lines', async () => {
     await renderThemed(<LaneRoute id="admin.overview" />);
     await waitFor(() => expect(screen.getByText('Sinh viên')).toBeTruthy());
     for (const [label, value, detail] of [
@@ -623,8 +623,8 @@ describe('admin overview web parity', () => {
       ['Môn học', '2', 'Sẵn sàng mở lớp và đăng ký.'],
       ['Đăng ký học phần', '4', 'Hồ sơ đăng ký hiện có.'],
     ] as const) {
-      expect(screen.getByLabelText(`${label}: ${value}, ${detail}`)).toBeTruthy();
-      expect(screen.getByText(detail)).toBeTruthy();
+      expect(screen.getByLabelText(`${label}: ${value}`)).toBeTruthy();
+      expect(screen.queryByText(detail)).toBeNull();
     }
   });
 

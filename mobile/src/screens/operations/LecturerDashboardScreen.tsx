@@ -116,10 +116,10 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       <StatStrip
         style={styles.stats}
         items={[
-          { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(metrics.sections), detail: copy.metricDetailSections },
-          { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(metrics.students), detail: copy.metricDetailStudents },
-          { icon: 'file-document-edit-outline', label: copy.metricReadyToPublish, value: formatNumber(metrics.readyToPublish), detail: copy.metricDetailReady },
-          { icon: 'bullhorn-outline', label: copy.metricFreshNotices, value: formatNumber(metrics.freshNotices), detail: copy.metricDetailNotices },
+          { icon: 'book-open-page-variant-outline', label: copy.dashboardMetricSections, value: formatNumber(metrics.sections) },
+          { icon: 'account-group-outline', label: copy.metricStudents, value: formatNumber(metrics.students) },
+          { icon: 'file-document-edit-outline', label: copy.metricReadyToPublish, value: formatNumber(metrics.readyToPublish) },
+          { icon: 'bullhorn-outline', label: copy.metricFreshNotices, value: formatNumber(metrics.freshNotices) },
         ]}
       />
 
