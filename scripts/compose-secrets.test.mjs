@@ -34,6 +34,7 @@ test('fills only missing secrets with independent values and preserves custom vo
   const values = new Map([...content.matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map((match) => [match[1], match[2]]));
 
   assert.deepEqual(result.generatedKeys, [
+    'ASSISTANT_DB_PROVISIONER_PASSWORD',
     'HEALTH_READINESS_KEY',
     'JWT_SECRET',
     'ASSISTANT_RAG_SERVICE_TOKEN',

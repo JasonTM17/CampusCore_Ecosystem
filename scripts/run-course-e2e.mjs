@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedCourseE2e, seedReportE2e } from './course-e2e-fixture.mjs';
@@ -21,6 +22,9 @@ const projectName = resolveProjectName();
 const apiBaseURL = process.env.E2E_API_URL ?? 'http://127.0.0.1:4100/api/v1';
 const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3101';
 const frontendPort = new URL(frontendBaseURL).port || '3101';
+const provisionerPassword = process.env.ASSISTANT_DB_PROVISIONER_PASSWORD?.trim()
+  ? process.env.ASSISTANT_DB_PROVISIONER_PASSWORD
+  : crypto.randomBytes(48).toString('base64');
 
 async function main() {
   ensureComposeSecrets({ root: repoRoot });
@@ -201,6 +205,7 @@ async function compose(args, options = {}) {
       ...process.env,
       E2E_API_HOST_PORT: new URL(apiBaseURL).port || '4100',
       POSTGRES_HOST_PORT: process.env.POSTGRES_HOST_PORT ?? '5433',
+      ASSISTANT_DB_PROVISIONER_PASSWORD: provisionerPassword,
     },
     allowFailure: options.allowFailure ?? false,
   });

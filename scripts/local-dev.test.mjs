@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -638,6 +639,10 @@ test('up generates the compose owner-assertion secret into the git-ignored .env'
   for (const name of COMPOSE_SECRET_NAMES) {
     assert.equal(env.match(new RegExp(`^${name}=`, 'gm')).length, 1, `${name} is generated automatically`);
   }
+  const provisionerValues = [...env.matchAll(/^ASSISTANT_DB_PROVISIONER_PASSWORD=(.*)$/gm)].map((match) => match[1]);
+  assert.equal(provisionerValues.length, 1, '.env must carry exactly one restricted provisioner password');
+  assert.ok(provisionerValues[0].trim().length >= 16, 'the provisioner password must satisfy PostgreSQL bootstrap policy');
+  assert.equal(messages.join('\n').includes(provisionerValues[0]), false, 'the provisioner password must never be logged');
   assert.equal(messages.join('\n').includes(values[0]), false, 'the generated key must never be logged');
 });
 
@@ -651,4 +656,31 @@ test('up keeps an existing owner-assertion secret instead of rotating it', async
   const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
   assert.equal(env.match(/^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=/gm).length, 1);
   assert.match(env, new RegExp(`^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=${existing}$`, 'm'));
+});
+
+test('up keeps an existing restricted provisioner password instead of rotating it', async (t) => {
+  const existing = crypto.randomBytes(32).toString('base64url');
+  const root = upFixture(t, `POSTGRES_HOST_PORT=5432\nASSISTANT_DB_PROVISIONER_PASSWORD=${existing}\n`);
+
+  const { code, messages } = await runUp(root);
+
+  assert.equal(code, 0);
+  const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  assert.equal(env.match(/^ASSISTANT_DB_PROVISIONER_PASSWORD=/gm).length, 1);
+  assert.match(env, new RegExp(`^ASSISTANT_DB_PROVISIONER_PASSWORD=${existing}$`, 'm'));
+  assert.equal(messages.join('\n').includes(existing), false, 'the restricted provisioner password must never be logged');
+});
+
+test('up preserves a provisioner password even when an earlier template entry is blank', async (t) => {
+  const existing = crypto.randomBytes(32).toString('base64url');
+  const root = upFixture(t,
+    `POSTGRES_HOST_PORT=5432\nASSISTANT_DB_PROVISIONER_PASSWORD=\nASSISTANT_DB_PROVISIONER_PASSWORD=${existing}\n`);
+
+  const { code, messages } = await runUp(root);
+
+  assert.equal(code, 0);
+  const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  const values = [...env.matchAll(/^ASSISTANT_DB_PROVISIONER_PASSWORD=(.*)$/gm)].map((match) => match[1]);
+  assert.equal(values.at(-1), existing);
+  assert.equal(messages.some((line) => line.includes('generated ASSISTANT_DB_PROVISIONER_PASSWORD')), false);
 });

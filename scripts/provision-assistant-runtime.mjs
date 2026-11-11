@@ -1,35 +1,22 @@
 #!/usr/bin/env node
-// Idempotent provisioning of the Assistant RLS runtime role (Wave 1.1).
+// Idempotently enables the Assistant RLS runtime login through its owner function.
 //
-// WHY THIS EXISTS
-// Flyway V84 deliberately creates `campuscore_assistant_runtime` NOLOGIN and
-// never sets a password ("password provisioning is a separate secret-safe
-// operation"). Before this script nobody owned that operation, so every fresh
-// environment failed: CI Compose and the e2e stack died on V84 itself because
-// the migration targets the Supabase-managed `postgres` role that a vanilla
-// Compose bootstrap (POSTGRES_USER=campuscore) never creates, and even past
-// that, the API could not open the assistant pool without a password.
+// Flyway V84 creates `campuscore_assistant_runtime` as NOLOGIN. The database
+// owner installs the missing shim, runtime role, restricted login, and password
+// function during initialization; this script enables the runtime login before
+// migrations need it.
 //
 // WHAT IT DOES (idempotent — safe to re-run any number of times)
-//   1. Creates the bootstrap `postgres` role (NOLOGIN, no privileges) when it
-//      is missing. Supabase always has it, so this is a Compose/e2e-only shim
-//      that lets V84's `ALTER DEFAULT PRIVILEGES FOR ROLE postgres` run. The
-//      role has no login and no privileges, so it adds no attack surface.
-//   2. Creates `campuscore_assistant_runtime` with the V84 attribute contract
-//      when missing, or leaves the existing role untouched otherwise.
-//   3. Ensures LOGIN + the ASSISTANT_DB_PASSWORD password ONLY when needed:
-//      if the role can already log in, the script first tries to connect with
-//      ASSISTANT_DB_PASSWORD and leaves the credential untouched on success.
-//      A password reset happens only when the role is NOLOGIN or PostgreSQL
-//      confirms an invalid password (SQLSTATE 28P01). Other authorization
-//      rejections fail closed because they do not prove the password is wrong.
+// The database owner installs ops/assistant/bootstrap-provisioner.sql during
+// database initialization. This script never creates roles or uses the main
+// database credential; it can only call the restricted password function.
+// A reset happens only for NOLOGIN or a runtime probe with SQLSTATE 28P01.
 //
 // INPUT (environment)
 //   ASSISTANT_DB_PASSWORD       required; at least 16 characters; fail-closed.
-//   SPRING_DATASOURCE_URL       jdbc:postgresql://host:port/db[?params]
-//   SPRING_DATASOURCE_USERNAME  primary/admin login (Compose: campuscore)
-//   SPRING_DATASOURCE_PASSWORD  primary/admin password
-//   PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD   optional low-level override.
+//   ASSISTANT_DB_PROVISIONER_PASSWORD restricted login password
+//   SPRING_DATASOURCE_URL       non-secret connection target
+//   PGHOST/PGPORT/PGDATABASE    optional low-level target override.
 //   PGSSLMODE                   TLS policy (disable|allow|prefer|require|
 //                               verify-ca|verify-full); the JDBC ?sslmode=
 //                               parameter wins when both are set. Default:
@@ -38,20 +25,20 @@
 //
 // OUTPUT
 //   Counts and state names only — the script never prints any secret, and
-//   database error messages are printed without connection parameters.
+//   errors expose only a safe summary and optional SQLSTATE.
 //
 // It speaks the PostgreSQL wire protocol directly (SCRAM-SHA-256, MD5, or
 // cleartext auth) so it stays dependency-free like the rest of scripts/ — CI
-// runs `node --test scripts/...` with no npm install. The role password
-// crosses the wire inside the CREATE/ALTER ROLE query text, so TLS is
-// negotiated first and the SCRAM server signature is verified before any
-// statement is sent.
+// runs `node --test scripts/...` with no npm install. The runtime password is
+// sent in the function call only after TLS negotiation and SCRAM server
+// signature verification when the target requires encrypted transport.
 
 import crypto from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';
 
 const RUNTIME_ROLE = 'campuscore_assistant_runtime';
+const PROVISIONER_ROLE = 'campuscore_assistant_provisioner';
 const MIN_PASSWORD_LENGTH = 16;
 const CONNECT_TIMEOUT_MS = 10_000;
 
@@ -103,14 +90,14 @@ export function parseJdbcUrl(jdbcUrl) {
   return { host, port, database, params };
 }
 
-function resolveTarget(env) {
-  if (env.PGHOST && env.PGPORT && env.PGDATABASE && env.PGUSER) {
+function resolveTarget(env, password) {
+  if (env.PGHOST && env.PGPORT && env.PGDATABASE) {
     return {
       host: env.PGHOST,
       port: Number(env.PGPORT),
       database: env.PGDATABASE,
-      user: env.PGUSER,
-      password: env.PGPASSWORD ?? '',
+      user: PROVISIONER_ROLE,
+      password,
       sslmode: env.PGSSLMODE,
     };
   }
@@ -119,8 +106,8 @@ function resolveTarget(env) {
     host: parsed.host,
     port: parsed.port,
     database: parsed.database,
-    user: requireEnv('SPRING_DATASOURCE_USERNAME', env),
-    password: requireEnv('SPRING_DATASOURCE_PASSWORD', env),
+    user: PROVISIONER_ROLE,
+    password,
     sslmode: parsed.params.sslmode ?? env.PGSSLMODE,
   };
 }
@@ -164,6 +151,19 @@ export class PostgresError extends Error {
 
 /** A provisioning precondition or database failure; the CLI turns it into exit 1. */
 export class ProvisioningError extends Error { }
+
+function sqlState(error) {
+  return error instanceof PostgresError && /^[0-9A-Z]{5}$/.test(error.fields.C ?? '')
+    ? error.fields.C
+    : null;
+}
+
+function safeDatabaseError(action, error) {
+  const state = sqlState(error);
+  return new ProvisioningError(state
+    ? `${action} failed (SQLSTATE ${state}); no password changes were made.`
+    : `${action} failed; no password changes were made. Check database availability and TLS settings.`);
+}
 
 export class WireClient {
   constructor(target) {
@@ -561,46 +561,52 @@ async function connectAs(target, password) {
 }
 
 export async function provision(env = process.env, log = defaultLog, connect = connectAs) {
-  const assistantPassword = env.ASSISTANT_DB_PASSWORD;
-  if (assistantPassword == null || assistantPassword.trim() === '') {
-    throw new ProvisioningError('ASSISTANT_DB_PASSWORD is required');
-  }
+  const assistantPassword = requireEnv('ASSISTANT_DB_PASSWORD', env);
   if (assistantPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ProvisioningError(
       `ASSISTANT_DB_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
+  const provisionerPassword = requireEnv('ASSISTANT_DB_PROVISIONER_PASSWORD', env);
+  if (provisionerPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new ProvisioningError(
+      `ASSISTANT_DB_PROVISIONER_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
   log('ASSISTANT_DB_PASSWORD present: yes');
+  log('ASSISTANT_DB_PROVISIONER_PASSWORD present: yes');
 
-  const target = resolveTarget(env);
-  const admin = await connect(target, target.password);
+  const target = resolveTarget(env, provisionerPassword);
+  let provisioner;
   try {
-    const roles = await admin.query(
-      `SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname IN ('postgres', '${RUNTIME_ROLE}')`);
-    const bootstrap = roles.find((row) => row[0] === 'postgres');
+    provisioner = await connect(target, target.password);
+  } catch (error) {
+    const state = sqlState(error);
+    const suffix = state ? ` (SQLSTATE ${state})` : '';
+    throw new ProvisioningError(
+      `Could not connect as the restricted Assistant provisioner${suffix}; apply ops/assistant/bootstrap-provisioner.sql as the database owner and verify ASSISTANT_DB_PROVISIONER_PASSWORD.`);
+  }
+
+  try {
+    let roles;
+    try {
+      roles = await provisioner.query(
+        `SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles WHERE rolname = '${RUNTIME_ROLE}'`);
+    } catch (error) {
+      throw safeDatabaseError('Runtime role lookup', error);
+    }
     const runtime = roles.find((row) => row[0] === RUNTIME_ROLE);
 
-    if (!bootstrap) {
-      await admin.query(
-        'CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS');
-      log('bootstrap_role_postgres: created (NOLOGIN, no privileges)');
-    } else {
-      log('bootstrap_role_postgres: exists');
-    }
-
     if (!runtime) {
-      await admin.query(
-        `CREATE ROLE ${RUNTIME_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT `
-        + 'NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 8 '
-        + `PASSWORD ${sqlLiteral(assistantPassword)}`);
-      log('runtime_role: created');
-      log('runtime_role_login: enabled-now');
-      log('runtime_role_password: provisioned');
-      return;
+      throw new ProvisioningError(
+        `Assistant owner bootstrap is missing ${RUNTIME_ROLE}; run ops/assistant/bootstrap-provisioner.sql as the database owner before provisioning.`);
     }
 
     if (runtime[1] !== 't') {
-      await admin.query(
-        `ALTER ROLE ${RUNTIME_ROLE} LOGIN PASSWORD ${sqlLiteral(assistantPassword)}`);
+      try {
+        await provisioner.query(
+          `SELECT assistant_ops.set_runtime_password(${sqlLiteral(assistantPassword)})`);
+      } catch (error) {
+        throw safeDatabaseError('Runtime password function', error);
+      }
       log('runtime_role: existing');
       log('runtime_role_login: enabled-now');
       log('runtime_role_password: reset (role was NOLOGIN)');
@@ -617,21 +623,21 @@ export async function provision(env = process.env, log = defaultLog, connect = c
       log('runtime_role_password: verified (unchanged)');
     } catch (error) {
       // Only invalid_password proves that the supplied credential is wrong.
-      if (error instanceof PostgresError && error.fields.C === '28000') {
-        throw new Error(
-          'PostgreSQL rejected runtime role authentication with SQLSTATE 28000; check pg_hba rules and role login rights.');
-      }
       if (!(error instanceof PostgresError && error.fields.C === '28P01')) {
-        throw error;
+        throw safeDatabaseError('Runtime role authentication probe', error);
       }
-      await admin.query(
-        `ALTER ROLE ${RUNTIME_ROLE} LOGIN PASSWORD ${sqlLiteral(assistantPassword)}`);
+      try {
+        await provisioner.query(
+          `SELECT assistant_ops.set_runtime_password(${sqlLiteral(assistantPassword)})`);
+      } catch (updateError) {
+        throw safeDatabaseError('Runtime password function', updateError);
+      }
       log('runtime_role: existing');
       log('runtime_role_login: enabled-already');
       log('runtime_role_password: reset (probe authentication failed)');
     }
   } finally {
-    admin.close();
+    provisioner.close();
   }
 }
 
@@ -649,10 +655,10 @@ const invokedDirectly = process.argv[1] != null
 if (invokedDirectly) {
   provision().catch((error) => {
     if (error instanceof PostgresError) {
-      fail(`database rejected provisioning (${error.fields.C}): ${error.fields.M ?? 'unknown error'}`);
+      fail(`database rejected provisioning (SQLSTATE ${sqlState(error) ?? 'unknown'}); server details redacted`);
     }
-    fail(error instanceof ProvisioningError || error instanceof Error
+    fail(error instanceof ProvisioningError
       ? error.message
-      : String(error));
+      : 'provisioning failed; database details redacted');
   });
 }

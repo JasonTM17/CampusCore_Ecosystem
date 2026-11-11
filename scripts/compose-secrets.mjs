@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const COMPOSE_SECRET_NAMES = Object.freeze([
   'POSTGRES_PASSWORD',
   'ASSISTANT_DB_PASSWORD',
+  'ASSISTANT_DB_PROVISIONER_PASSWORD',
   'HEALTH_READINESS_KEY',
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
