@@ -7,7 +7,7 @@ flowchart TB
         mobile["<b>Expo mobile app</b><br/>Android / iOS"]
     end
     subgraph edge["Edge + public API"]
-        caddy["<b>Caddy edge</b><br/>TLS · /api/v1 · /oauth2"]
+        caddy["<b>Caddy edge</b><br/>TLS · /api/v1 · web"]
         api["<b>Spring Boot REST API</b><br/>OIDC issuer · academics · thesis<br/>grades · attendance · files"]
     end
     subgraph assistant["Private assistant"]
@@ -106,7 +106,7 @@ flowchart TB
     end
     subgraph backend["Backend"]
         direction LR
-        caddy["<b>Caddy edge</b><br/>/api/v1 · /oauth2"] --> api["<b>Spring Boot REST API</b><br/>OIDC issuer · domain API"] -->|SQL| pg[("<b>PostgreSQL</b>")]
+        caddy["<b>Caddy edge</b><br/>/api/v1 · web"] --> api["<b>Spring Boot REST API</b><br/>OIDC issuer · domain API"] -->|SQL| pg[("<b>PostgreSQL</b>")]
     end
     nav --> screens
     screens -->|fetch · pick / save| services
@@ -124,6 +124,59 @@ flowchart TB
     style screens fill:#f8fafc,stroke:#cbd5e1
     style services fill:#f8fafc,stroke:#cbd5e1
     style backend fill:#f8fafc,stroke:#cbd5e1
+```
+
+Sơ đồ dưới đây mô tả đăng nhập OIDC, làm mới phiên API và tải tệp trên ứng dụng di động.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant SecureStore
+    participant Edge
+    participant Issuer
+    participant API
+
+    rect rgb(240, 248, 255)
+        Note over User,Issuer: OIDC sign-in
+        User->>App: Start sign-in
+        App->>Issuer: Authorize with PKCE S256
+        Issuer-->>App: Redirect with authorization code
+        App->>Issuer: Exchange code with verifier
+        Issuer-->>App: Return access and refresh tokens
+        App->>App: Keep access token in memory
+        App->>SecureStore: Save refresh token
+    end
+
+    rect rgb(240, 253, 244)
+        Note over App,API: API call and refresh
+        App->>Edge: Request with bearer token
+        Edge->>API: Forward /api/v1 request
+        API-->>Edge: Return 401
+        Edge-->>App: Return 401
+        App->>Issuer: Refresh through shared lane
+        Issuer-->>App: Return rotated tokens
+        App->>SecureStore: Save rotated refresh token
+        App->>Edge: Retry once with bearer token
+        Edge->>API: Forward retried request
+        API-->>Edge: Return API response
+        Edge-->>App: Return API response
+        Note over App,SecureStore: Terminal failure clears session
+        Note over App,SecureStore: Unavailable refresh stays retryable
+    end
+
+    rect rgb(255, 248, 240)
+        Note over User,API: Picked-file upload
+        User->>App: Choose a file
+        App->>App: Open native picker
+        App->>App: Await copy into app cache
+        App->>App: Validate size and type
+        App->>Edge: Send multipart to /api/v1
+        Edge->>API: Forward multipart request
+        API-->>Edge: Return upload response
+        Edge-->>App: Return upload response
+        App->>App: Release cached copy
+    end
 ```
 
 Ứng dụng dùng Expo Router; sơ đồ tuyến và màn hình được sở hữu tại [route map](../mobile/src/navigation/route-map.ts) và [registry tuyến](../mobile/src/navigation/routes.ts). Một singleton [`apiClient`](../mobile/src/api/client.ts) phục vụ các facade REST `/api/v1`. Access token chỉ nằm trong bộ nhớ; refresh token nằm trong [SecureStore session store](../mobile/src/auth/session-store.ts), còn trao đổi/làm mới OIDC gọi issuer riêng.
