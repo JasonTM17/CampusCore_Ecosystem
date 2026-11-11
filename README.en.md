@@ -20,6 +20,10 @@ Expo Mobile App (mobile/) ─────┘         │ /internal/rag (internal
                                   rag-service sidecar (:4011, not host-published) ───► DeepSeek (optional)
 ```
 
+| System | Mobile app |
+| --- | --- |
+| <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campuscore-system-architecture.png" width="360" alt="CampusCore system architecture"></a> | <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campusute-mobile-architecture.png" width="360" alt="CampusUTE mobile app architecture"></a> |
+
 - `java-services/restful-api` — Java 21 / Spring Boot 4.1.1: `/api/v1` REST API, OIDC issuer + BFF, Flyway.
 - `frontend/` — Next.js 15 portal with a same-origin `/api/v1` proxy.
 - `database/` — PostgreSQL 15; in Compose, `rag-service` runs migrations (`restful-api` sets `FLYWAY_ENABLED=false`).
