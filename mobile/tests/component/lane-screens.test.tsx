@@ -632,9 +632,9 @@ describe('admin overview web parity', () => {
     await renderThemed(<LaneRoute id="admin.overview" />);
     await waitFor(() => expect(screen.getByText('Tổng quan quản trị')).toBeTruthy());
     expect(screen.getByText('Tổng quan campus')).toBeTruthy();
-    expect(screen.getByText('Quản lý tài khoản, hồ sơ học vụ, thông báo và luồng luận văn cốt lõi trong một cổng thống nhất.')).toBeTruthy();
+    expect(screen.queryByText('Quản lý tài khoản, hồ sơ học vụ, thông báo và luồng luận văn cốt lõi trong một cổng thống nhất.')).toBeNull();
     expect(screen.getByText('Công cụ quản trị')).toBeTruthy();
-    expect(screen.getByText('Mở đúng khu vực cần xử lý.')).toBeTruthy();
+    expect(screen.queryByText('Mở đúng khu vực cần xử lý.')).toBeNull();
   });
 
   test('analytics heading, live notice and chart titles match the web', async () => {

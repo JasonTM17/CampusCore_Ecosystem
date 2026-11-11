@@ -45,7 +45,6 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
     >
       <View>
         <SectionHeading title={copy.adminOverviewTitle} />
-        <UiText variant="bodySmall" tone="muted" style={styles.overviewDescription}>{copy.adminOverviewDescription}</UiText>
         <StatStrip
           items={[
             { icon: 'account-group-outline', label: copy.adminTotalUsers, value: formatNumber(data?.totals?.students ?? 0) },
@@ -84,7 +83,6 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
         </View>
         <ScreenSpacer />
         <SectionCard icon="tune-vertical-variant" title={copy.adminTools}>
-          <UiText variant="bodySmall" tone="muted" style={styles.toolsDescription}>{copy.adminToolsDescription}</UiText>
           {DETAIL_LANES.map(({ id, icon }, index) => (
             <View key={id}>
               {index > 0 ? <Divider /> : null}

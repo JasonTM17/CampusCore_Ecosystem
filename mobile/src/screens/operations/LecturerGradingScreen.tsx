@@ -442,7 +442,6 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.gradesEmptyTitle} description={copy.gradesEmptyDescription} />
       ) : (<View style={styles.stack}>
           <UiText accessibilityRole="header" variant="headlineSmall">{copy.gradesQueueTitle}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.gradesQueueDescription}</UiText>
           <UiText variant="bodySmall" tone="muted">
             {fillCopy(copy.gradesDescription, { semester: semesterLabel })}
           </UiText>

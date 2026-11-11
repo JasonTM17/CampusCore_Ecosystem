@@ -119,12 +119,12 @@ test('the dashboard quick actions and empty descriptions use the web copy', asyn
   mockLecturerMode = 'full';
   await renderScreen(<LecturerDashboardScreen {...props} />);
   expect(screen.getByRole('header', { name: 'Tác vụ nhanh' })).toBeOnTheScreen();
-  expect(screen.getByText('Mở các công cụ giảng viên thường dẫn đến tác vụ tiếp theo trong ngày.')).toBeOnTheScreen();
-  expect(screen.getByText('Kiểm tra phòng học, lớp học phần và thời gian dạy của học kỳ hiện tại.')).toBeOnTheScreen();
-  expect(screen.getByText('Xử lý hàng chờ chấm điểm và đưa các lớp học phần đã sẵn sàng sang bước công bố.')).toBeOnTheScreen();
-  expect(screen.getByText('Xem các cập nhật chung ảnh hưởng đến lớp học phần và ngày giảng dạy của bạn.')).toBeOnTheScreen();
+  expect(screen.queryByText('Mở các công cụ giảng viên thường dẫn đến tác vụ tiếp theo trong ngày.')).toBeNull();
+  expect(screen.queryByText('Kiểm tra phòng học, lớp học phần và thời gian dạy của học kỳ hiện tại.')).toBeNull();
+  expect(screen.queryByText('Xử lý hàng chờ chấm điểm và đưa các lớp học phần đã sẵn sàng sang bước công bố.')).toBeNull();
+  expect(screen.queryByText('Xem các cập nhật chung ảnh hưởng đến lớp học phần và ngày giảng dạy của bạn.')).toBeNull();
   expect(screen.queryByText('Các lớp học phần giảng dạy luôn hiển thị để quyết định về lịch và chấm điểm vẫn bám theo đúng học kỳ.')).toBeNull();
-  expect(screen.getByText('Các lớp gần bước rà soát cuối luôn ở đây để việc chấm điểm vẫn là ưu tiên chính.')).toBeOnTheScreen();
+  expect(screen.queryByText('Các lớp gần bước rà soát cuối luôn ở đây để việc chấm điểm vẫn là ưu tiên chính.')).toBeNull();
 });
 
 test('an empty lecturer dashboard uses the web empty descriptions', async () => {

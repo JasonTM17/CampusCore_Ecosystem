@@ -49,7 +49,6 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
       {!topicId ? <StatePanel kind="empty" title={copy.topicNotFound} actionLabel={copy.back} onAction={() => navigation.navigate('thesis.topics')} /> : null}
       {topic ? (
         <>
-          <UiText variant="bodySmall" tone="muted" style={styles.description}>{copy.topicDetailDescription}</UiText>
           <Card tone="primary" style={styles.card}>
             <View style={styles.header}>
               <IconChip icon="lightbulb-outline" size={40} />
