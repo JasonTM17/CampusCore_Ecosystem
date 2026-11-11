@@ -417,7 +417,7 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
     }
     if (outcome.status === 'picked') onChange(outcome.file);
     else if (outcome.status === 'invalid') setProblem(problemMessage(copy, outcome.problem, tooLargeMessage));
-    else if (outcome.status === 'failed') setProblem(copy.fileFailed);
+    else if (outcome.status === 'failed') setProblem(copy.generic);
     else if (outcome.status === 'unavailable') setProblem(copy.pickUnavailable);
   }, [adapter, copy, onChange, policy, tooLargeMessage]);
 
