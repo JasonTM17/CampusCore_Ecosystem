@@ -50,9 +50,7 @@ flowchart TD
 
 ![Kiến trúc ứng dụng CampusUTE trên di động](assets/campusute-mobile-architecture.png)
 
-> Nguồn vector: [sơ đồ kiến trúc di động](assets/campusute-mobile-architecture.svg) · [luồng đăng nhập và tệp](assets/campusute-mobile-auth-and-files.svg)
-
-![Luồng đăng nhập, làm mới token và tải tệp đã chọn](assets/campusute-mobile-auth-and-files.png)
+> Nguồn vector: [sơ đồ kiến trúc di động](assets/campusute-mobile-architecture.svg)
 
 Ứng dụng dùng Expo Router; sơ đồ tuyến và màn hình được sở hữu tại [route map](../mobile/src/navigation/route-map.ts) và [registry tuyến](../mobile/src/navigation/routes.ts). Một singleton [`apiClient`](../mobile/src/api/client.ts) phục vụ các facade REST `/api/v1`. Access token chỉ nằm trong bộ nhớ; refresh token nằm trong [SecureStore session store](../mobile/src/auth/session-store.ts), còn trao đổi/làm mới OIDC gọi issuer riêng.
 
