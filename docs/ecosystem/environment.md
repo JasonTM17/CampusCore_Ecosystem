@@ -99,7 +99,7 @@ The assistant runtime provisioner applies its generated password during startup.
 
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
-| `MAIL_ENABLED` | Enable outbound email (2FA OTP, notifications) | config | all | application default `true`; local Compose sets `false` |
+| `MAIL_ENABLED` | Enable outbound email (2FA OTP, notifications) | config | all | application default `true`; local and disposable e2e Compose set `false` |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT` | SMTP host/port (Mailpit local, real SMTP prod) | config | compose, prod | application default `smtp.gmail.com:587`; local Compose overrides `mailpit:1025` |
 | `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | SMTP credentials | secret | prod | required when auth enabled |
 | `SPRING_MAIL_PROPERTIES_MAIL_SMTP_*` (`_AUTH`, `_STARTTLS_ENABLE`, `_STARTTLS_REQUIRED`, `_CONNECTIONTIMEOUT`, `_TIMEOUT`, `_WRITETIMEOUT`) | Relaxed-binding overrides for `spring.mail.properties.mail.smtp.*` | config | optional | application default `AUTH=true`, `STARTTLS_ENABLE=true`, `STARTTLS_REQUIRED=true`; local Compose sets all three `false` |
@@ -155,10 +155,11 @@ include either shared proxy secret; no mobile payload or endpoint changes.
 | `IDENTITY_NATIVE_REFRESH_CLIENT_IDS` | Client ids allowed native refresh | config | mobile prod | safe default |
 | `IDENTITY_RETENTION_ENABLED`, `IDENTITY_RETENTION_CRON`, `IDENTITY_RETENTION_GRACE` | Purge cadence for expired OIDC artifacts | config | OIDC on | safe default |
 | `IDENTITY_BFF_ENABLED`, `IDENTITY_BFF_DEV_HTTP` | Backend-for-frontend edge + dev http tolerance | config | optional | `DEV_HTTP` forbidden in prod |
-| `IDENTITY_BFF_ISSUER_LOOPBACK`, `IDENTITY_BFF_ISSUER_PUBLIC` | Server-side vs public issuer base URLs | config | BFF on | safe default |
+| `IDENTITY_BFF_ISSUER_LOOPBACK`, `IDENTITY_BFF_ISSUER_PUBLIC` | Server-side vs public issuer base URLs | config | BFF on | Compose loopback follows its API port: `4010` base, `4100` e2e |
 | `IDENTITY_BFF_SESSION_TTL`, `IDENTITY_BFF_TX_TTL` | BFF session + transaction lifetimes | config | BFF on | safe default |
 | `IDENTITY_CLIENTS_*`, `IDENTITY_KEYS_*`, `IDENTITY_BFF_SURFACES_*` | Indexed families: OIDC clients, signing keys, BFF surface hosts | mixed (keys secret) | per feature | required when feature on |
-| `SSO_PREVIEW_PROXY_TOKEN`, `SSO_PREVIEW_PORTAL_BASE`, `SSO_PREVIEW_LEARN_BASE`, `SSO_PREVIEW_APPLY_BASE` | SSO-preview stack edge token + surface URLs | `PROXY_TOKEN` secret; bases config | sso-preview | required for sso-preview stack |
+| `SSO_PREVIEW_PROXY_TOKEN`, `SSO_PREVIEW_PORTAL_BASE`, `SSO_PREVIEW_LEARN_BASE`, `SSO_PREVIEW_APPLY_BASE` | SSO-preview stack edge token + surface URLs | `PROXY_TOKEN` secret; bases config | sso-preview | required for sso-preview stack; generate secrets with `node scripts/compose-secrets.mjs --ensure` |
+| `SSO_PREVIEW_*_CLIENT_SECRET`, `SSO_PREVIEW_*_PROXY_SECRET` | Per-surface OIDC client and BFF proxy secrets | secret | sso-preview | required and generated per checkout; set `CAMPUSCORE_PROXY_TOKEN` to the same value as `SSO_PREVIEW_PROXY_TOKEN` when using the Compose web service |
 
 ## 7. Assistant, RAG, DeepSeek, Supabase, storage
 
@@ -172,12 +173,13 @@ include either shared proxy secret; no mobile payload or endpoint changes.
 | `ASSISTANT_TOP_K`, `ASSISTANT_LEXICAL_FAST_PATH`, `ASSISTANT_LEXICAL_CONFIDENT_SCORE` | Retrieval size + lexical fast-path threshold | config | tuning | safe default |
 | `ASSISTANT_MAX_MESSAGE_CHARS`, `ASSISTANT_MAX_CONTEXT_CHARS` | Input/context truncation limits | config | tuning | safe default |
 | `ASSISTANT_USER_DAILY_QUOTA`, `ASSISTANT_GLOBAL_DAILY_QUOTA`, `ASSISTANT_QUOTA_ENFORCED` | Per-user/global daily quotas + enforcement | config | compose, prod, render | safe default |
-| `ASSISTANT_RETENTION_DAYS` | Assistant history retention window | config | optional | safe default |
+| `ASSISTANT_RETENTION_DAYS` | Assistant history retention window | config | optional | safe default `90` days |
+| `ASSISTANT_RETENTION_ENABLED` | Enable the assistant history purger in `rag-service` | config | compose | safe default `true`; `restful-api` keeps its purger disabled so exactly one job owns deletion |
 | `ASSISTANT_RLS_TEST_MODE` | Row-level-security test mode | config | tests only | forbidden in prod |
 | `ASSISTANT_RECOVERY_DELAY_MS`, `ASSISTANT_RECOVERY_INITIAL_DELAY_MS`, `ASSISTANT_RECOVERY_ACTIVE_WINDOW_MS`, `ASSISTANT_RECOVERY_SAFETY_INTERVAL_MS`, `ASSISTANT_RECOVERY_ACTIVITY_AWARE` | Recovery-job cadence + activity awareness | config | tuning | safe default |
 | `ASSISTANT_KNOWLEDGE_AUTHORITY_MODE` | Which snapshot source is authoritative | config | optional | safe default |
 | `DEEPSEEK_ENABLED` | Enable DeepSeek LLM escalation | config | all | safe default `false` |
-| `DEEPSEEK_API_KEY` | DeepSeek API credential | secret | when enabled | required |
+| `DEEPSEEK_API_KEY` | DeepSeek API credential | secret | when enabled | required; an empty key fails closed with `provider disabled or key missing` |
 | `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL` | Endpoint + model (`deepseek-v4-flash`) | config | when enabled | safe default |
 | `DEEPSEEK_TIMEOUT_MS`, `DEEPSEEK_MAX_CONCURRENT`, `DEEPSEEK_MAX_OUTPUT_TOKENS` | LLM call timeout/concurrency/tokens | config | tuning | safe default |
 | `DEEPSEEK_MAX_FRAME_BYTES`, `DEEPSEEK_MAX_RESPONSE_BYTES` | Stream frame/response size caps | config | tuning | safe default |

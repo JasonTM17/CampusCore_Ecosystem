@@ -64,6 +64,8 @@ services:
       # application.yml `accounts-enabled: ${DEMO_ACCOUNTS_ENABLED:false}`.
       DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
       SERVER_PORT: 4100
+      IDENTITY_BFF_ISSUER_LOOPBACK: http://127.0.0.1:4100
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful_e2e}?currentSchema=thesis
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
