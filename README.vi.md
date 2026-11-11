@@ -20,6 +20,10 @@ Expo Mobile App (mobile/) ─────┘         │ /internal/rag (mạng n
                                   rag-service sidecar (:4011, không publish host) ───► DeepSeek (tùy chọn)
 ```
 
+| Hệ thống | Ứng dụng di động |
+| --- | --- |
+| <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campuscore-system-architecture.png" width="360" alt="Kiến trúc hệ thống CampusCore"></a> | <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campusute-mobile-architecture.png" width="360" alt="Kiến trúc ứng dụng di động CampusUTE"></a> |
+
 - `java-services/restful-api` — Java 21 / Spring Boot 4.1.1: REST API `/api/v1`, OIDC issuer + BFF, Flyway.
 - `frontend/` — Next.js 15 portal, proxy cùng nguồn `/api/v1`.
 - `database/` — PostgreSQL 15; trong compose, `rag-service` chạy migration (`restful-api` đặt `FLYWAY_ENABLED=false`).
