@@ -1310,6 +1310,73 @@ describe('progress and report', () => {
     await waitFor(() => expect(mockApi.removeReportFile).toHaveBeenCalledWith('g1'));
   });
 
+  test('a refused download says the device cannot download files, not pick them', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'bao-cao.pdf', fileSize: 2048 });
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: () => ({ available: true }),
+      save: async () => ({ status: 'unavailable', reason: 'NO_SAVE_SHEET' }),
+    });
+    mockApi.downloadReportFile.mockResolvedValue({ data: new TextEncoder().encode('%PDF').buffer, contentType: 'application/pdf', fileName: 'bao-cao.pdf' });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: copy.reportDownload }));
+    expect(await screen.findByText('Thiết bị này chưa hỗ trợ tải tệp.')).toBeOnTheScreen();
+    expect(screen.queryByText(copy.reportFileUnavailable)).toBeNull();
+  });
+
+  test('without save capability the stored file says the device cannot download files', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Báo cáo', fileName: 'bao-cao.pdf', fileSize: 2048 });
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: (operation) => (operation === 'pick' ? { available: true } : { available: false, reason: 'NO_SAVE_SHEET' }),
+    });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText('Thiết bị này chưa hỗ trợ tải tệp.')).toBeOnTheScreen();
+    expect(screen.queryByText(copy.reportFileUnavailable)).toBeNull();
+    expect(screen.getByRole('button', { name: copy.reportDownload }).props.accessibilityState?.disabled).toBe(true);
+  });
+
+  test('a refused download is localised in English', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Report', fileName: 'report.pdf', fileSize: 2048 });
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: () => ({ available: true }),
+      save: async () => ({ status: 'unavailable', reason: 'NO_SAVE_SHEET' }),
+    });
+    mockApi.downloadReportFile.mockResolvedValue({ data: new TextEncoder().encode('%PDF').buffer, contentType: 'application/pdf', fileName: 'report.pdf' });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: thesisMessages.en.reportDownload }));
+    expect(await screen.findByText('This device cannot download files yet.')).toBeOnTheScreen();
+    expect(screen.queryByText(thesisMessages.en.reportFileUnavailable)).toBeNull();
+  });
+
+  test('the English stored file row says the device cannot download files', async () => {
+    setWidth(360);
+    seed({ rounds: closedRounds, group: approvedGroup(), progress: approvedProgress });
+    mockApi.report.mockReset();
+    mockApi.report.mockResolvedValue({ groupId: 'g1', title: 'Report', fileName: 'report.pdf', fileSize: 2048 });
+    setFileAdapter({
+      ...createUnavailableFileAdapter(),
+      capability: (operation) => (operation === 'pick' ? { available: true } : { available: false, reason: 'NO_SAVE_SHEET' }),
+    });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+
+    expect(await screen.findByText('This device cannot download files yet.')).toBeOnTheScreen();
+    expect(screen.queryByText(thesisMessages.en.reportFileUnavailable)).toBeNull();
+  });
+
   test('a file-only report does not offer removal without a link artifact', async () => {
     setWidth(360);
     seed({
