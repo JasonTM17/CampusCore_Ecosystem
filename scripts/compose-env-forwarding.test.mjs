@@ -88,6 +88,8 @@ const NOT_FORWARDED_TO_API = new Map([
   ['FRONTEND_HOST_PORT', 'host port publish for web'],
   ['MAILPIT_UI_HOST_PORT', 'host port publish for mailpit'],
   ['MAILPIT_SMTP_HOST_PORT', 'host port publish for mailpit'],
+  ['ASSISTANT_RETENTION_ENABLED', 'rag-service owns the single retention purger; restful-api pins it off'],
+  ['CAMPUSCORE_PROXY_TOKEN', 'web service proxy token'],
   ['JAVA_API_ORIGIN', 'web service proxy target'],
   ['NEXT_PUBLIC_API_URL', 'Next.js bundle variable'],
   ['NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS', 'web build arg'],
@@ -103,6 +105,14 @@ const NOT_FORWARDED_TO_API = new Map([
   ['DEEPSEEK_MODEL', 'rag-service sidecar runs the provider chain'],
   ['DEEPSEEK_TIMEOUT_MS', 'rag-service sidecar runs the provider chain'],
   ['DEEPSEEK_MAX_OUTPUT_TOKENS', 'rag-service sidecar runs the provider chain'],
+  ['SSO_PREVIEW_PROXY_TOKEN', 'sso-preview overlay maps it to RATE_LIMIT_PROXY_TOKEN'],
+  ['IDENTITY_TOKEN_ENCRYPTION_KEY', 'sso-preview overlay maps it to the OIDC token cipher'],
+  ['SSO_PREVIEW_PORTAL_CLIENT_SECRET', 'sso-preview overlay maps it to the portal client'],
+  ['SSO_PREVIEW_PORTAL_PROXY_SECRET', 'sso-preview overlay maps it to the portal proxy'],
+  ['SSO_PREVIEW_LEARN_CLIENT_SECRET', 'sso-preview overlay maps it to the learn client'],
+  ['SSO_PREVIEW_LEARN_PROXY_SECRET', 'sso-preview overlay maps it to the learn proxy'],
+  ['SSO_PREVIEW_APPLY_CLIENT_SECRET', 'sso-preview overlay maps it to the apply client'],
+  ['SSO_PREVIEW_APPLY_PROXY_SECRET', 'sso-preview overlay maps it to the apply proxy'],
 ]);
 
 test('every documented active .env.example knob reaches restful-api or is allowlisted', () => {

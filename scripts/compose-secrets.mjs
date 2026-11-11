@@ -14,6 +14,14 @@ export const COMPOSE_SECRET_NAMES = Object.freeze([
   'ASSISTANT_RAG_SERVICE_TOKEN',
   'ASSISTANT_RAG_OWNER_ASSERTION_SECRET',
   'INTERNAL_SERVICE_TOKEN',
+  'SSO_PREVIEW_PROXY_TOKEN',
+  'IDENTITY_TOKEN_ENCRYPTION_KEY',
+  'SSO_PREVIEW_PORTAL_CLIENT_SECRET',
+  'SSO_PREVIEW_PORTAL_PROXY_SECRET',
+  'SSO_PREVIEW_LEARN_CLIENT_SECRET',
+  'SSO_PREVIEW_LEARN_PROXY_SECRET',
+  'SSO_PREVIEW_APPLY_CLIENT_SECRET',
+  'SSO_PREVIEW_APPLY_PROXY_SECRET',
 ]);
 
 const PUBLISHED_DEFAULTS = new Map([
@@ -33,6 +41,14 @@ const PUBLISHED_DEFAULTS = new Map([
   ['ASSISTANT_RAG_SERVICE_TOKEN', new Set(['dev-rag-service-token-rotate-before-exposing'])],
   ['ASSISTANT_RAG_OWNER_ASSERTION_SECRET', new Set(['dev-ci-owner-assertion-not-a-secret'])],
   ['INTERNAL_SERVICE_TOKEN', new Set(['edge-e2e-internal-service-token-12345'])],
+  ['SSO_PREVIEW_PROXY_TOKEN', new Set(['sso-preview-proxy-token-0123456789'])],
+  ['IDENTITY_TOKEN_ENCRYPTION_KEY', new Set(['dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY='])],
+  ['SSO_PREVIEW_PORTAL_CLIENT_SECRET', new Set(['sso-preview-portal-secret-0123456789ab'])],
+  ['SSO_PREVIEW_PORTAL_PROXY_SECRET', new Set(['sso-preview-portal-proxy-0123456789abcd'])],
+  ['SSO_PREVIEW_LEARN_CLIENT_SECRET', new Set(['sso-preview-learn-secret-0123456789abc'])],
+  ['SSO_PREVIEW_LEARN_PROXY_SECRET', new Set(['sso-preview-learn-proxy-0123456789abcde'])],
+  ['SSO_PREVIEW_APPLY_CLIENT_SECRET', new Set(['sso-preview-apply-secret-0123456789abd'])],
+  ['SSO_PREVIEW_APPLY_PROXY_SECRET', new Set(['sso-preview-apply-proxy-0123456789abcdef'])],
 ]);
 
 function assignment(line) {
@@ -60,7 +76,10 @@ function serializeDotenvValue(value) {
   return `'${value.replace(/'/g, "\\'")}'`;
 }
 
-function generatedSecret(randomBytes) {
+function generatedSecret(name, randomBytes) {
+  if (name === 'IDENTITY_TOKEN_ENCRYPTION_KEY') {
+    return Buffer.from(randomBytes(32)).toString('base64');
+  }
   return Buffer.from(randomBytes(48)).toString('base64url');
 }
 
@@ -118,7 +137,7 @@ export function ensureComposeSecrets(options = {}) {
       continue;
     }
 
-    const secret = generatedSecret(randomBytes);
+    const secret = generatedSecret(name, randomBytes);
     if (lastIndex >= 0) {
       lines[lastIndex] = `${match[1]}${name}${match[3]}${secret}`;
     } else {
