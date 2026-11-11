@@ -20,3 +20,7 @@ java-services/restful-api/src/test/java/io/campuscore/restfulapi/web/OpenApiAccu
 # Shared fixture key of the OpenAPI security contract test (not a credential)
 java-services/restful-api/src/test/java/io/campuscore/restfulapi/security/OpenApiSecurityContractTest.java:generic-api-key:32
 scripts/compose-secrets.mjs:generic-api-key:23
+
+# Previously published SSO-preview dev values kept only so generation can detect and replace them (not credentials)
+scripts/compose-secrets.test.mjs:generic-api-key:105
+scripts/compose-contract.test.mjs:generic-api-key:42

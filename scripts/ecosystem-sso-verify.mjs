@@ -136,6 +136,12 @@ function generateCerts(dir) {
   return { key, cert };
 }
 
+function readEnvValue(envPath, name) {
+  const line = fs.readFileSync(envPath, 'utf8').split(/\r?\n/)
+    .find((entry) => entry.startsWith(`${name}=`));
+  return line ? line.slice(name.length + 1).trim().replace(/^(['"])(.*)\1$/, '$2') : '';
+}
+
 function stopChildren() {
   stopChildrenTree(children);
 }
@@ -157,7 +163,9 @@ async function casePreview(args) {
       throw new Error(`compose project ${args.project} already exists — refusing collision`);
     }
     preflightProjectVolumes(args.project, tryRun);
-    ensureComposeSecrets({ root: REPO });
+    const { path: envPath } = ensureComposeSecrets({ root: REPO });
+    const proxyToken = readEnvValue(envPath, 'SSO_PREVIEW_PROXY_TOKEN');
+    if (!proxyToken) throw new Error('SSO_PREVIEW_PROXY_TOKEN missing after secret generation');
 
     // 1. Disposable API stack in the BFF lane.
     ownsStack = true;
@@ -198,7 +206,7 @@ async function casePreview(args) {
         NEXT_PUBLIC_API_URL: '/api/v1',
         NEXT_PUBLIC_BFF_LANE: 'true',
         JAVA_API_ORIGIN: `http://127.0.0.1:${API_PORT}`,
-        CAMPUSCORE_PROXY_TOKEN: 'sso-preview-proxy-token-0123456789',
+        CAMPUSCORE_PROXY_TOKEN: proxyToken,
       },
     }, path.join(dir, 'next-dev.log'));
     await waitFor(`https://portal.localhost:${WEB_PORT}/`, { insecure: true });
