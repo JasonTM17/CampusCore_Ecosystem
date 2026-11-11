@@ -99,9 +99,9 @@ describe('guest landing public content teasers', () => {
     expect(screen.getByTestId('guest-news-section')).toBeOnTheScreen();
     expect(screen.getByTestId('guest-docs-section')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: shellMessages.vi.guest.newsTitle })).toBeOnTheScreen();
-    expect(screen.getByText(shellMessages.vi.guest.newsDescription)).toBeOnTheScreen();
+    expect(screen.queryByText(shellMessages.vi.guest.newsDescription)).toBeNull();
     expect(screen.getByRole('header', { name: shellMessages.vi.screens.docs })).toBeOnTheScreen();
-    expect(screen.getByText(shellMessages.vi.guest.docsDescription)).toBeOnTheScreen();
+    expect(screen.queryByText(shellMessages.vi.guest.docsDescription)).toBeNull();
     expect(screen.getByText('Học vụ 1')).toBeOnTheScreen();
     expect(screen.getByText('Quy chế đào tạo 1')).toBeOnTheScreen();
 
@@ -153,7 +153,7 @@ describe('guest landing public content teasers', () => {
 
     await renderLanding();
 
-    expect(screen.getByText(shellMessages.vi.guest.newsDescription)).toBeOnTheScreen();
+    expect(screen.queryByText(shellMessages.vi.guest.newsDescription)).toBeNull();
     expect(within(screen.getByRole('button', { name: 'Tất cả bài viết' })).getByText('11')).toBeOnTheScreen();
     expect(within(screen.getByRole('button', { name: 'Học vụ' })).getByText('5')).toBeOnTheScreen();
     expect(screen.getByText('Phóng sự & Chuyên đề Khác')).toBeOnTheScreen();
@@ -181,11 +181,11 @@ describe('guest landing public content teasers', () => {
 
     expect(screen.getByText('CAMPUS PRESS & MAGAZINE')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'HCMUTE Academic Life & Innovation' })).toBeOnTheScreen();
-    expect(screen.getByText('Official academic announcements, research breakthroughs, student initiatives, and university governance updates.')).toBeOnTheScreen();
+    expect(screen.queryByText('Official academic announcements, research breakthroughs, student initiatives, and university governance updates.')).toBeNull();
     expect(screen.getByText('Special Feature Stories')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'View 1 More Story' })).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Public documents' })).toBeOnTheScreen();
-    expect(screen.getByText('Published regulations, guides, and reference material.')).toBeOnTheScreen();
+    expect(screen.queryByText('Published regulations, guides, and reference material.')).toBeNull();
     expect(screen.getByTestId('guest-docs-see-all')).toBeOnTheScreen();
   });
 });

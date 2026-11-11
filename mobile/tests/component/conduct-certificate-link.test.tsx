@@ -83,7 +83,7 @@ test('conduct status and Vietnamese classification are localized', async () => {
   setRecord();
   const vi = await renderThemed('vi', <ConductScreen {...props} />);
   expect(screen.getByText('HCM-UTE • PHÒNG CTSV')).toBeOnTheScreen();
-  expect(screen.getByText('Theo dõi điểm ĐRL, 5 tiêu chí đánh giá và hoạt động được duyệt bằng bố cục gọn hơn.')).toBeOnTheScreen();
+  expect(screen.queryByText('Theo dõi điểm ĐRL, 5 tiêu chí đánh giá và hoạt động được duyệt bằng bố cục gọn hơn.')).toBeNull();
   expect(screen.getByText('Trạng thái: Đã phê duyệt')).toBeOnTheScreen();
   expect(screen.getByText(/Tổng điểm: 82 · Tốt/)).toBeOnTheScreen();
   vi.unmount();

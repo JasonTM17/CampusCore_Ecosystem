@@ -106,8 +106,9 @@ export function AppBar({ role, avatar, applicant = false, unreadCount = 0, onNot
           </View>
         ) : null}
         <PreviewPill />
-        <LanguageToggleButton />
-        <ThemeToggleButton />
+        {/* Signed-in users change language and appearance in Profile; the bar stays brand + role + bell + account. */}
+        {role ? null : <LanguageToggleButton />}
+        {role ? null : <ThemeToggleButton />}
         {role && onNotifications ? (
           <Pressable
             accessibilityLabel={notificationsLabel}

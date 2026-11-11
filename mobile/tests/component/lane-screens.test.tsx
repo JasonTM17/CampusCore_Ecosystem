@@ -614,7 +614,7 @@ describe('admin overview web parity', () => {
     });
   });
 
-  test('KPI labels and detail lines match the web', async () => {
+  test('KPI labels match the web without the long detail lines', async () => {
     await renderThemed(<LaneRoute id="admin.overview" />);
     await waitFor(() => expect(screen.getByText('Sinh viên')).toBeTruthy());
     for (const [label, value, detail] of [
@@ -623,8 +623,8 @@ describe('admin overview web parity', () => {
       ['Môn học', '2', 'Sẵn sàng mở lớp và đăng ký.'],
       ['Đăng ký học phần', '4', 'Hồ sơ đăng ký hiện có.'],
     ] as const) {
-      expect(screen.getByLabelText(`${label}: ${value}, ${detail}`)).toBeTruthy();
-      expect(screen.getByText(detail)).toBeTruthy();
+      expect(screen.getByLabelText(`${label}: ${value}`)).toBeTruthy();
+      expect(screen.queryByText(detail)).toBeNull();
     }
   });
 
@@ -632,9 +632,9 @@ describe('admin overview web parity', () => {
     await renderThemed(<LaneRoute id="admin.overview" />);
     await waitFor(() => expect(screen.getByText('Tổng quan quản trị')).toBeTruthy());
     expect(screen.getByText('Tổng quan campus')).toBeTruthy();
-    expect(screen.getByText('Quản lý tài khoản, hồ sơ học vụ, thông báo và luồng luận văn cốt lõi trong một cổng thống nhất.')).toBeTruthy();
+    expect(screen.queryByText('Quản lý tài khoản, hồ sơ học vụ, thông báo và luồng luận văn cốt lõi trong một cổng thống nhất.')).toBeNull();
     expect(screen.getByText('Công cụ quản trị')).toBeTruthy();
-    expect(screen.getByText('Mở đúng khu vực cần xử lý.')).toBeTruthy();
+    expect(screen.queryByText('Mở đúng khu vực cần xử lý.')).toBeNull();
   });
 
   test('analytics heading, live notice and chart titles match the web', async () => {
