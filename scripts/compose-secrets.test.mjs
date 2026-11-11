@@ -39,6 +39,14 @@ test('fills only missing secrets with independent values and preserves custom vo
     'ASSISTANT_RAG_SERVICE_TOKEN',
     'ASSISTANT_RAG_OWNER_ASSERTION_SECRET',
     'INTERNAL_SERVICE_TOKEN',
+    'SSO_PREVIEW_PROXY_TOKEN',
+    'IDENTITY_TOKEN_ENCRYPTION_KEY',
+    'SSO_PREVIEW_PORTAL_CLIENT_SECRET',
+    'SSO_PREVIEW_PORTAL_PROXY_SECRET',
+    'SSO_PREVIEW_LEARN_CLIENT_SECRET',
+    'SSO_PREVIEW_LEARN_PROXY_SECRET',
+    'SSO_PREVIEW_APPLY_CLIENT_SECRET',
+    'SSO_PREVIEW_APPLY_PROXY_SECRET',
   ]);
   assert.equal(values.get('POSTGRES_PASSWORD'), 'custom-existing-volume-password');
   assert.equal(values.get('ASSISTANT_DB_PASSWORD'), 'custom-runtime-role-password');
@@ -87,6 +95,32 @@ test('replaces the required secrets published by the previous env template', (t)
 
   for (const name of published.keys()) assert.ok(result.generatedKeys.includes(name), `${name} must be regenerated`);
   for (const value of published.values()) assert.equal(content.includes(value), false);
+});
+
+test('generates SSO preview credentials and rotates the previously published values', (t) => {
+  const root = fixture(t);
+  const file = path.join(root, '.env');
+  const published = new Map([
+    ['SSO_PREVIEW_PROXY_TOKEN', 'sso-preview-proxy-token-0123456789'],
+    ['IDENTITY_TOKEN_ENCRYPTION_KEY', 'dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY='],
+    ['SSO_PREVIEW_PORTAL_CLIENT_SECRET', 'sso-preview-portal-secret-0123456789ab'],
+    ['SSO_PREVIEW_PORTAL_PROXY_SECRET', 'sso-preview-portal-proxy-0123456789abcd'],
+    ['SSO_PREVIEW_LEARN_CLIENT_SECRET', 'sso-preview-learn-secret-0123456789abc'],
+    ['SSO_PREVIEW_LEARN_PROXY_SECRET', 'sso-preview-learn-proxy-0123456789abcde'],
+    ['SSO_PREVIEW_APPLY_CLIENT_SECRET', 'sso-preview-apply-secret-0123456789abd'],
+    ['SSO_PREVIEW_APPLY_PROXY_SECRET', 'sso-preview-apply-proxy-0123456789abcdef'],
+  ]);
+  fs.writeFileSync(file, [...published].map(([name, value]) => `${name}=${value}`).join('\n') + '\n', 'utf8');
+
+  const result = ensureComposeSecrets({ root, env: {}, randomBytes: sequenceRandomBytes() });
+  const content = fs.readFileSync(file, 'utf8');
+  const values = new Map([...content.matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map((match) => [match[1], match[2]]));
+
+  for (const [name, value] of published) {
+    assert.ok(result.generatedKeys.includes(name), `${name} must be generated`);
+    assert.equal(content.includes(value), false, `${name} must not keep its published value`);
+  }
+  assert.equal(Buffer.from(values.get('IDENTITY_TOKEN_ENCRYPTION_KEY'), 'base64').length, 32);
 });
 
 test('replaces published defaults followed by dotenv inline comments', (t) => {
