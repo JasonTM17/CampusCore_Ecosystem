@@ -46,6 +46,20 @@ flowchart TD
 
 > Trong cụm Docker Compose, `rag-service` là bên thực thi Flyway (`restful-api` chạy với `FLYWAY_ENABLED=false`). Khi chạy JAR trực tiếp, Flyway bật mặc định theo `application.yml`. Cổng host đều ghi đè được qua `.env` (xem `docker-compose.yml`).
 
+### Ứng dụng di động
+
+![Kiến trúc ứng dụng CampusUTE trên di động](assets/campusute-mobile-architecture.png)
+
+> Nguồn vector: [sơ đồ kiến trúc di động](assets/campusute-mobile-architecture.svg) · [luồng đăng nhập và tệp](assets/campusute-mobile-auth-and-files.svg)
+
+![Luồng đăng nhập, làm mới token và tải tệp đã chọn](assets/campusute-mobile-auth-and-files.png)
+
+Ứng dụng dùng Expo Router; sơ đồ tuyến và màn hình được sở hữu tại [route map](../mobile/src/navigation/route-map.ts) và [registry tuyến](../mobile/src/navigation/routes.ts). Một singleton [`apiClient`](../mobile/src/api/client.ts) phục vụ các facade REST `/api/v1`. Access token chỉ nằm trong bộ nhớ; refresh token nằm trong [SecureStore session store](../mobile/src/auth/session-store.ts), còn trao đổi/làm mới OIDC gọi issuer riêng.
+
+Lớp tệp gốc trong [native file adapter](../mobile/src/api/native-file-adapter.ts) dùng thao tác `expo-file-system` bất đồng bộ để sao chép tệp đã chọn vào app cache trước khi tải lên; lớp này cũng sở hữu chọn, lưu và chia sẻ tệp. In bảng điểm/bảng kết quả và nhập điểm hàng loạt được chuyển sang web qua [màn bảng điểm](../mobile/src/screens/academic/TranscriptScreen.tsx) và [màn chấm điểm giảng viên](../mobile/src/screens/operations/LecturerGradingScreen.tsx).
+
+Cache truy vấn theo tài khoản chỉ giữ dữ liệu trong bộ nhớ: có thể hiện dữ liệu cũ sau lỗi mạng, nhưng không có kho offline bền vững hoặc ghi offline ([query cache](../mobile/src/hooks/query-cache.ts), [screen query hook](../mobile/src/hooks/useScreenQuery.ts)). Lane check-in được bật tại thời điểm build bằng `EXPO_PUBLIC_LANE_CHECKIN` và tắt mặc định ([lane flags](../mobile/src/config/lane-flags.ts)). Reverse proxy phụ thuộc môi trường; cấu hình edge hiện có trong repo là [Caddy](../ops/caddy/Caddyfile).
+
 ### Quy tắc phân chia ranh giới mạng (Boundary Rules):
 1. **Một Cổng API Duy Nhất**: Ứng dụng Java (`restful-api`) là dịch vụ duy nhất sở hữu và công khai các route `/api/v1/**` ra bên ngoài.
 2. **Cách ly Dịch vụ RAG**: Dịch vụ `rag-service` chạy trên cổng nội bộ `4011`, tuyệt đối không mở port ra internet trong Docker Compose. Mọi truy vấn từ Frontend đều phải đi qua cổng kiểm soát của REST API (`/api/v1/assistant/chat`), nơi thực hiện xác thực người dùng và kiểm tra hạn ngạch.
