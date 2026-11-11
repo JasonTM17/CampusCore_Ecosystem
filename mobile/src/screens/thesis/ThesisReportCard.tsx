@@ -213,7 +213,7 @@ export function ThesisReportCard({ group, isLeader, roundStatus, reportDeadline,
     );
     setWorking(null);
     if (outcome.status === 'done') setNotice({ tone: 'success', text: copy.reportFileSaved });
-    else if (outcome.status === 'unavailable') setNotice({ tone: 'error', text: copy.reportFileUnavailable });
+    else if (outcome.status === 'unavailable') setNotice({ tone: 'error', text: copy.reportDownloadUnavailable });
     else if (outcome.status === 'failed') setNotice({ tone: 'error', text: copy.reportFileFailed });
   };
 
@@ -287,7 +287,7 @@ export function ThesisReportCard({ group, isLeader, roundStatus, reportDeadline,
         </View>
       ) : null}
       {hasStoredFile && !canSave ? (
-        <UiText variant="meta" tone="muted" style={styles.gap}>{copy.reportFileUnavailable}</UiText>
+        <UiText variant="meta" tone="muted" style={styles.gap}>{copy.reportDownloadUnavailable}</UiText>
       ) : null}
 
       {writable && !state.loading ? (
