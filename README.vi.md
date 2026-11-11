@@ -20,9 +20,90 @@ Expo Mobile App (mobile/) ─────┘         │ /internal/rag (mạng n
                                   rag-service sidecar (:4011, không publish host) ───► DeepSeek (tùy chọn)
 ```
 
-| Hệ thống | Ứng dụng di động |
-| --- | --- |
-| <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campuscore-system-architecture.png" width="360" alt="Kiến trúc hệ thống CampusCore"></a> | <a href="docs/ARCHITECTURE.md"><img src="docs/assets/campusute-mobile-architecture.png" width="360" alt="Kiến trúc ứng dụng di động CampusUTE"></a> |
+**Hệ thống**
+
+```mermaid
+flowchart TB
+    subgraph clients["Clients"]
+        web["<b>Next.js web portal</b><br/>students · lecturers · admins"]
+        mobile["<b>Expo mobile app</b><br/>Android / iOS"]
+    end
+    subgraph edge["Edge + public API"]
+        caddy["<b>Caddy edge</b><br/>TLS · /api/v1 · /oauth2"]
+        api["<b>Spring Boot REST API</b><br/>OIDC issuer · academics · thesis<br/>grades · attendance · files"]
+    end
+    subgraph assistant["Private assistant"]
+        rag["<b>RAG service sidecar</b><br/>role-scoped retrieval"]
+        llm["<b>LLM provider</b><br/>DeepSeek · server-side key"]
+    end
+    subgraph data["Data"]
+        pg[("<b>PostgreSQL</b><br/>system of record · Flyway")]
+        store[("<b>Assistant store</b><br/>knowledge + chat history")]
+    end
+    web -->|HTTPS| caddy
+    mobile -->|HTTPS| caddy
+    caddy -->|/api/v1| api
+    api -->|read / write| pg
+    api -->|assistant call| rag
+    rag -.->|prompt| llm
+    rag -.->|retrieve| store
+
+    classDef client fill:#eff6ff,stroke:#2563eb,color:#0f172a
+    classDef core fill:#f0fdf4,stroke:#16a34a,color:#0f172a
+    classDef ai fill:#faf5ff,stroke:#9333ea,color:#0f172a
+    classDef db fill:#fff7ed,stroke:#ea580c,color:#0f172a
+    class web,mobile client
+    class caddy,api core
+    class rag,llm ai
+    class pg,store db
+    style clients fill:#f8fafc,stroke:#cbd5e1
+    style edge fill:#f8fafc,stroke:#cbd5e1
+    style assistant fill:#f8fafc,stroke:#cbd5e1
+    style data fill:#f8fafc,stroke:#cbd5e1
+```
+
+**Ứng dụng di động**
+
+```mermaid
+flowchart TB
+    subgraph nav["Navigation"]
+        direction LR
+        router["<b>Expo Router</b><br/>app shell · deep links"] --> guard["<b>Route map + guard</b><br/>session · role · grants"] --> shell["<b>Tabs + menu</b><br/>role-specific"]
+    end
+    subgraph screens["Role screens"]
+        direction LR
+        student["<b>Student</b><br/>schedule · grades · thesis"]
+        lecturer["<b>Lecturer</b><br/>gradebook · attendance"]
+        admin["<b>Admin</b><br/>overview · people"]
+        shared["<b>Shared</b><br/>news · notifications · profile"]
+        student ~~~ lecturer ~~~ admin ~~~ shared
+    end
+    subgraph services["Client services"]
+        direction LR
+        session["<b>Session store</b><br/>refresh token in SecureStore"] -.->|token| client["<b>API client</b><br/>bearer token · 401 refresh"]
+        client ~~~ files["<b>Native file adapter</b><br/>pick · save · share"]
+    end
+    subgraph backend["Backend"]
+        direction LR
+        caddy["<b>Caddy edge</b><br/>/api/v1 · /oauth2"] --> api["<b>Spring Boot REST API</b><br/>OIDC issuer · domain API"] -->|SQL| pg[("<b>PostgreSQL</b>")]
+    end
+    nav --> screens
+    screens -->|fetch · pick / save| services
+    services -->|HTTPS| backend
+
+    classDef navc fill:#eff6ff,stroke:#2563eb,color:#0f172a
+    classDef scr fill:#f0fdfa,stroke:#0d9488,color:#0f172a
+    classDef svc fill:#f0fdf4,stroke:#16a34a,color:#0f172a
+    classDef be fill:#fff7ed,stroke:#ea580c,color:#0f172a
+    class router,guard,shell navc
+    class student,lecturer,admin,shared scr
+    class client,session,files svc
+    class caddy,api,pg be
+    style nav fill:#f8fafc,stroke:#cbd5e1
+    style screens fill:#f8fafc,stroke:#cbd5e1
+    style services fill:#f8fafc,stroke:#cbd5e1
+    style backend fill:#f8fafc,stroke:#cbd5e1
+```
 
 - `java-services/restful-api` — Java 21 / Spring Boot 4.1.1: REST API `/api/v1`, OIDC issuer + BFF, Flyway.
 - `frontend/` — Next.js 15 portal, proxy cùng nguồn `/api/v1`.
