@@ -151,6 +151,7 @@ export interface ThesisCopy {
   reportFileRemoved: string;
   reportFileSaved: string;
   reportFileUnavailable: string;
+  reportDownloadUnavailable: string;
   reportFileFailed: string;
   reportPicked: string;
   reportSubmittedAt: string;
@@ -353,6 +354,7 @@ const vi: ThesisCopy = {
   reportFileRemoved: 'Đã gỡ tệp',
   reportFileSaved: 'Đã lưu tệp',
   reportFileUnavailable: 'Thiết bị chưa hỗ trợ chọn tệp. Dùng liên kết báo cáo.',
+  reportDownloadUnavailable: 'Thiết bị này chưa hỗ trợ tải tệp.',
   reportFileFailed: 'Không xử lý được tệp',
   reportPicked: 'Tệp đã chọn',
   reportSubmittedAt: 'Nộp lúc',
@@ -604,6 +606,7 @@ const en: ThesisCopy = {
   reportFileRemoved: 'File removed',
   reportFileSaved: 'File saved',
   reportFileUnavailable: 'This device cannot pick files yet. Use a report link.',
+  reportDownloadUnavailable: 'This device cannot download files yet.',
   reportFileFailed: 'The file could not be processed',
   reportPicked: 'Selected file',
   reportSubmittedAt: 'Submitted',
