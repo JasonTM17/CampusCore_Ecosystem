@@ -3,6 +3,8 @@ import { contentRows, renderVirtualRow } from '../../components/perf/virtual-row
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import * as Print from 'expo-print';
+
 import { Button, Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { ChartSummary } from '../../components/ui/chart-summary';
@@ -19,6 +21,7 @@ import { academicApi } from '../academic/academic-api';
 import { localizedName } from '../academic/academic-model';
 import { useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 import { conductRankKey, conductSemesterName, conductStatusKey, parseConduct, type ConductActivity, type ConductTerm } from './records-model';
+import { conductPrintHtml } from './print-document';
 import { ConductActivityDetailSheet } from './ConductActivityDetailSheet';
 import { useContentQuery } from './use-content-query';
 
@@ -34,7 +37,7 @@ function validCertificateUrl(value: string | null | undefined): string | null {
 
 /** Conduct score read model: cumulative average, per-term criteria and approved activities. */
 export function ConductScreen(_props: MobileScreenProps) {
-  const { locale, copy: shared, formatDate, formatNumber, t } = useContentCopy();
+  const { locale, copy: shared, formatDate, formatDateTime, formatNumber, t } = useContentCopy();
   const copy = recordsMessages[locale];
   const preview = isPreviewMode();
   const { copy: academicCopy } = useAcademicCopy();
@@ -105,6 +108,44 @@ export function ConductScreen(_props: MobileScreenProps) {
   const trend = model ? [...model.terms].reverse().filter((entry) => entry.totalScore !== null).map((entry) => ({ label: semesterLabel(entry.semesterName), value: entry.totalScore as number })) : [];
   const failure = preview ? null : malformed ? copy.conductMalformed : query.error;
   const statusLabel = (status: string | null): string => copy.conductStatuses[conductStatusKey(status)] ?? copy.conductStatuses.UNKNOWN;
+
+  const handlePrint = async () => {
+    if (!model) return;
+    try {
+      await Print.printAsync({
+        html: conductPrintHtml({
+          title: copy.conductTitle,
+          universityName: copy.conductActivitySheet.institution,
+          generatedLabel: copy.conductPrintGenerated,
+          generatedAt: formatDateTime(new Date()),
+          studentName: model.fullName,
+          studentCode: model.studentCode,
+          studentLabel: copy.conductActivitySheet.confirmedStudent,
+          codeLabel: copy.conductActivitySheet.studentId,
+          term,
+          semesterLabel: term ? semesterLabel(term.semesterName) : '',
+          totalLabel: copy.conductTotal,
+          rankLabel: term ? rankLabel(term.classification, term.classificationVi) : '',
+          statusLabel: term?.status ? `${copy.conductStatus}: ${statusLabel(term.status)}` : '',
+          evaluatorLabel: copy.conductEvaluator,
+          criteriaHeading: copy.conductCriteria,
+          scoreUnit: copy.conductScoreUnit,
+          reachedLabel: copy.conductReached,
+          activitiesHeading: copy.conductActivities,
+          pointsLabel: copy.conductScoreUnit,
+          cumulativeLabel: copy.conductCumulative,
+          cumulativeScore: cumulative === null ? '—' : formatNumber(cumulative, { maximumFractionDigits: 1 }),
+          cumulativeRankLabel: `${copy.conductRankPrefix} ${cumulativeRank}`,
+          model,
+          criterionName: (code, nameVi, nameEn) =>
+            locale === 'vi' ? nameVi ?? code : nameEn ?? nameVi ?? code,
+          formatNumber,
+        }),
+      });
+    } catch {
+      // Print dialog cancelled or unavailable
+    }
+  };
 
   const activities = term?.activities ?? [];
   const bonusPoints = activities.reduce((sum, activity) => sum + (activity.points ?? 0), 0);
@@ -289,6 +330,15 @@ export function ConductScreen(_props: MobileScreenProps) {
               onChange={setSelectedSemesterId}
             />
           ) : null}
+          <View style={styles.printRow}>
+            <Button
+              label={copy.conductPrint}
+              icon="printer-outline"
+              variant="secondary"
+              onPress={() => { void handlePrint(); }}
+              accessibilityLabel={copy.conductPrint}
+            />
+          </View>
           </View></>)}</>)}</>)}</ScreenShell>
     <ConductActivityDetailSheet
       activity={selectedActivity}
@@ -329,4 +379,5 @@ const styles = StyleSheet.create({
   activity: { gap: 2, minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
   activityPress: { flex: 1, minHeight: tokens.layout.touchTarget, minWidth: 0 },
   activityCopy: { gap: 2, minWidth: 0 },
+  printRow: { marginBottom: tokens.spacing.xs },
 });

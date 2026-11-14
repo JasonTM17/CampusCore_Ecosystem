@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 
+import * as Print from 'expo-print';
+
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { RichAttachments } from '../../components/content/rich-attachments';
 import { RichContent, webUrlFor } from '../../components/content/rich-content';
@@ -27,8 +29,9 @@ import {
   dispatchSemesterLabel,
   dispatchSubjectHeading,
 } from './announcement-dispatch';
-import { extractNoticeAttachments } from './content-rules';
+import { extractNoticeAttachments, joinMeta } from './content-rules';
 import { StatusChip, useContentCopy } from './content-ui';
+import { dispatchPrintHtml } from './print-document';
 import { htmlToPlainText, isHtmlBody } from './rich-text';
 
 export interface DispatchReaderSheetProps {
@@ -82,6 +85,40 @@ export function DispatchReaderSheet({ item, visible, onClose }: DispatchReaderSh
     }
   };
 
+  const handlePrint = async () => {
+    try {
+      const metaLine = joinMeta([
+        audience.label,
+        semesterFormatted,
+        officialDate,
+      ]) ?? '';
+      await Print.printAsync({
+        html: dispatchPrintHtml({
+          title: item.title,
+          ministryName: sheet.ministryName,
+          universityName: sheet.universityName,
+          publisherName,
+          nationalMotto1: sheet.nationalMotto1,
+          nationalMotto2: sheet.nationalMotto2,
+          dateLine,
+          docRef,
+          noticeHeader: sheet.noticeHeader,
+          subjectHeading,
+          salutationLabel: sheet.salutation,
+          salutationTarget,
+          metaLine,
+          body: body ?? null,
+          attachmentsHeading: copy.announcementsPrintAttachments,
+          attachments,
+          issuedByLabel: sheet.issuedByLabel,
+          signOffText: `${sheet.signOffHint} — ${formatDateTime(dateObj)}`,
+        }),
+      });
+    } catch {
+      // Print dialog cancelled or unavailable
+    }
+  };
+
   const handleShare = async () => {
     try {
       const webUrl = webUrlFor(`/dashboard/announcements?id=${encodeURIComponent(item.id)}`);
@@ -132,6 +169,13 @@ export function DispatchReaderSheet({ item, visible, onClose }: DispatchReaderSh
 
         {/* Floating Sticky Reading Toolbar */}
         <View style={styles.toolbarRow} testID="reading-toolbar">
+          <Button
+            label={copy.announcementsPrint}
+            icon="printer-outline"
+            variant="secondary"
+            onPress={() => { void handlePrint(); }}
+            accessibilityLabel={copy.announcementsPrint}
+          />
           <Button
             label={copy.announcementsShare}
             icon="share-variant-outline"
