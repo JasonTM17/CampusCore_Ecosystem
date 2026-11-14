@@ -14,12 +14,43 @@ const escapeHtml = (value: string | null | undefined): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-/** Bodies arrive sanitised; the print view keeps only structural markup anyway. */
+/**
+ * Allowlist sanitizer for notice bodies: the iOS print WebView runs JavaScript,
+ * so anything off the structural allowlist — active elements, event-handler
+ * attributes, non-http(s) links — is removed rather than escaped. Historical
+ * bodies were not sanitized at write time, so the filter must be strict here.
+ */
+const ALLOWED_TAGS = new Set([
+  'a', 'b', 'strong', 'i', 'em', 'u', 's', 'span', 'code', 'mark', 'small', 'sub', 'sup',
+  'p', 'br', 'hr', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'blockquote', 'pre', 'div', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+  'caption', 'details', 'summary', 'section', 'article',
+]);
+const DROP_WITH_CONTENTS =
+  /<\s*(script|style|iframe|object|embed|svg|math|form|textarea|select|button|input|link|meta|base|title|template|noscript)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
+const DROPPED_TAGS =
+  /<\s*\/?\s*(script|style|iframe|object|embed|svg|math|form|textarea|select|button|input|link|meta|base|title|template|noscript)\b[^>]*>/gi;
+
+const sanitizeTag = (raw: string): string => {
+  const match = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9-]*)/.exec(raw);
+  if (!match) return '';
+  const name = match[2].toLowerCase();
+  if (!ALLOWED_TAGS.has(name)) return '';
+  if (match[1] === '/') return `</${name}>`;
+  if (name === 'details') return '<details open>'; // print always expands collapsed sections
+  if (name === 'a') {
+    const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(raw);
+    const url = (href?.[1] ?? href?.[2] ?? href?.[3] ?? '').trim();
+    return /^https?:\/\//i.test(url) ? `<a href="${escapeHtml(url)}">` : '<a>';
+  }
+  return `<${name}>`;
+};
+
 const sanitizeBodyHtml = (html: string): string =>
   html
-    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/<[^>]+\s(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (tag) => tag.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, ''))
-    .replace(/(href|src)\s*=\s*(['"])\s*javascript:[^'"]*\2/gi, '$1=$2#$2');
+    .replace(DROP_WITH_CONTENTS, '')
+    .replace(DROPPED_TAGS, '')
+    .replace(/<[^<>]*>/g, (tag) => sanitizeTag(tag));
 
 const bodyMarkup = (body: string | null | undefined): string => {
   if (!body) return '';
@@ -136,6 +167,9 @@ export interface ConductPrintData {
   totalLabel: string;
   rankLabel: string;
   statusLabel: string;
+  historySemesterLabel: string;
+  historyRankLabel: string;
+  historyStatusLabel: string;
   evaluatorLabel: string;
   criteriaHeading: string;
   scoreUnit: string;
@@ -156,7 +190,7 @@ export function conductPrintHtml(data: ConductPrintData): string {
   const studentLine = [
     data.studentName ? `${data.studentLabel}: ${data.studentName}` : null,
     data.studentCode ? `${data.codeLabel}: ${data.studentCode}` : null,
-  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  ].filter(Boolean).map(escapeHtml).join(' &nbsp;·&nbsp; ');
 
   const termSection = term ? `
     <h2 class="section">${escapeHtml(data.semesterLabel)}</h2>
@@ -190,7 +224,7 @@ export function conductPrintHtml(data: ConductPrintData): string {
   const historySection = data.model.terms.length === 0 ? '' : `
     <h2 class="section">${escapeHtml(data.cumulativeLabel)}: ${escapeHtml(data.cumulativeScore)} &nbsp;·&nbsp; ${escapeHtml(data.cumulativeRankLabel)}</h2>
     <table>
-      <thead><tr><th></th><th class="right">${escapeHtml(data.totalLabel)}</th><th>${escapeHtml(data.rankLabel)}</th><th>${escapeHtml(data.statusLabel)}</th></tr></thead>
+      <thead><tr><th>${escapeHtml(data.historySemesterLabel)}</th><th class="right">${escapeHtml(data.totalLabel)}</th><th>${escapeHtml(data.historyRankLabel)}</th><th>${escapeHtml(data.historyStatusLabel)}</th></tr></thead>
       <tbody>
         ${data.model.terms.map((entry) => `
           <tr><td>${escapeHtml(entry.semesterName)}</td><td class="right">${entry.totalScore == null ? '—' : escapeHtml(data.formatNumber(entry.totalScore))}</td><td>${escapeHtml(entry.classificationVi ?? entry.classification ?? '—')}</td><td>${escapeHtml(entry.status ?? '—')}</td></tr>`).join('')}

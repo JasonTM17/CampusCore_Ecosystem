@@ -9,8 +9,6 @@ import {
   View,
 } from 'react-native';
 
-import * as Print from 'expo-print';
-
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { RichAttachments } from '../../components/content/rich-attachments';
 import { RichContent, webUrlFor } from '../../components/content/rich-content';
@@ -32,6 +30,7 @@ import {
 import { extractNoticeAttachments, joinMeta } from './content-rules';
 import { StatusChip, useContentCopy } from './content-ui';
 import { dispatchPrintHtml } from './print-document';
+import { printHtmlDocument } from './print-html';
 import { htmlToPlainText, isHtmlBody } from './rich-text';
 
 export interface DispatchReaderSheetProps {
@@ -92,8 +91,8 @@ export function DispatchReaderSheet({ item, visible, onClose }: DispatchReaderSh
         semesterFormatted,
         officialDate,
       ]) ?? '';
-      await Print.printAsync({
-        html: dispatchPrintHtml({
+      await printHtmlDocument(
+        dispatchPrintHtml({
           title: item.title,
           ministryName: sheet.ministryName,
           universityName: sheet.universityName,
@@ -113,7 +112,7 @@ export function DispatchReaderSheet({ item, visible, onClose }: DispatchReaderSh
           issuedByLabel: sheet.issuedByLabel,
           signOffText: `${sheet.signOffHint} — ${formatDateTime(dateObj)}`,
         }),
-      });
+      );
     } catch {
       // Print dialog cancelled or unavailable
     }

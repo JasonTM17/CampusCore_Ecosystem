@@ -3,8 +3,6 @@ import { contentRows, renderVirtualRow } from '../../components/perf/virtual-row
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
-import * as Print from 'expo-print';
-
 import { Button, Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { ChartSummary } from '../../components/ui/chart-summary';
@@ -22,6 +20,7 @@ import { localizedName } from '../academic/academic-model';
 import { useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 import { conductRankKey, conductSemesterName, conductStatusKey, parseConduct, type ConductActivity, type ConductTerm } from './records-model';
 import { conductPrintHtml } from './print-document';
+import { printHtmlDocument } from './print-html';
 import { ConductActivityDetailSheet } from './ConductActivityDetailSheet';
 import { useContentQuery } from './use-content-query';
 
@@ -112,8 +111,8 @@ export function ConductScreen(_props: MobileScreenProps) {
   const handlePrint = async () => {
     if (!model) return;
     try {
-      await Print.printAsync({
-        html: conductPrintHtml({
+      await printHtmlDocument(
+        conductPrintHtml({
           title: copy.conductTitle,
           universityName: copy.conductActivitySheet.institution,
           generatedLabel: copy.conductPrintGenerated,
@@ -127,6 +126,9 @@ export function ConductScreen(_props: MobileScreenProps) {
           totalLabel: copy.conductTotal,
           rankLabel: term ? rankLabel(term.classification, term.classificationVi) : '',
           statusLabel: term?.status ? `${copy.conductStatus}: ${statusLabel(term.status)}` : '',
+          historySemesterLabel: copy.conductHistorySemester,
+          historyRankLabel: copy.conductHistoryRank,
+          historyStatusLabel: copy.conductHistoryStatus,
           evaluatorLabel: copy.conductEvaluator,
           criteriaHeading: copy.conductCriteria,
           scoreUnit: copy.conductScoreUnit,
@@ -141,7 +143,7 @@ export function ConductScreen(_props: MobileScreenProps) {
             locale === 'vi' ? nameVi ?? code : nameEn ?? nameVi ?? code,
           formatNumber,
         }),
-      });
+      );
     } catch {
       // Print dialog cancelled or unavailable
     }

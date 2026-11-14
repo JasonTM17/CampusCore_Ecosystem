@@ -44,6 +44,32 @@ describe('dispatchPrintHtml', () => {
     expect(html).toContain('<p>Nội dung</p>');
   });
 
+  it('drops svg/math/img payloads and on* handlers without whitespace', () => {
+    const html = dispatchPrintHtml({
+      ...dispatchData,
+      body: '<p>ok</p><svg/onload=alert(1)><math><mi>x</mi></math><img src=x onerror="alert(1)"><a href="JaVaScRiPt:alert(1)">link</a><a href="https://ute.udn.vn">safe</a>',
+    });
+    expect(html).not.toContain('svg');
+    expect(html).not.toContain('onload');
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('math');
+    expect(html).not.toContain('img');
+    expect(html).not.toContain('JaVaScRiPt');
+    expect(html).toContain('<a>link</a>');
+    expect(html).toContain('href="https://ute.udn.vn"');
+    expect(html).toContain('<p>ok</p>');
+  });
+
+  it('forces collapsed details sections open for print', () => {
+    const html = dispatchPrintHtml({
+      ...dispatchData,
+      body: '<details><summary>Xem thêm</summary><p>Nội dung ẩn</p></details>',
+    });
+    expect(html).toContain('<details open>');
+    expect(html).toContain('Nội dung ẩn');
+    expect(html).not.toContain('<details>');
+  });
+
   it('lists attachments when present', () => {
     const html = dispatchPrintHtml({
       ...dispatchData,
@@ -79,7 +105,7 @@ const model: ConductModel = {
 const numberFmt = (v: number | null | undefined) => (v == null ? '—' : String(v));
 
 describe('conductPrintHtml', () => {
-  const html = conductPrintHtml({
+  const conductArgs: Parameters<typeof conductPrintHtml>[0] = {
     title: 'Điểm rèn luyện',
     universityName: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
     generatedLabel: 'Xuất bản',
@@ -93,6 +119,9 @@ describe('conductPrintHtml', () => {
     totalLabel: 'Tổng điểm',
     rankLabel: 'Tốt',
     statusLabel: 'Trạng thái: Đã phê duyệt',
+    historySemesterLabel: 'Học kỳ',
+    historyRankLabel: 'Xếp loại',
+    historyStatusLabel: 'Trạng thái',
     evaluatorLabel: 'Người duyệt',
     criteriaHeading: '5 tiêu chí rèn luyện',
     scoreUnit: 'điểm',
@@ -105,7 +134,8 @@ describe('conductPrintHtml', () => {
     model,
     criterionName: (code, nameVi) => nameVi ?? code,
     formatNumber: numberFmt,
-  });
+  };
+  const html = conductPrintHtml(conductArgs);
 
   it('prints student identity, term criteria and history', () => {
     expect(html).toContain('Tran Thi B');
@@ -115,5 +145,24 @@ describe('conductPrintHtml', () => {
     expect(html).toContain('Hiến máu');
     expect(html).toContain('80.5');
     expect(html).toContain('Học kỳ 1');
+  });
+
+  it('uses generic column headings for the history table', () => {
+    expect(html).toContain('<th>Học kỳ</th>');
+    expect(html).toContain('<th>Xếp loại</th>');
+    expect(html).toContain('<th>Trạng thái</th>');
+    expect(html).not.toContain('<th>Tốt</th>');
+    expect(html).not.toContain('<th>Trạng thái: Đã phê duyệt</th>');
+  });
+
+  it('escapes markup in student identity fields', () => {
+    const forged = conductPrintHtml({
+      ...conductArgs,
+      studentName: '<img src=x onerror=alert(1)>Tran',
+      studentCode: '<b>21110001</b>',
+    });
+    expect(forged).toContain('&lt;img src=x onerror=alert(1)&gt;Tran');
+    expect(forged).toContain('&lt;b&gt;21110001&lt;/b&gt;');
+    expect(forged).not.toContain('<img');
   });
 });
