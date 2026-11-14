@@ -63,24 +63,29 @@ calls, report downloads, and row counts before approving a recovery.
 ## Supabase backup lane
 
 `backup-supabase.sh` covers the hosted Supabase database the Compose stack
-cannot reach. It runs local `pg_dump`/`pg_restore` against
-`SUPABASE_DB_URL` (use the pooled `postgres.<ref>` endpoint on port 6543),
-dumps only the application schemas, and never echoes the URI. Bundles use a
-separate `campuscore-supabase-<timestamp>` namespace so retention and naming
-can never collide with the local lane. The thesis report archive step is out
-of scope here: report objects live in provider storage, not the database.
-Restore from this lane is manual `pg_restore` against an isolated database —
-the same `campuscore_restore_` discipline applies.
+cannot reach. It runs local `pg_dump`/`pg_restore` against connection
+settings taken from `SUPABASE_DB_URL` (use the pooled `postgres.<ref>`
+endpoint on port 6543) or the `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`
+component vars, and dumps only the application schemas. The password always
+comes from `SUPABASE_DB_PASSWORD` (or `PGPASSWORD`) — never the URI and
+never argv, so it cannot leak to local users via `ps`. Bundles live under
+`<BACKUP_DIR>/supabase/` as `campuscore-supabase-<timestamp>` — a separate
+subdirectory so retention can never collide with the local lane even when a
+Compose project is literally named `supabase`. The thesis report archive
+step is out of scope here: report objects live in provider storage, not the
+database. Restore from this lane is manual `pg_restore` against an isolated
+database — the same `campuscore_restore_` discipline applies.
 
 ```sh
-export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'
+export SUPABASE_DB_URL='postgresql://postgres.<ref>@aws-0-<region>.pooler.supabase.com:6543/postgres'
+export SUPABASE_DB_PASSWORD='<password>'   # never embed it in the URI
 ./ops/backup/backup-supabase.sh
-./ops/backup/verify-supabase-backup.sh ops/backups/campuscore-supabase-<timestamp>.dump
+./ops/backup/verify-supabase-backup.sh ops/backups/supabase/campuscore-supabase-<timestamp>.dump
 ```
 
 `SUPABASE_BACKUP_SCHEMAS` overrides the schema list (defaults to every schema
 Flyway creates plus `public`); `BACKUP_RETENTION_DAYS` applies to the
-`campuscore-supabase-*` namespace only.
+`supabase/` subdirectory only.
 
 Rollback is an application/image operation. Locally that means returning the
 working tree to the previous reviewed commit and rebuilding the stack
