@@ -100,6 +100,9 @@ const SearchableSelect = React.forwardRef<HTMLDivElement, SearchableSelectProps>
 
     const onKeyDown = (event: React.KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Keep the key inside the picker: a bubbling Escape would also close
+        // the hosting modal and discard the form's unsaved edits.
+        event.stopPropagation();
         close();
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -107,9 +110,13 @@ const SearchableSelect = React.forwardRef<HTMLDivElement, SearchableSelectProps>
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         setActiveIndex((index) => Math.max(index - 1, -1));
-      } else if (event.key === 'Enter' && activeIndex >= 0 && options[activeIndex]) {
+      } else if (event.key === 'Enter') {
+        // Always swallow Enter: with no active option it would otherwise
+        // submit the surrounding form and save a half-typed query.
         event.preventDefault();
-        select(options[activeIndex]);
+        if (activeIndex >= 0 && options[activeIndex]) {
+          select(options[activeIndex]);
+        }
       }
     };
 

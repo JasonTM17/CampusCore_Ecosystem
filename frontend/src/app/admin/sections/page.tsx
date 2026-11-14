@@ -261,9 +261,15 @@ export default function AdminSectionsPage() {
         classroomsApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT }),
       ]);
 
-    if (coursesResult.status === 'fulfilled') setCourses(coursesResult.value.data || []);
+    if (coursesResult.status === 'fulfilled') {
+      setCourses(coursesResult.value.data || []);
+      allCoursesRef.current = coursesResult.value.data || [];
+    }
     if (semestersResult.status === 'fulfilled') setSemesters(semestersResult.value.data || []);
-    if (lecturersResult.status === 'fulfilled') setLecturers(lecturersResult.value.data || []);
+    if (lecturersResult.status === 'fulfilled') {
+      setLecturers(lecturersResult.value.data || []);
+      allLecturersRef.current = lecturersResult.value.data || [];
+    }
     if (classroomsResult.status === 'fulfilled') setClassrooms(classroomsResult.value.data || []);
 
     if ([coursesResult, semestersResult, lecturersResult, classroomsResult].some(
@@ -278,10 +284,17 @@ export default function AdminSectionsPage() {
   // responses when the operator keeps typing.
   const courseSearchEpoch = useRef(0);
   const lecturerSearchEpoch = useRef(0);
+  const allCoursesRef = useRef<Course[]>([]);
+  const allLecturersRef = useRef<Lecturer[]>([]);
 
   useEffect(() => {
-    if (!courseQuery) return;
     const epoch = ++courseSearchEpoch.current;
+    if (!courseQuery) {
+      // Clearing the query restores the unfiltered page — otherwise the
+      // picker stays limited to the last search's results.
+      setCourses(allCoursesRef.current);
+      return;
+    }
     setReferenceSearching(true);
     coursesApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT, search: courseQuery })
       .then((response) => {
@@ -294,8 +307,11 @@ export default function AdminSectionsPage() {
   }, [courseQuery]);
 
   useEffect(() => {
-    if (!lecturerQuery) return;
     const epoch = ++lecturerSearchEpoch.current;
+    if (!lecturerQuery) {
+      setLecturers(allLecturersRef.current);
+      return;
+    }
     setReferenceSearching(true);
     lecturersApi.getAll({ limit: PEOPLE_REFERENCE_LIMIT, search: lecturerQuery })
       .then((response) => {
