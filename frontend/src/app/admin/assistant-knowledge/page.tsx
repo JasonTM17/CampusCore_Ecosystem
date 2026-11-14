@@ -6,6 +6,7 @@ import {
   BookOpenCheck,
   Check,
   Edit3,
+  Eye,
   FileText,
   Plus,
   Send,
@@ -29,6 +30,7 @@ import { ConfirmModal, Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import { EmptyState, ForbiddenState, LoadingState } from '@/components/ui/state-block';
 import { metricToneClass, statusToneClass } from '@/components/ui/status';
 import { LinkButton } from '@/components/ui/link-button';
@@ -239,7 +241,9 @@ function GuidanceFilters({
 interface GuidanceTableProps {
   documents: AssistantKnowledgeDocument[];
   isSaving: boolean;
+  loadingViewId: string | null;
   vi: boolean;
+  onView: (document: AssistantKnowledgeDocument) => void;
   onEdit: (document: AssistantKnowledgeDocument) => void;
   onTransition: (document: AssistantKnowledgeDocument, operation: 'submit' | 'publish') => void;
   onArchiveRequest: (document: AssistantKnowledgeDocument) => void;
@@ -248,7 +252,9 @@ interface GuidanceTableProps {
 function GuidanceTable({
   documents,
   isSaving,
+  loadingViewId,
   vi,
+  onView,
   onEdit,
   onTransition,
   onArchiveRequest,
@@ -286,6 +292,16 @@ function GuidanceTable({
               <td className="px-3 py-4 tabular-nums text-muted-foreground">v{document.version}</td>
               <td className="px-3 py-4">
                 <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onView(document)}
+                    disabled={isSaving || loadingViewId !== null}
+                  >
+                    <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {loadingViewId === document.documentId ? opsUi.loadingDocument : opsUi.view}
+                  </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => onEdit(document)} disabled={isSaving}>
                     <Edit3 className="mr-1.5 h-4 w-4" aria-hidden="true" />
                     {opsUi.edit}
@@ -332,6 +348,64 @@ function GuidanceTable({
         </tbody>
       </table>
     </AdminTableScroll>
+  );
+}
+
+interface GuidanceViewModalProps {
+  document: AssistantKnowledgeDocument | null;
+  onClose: () => void;
+  vi: boolean;
+}
+
+/** Read-only document panel: list rows carry `content: ''`, so the page fetches
+ * the full record before opening this — the body here is never truncated. */
+function GuidanceViewModal({ document, onClose, vi }: GuidanceViewModalProps) {
+  const opsUi = vi ? adminOpsVi.assistantKnowledge.ui : adminOpsEn.assistantKnowledge.ui;
+  const isHtml = document ? /<[a-zA-Z][^>]*>/.test(document.content) : false;
+  const publishedAt = document?.publishedAt
+    ? new Intl.DateTimeFormat(vi ? 'vi' : 'en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(document.publishedAt))
+    : null;
+  return (
+    <Modal
+      isOpen={document !== null}
+      onClose={onClose}
+      title={opsUi.viewGuidance}
+      className="max-w-3xl"
+    >
+      {document ? (
+        <div className="space-y-4">
+          <div>
+            <div className="text-lg font-semibold text-foreground">{document.title}</div>
+            <div className="mt-1 font-mono text-xs text-muted-foreground">{document.slug}</div>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <span>{opsUi.domain2}: <span className="font-semibold text-foreground">{domainLabel(document.domain, vi)}</span></span>
+            <span>{opsUi.status2}: <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${stateClass(document.state)}`}>{stateLabel(document.state, vi)}</span></span>
+            <span>{opsUi.revision}: <span className="tabular-nums text-foreground">v{document.version}</span></span>
+            <span>{opsUi.language}: <span className="text-foreground">{document.locale}</span></span>
+            <span>{opsUi.priority}: <span className="tabular-nums text-foreground">{document.priority}</span></span>
+            {publishedAt ? <span>{opsUi.publishedAt}: <span className="text-foreground">{publishedAt}</span></span> : null}
+          </div>
+          <div>
+            <div className="mb-1 text-sm font-medium text-foreground">{opsUi.reference}</div>
+            <div className="text-sm text-muted-foreground">{document.source}</div>
+          </div>
+          <div>
+            <div className="mb-1 text-sm font-medium text-foreground">{opsUi.guidanceContent}</div>
+            <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border/70 bg-secondary/40 p-4">
+              {isHtml ? (
+                <RichContentRenderer content={document.content} />
+              ) : (
+                <div className="whitespace-pre-wrap text-sm text-foreground">{document.content}</div>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={onClose}>{opsUi.close}</Button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   );
 }
 
@@ -472,6 +546,8 @@ export default function AdminAssistantKnowledgePage() {
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
   const editRequestRef = useRef(0);
   const [editing, setEditing] = useState<AssistantKnowledgeDocument | null>(null);
+  const [viewing, setViewing] = useState<AssistantKnowledgeDocument | null>(null);
+  const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
   const [form, setForm] = useState<AssistantKnowledgeRequest>(blankForm);
   const [archiveTarget, setArchiveTarget] = useState<AssistantKnowledgeDocument | null>(null);
   // Save/validation failures render inside the open modals — the page-level
@@ -590,6 +666,30 @@ export default function AdminAssistantKnowledgePage() {
     }
     if (!isCurrent()) return;
     setFormOpen(true);
+  };
+
+  // Shares editRequestRef so a pending edit fetch is cancelled if the admin
+  // opens the viewer first (and vice versa) — only one modal at a time.
+  const openView = async (document: AssistantKnowledgeDocument) => {
+    const requestId = ++editRequestRef.current;
+    const isCurrent = () => requestId === editRequestRef.current;
+    setLoadingViewId(document.documentId);
+    setNotice('');
+    setError('');
+    try {
+      const fullDoc = await assistantKnowledgeApi.get(document.documentId);
+      if (!isCurrent()) return;
+      setViewing(fullDoc);
+    } catch {
+      if (!isCurrent()) return;
+      setError(vi
+        ? 'Không tải được nội dung đầy đủ của tài liệu. Vui lòng thử lại.'
+        : 'Could not load the full document. Please retry.');
+    } finally {
+      if (isCurrent()) {
+        setLoadingViewId(null);
+      }
+    }
   };
 
   const save = async () => {
@@ -813,7 +913,9 @@ export default function AdminAssistantKnowledgePage() {
             <GuidanceTable
               documents={pagedDocuments}
               isSaving={isSaving || loadingEditId !== null}
+              loadingViewId={loadingViewId}
               vi={vi}
+              onView={(document) => void openView(document)}
               onEdit={(document) => void openEdit(document)}
               onTransition={(document, operation) => void transition(document, operation)}
               onArchiveRequest={(document) => {
@@ -839,6 +941,11 @@ export default function AdminAssistantKnowledgePage() {
           setFormOpen(false);
         }}
         onSave={() => void save()}
+        vi={vi}
+      />
+      <GuidanceViewModal
+        document={viewing}
+        onClose={() => setViewing(null)}
         vi={vi}
       />
       <ConfirmModal

@@ -42,6 +42,7 @@ export const adminOpsEn: AdminOpsCopy = {
       status2: 'Status',
       revision: 'Revision',
       actions: 'Actions',
+      view: 'View',
       edit: 'Edit',
       sendForReview: 'Send for review',
       release: 'Release',
@@ -76,7 +77,13 @@ export const adminOpsEn: AdminOpsCopy = {
       loadingGuidance: 'Loading guidance...',
       noMatchingGuidance: 'No matching guidance.',
       archiveGuidance: 'Archive guidance?',
-      archive2: 'Archive'
+      archive2: 'Archive',
+      viewGuidance: 'View guidance',
+      loadingDocument: 'Loading…',
+      close: 'Close',
+      version: 'Version',
+      priority: 'Priority',
+      publishedAt: 'Published at'
     },
   },
   analytics: {
@@ -121,6 +128,7 @@ export const adminOpsVi: AdminOpsCopy = {
       status2: 'Trạng thái',
       revision: 'Lần cập nhật',
       actions: 'Thao tác',
+      view: 'Xem',
       edit: 'Sửa',
       sendForReview: 'Gửi duyệt',
       release: 'Xuất bản',
@@ -155,7 +163,13 @@ export const adminOpsVi: AdminOpsCopy = {
       loadingGuidance: 'Đang tải nội dung...',
       noMatchingGuidance: 'Chưa có nội dung phù hợp.',
       archiveGuidance: 'Lưu trữ nội dung?',
-      archive2: 'Lưu trữ'
+      archive2: 'Lưu trữ',
+      viewGuidance: 'Xem nội dung',
+      loadingDocument: 'Đang tải…',
+      close: 'Đóng',
+      version: 'Phiên bản',
+      priority: 'Ưu tiên',
+      publishedAt: 'Xuất bản lúc'
     },
   },
   analytics: {
