@@ -60,6 +60,28 @@ existing target. After an isolated restore, verify the latest successful
 Flyway version, readiness, authentication, representative JSON/SSE assistant
 calls, report downloads, and row counts before approving a recovery.
 
+## Supabase backup lane
+
+`backup-supabase.sh` covers the hosted Supabase database the Compose stack
+cannot reach. It runs local `pg_dump`/`pg_restore` against
+`SUPABASE_DB_URL` (use the pooled `postgres.<ref>` endpoint on port 6543),
+dumps only the application schemas, and never echoes the URI. Bundles use a
+separate `campuscore-supabase-<timestamp>` namespace so retention and naming
+can never collide with the local lane. The thesis report archive step is out
+of scope here: report objects live in provider storage, not the database.
+Restore from this lane is manual `pg_restore` against an isolated database —
+the same `campuscore_restore_` discipline applies.
+
+```sh
+export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'
+./ops/backup/backup-supabase.sh
+./ops/backup/verify-supabase-backup.sh ops/backups/campuscore-supabase-<timestamp>.dump
+```
+
+`SUPABASE_BACKUP_SCHEMAS` overrides the schema list (defaults to every schema
+Flyway creates plus `public`); `BACKUP_RETENTION_DAYS` applies to the
+`campuscore-supabase-*` namespace only.
+
 Rollback is an application/image operation. Locally that means returning the
 working tree to the previous reviewed commit and rebuilding the stack
 (`git switch --detach <full-commit-sha>`, then `node scripts/local-dev.mjs up`).
