@@ -10,6 +10,7 @@
 //   node scripts/platform-verify.mjs stack   --project <campuscore-*> --evidence dir — boot the full stack once, record startup/RSS/fail-closed probes
 //   node scripts/platform-verify.mjs pgit    --project <campuscore-*> --evidence dir — postgres-only stack + mvn failsafe *PostgresIT
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -387,13 +388,16 @@ export async function casePgit(args, runner = {}) {
   const runCommand = runner.tryRun ?? tryRun;
   const waitHealthy = runner.waitServiceHealthy ?? waitServiceHealthy;
   const dir = ensureEvidenceDir(args);
+  const provisionerPassword = crypto.randomBytes(48).toString('base64');
+  const runtimePassword = crypto.randomBytes(48).toString('base64');
   args_env = {
     POSTGRES_HOST_PORT: String(await allocPort()),
     E2E_API_HOST_PORT: String(await allocPort()),
     POSTGRES_DB: 'campuscore_restful_e2e',
     POSTGRES_USER: 'campuscore',
     POSTGRES_PASSWORD: 'campuscore_password',
-    ASSISTANT_DB_PASSWORD: 'dev-only-not-a-secret-16+',
+    ASSISTANT_DB_PROVISIONER_PASSWORD: provisionerPassword,
+    ASSISTANT_DB_PASSWORD: runtimePassword,
   };
   const result = {
     case: 'pgit', target: 'local', project: args.project,
@@ -474,9 +478,16 @@ export async function casePgit(args, runner = {}) {
       if (!mk.ok) throw new Error(`could not provision db ${db}\n${mk.out.slice(-1000)}`);
     }
     result.dbsProvisioned = dbs;
-    // V84 creates campuscore_assistant_runtime NOLOGIN; the one-shot provisioner
-    // flips it to LOGIN with the dev-only password, matching the e2e compose
-    // dependency chain the restful-api service relies on.
+    // The role is global, but the restricted function lives in each database
+    // where Flyway ITs run. Apply the owner bootstrap to this disposable DB.
+    const bootstrap = composeCase(args, [
+      'exec', '-T', 'postgres', 'psql', '--no-psqlrc', '--set', 'ON_ERROR_STOP=1',
+      '--username', 'campuscore', '--dbname', 'campuscore_restful_e2e_rls',
+      '--file', '/docker-entrypoint-initdb.d/20-assistant-provisioner.sql',
+    ]);
+    if (!bootstrap.ok) throw new Error(`assistant owner bootstrap failed\n${bootstrap.out.slice(-1500)}`);
+    // The one-shot provisioner enables the runtime role before migrations
+    // create Assistant tables in the isolated integration-test database.
     const prov = composeCase(args, ['run', '--rm', 'assistant-db-provisioner']);
     result.provisionerExit = prov.code;
     if (!prov.ok) throw new Error(`assistant-db-provisioner failed\n${prov.out.slice(-1500)}`);
@@ -542,7 +553,8 @@ export async function casePgit(args, runner = {}) {
       ASSISTANT_RLS_POSTGRES_URL: `${jdbcBase}/campuscore_restful_e2e_rls`,
       ASSISTANT_RLS_PRIMARY_USER: 'campuscore',
       ASSISTANT_RLS_PRIMARY_PASSWORD: 'campuscore_password',
-      ASSISTANT_RLS_RUNTIME_PASSWORD: 'dev-only-not-a-secret-16+',
+      ASSISTANT_RLS_RUNTIME_PASSWORD: runtimePassword,
+      ASSISTANT_DB_PROVISIONER_PASSWORD: provisionerPassword,
       ASSISTANT_RLS_JWT_SECRET: 'edge-e2e-jwt-secret-0123456789abcdef',
       ASSISTANT_RLS_JWT_REFRESH_SECRET: 'edge-e2e-refresh-secret-0123456789abcdef',
       // feature flags some ITs gate on (EnabledIfEnvironmentVariable ... = true)
