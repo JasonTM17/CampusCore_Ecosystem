@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const seedScriptPath =
   process.env.SEED_SCRIPT_PATH ||
-  path.join(repoRoot, 'database', 'seed_active_students_bigdata.sql');
+  path.join(repoRoot, 'database', 'one-off', 'seed_active_students_bigdata.sql');
 
 // Split a .sql file into top-level statements, honouring `--` line comments,
 // /* */ block comments, 'single-quoted' literals (with '' escapes) and $tag$
