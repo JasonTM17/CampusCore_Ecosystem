@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, findNodeHandle, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, StatusBar, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { apiClient } from '../api/client';
 import { sessionStore } from '../auth/mobile-session-store';
