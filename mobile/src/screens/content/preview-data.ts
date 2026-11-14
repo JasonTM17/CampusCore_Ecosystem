@@ -59,7 +59,9 @@ export const previewAnnouncements = (locale: Locale): MobilePublicAnnouncement[]
   {
     id: 'preview-ann-1',
     title: pick(locale, 'Mở đăng ký học phần học kỳ mới', 'Registration opens for the new term'),
-    content: pick(locale, 'Thời gian đăng ký theo kế hoạch của Phòng Đào tạo.', 'Registration follows the Academic Office schedule.'),
+    content: pick(locale,
+      'Thời gian đăng ký theo kế hoạch của Phòng Đào tạo.\n\nTệp đính kèm:\n- [Kế hoạch đăng ký chi tiết](https://files.campusute.example/ke-hoach-dang-ky.pdf)\n- [Danh sách học phần mở](https://files.campusute.example/danh-sach-hoc-phan.xlsx)',
+      'Registration follows the Academic Office schedule.\n\nAttachments:\n- [Detailed registration plan](https://files.campusute.example/registration-plan.pdf)\n- [Open course list](https://files.campusute.example/open-courses.xlsx)'),
     priority: 'URGENT',
     publishAt: '2026-10-25T01:00:00Z',
     lecturerDisplayName: pick(locale, 'Phòng Đào tạo', 'Academic Office'),
