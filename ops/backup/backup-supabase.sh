@@ -33,14 +33,17 @@ backup_dir="${BACKUP_DIR:-$repo_root/ops/backups}/supabase"
 retention_days="${BACKUP_RETENTION_DAYS:-14}"
 
 if [[ -n "${SUPABASE_DB_URL:-}" ]]; then
-  if [[ "$SUPABASE_DB_URL" =~ ^postgres(ql)?://([^:/@]+)(:[^@]*)?@([^:/]+):([0-9]+)/([^?]+) ]]; then
+  if [[ "$SUPABASE_DB_URL" =~ ^postgres(ql)?://([^:/@]+)(:[^@]*)?@([^:/]+)(:([0-9]+))?/([^?]+)(\?(.*))?$ ]]; then
     PGUSER="${BASH_REMATCH[2]}"
     PGHOST="${BASH_REMATCH[4]}"
-    PGPORT="${BASH_REMATCH[5]}"
-    PGDATABASE="${BASH_REMATCH[6]}"
+    PGPORT="${BASH_REMATCH[6]:-5432}"
+    PGDATABASE="${BASH_REMATCH[7]}"
+    if [[ "${BASH_REMATCH[9]:-}" =~ (^|&)sslmode=([a-zA-Z-]+) ]]; then
+      PGSSLMODE="${BASH_REMATCH[2]}"
+    fi
     export PGUSER PGHOST PGPORT PGDATABASE
   else
-    echo 'SUPABASE_DB_URL must look like postgresql://user[:password]@host:port/db.' >&2
+    echo 'SUPABASE_DB_URL must look like postgresql://user[:password]@host[:port]/db[?sslmode=...].' >&2
     exit 2
   fi
 else
@@ -54,6 +57,10 @@ export PGPASSWORD
   echo 'Set SUPABASE_DB_PASSWORD (or PGPASSWORD) for the Supabase database.' >&2
   exit 2
 }
+# Hosted lane: never fall back to libpq's permissive 'prefer'. A URI
+# sslmode= query parameter wins; otherwise require TLS.
+PGSSLMODE="${PGSSLMODE:-require}"
+export PGSSLMODE
 schemas="${SUPABASE_BACKUP_SCHEMAS:-thesis assistant campuscore_auth campuscore_identity academic engagement notifications site campuscore_audit admissions learning events library careers public}"
 
 command -v pg_dump >/dev/null 2>&1 || { echo 'pg_dump is required on PATH (match the server major version).' >&2; exit 2; }
