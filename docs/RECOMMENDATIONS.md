@@ -97,15 +97,20 @@ cd java-services/restful-api && mvn test
 # 2. Stack local + data demo (yêu cầu ASSISTANT_RAG_OWNER_ASSERTION_SECRET trong .env)
 docker compose up -d --build   # DEMO_ACCOUNTS_ENABLED mặc định true (cả api lẫn rag)
 
-# 3. E2E chính thức (stack cô lập 4100/3101, 34 spec Playwright)
+# 3. E2E chính thức (stack cô lập 4100/3101; 27 spec / 213 test Playwright
+#    trong frontend/e2e/ tại thời điểm viết — con số thay đổi theo suite,
+#    `ls frontend/e2e/*.spec.ts | wc -l` để kiểm tra hiện tại)
 node scripts/run-course-e2e.mjs
 
-# 4. Bằng chứng runtime deep-tech (lịch sử Round 7 V1–V77; hiện tại Flyway V152 qua scripts/flyway-lineage-check.mjs)
-# node plans/2026-09-23-round7-feature-e2e/reports/race-safe-enrollment-stress.mjs
-# node plans/2026-09-23-round7-feature-e2e/reports/layer3-partial-unique-index.mjs
+# 4. Bằng chứng runtime deep-tech: các kịch bản stress Round 7 từng chạy từ
+#    plans/2026-09-23-round7-feature-e2e/reports/ — thư mục đó KHÔNG còn trong
+#    repository (chứng cứ lịch sử local-only), nên tái lập bằng lane hiện có:
+#    `cd java-services/restful-api && mvn verify` (Postgres ITs) và
+#    `node scripts/flyway-lineage-check.mjs` cho trạng thái migration hiện tại.
 
 # 5. Secrets gate (kiểm tra hiện tại: node --test scripts/secret-hygiene.test.mjs)
-# scratch/tools/gitleaks.exe git --log-opts='origin/main..HEAD' --no-banner
+#    scratch/tools/gitleaks.exe là tool local không tracked — CI chạy gate
+#    tương đương; lệnh tham khảo: gitleaks git --log-opts='origin/main..HEAD' --no-banner
 ```
 
 ## 8. Vòng 8 — UI/UX deep sweep toàn frontend
