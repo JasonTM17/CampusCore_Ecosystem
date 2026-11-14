@@ -125,6 +125,16 @@ function loadPage(runtime, adminSectionsApi, toasts) {
           value: option.value,
         }, option.label)))),
     },
+    '@/components/ui/searchable-select': {
+      SearchableSelect: ({ label, value, onValueChange, options = [] }) =>
+        React.createElement('label', null, label, React.createElement('select', {
+          value,
+          onChange: (event) => onValueChange(event.target.value),
+        }, options.map((option) => React.createElement('option', {
+          key: option.value,
+          value: option.value,
+        }, option.label)))),
+    },
     '@/components/ui/status': { statusToneClass: () => '' },
     '@/components/ui/state-block': {
       EmptyState: ({ title }) => React.createElement('div', null, title),
