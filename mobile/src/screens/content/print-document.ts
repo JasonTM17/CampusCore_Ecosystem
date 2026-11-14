@@ -31,6 +31,15 @@ const DROP_WITH_CONTENTS =
 const DROPPED_TAGS =
   /<\s*\/?\s*(script|style|iframe|object|embed|svg|math|form|textarea|select|button|input|link|meta|base|title|template|noscript)\b[^>]*>/gi;
 
+/** Decode common entities (&amp; last, so &amp;lt; does not chain-decode). */
+const unescapeHtml = (value: string): string =>
+  value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+
 const sanitizeTag = (raw: string): string => {
   const match = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9-]*)/.exec(raw);
   if (!match) return '';
@@ -40,7 +49,7 @@ const sanitizeTag = (raw: string): string => {
   if (name === 'details') return '<details open>'; // print always expands collapsed sections
   if (name === 'a') {
     const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(raw);
-    const url = (href?.[1] ?? href?.[2] ?? href?.[3] ?? '').trim();
+    const url = unescapeHtml(href?.[1] ?? href?.[2] ?? href?.[3] ?? '').trim();
     return /^https?:\/\//i.test(url) ? `<a href="${escapeHtml(url)}">` : '<a>';
   }
   return `<${name}>`;

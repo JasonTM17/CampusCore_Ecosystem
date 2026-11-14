@@ -60,6 +60,15 @@ describe('dispatchPrintHtml', () => {
     expect(html).toContain('<p>ok</p>');
   });
 
+  it('decodes entity-encoded query parameters in links once', () => {
+    const html = dispatchPrintHtml({
+      ...dispatchData,
+      body: '<a href="https://ute.udn.vn/x?y=1&amp;semester=2">link</a>',
+    });
+    expect(html).toContain('href="https://ute.udn.vn/x?y=1&amp;semester=2"');
+    expect(html).not.toContain('&amp;amp;');
+  });
+
   it('forces collapsed details sections open for print', () => {
     const html = dispatchPrintHtml({
       ...dispatchData,
