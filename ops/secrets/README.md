@@ -21,6 +21,12 @@ key separately and never deploy the template value.
   reused.
 - Never pass a secret to the web container or commit a populated `.env`.
 
+For local Compose, `ASSISTANT_DB_PROVISIONER_PASSWORD` is a separate generated
+secret for the `campuscore_assistant_provisioner` login. PostgreSQL reads it
+only during owner bootstrap, and the one-shot provisioner uses it instead of
+the database bootstrap credential. It is distinct from
+`ASSISTANT_DB_PASSWORD`, which is the Assistant runtime password.
+
 ## Deferred — future deployment work
 
 The file-mounted secret set below belonged to the retired production Compose
@@ -37,6 +43,9 @@ is retained only as a contract for a future hosted target.
 - `assistant_db_password` — password for the `campuscore_assistant_runtime`
   database role; the Assistant API returns `503 ASSISTANT_RLS_UNAVAILABLE`
   without it. The value must exist and be non-blank.
+- `assistant_db_provisioner_password` — separate credential for the restricted
+  one-shot Assistant provisioner login; never use the database administrator
+  password for this secret.
 - `spring_mail_password` — SMTP password for `SPRING_MAIL_USERNAME`; only
   read when `MAIL_ENABLED=true`, so a placeholder is acceptable while mail
   stays disabled.

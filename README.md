@@ -175,7 +175,8 @@ $env:DEMO_ACCOUNTS_ENABLED = "true"               # YAML mặc định false = k
 $env:HEALTH_READINESS_KEY = "<giá trị HEALTH_READINESS_KEY trong .env>"
 
 # Assistant RLS: Flyway V84 tạo role campuscore_assistant_runtime ở trạng thái NOLOGIN;
-# chạy provisioning một lần trước khi API migrate/khởi động.
+# chạy bootstrap owner một lần và provisioning trước khi API migrate/khởi động.
+$env:ASSISTANT_DB_PROVISIONER_PASSWORD = "<restricted login password from the owner bootstrap>"
 $env:ASSISTANT_DB_PASSWORD = "<giá trị ASSISTANT_DB_PASSWORD trong .env>"   # >= 16 ký tự
 node scripts/provision-assistant-runtime.mjs
 
@@ -187,6 +188,7 @@ Tạo secret bằng `openssl rand -base64 48`. Hoặc build jar rồi chạy:
 `mvn -f java-services/pom.xml -pl restful-api package -DskipTests` và
 `java -jar java-services/restful-api/target/campuscore-restful-api-*.jar`.
 Bỏ qua bước provisioning thì API vẫn boot nhưng trợ lý trả 503 (RLS pool degraded).
+Bootstrap cho database mới chạy tự động trong Compose; database hiện có cần owner chạy theo [runbook provisioning](ops/assistant/README.md).
 
 ### Tài khoản demo
 
