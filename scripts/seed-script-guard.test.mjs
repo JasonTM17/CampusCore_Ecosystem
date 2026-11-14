@@ -163,20 +163,27 @@ test('every destructive statement sits after the guard', () => {
 });
 
 test('every data-modifying script under database/ is gated by the demo-seed guard', () => {
-  const dir = path.join(repoRoot, 'database');
+  // Top-level database/*.sql plus the quarantined one-off lane; the guard
+  // contract applies to both.
+  const dirs = [
+    path.join(repoRoot, 'database'),
+    path.join(repoRoot, 'database', 'one-off'),
+  ];
   const checked = [];
-  for (const name of fs.readdirSync(dir)) {
-    if (!name.endsWith('.sql')) continue;
-    const stmts = splitStatements(fs.readFileSync(path.join(dir, name), 'utf8'));
-    const firstMod = stmts.find(isDataModifying);
-    if (!firstMod) continue;
-    const fileGuard = stmts.find(isGuardBlock);
-    assert.ok(fileGuard, `${name} modifies data without a campuscore.demo_seed guard`);
-    assert.ok(
-      fileGuard.start < firstMod.start,
-      `${name}: guard must precede the first data-modifying statement`,
-    );
-    checked.push(name);
+  for (const dir of dirs) {
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith('.sql')) continue;
+      const stmts = splitStatements(fs.readFileSync(path.join(dir, name), 'utf8'));
+      const firstMod = stmts.find(isDataModifying);
+      if (!firstMod) continue;
+      const fileGuard = stmts.find(isGuardBlock);
+      assert.ok(fileGuard, `${name} modifies data without a campuscore.demo_seed guard`);
+      assert.ok(
+        fileGuard.start < firstMod.start,
+        `${name}: guard must precede the first data-modifying statement`,
+      );
+      checked.push(name);
+    }
   }
   assert.ok(checked.length > 0, 'expected at least one data-modifying script');
 });
