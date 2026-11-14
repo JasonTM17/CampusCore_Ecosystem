@@ -46,6 +46,7 @@ import {
   ACADEMIC_REFERENCE_LIMIT,
   PEOPLE_REFERENCE_LIMIT,
 } from '@/lib/reference-data';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface Section {
   id: string;
@@ -193,6 +194,11 @@ export default function AdminSectionsPage() {
   const router = useRouter();
   const [sections, setSections] = useState<Section[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [courseQuery, setCourseQuery] = useState('');
+  const [lecturerQuery, setLecturerQuery] = useState('');
+  const [referenceSearching, setReferenceSearching] = useState(false);
+  const [pinnedCourse, setPinnedCourse] = useState<{ value: string; label: string } | null>(null);
+  const [pinnedLecturer, setPinnedLecturer] = useState<{ value: string; label: string } | null>(null);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -255,9 +261,15 @@ export default function AdminSectionsPage() {
         classroomsApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT }),
       ]);
 
-    if (coursesResult.status === 'fulfilled') setCourses(coursesResult.value.data || []);
+    if (coursesResult.status === 'fulfilled') {
+      setCourses(coursesResult.value.data || []);
+      allCoursesRef.current = coursesResult.value.data || [];
+    }
     if (semestersResult.status === 'fulfilled') setSemesters(semestersResult.value.data || []);
-    if (lecturersResult.status === 'fulfilled') setLecturers(lecturersResult.value.data || []);
+    if (lecturersResult.status === 'fulfilled') {
+      setLecturers(lecturersResult.value.data || []);
+      allLecturersRef.current = lecturersResult.value.data || [];
+    }
     if (classroomsResult.status === 'fulfilled') setClassrooms(classroomsResult.value.data || []);
 
     if ([coursesResult, semestersResult, lecturersResult, classroomsResult].some(
@@ -266,6 +278,50 @@ export default function AdminSectionsPage() {
       setReferenceError(copy.referenceDataFailed);
     }
   }, [copy]);
+
+  // F6: course and lecturer pickers search server side so entries beyond the
+  // first capped page stay assignable. A fresh counter per query drops stale
+  // responses when the operator keeps typing.
+  const courseSearchEpoch = useRef(0);
+  const lecturerSearchEpoch = useRef(0);
+  const allCoursesRef = useRef<Course[]>([]);
+  const allLecturersRef = useRef<Lecturer[]>([]);
+
+  useEffect(() => {
+    const epoch = ++courseSearchEpoch.current;
+    if (!courseQuery) {
+      // Clearing the query restores the unfiltered page — otherwise the
+      // picker stays limited to the last search's results.
+      setCourses(allCoursesRef.current);
+      return;
+    }
+    setReferenceSearching(true);
+    coursesApi.getAll({ limit: ACADEMIC_REFERENCE_LIMIT, search: courseQuery })
+      .then((response) => {
+        if (epoch === courseSearchEpoch.current) setCourses(response.data || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (epoch === courseSearchEpoch.current) setReferenceSearching(false);
+      });
+  }, [courseQuery]);
+
+  useEffect(() => {
+    const epoch = ++lecturerSearchEpoch.current;
+    if (!lecturerQuery) {
+      setLecturers(allLecturersRef.current);
+      return;
+    }
+    setReferenceSearching(true);
+    lecturersApi.getAll({ limit: PEOPLE_REFERENCE_LIMIT, search: lecturerQuery })
+      .then((response) => {
+        if (epoch === lecturerSearchEpoch.current) setLecturers(response.data || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (epoch === lecturerSearchEpoch.current) setReferenceSearching(false);
+      });
+  }, [lecturerQuery]);
 
   const fetchSections = useCallback(async () => {
     const epoch = sectionsEpoch.begin();
@@ -361,14 +417,19 @@ export default function AdminSectionsPage() {
   );
 
   const courseOptions = useMemo(
-    () => [
-      { value: '', label: copy.selectCourse },
-      ...courses.map((course) => ({
-        value: course.id,
-        label: getLocalizedCourseLabel(locale, course, `${course.code} - ${course.name}`),
-      })),
-    ],
-    [copy.selectCourse, courses, locale],
+    () => {
+      const base = [
+        { value: '', label: copy.selectCourse },
+        ...courses.map((course) => ({
+          value: course.id,
+          label: getLocalizedCourseLabel(locale, course, `${course.code} - ${course.name}`),
+        })),
+      ];
+      return pinnedCourse && !base.some((option) => option.value === pinnedCourse.value)
+        ? [...base, pinnedCourse]
+        : base;
+    },
+    [copy.selectCourse, courses, locale, pinnedCourse],
   );
 
   const semesterOptions = useMemo(
@@ -383,16 +444,21 @@ export default function AdminSectionsPage() {
   );
 
   const lecturerOptions = useMemo(
-    () => [
-      { value: '', label: copy.noLecturerAssigned },
-      ...lecturers.map((lecturer) => ({
-        value: lecturer.id,
-        label: lecturer.user
-          ? `${lecturer.user.lastName ?? ''} ${lecturer.user.firstName ?? ''}`.trim() + ` (${lecturer.employeeId})`
-          : lecturer.employeeId,
-      })),
-    ],
-    [copy.noLecturerAssigned, lecturers],
+    () => {
+      const base = [
+        { value: '', label: copy.noLecturerAssigned },
+        ...lecturers.map((lecturer) => ({
+          value: lecturer.id,
+          label: lecturer.user
+            ? `${lecturer.user.lastName ?? ''} ${lecturer.user.firstName ?? ''}`.trim() + ` (${lecturer.employeeId})`
+            : lecturer.employeeId,
+        })),
+      ];
+      return pinnedLecturer && !base.some((option) => option.value === pinnedLecturer.value)
+        ? [...base, pinnedLecturer]
+        : base;
+    },
+    [copy.noLecturerAssigned, lecturers, pinnedLecturer],
   );
 
   const classroomOptions = useMemo(
@@ -425,6 +491,8 @@ export default function AdminSectionsPage() {
     setSchedules([]);
     setSchedulesError('');
     setSchedulesLoaded(true);
+    setPinnedCourse(null);
+    setPinnedLecturer(null);
   };
 
   const openCreate = () => {
@@ -498,6 +566,15 @@ export default function AdminSectionsPage() {
       status: section.status,
       lecturerId: section.lecturerId || '',
     });
+    // Pin the assigned records so a filtered search never hides the current value.
+    setPinnedCourse(section.course
+      ? { value: section.courseId, label: getLocalizedCourseLabel(locale, section.course, `${section.course.code} - ${section.course.name}`) }
+      : null);
+    setPinnedLecturer(section.lecturerId
+      ? { value: section.lecturerId, label: section.lecturer?.user
+          ? `${section.lecturer.user.lastName ?? ''} ${section.lecturer.user.firstName ?? ''}`.trim()
+          : section.lecturerId }
+      : null);
 
     setIsModalOpen(true);
     void loadSectionSchedules(section);
@@ -983,15 +1060,17 @@ export default function AdminSectionsPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Select
+            <SearchableSelect
               label={copy.fields.course}
               value={formData.courseId}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  courseId: event.target.value,
-                }))
-              }
+              onValueChange={(value) => {
+                setPinnedCourse(courseOptions.find((option) => option.value === value) ?? null);
+                setFormData((current) => ({ ...current, courseId: value }));
+              }}
+              onSearch={setCourseQuery}
+              loading={referenceSearching}
+              searchPlaceholder={copy.optionsSearchPlaceholder}
+              emptyLabel={copy.optionsEmpty}
               options={courseOptions}
               required
             />
@@ -1056,15 +1135,17 @@ export default function AdminSectionsPage() {
             />
           </div>
 
-          <Select
+          <SearchableSelect
             label={copy.fields.lecturer}
             value={formData.lecturerId}
-            onChange={(event) =>
-              setFormData((current) => ({
-                ...current,
-                lecturerId: event.target.value,
-              }))
-            }
+            onValueChange={(value) => {
+              setPinnedLecturer(lecturerOptions.find((option) => option.value === value) ?? null);
+              setFormData((current) => ({ ...current, lecturerId: value }));
+            }}
+            onSearch={setLecturerQuery}
+            loading={referenceSearching}
+            searchPlaceholder={copy.optionsSearchPlaceholder}
+            emptyLabel={copy.optionsEmpty}
             options={lecturerOptions}
           />
 
