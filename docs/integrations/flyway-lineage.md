@@ -35,7 +35,7 @@ The CampusUTE ecosystem employs multiple database technologies and scripts for d
 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                    MANUAL & SCRATCH SQL (NO AUTHORITY)                 │
-│                               database/*.sql                           │
+│                           database/one-off/*.sql                       │
 │                                                                        │
 │  - Historical prototypes & scratch scripts (seed_v43, etc.)            │
 │  - ZERO runtime authority: NEVER run against production or live DBs    │
@@ -71,7 +71,7 @@ The files under `supabase/migrations/` serve a distinct role:
 - The two families must not be applied to the same database; the known divergences are listed in [supabase-assistant.md](supabase-assistant.md#migration-authorities).
 
 ### 1.3 Manual and Scratch SQL Boundary
-The `.sql` files located directly in the root `database/` directory (e.g., `seed_big_data_campus_ecosystem_v43.sql`, `role_targeted_announcements.sql`, `update_all_old_university_names.sql`):
+The `.sql` files located under `database/one-off/` (e.g., `seed_big_data_campus_ecosystem_v43.sql`, `role_targeted_announcements.sql`, `update_all_old_university_names.sql`):
 - Were temporary scratch scripts and development seeds used during early iterations.
 - Have **zero runtime authority**.
 - Must **NEVER** be applied manually to any database running the CampusUTE ecosystem.
