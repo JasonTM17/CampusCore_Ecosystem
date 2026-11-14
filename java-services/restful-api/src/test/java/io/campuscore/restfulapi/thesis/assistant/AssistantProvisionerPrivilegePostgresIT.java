@@ -70,11 +70,17 @@ class AssistantProvisionerPrivilegePostgresIT {
 
                     String hostilePassword = "it-" + UUID.randomUUID()
                             + "'; ALTER ROLE campuscore_assistant_runtime SUPERUSER; --";
-                    setRuntimePassword(provisioner, hostilePassword);
-                    setRuntimePassword(provisioner, hostilePassword);
-                    try (Connection runtime = DriverManager.getConnection(
-                            requiredEnv("ASSISTANT_RLS_POSTGRES_URL"), RUNTIME_ROLE, hostilePassword)) {
-                        assertEquals(RUNTIME_ROLE, queryString(runtime, "SELECT current_user"));
+                    try {
+                        setRuntimePassword(provisioner, hostilePassword);
+                        setRuntimePassword(provisioner, hostilePassword);
+                        try (Connection runtime = DriverManager.getConnection(
+                                requiredEnv("ASSISTANT_RLS_POSTGRES_URL"), RUNTIME_ROLE, hostilePassword)) {
+                            assertEquals(RUNTIME_ROLE, queryString(runtime, "SELECT current_user"));
+                        }
+                    } finally {
+                        // The probe rotated the shared runtime credential; restore it
+                        // so sibling ITs in the same failsafe run can still authenticate.
+                        restoreRuntimePassword();
                     }
                 } finally {
                     execute(owner, "DROP TABLE IF EXISTS assistant_ops." + quoteIdentifier(permanentTable));
@@ -226,6 +232,12 @@ class AssistantProvisionerPrivilegePostgresIT {
                 )
                 """;
         assertFalse(queryBoolean(owner, query), "PUBLIC must not have EXECUTE on the password function");
+    }
+
+    private static void restoreRuntimePassword() throws SQLException {
+        try (Connection provisioner = provisionerConnection()) {
+            setRuntimePassword(provisioner, requiredEnv("ASSISTANT_RLS_RUNTIME_PASSWORD"));
+        }
     }
 
     private static void setRuntimePassword(Connection provisioner, String password) throws SQLException {
