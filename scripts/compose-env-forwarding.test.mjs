@@ -84,6 +84,7 @@ function isDocumented(name, { tokens, wildcards }) {
 // DeepSeek provider chain that only the rag-service sidecar runs.
 const NOT_FORWARDED_TO_API = new Map([
   ['POSTGRES_HOST_PORT', 'host port publish for postgres'],
+  ['ASSISTANT_DB_PROVISIONER_PASSWORD', 'postgres owner bootstrap and one-shot provisioner only'],
   ['RESTFUL_API_HOST_PORT', 'host port publish for restful-api'],
   ['FRONTEND_HOST_PORT', 'host port publish for web'],
   ['MAILPIT_UI_HOST_PORT', 'host port publish for mailpit'],

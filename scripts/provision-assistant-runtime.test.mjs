@@ -50,8 +50,149 @@ test('provision fails closed on a too-short ASSISTANT_DB_PASSWORD', async () => 
 
 test('provision fails closed without a primary database connection', async () => {
   await assert.rejects(
-    provision({ ASSISTANT_DB_PASSWORD: 'long-enough-password-123456' }),
+    provision({
+      ASSISTANT_DB_PASSWORD: 'long-enough-password-123456',
+      ASSISTANT_DB_PROVISIONER_PASSWORD: crypto.randomBytes(32).toString('base64url'),
+    }),
     /SPRING_DATASOURCE_URL is required/);
+});
+
+test('provision fails closed without the restricted login password', async () => {
+  await assert.rejects(
+    provision({ ASSISTANT_DB_PASSWORD: crypto.randomBytes(32).toString('base64url') }),
+    /ASSISTANT_DB_PROVISIONER_PASSWORD is required/);
+});
+
+const PROVISIONER_ROLE = 'campuscore_assistant_provisioner';
+const RUNTIME_ROLE = 'campuscore_assistant_runtime';
+
+function isolatedProvisionHarness({ runtimePresent = true, runtimeLogin = 't', runtimeProbeErrors = [] } = {}) {
+  const connections = [];
+  const statements = [];
+  let runtimeProbeCount = 0;
+  let passwordSet = false;
+  const connect = async (target, password) => {
+    connections.push({ user: target.user, password });
+    if (target.user === PROVISIONER_ROLE) {
+      return {
+        query: async (sql) => {
+          statements.push(sql);
+          if (/FROM (?:pg_catalog\.)?pg_roles/.test(sql)) {
+            return runtimePresent ? [[RUNTIME_ROLE, runtimeLogin]] : [];
+          }
+          if (/assistant_ops\.set_runtime_password/.test(sql)) {
+            passwordSet = true;
+          }
+          return [];
+        },
+        close() { },
+      };
+    }
+    if (target.user === RUNTIME_ROLE) {
+      const error = runtimeProbeErrors[runtimeProbeCount];
+      runtimeProbeCount += 1;
+      if (error && !passwordSet) throw error;
+      return { query: async () => [], close() { } };
+    }
+    return {
+      query: async (sql) => {
+        statements.push(sql);
+        if (/FROM (?:pg_catalog\.)?pg_roles/.test(sql)) {
+          return runtimePresent ? [['postgres', 't'], [RUNTIME_ROLE, runtimeLogin]] : [];
+        }
+        return [];
+      },
+      close() { },
+    };
+  };
+  return { connect, connections, statements };
+}
+
+function isolatedProvisionEnv({ primaryPassword, provisionerPassword, runtimePassword }) {
+  return {
+    ASSISTANT_DB_PASSWORD: runtimePassword,
+    ASSISTANT_DB_PROVISIONER_PASSWORD: provisionerPassword,
+    SPRING_DATASOURCE_URL: 'jdbc:postgresql://db.example.com:5432/campuscore_restful',
+    SPRING_DATASOURCE_USERNAME: 'campuscore',
+    SPRING_DATASOURCE_PASSWORD: primaryPassword,
+    PGHOST: 'db.example.com',
+    PGPORT: '5432',
+    PGDATABASE: 'campuscore_restful',
+    PGUSER: 'campuscore',
+    PGPASSWORD: primaryPassword,
+  };
+}
+
+test('provisioner connects with its restricted credential and never uses the primary credential', async () => {
+  const primaryPassword = crypto.randomBytes(32).toString('base64url');
+  const provisionerPassword = crypto.randomBytes(32).toString('base64url');
+  const runtimePassword = crypto.randomBytes(32).toString('base64url');
+  const harness = isolatedProvisionHarness();
+
+  await provision(isolatedProvisionEnv({ primaryPassword, provisionerPassword, runtimePassword }), () => { }, harness.connect);
+
+  assert.equal(harness.connections[0].user, PROVISIONER_ROLE);
+  assert.ok(harness.connections[0].password === provisionerPassword, 'the restricted login password is used');
+  assert.equal(harness.connections.some(({ user, password }) =>
+    user === 'campuscore' || password === primaryPassword), false);
+});
+
+test('runtime password SQL is quoted and a successful rerun leaves it unchanged', async () => {
+  const primaryPassword = crypto.randomBytes(32).toString('base64url');
+  const provisionerPassword = crypto.randomBytes(32).toString('base64url');
+  const nonce = crypto.randomBytes(12).toString('hex');
+  const runtimePassword = `${nonce}'; ALTER ROLE campuscore_assistant_runtime SUPERUSER; --`;
+  const harness = isolatedProvisionHarness({
+    runtimeProbeErrors: [new PostgresError({ C: '28P01', M: 'invalid password' })],
+  });
+  const env = isolatedProvisionEnv({ primaryPassword, provisionerPassword, runtimePassword });
+
+  await provision(env, () => { }, harness.connect);
+  await provision(env, () => { }, harness.connect);
+
+  const functionCalls = harness.statements.filter((sql) => /assistant_ops\.set_runtime_password/.test(sql));
+  assert.equal(functionCalls.length, 1);
+  assert.ok(new RegExp(`${nonce}''; ALTER ROLE campuscore_assistant_runtime SUPERUSER; --`).test(functionCalls[0]),
+    'the hostile password stays inside one SQL string literal');
+  assert.equal(harness.statements.some((sql) => /^ALTER ROLE campuscore_assistant_runtime\b/.test(sql)), false);
+});
+
+test('missing owner bootstrap fails with a redacted actionable message and creates no roles', async () => {
+  const primaryPassword = crypto.randomBytes(32).toString('base64url');
+  const provisionerPassword = crypto.randomBytes(32).toString('base64url');
+  const runtimePassword = crypto.randomBytes(32).toString('base64url');
+  const harness = isolatedProvisionHarness({ runtimePresent: false });
+
+  await assert.rejects(
+    provision(isolatedProvisionEnv({ primaryPassword, provisionerPassword, runtimePassword }), () => { }, harness.connect),
+    (error) => {
+      assert.match(error.message, /owner.*bootstrap|bootstrap.*ops\/assistant/i);
+      assert.equal([primaryPassword, provisionerPassword, runtimePassword]
+        .some((value) => error.message.includes(value)), false, 'database credentials must stay redacted');
+      return true;
+    });
+  assert.equal(harness.statements.some((sql) => /\bCREATE ROLE\b/.test(sql)), false);
+});
+
+test('runtime authentication failure other than 28P01 fails closed without leaking server text', async () => {
+  const primaryPassword = crypto.randomBytes(32).toString('base64url');
+  const provisionerPassword = crypto.randomBytes(32).toString('base64url');
+  const runtimePassword = crypto.randomBytes(32).toString('base64url');
+  const rawServerText = `private host path ${crypto.randomBytes(16).toString('hex')}`;
+  const harness = isolatedProvisionHarness({
+    runtimeProbeErrors: [new PostgresError({ C: '28000', M: rawServerText })],
+  });
+
+  await assert.rejects(
+    provision(isolatedProvisionEnv({ primaryPassword, provisionerPassword, runtimePassword }), () => { }, harness.connect),
+    (error) => {
+      assert.match(error.message, /SQLSTATE 28000/);
+      assert.match(error.message, /no password changes were made/i);
+      assert.equal([rawServerText, primaryPassword, provisionerPassword, runtimePassword]
+        .some((value) => error.message.includes(value)), false, 'server details and credentials must stay redacted');
+      return true;
+    });
+  assert.equal(harness.statements.some((sql) => /assistant_ops\.set_runtime_password/.test(sql)), false);
 });
 
 // --- Wire client transport and SCRAM checks (stub socket; no network) --------
@@ -265,10 +406,11 @@ test('an idle socket mid-query fails instead of hanging', { timeout: 5000 }, asy
 // --- Probe-error policy: only an auth failure may reset the password --------
 
 const PROVISION_ENV = {
-  ASSISTANT_DB_PASSWORD: 'rotated-value-123456',
+  ASSISTANT_DB_PASSWORD: crypto.randomBytes(32).toString('base64url'),
+  ASSISTANT_DB_PROVISIONER_PASSWORD: crypto.randomBytes(32).toString('base64url'),
   SPRING_DATASOURCE_URL: 'jdbc:postgresql://db.example.com:5432/postgres',
   SPRING_DATASOURCE_USERNAME: 'admin',
-  SPRING_DATASOURCE_PASSWORD: 'admin-password',
+  SPRING_DATASOURCE_PASSWORD: crypto.randomBytes(32).toString('base64url'),
 };
 
 function recordedConnector(probeError) {
@@ -282,10 +424,10 @@ function recordedConnector(probeError) {
     return {
       query: async (sql) => {
         issued.push(sql);
-        if (/ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)) {
+        if (/assistant_ops\.set_runtime_password/.test(sql)) {
           result.resetAttempted = true;
         }
-        if (/FROM pg_roles/.test(sql)) {
+        if (/FROM (?:pg_catalog\.)?pg_roles/.test(sql)) {
           return [['postgres', 't'], ['campuscore_assistant_runtime', 't']];
         }
         return [];
@@ -305,8 +447,8 @@ test('a connection-limit probe error aborts without resetting the role password'
 
 test('a transport-level probe error aborts without resetting the role password', async () => {
   const { connect, issued } = recordedConnector(new Error('TLS handshake failed: certificate expired'));
-  await assert.rejects(provision(PROVISION_ENV, () => { }, connect), /TLS handshake failed/);
-  assert.equal(issued.some((sql) => /ALTER ROLE/.test(sql)), false);
+  await assert.rejects(provision(PROVISION_ENV, () => { }, connect), /no password changes were made/);
+  assert.equal(issued.some((sql) => /assistant_ops\.set_runtime_password/.test(sql)), false);
 });
 
 test('an authorization probe rejection fails closed without resetting the role password', async () => {
@@ -314,13 +456,12 @@ test('an authorization probe rejection fails closed without resetting the role p
     new PostgresError({ C: '28000', M: 'no pg_hba.conf entry for host' }));
   await assert.rejects(provision(PROVISION_ENV, () => { }, connect), (error) => {
     assert.match(error.message, /SQLSTATE 28000/);
-    assert.match(error.message, /pg_hba/i);
-    assert.match(error.message, /role login rights/i);
-    assert.doesNotMatch(error.message, /rotated-value-123456|admin-password/);
+    assert.match(error.message, /no password changes were made/i);
+    assert.doesNotMatch(error.message, /pg_hba|no pg_hba.conf entry/i);
     return true;
   });
   assert.equal(state.resetAttempted, false);
-  assert.equal(issued.filter((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)).length, 0);
+  assert.equal(issued.filter((sql) => /assistant_ops\.set_runtime_password/.test(sql)).length, 0);
 });
 
 test('a rejected probe password resets the role password exactly once', async () => {
@@ -328,5 +469,5 @@ test('a rejected probe password resets the role password exactly once', async ()
     new PostgresError({ C: '28P01', M: 'password authentication failed' }));
   await provision(PROVISION_ENV, () => { }, connect);
   assert.equal(state.resetAttempted, true);
-  assert.equal(issued.filter((sql) => /ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD/.test(sql)).length, 1);
+  assert.equal(issued.filter((sql) => /assistant_ops\.set_runtime_password/.test(sql)).length, 1);
 });

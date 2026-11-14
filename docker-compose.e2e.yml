@@ -7,10 +7,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-campuscore}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
       POSTGRES_DB: ${POSTGRES_DB:-campuscore_restful_e2e}
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
     ports:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - campuscore_postgres_e2e_data:/var/lib/postgresql/data
+      - ./ops/assistant/bootstrap-provisioner.sql:/docker-entrypoint-initdb.d/20-assistant-provisioner.sql:ro
     healthcheck:
       test:
         [
@@ -22,12 +24,8 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # One-shot, idempotent provisioning of the Assistant RLS runtime role
-  # (Wave 1.1). The e2e API applies Flyway itself, and V84 targets the
-  # Supabase-managed `postgres` role plus a NOLOGIN runtime role, so this step
-  # must complete before restful-api boots. Idempotent: re-runs only reset the
-  # runtime password when the role is NOLOGIN or the probe connection fails.
-  # The default below is a dev-only non-secret for disposable e2e stacks.
+  # The owner bootstrap creates the isolated roles and function before Flyway.
+  # This one-shot receives only the restricted login and runtime password.
   assistant-db-provisioner:
     image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
     working_dir: /provision
@@ -35,9 +33,8 @@ services:
       - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
     environment:
       ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:-dev-only-not-a-secret-16+}
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful_e2e}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
       # Private compose network; TLS is not available on the database image.
       PGSSLMODE: disable
     command: ["node", "/provision/provision-assistant-runtime.mjs"]

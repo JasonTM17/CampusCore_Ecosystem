@@ -45,6 +45,7 @@ export const HEALTH_INTERVAL_MS = 3_000;
 export const DEMO_STUDENT_EMAIL = 'student@campuscore.edu';
 export const DEMO_CREDENTIALS_POINTER = 'docs/DEMO_RUNBOOK.md';
 export const OWNER_ASSERTION_SECRET = 'ASSISTANT_RAG_OWNER_ASSERTION_SECRET';
+export const PROVISIONER_PASSWORD_SECRET = 'ASSISTANT_DB_PROVISIONER_PASSWORD';
 
 // The exact names published by mobile/eas.json (build.local.env) and
 // mobile/README.md. Values are read from eas.json at run time.
@@ -318,6 +319,10 @@ function generateOwnerAssertionSecret() {
   return crypto.randomBytes(48).toString('base64');
 }
 
+function generateProvisionerPassword() {
+  return crypto.randomBytes(48).toString('base64');
+}
+
 // Reads .env into a key/value map without printing it: comments, blank lines
 // and non-assignment lines are skipped; `export ` prefixes and matching
 // surrounding quotes are unwrapped like Compose does.
@@ -360,6 +365,31 @@ export function ensureOwnerAssertionSecret({
     fsImpl.appendFileSync(target, `${separator}${line}\n`);
   }
   log(`generated ${OWNER_ASSERTION_SECRET} into .env (git-ignored; Compose requires it)`);
+  return { generated: true, path: target };
+}
+
+// Compose requires the restricted provisioner login to exist before its
+// one-shot service starts. Keep the generated password in the git-ignored .env.
+export function ensureProvisionerPassword({
+  root,
+  fs: fsImpl = fs,
+  log = () => {},
+  generate = generateProvisionerPassword,
+}) {
+  const target = path.join(root, '.env');
+  const existing = fsImpl.existsSync(target) ? fsImpl.readFileSync(target, 'utf8') : '';
+  const assignment = new RegExp(`^[ \\t]*${PROVISIONER_PASSWORD_SECRET}[ \\t]*=[ \\t]*(.*)$`, 'gm');
+  const matches = [...existing.matchAll(assignment)];
+  if (matches.some((match) => match[1].trim())) return { generated: false, path: target };
+
+  const line = `${PROVISIONER_PASSWORD_SECRET}=${generate()}`;
+  if (matches.length > 0) {
+    fsImpl.writeFileSync(target, existing.replace(assignment, line));
+  } else {
+    const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+    fsImpl.appendFileSync(target, `${separator}${line}\n`);
+  }
+  log(`generated ${PROVISIONER_PASSWORD_SECRET} into .env (git-ignored; Compose requires it)`);
   return { generated: true, path: target };
 }
 

@@ -132,6 +132,7 @@ test('base Compose requires each runtime secret and keeps demo credentials disab
   const required = [...new Set(requiredVariables('docker-compose.yml'))].sort();
   assert.deepEqual(required, [
     'ASSISTANT_DB_PASSWORD',
+    'ASSISTANT_DB_PROVISIONER_PASSWORD',
     'ASSISTANT_RAG_OWNER_ASSERTION_SECRET',
     'ASSISTANT_RAG_SERVICE_TOKEN',
     'HEALTH_READINESS_KEY',
