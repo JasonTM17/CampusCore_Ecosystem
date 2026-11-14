@@ -97,6 +97,8 @@ export const recordsMessages = {
     "conductScholarshipCheck": "Điều kiện xét học bổng:",
     "conductEligible": "Đạt chuẩn",
     "conductScholarshipBelow": "Chưa đạt chuẩn",
+    "conductPrint": "In bảng rèn luyện",
+    "conductPrintGenerated": "Xuất bản",
     "conductRequirement": "Yêu cầu tối thiểu 70 điểm",
     "conductCriteria": "5 tiêu chí rèn luyện",
     "conductCriteriaDescriptions": {
@@ -184,7 +186,9 @@ export const recordsMessages = {
     "missing": "Chưa có",
     "announcementsReadingProgress": "Tiến trình đọc bài viết",
     "announcementsShare": "Chia sẻ",
-    "announcementsShareTitle": "Sao chép liên kết bài viết"
+    "announcementsShareTitle": "Sao chép liên kết bài viết",
+    "announcementsPrint": "In thông báo",
+    "announcementsPrintAttachments": "Tệp đính kèm"
   },
   "en": {
     "announcementsTitle": "Campus News & Academic Notices",
@@ -284,6 +288,8 @@ export const recordsMessages = {
     "conductEligible": "Eligible",
     "conductScholarshipBelow": "Below requirement",
     "conductRequirement": "Minimum 70 points",
+    "conductPrint": "Print conduct summary",
+    "conductPrintGenerated": "Generated",
     "conductCriteria": "5 conduct criteria",
     "conductCriteriaDescriptions": {
       "CRITERIA_1": "Attendance, coursework, learning attitude, and academic research participation.",
@@ -370,6 +376,8 @@ export const recordsMessages = {
     "missing": "Not on record",
     "announcementsReadingProgress": "Reading progress",
     "announcementsShare": "Share",
-    "announcementsShareTitle": "Copy notice link"
+    "announcementsShareTitle": "Copy notice link",
+    "announcementsPrint": "Print notice",
+    "announcementsPrintAttachments": "Attachments"
   }
 };
