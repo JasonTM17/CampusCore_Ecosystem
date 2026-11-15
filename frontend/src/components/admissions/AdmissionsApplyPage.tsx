@@ -133,6 +133,7 @@ export function AdmissionsApplyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   // A 401/403 on the my-applications read is a denial, not an outage — show
   // the forbidden state instead of a retryable error.
   const [denied, setDenied] = useState(false);
@@ -180,6 +181,7 @@ export function AdmissionsApplyPage() {
       return;
     }
     setIsSaving(true);
+    setActionError('');
     try {
       const created = await admissionsApi.create(cycle.trim(), newAdmissionsIdempotencyKey());
       toast.success(copy.created);
@@ -187,7 +189,7 @@ export function AdmissionsApplyPage() {
       await load();
       setSelectedId(created.id);
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setActionError(friendlyError(copy, cause));
     } finally {
       setIsSaving(false);
     }
@@ -198,12 +200,13 @@ export function AdmissionsApplyPage() {
       return;
     }
     setIsSaving(true);
+    setActionError('');
     try {
       await admissionsApi.save(selected.id, form, selected.version);
       toast.success(copy.saved);
       await load();
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setActionError(friendlyError(copy, cause));
     } finally {
       setIsSaving(false);
     }
@@ -214,6 +217,7 @@ export function AdmissionsApplyPage() {
       return;
     }
     setIsSaving(true);
+    setActionError('');
     try {
       if (kind === 'submit') {
         const saved = await admissionsApi.save(selected.id, form, selected.version);
@@ -226,7 +230,7 @@ export function AdmissionsApplyPage() {
       }
       await load();
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      setActionError(friendlyError(copy, cause));
     } finally {
       setIsSaving(false);
     }
@@ -238,6 +242,7 @@ export function AdmissionsApplyPage() {
     }
     await savingRef.current.run(async () => {
       setIsSaving(true);
+      setActionError('');
       try {
         const payload = await pickFileBase64(fileInputRef.current);
         if (!payload) {
@@ -251,7 +256,7 @@ export function AdmissionsApplyPage() {
         }
         await load();
       } catch (cause) {
-        setError(friendlyError(copy, cause));
+        setActionError(friendlyError(copy, cause));
       } finally {
         setIsSaving(false);
       }
@@ -264,12 +269,13 @@ export function AdmissionsApplyPage() {
     }
     await savingRef.current.run(async () => {
       setIsSaving(true);
+      setActionError('');
       try {
         await admissionsApi.deleteAttachment(selected.id, attachmentId, newAdmissionsIdempotencyKey());
         toast.success(copy.removedAttachment);
         await load();
       } catch (cause) {
-        setError(friendlyError(copy, cause));
+        setActionError(friendlyError(copy, cause));
       } finally {
         setIsSaving(false);
       }
@@ -303,6 +309,15 @@ export function AdmissionsApplyPage() {
 
       {!isLoading && !error && !denied && (
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
+          {actionError ? (
+            <div
+              role="alert"
+              data-testid="admissions-action-error"
+              className={`col-span-full flex items-center gap-3 rounded-md border px-4 py-3 text-sm ${statusToneClass('danger')}`}
+            >
+              {actionError}
+            </div>
+          ) : null}
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">{copy.myApplications}</h2>
             {applications.length === 0 ? (
