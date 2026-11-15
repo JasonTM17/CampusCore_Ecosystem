@@ -15,6 +15,7 @@ const LOCAL_BUILDS = Object.freeze([
   { file: 'docker-compose.yml', service: 'rag-service', reference: 'student-management-ute-rag-service:local' },
   { file: 'docker-compose.yml', service: 'restful-api', reference: 'student-management-ute-restful-api:local' },
   { file: 'docker-compose.yml', service: 'bursar-api', reference: 'student-management-ute-bursar-api:local' },
+  { file: 'docker-compose.yml', service: 'enrollment-api', reference: 'student-management-ute-enrollment-api:local' },
   { file: 'docker-compose.yml', service: 'web', reference: 'student-management-ute-frontend:local' },
   {
     file: 'docker-compose.e2e.yml',

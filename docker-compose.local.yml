@@ -9,6 +9,11 @@ services:
       DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
       DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
 
+  enrollment-api:
+    environment:
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-true}
+      DEMO_ACCOUNTS_ROLES: ${DEMO_ACCOUNTS_ROLES:-}
+
   web:
     build:
       args:

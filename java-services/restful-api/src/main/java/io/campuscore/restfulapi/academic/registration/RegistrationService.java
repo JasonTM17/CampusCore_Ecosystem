@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -71,6 +72,7 @@ public class RegistrationService {
     private final AcademicEnrollmentReadService reads;
     private final RegistrationPdfRenderer pdfRenderer;
     private final CreditLimitApplicationService creditLimitApplications;
+    private final BursarHoldGate bursarHolds;
     private final TransactionTemplate transactions;
     private final boolean postgres;
 
@@ -80,10 +82,22 @@ public class RegistrationService {
             RegistrationPdfRenderer pdfRenderer,
             CreditLimitApplicationService creditLimitApplications,
             PlatformTransactionManager transactionManager) {
+        this(jdbc, reads, pdfRenderer, creditLimitApplications, transactionManager, BursarHoldGate.disabled());
+    }
+
+    @Autowired
+    public RegistrationService(
+            NamedParameterJdbcTemplate jdbc,
+            AcademicEnrollmentReadService reads,
+            RegistrationPdfRenderer pdfRenderer,
+            CreditLimitApplicationService creditLimitApplications,
+            PlatformTransactionManager transactionManager,
+            BursarHoldGate bursarHolds) {
         this.jdbc = jdbc;
         this.reads = reads;
         this.pdfRenderer = pdfRenderer;
         this.creditLimitApplications = creditLimitApplications;
+        this.bursarHolds = bursarHolds;
         this.transactions = new TransactionTemplate(transactionManager);
         this.postgres = jdbc.getJdbcOperations().execute((ConnectionCallback<Boolean>) connection ->
                 "PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName()));
@@ -592,6 +606,7 @@ public class RegistrationService {
         if (replay != null) {
             return replayedEnrollment(replay, roles, studentId);
         }
+        bursarHolds.assertEnrollable(studentId);
         Map<String, Object> student = lockStudent(studentId);
         Map<String, Object> section = lockSection(sectionId);
         String semesterId = String.valueOf(section.get("semester_id"));

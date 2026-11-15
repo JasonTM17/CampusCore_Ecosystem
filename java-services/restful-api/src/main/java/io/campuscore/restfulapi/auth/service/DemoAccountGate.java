@@ -63,9 +63,11 @@ public class DemoAccountGate implements ApplicationRunner {
      * than any pattern.
      *
      * <p>Covers the .edu showcase accounts (V50 plus the seeded thesis-team
-     * students), the two seeded applicant accounts locked by V145, and the
+     * students), the two seeded applicant accounts locked by V145, the
      * runbook-documented .demo accounts activated by V82 (the
-     * Four-Eyes second approver and the council examiners).
+     * Four-Eyes second approver and the council examiners), the events
+     * staff account seeded by V164, and the debt-showcase student activated
+     * by V165 for the financial-hold enrollment demo.
      * {@code DemoAccountGateRunbookParityTest} pins this list
      * to V82's and V145's, so the migrations and the gate cannot drift apart.
      */
@@ -92,7 +94,8 @@ public class DemoAccountGate implements ApplicationRunner {
             "lecturer010@campuscore.demo",
             "lecturer011@campuscore.demo",
             "lecturer012@campuscore.demo",
-            "events.staff@campuscore.demo");
+            "events.staff@campuscore.demo",
+            "phuong.ttm@campuscore.demo");
 
     private static final String ACTIVE = "ACTIVE";
     /**
