@@ -1669,8 +1669,27 @@ public class ThesisAssistantService {
         // The lexical answer is taken from the top-ranked document. Keep the
         // fallback provenance equally precise instead of displaying every
         // retrieved candidate as if it contributed to the visible answer.
-        boolean fallbackFits = lexical.documents().isEmpty()
-                || hasSpecializedQuestionFit(normalized, effectiveScope, lexical.documents().getFirst());
+        ThesisAssistantKnowledgeRepository.KnowledgeDocument fallbackTop = lexical.documents().isEmpty()
+                ? null
+                : lexical.documents().getFirst();
+        // Apply the same curated-corpus gate as the fast path and
+        // groundedFallback: a top hit that only scores through incidental
+        // substring fragments ("học phí" -> the relational-database document
+        // via "phi"/"tín" morphemes) must degrade to noMatchMessage, not serve
+        // a semantically unrelated article. Catalog rows carry no lexical
+        // score — their catalog search already verified term overlap.
+        int fallbackConfident = properties == null
+                ? AssistantProperties.DEFAULT_LEXICAL_CONFIDENT_SCORE
+                : properties.lexicalConfidentScore();
+        boolean fallbackFits = fallbackTop == null
+                || (hasSpecializedQuestionFit(normalized, effectiveScope, fallbackTop)
+                        && ("academic-catalog".equals(fallbackTop.source())
+                                // A score of 0 means the document was never ranked
+                                // (test fixtures, legacy rows) — real retrieval
+                                // hits always score >= 1.
+                                || fallbackTop.lexicalScore() == 0
+                                || (fallbackTop.lexicalScore() >= fallbackConfident
+                                        && hasTermCorroboration(fallbackTop, retrievalTerms(normalized)))));
         // Preserve the full provider context and snapshot, but never serve an
         // unsupported top article when synthesis is disabled/fails/truncates
         // or quota is exhausted. Those paths share one answer/provenance pair.
