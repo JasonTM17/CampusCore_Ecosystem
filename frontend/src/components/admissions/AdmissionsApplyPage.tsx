@@ -40,8 +40,40 @@ function errorCode(error: unknown): string {
     ?? '');
 }
 
+function fieldErrors(error: unknown): [string, string][] {
+  const errors = (error as { response?: { data?: { fieldErrors?: unknown } } })
+    ?.response?.data?.fieldErrors;
+  // Backend sends an array of { field, message }; tolerate a plain map too.
+  if (Array.isArray(errors)) {
+    return errors.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const item = entry as { field?: unknown; message?: unknown };
+      return item.field != null && item.message != null
+        ? [[String(item.field), String(item.message)] as [string, string]]
+        : [];
+    });
+  }
+  if (!errors || typeof errors !== 'object') return [];
+  return Object.entries(errors as Record<string, unknown>)
+    .map(([field, message]) => [field, String(message)] as [string, string]);
+}
+
 function friendlyError(copy: Copy, error: unknown): string {
   const code = errorCode(error);
+  if (code === 'VALIDATION_ERROR') {
+    const labels: Record<string, string> = {
+      fullName: copy.fullName,
+      dateOfBirth: copy.dateOfBirth,
+      schoolName: copy.schoolName,
+      intendedMajor: copy.intendedMajor,
+      essay: copy.essay,
+      cycle: copy.cycle,
+    };
+    const details = fieldErrors(error)
+      .map(([field, message]) => `${labels[field] ?? field}: ${message}`)
+      .join('; ');
+    return details ? `${copy.validationFailed} ${details}` : copy.failed;
+  }
   if (code === 'UPLOAD_TOO_LARGE') return copy.uploadTooLarge;
   if (code === 'UPLOAD_TYPE_UNSUPPORTED') return copy.uploadTypeUnsupported;
   if (code === 'APPLICATION_CYCLE_ACTIVE') return copy.cycleActive;
