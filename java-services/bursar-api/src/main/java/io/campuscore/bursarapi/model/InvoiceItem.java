@@ -13,7 +13,9 @@ public class InvoiceItem {
     @Column(name = "id")
     private String id;
 
-    @Column(name = "invoice_id", nullable = false)
+    // Read-only mirror of the join column owned by Invoice.items — the parent
+    // writes the FK; this field exists only for repository lookups.
+    @Column(name = "invoice_id", nullable = false, insertable = false, updatable = false)
     private String invoiceId;
 
     @Column(name = "label", nullable = false)

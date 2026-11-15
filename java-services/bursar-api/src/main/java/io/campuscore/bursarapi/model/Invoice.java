@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -47,8 +48,10 @@ public class Invoice {
     private Instant paidAt;
 
     // Invoice items are small (a handful per term bill); eager fetch keeps the
-    // REST DTO path free of lazy-session concerns.
-    @OneToMany(mappedBy = "invoiceId", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    // REST DTO path free of lazy-session concerns. Unidirectional join-column
+    // mapping — the parent's invoice_id column owns the association.
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "invoice_id")
     private List<InvoiceItem> items = new ArrayList<>();
 
     protected Invoice() {

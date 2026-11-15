@@ -56,13 +56,19 @@ public class BursarService {
     @Transactional
     public Payment pay(String studentId, String invoiceId, String idempotencyKey,
             long amount, String method, String reference) {
+        // Ownership first: replaying a key must never disclose another
+        // student's payment for an invoice path the caller does not own.
+        Invoice invoice = invoiceFor(studentId, invoiceId);
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             var existing = payments.findByIdempotencyKey(idempotencyKey);
             if (existing.isPresent()) {
-                return existing.get();
+                Payment replayed = existing.get();
+                if (!replayed.getInvoiceId().equals(invoice.getId())) {
+                    throw new BursarConflictException("idempotency key already used for a different payment");
+                }
+                return replayed;
             }
         }
-        Invoice invoice = invoiceFor(studentId, invoiceId);
         if (Invoice.STATUS_CANCELLED.equals(invoice.getStatus())) {
             throw new BursarConflictException("invoice is cancelled");
         }

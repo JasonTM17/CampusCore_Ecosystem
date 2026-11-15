@@ -27,4 +27,4 @@ security:
     refresh-secret: ${JWT_REFRESH_SECRET:dev-insecure-refresh-secret-change-me}
 
 bursar:
-  internal-token: ${BURSAR_INTERNAL_TOKEN:dev-bursar-internal-token}
+  internal-token: ${BURSAR_INTERNAL_TOKEN:}
