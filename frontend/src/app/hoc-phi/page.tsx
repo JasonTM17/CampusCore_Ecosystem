@@ -65,7 +65,7 @@ export default function TuitionPage() {
   const payMutation = useMutation({
     mutationFn: (invoice: BursarInvoice) =>
       bursarApi.pay(invoice.id, {
-        amount: Math.max(1, Math.round(invoice.total)),
+        amount: Math.max(1, Math.round(invoice.remaining)),
         method: 'DEMO',
       }),
     onSuccess: () => {
@@ -83,7 +83,7 @@ export default function TuitionPage() {
     const ok = await confirm({
       title: copy.payConfirmTitle,
       message: copy.payConfirmMessage
-        .replace('{amount}', formatCurrency(invoice.total, 'VND'))
+        .replace('{amount}', formatCurrency(invoice.remaining, 'VND'))
         .replace('{term}', invoice.term),
       confirmText: copy.payAction,
     });

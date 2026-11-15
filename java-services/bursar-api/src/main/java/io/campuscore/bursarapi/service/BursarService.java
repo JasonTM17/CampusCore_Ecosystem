@@ -49,6 +49,12 @@ public class BursarService {
         return holds.findByStudentIdAndStatus(studentId, FinancialHold.STATUS_ACTIVE);
     }
 
+    public long paidAmountFor(String invoiceId) {
+        return payments.findByInvoiceId(invoiceId).stream()
+                .filter(p -> Payment.STATUS_COMPLETED.equals(p.getStatus()))
+                .mapToLong(Payment::getAmount).sum();
+    }
+
     /**
      * Record a payment against an invoice. Idempotent on the client-supplied key:
      * a replayed request returns the original payment without side effects.
@@ -77,8 +83,12 @@ public class BursarService {
         if (Invoice.STATUS_PAID.equals(invoice.getStatus())) {
             throw new BursarConflictException("invoice already paid");
         }
-        if (amount <= 0 || amount > invoice.getTotal()) {
-            throw new BursarValidationException("amount must be between 1 and the invoice total");
+        long paidSoFar = payments.findByInvoiceId(invoiceId).stream()
+                .filter(p -> Payment.STATUS_COMPLETED.equals(p.getStatus()))
+                .mapToLong(Payment::getAmount).sum();
+        long outstanding = invoice.getTotal() - paidSoFar;
+        if (amount <= 0 || amount > outstanding) {
+            throw new BursarValidationException("amount must be between 1 and the outstanding invoice balance");
         }
 
         Payment payment = payments.save(new Payment(
@@ -86,9 +96,7 @@ public class BursarService {
                 (idempotencyKey == null || idempotencyKey.isBlank()) ? null : idempotencyKey,
                 amount, method, reference));
 
-        long paidSoFar = payments.findByInvoiceId(invoiceId).stream()
-                .filter(p -> Payment.STATUS_COMPLETED.equals(p.getStatus()))
-                .mapToLong(Payment::getAmount).sum();
+        paidSoFar += amount;
         if (paidSoFar >= invoice.getTotal()) {
             invoice.setStatus(Invoice.STATUS_PAID);
             invoice.setPaidAt(java.time.Instant.now());

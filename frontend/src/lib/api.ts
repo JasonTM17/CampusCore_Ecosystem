@@ -1444,6 +1444,8 @@ export interface BursarInvoice {
   term: string;
   status: string;
   total: number;
+  paidAmount: number;
+  remaining: number;
   issuedAt: string;
   dueAt: string;
   paidAt: string;
