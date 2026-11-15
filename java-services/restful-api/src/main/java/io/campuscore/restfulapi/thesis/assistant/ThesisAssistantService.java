@@ -1319,20 +1319,36 @@ public class ThesisAssistantService {
      * Mirrors {@link ThesisAssistantKnowledgeRepository#termContribution} so
      * the gate cannot drift from the retrieval engine.
      */
+    /**
+     * Audience/institution words that appear in article titles without saying
+     * anything about the topic ("DevOps cho sinh viên", "Git cho sinh viên").
+     * They still count toward corroboration, but can never be its ONLY
+     * evidence: a repetitive question merely needs "sinh viên" for "sinh",
+     * "viên" and the "sinh viên" alias to all look strong inside such a title
+     * — the round-3 E2E false positive where a "bảo lưu kết quả học tập"
+     * question was served the DevOps document.
+     */
+    private static final java.util.Set<String> NON_TOPIC_TERMS = java.util.Set.of(
+            "sinh", "viên", "vien", "sinh viên", "student", "students");
+
     private static boolean hasTermCorroboration(
             ThesisAssistantKnowledgeRepository.KnowledgeDocument document, List<String> terms) {
         if (document == null || terms == null) return false;
-        int strong = 0;
+        int strong = 0, topicStrong = 0;
         for (String term : terms.stream().filter(term -> term.length() >= 2).distinct().limit(16).toList()) {
             if (ThesisAssistantKnowledgeRepository.termContribution(
                     document.title(), document.content(), term) >= 6) {
                 strong++;
+                if (NON_TOPIC_TERMS.contains(term)) continue;
+                topicStrong++;
                 if (term.indexOf(' ') >= 0 || term.indexOf('/') >= 0 || term.length() >= 7) {
                     return true;
                 }
             }
         }
-        return strong >= 2;
+        // At least one strong term must carry the topic; a pair made purely
+        // of audience words is title furniture, not a topic match.
+        return topicStrong >= 1 && strong >= 2;
     }
 
     private static boolean hasSpecializedQuestionFit(String message, String scope,
