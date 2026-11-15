@@ -91,7 +91,8 @@ public class DemoAccountGate implements ApplicationRunner {
             "lecturer009@campuscore.demo",
             "lecturer010@campuscore.demo",
             "lecturer011@campuscore.demo",
-            "lecturer012@campuscore.demo");
+            "lecturer012@campuscore.demo",
+            "events.staff@campuscore.demo");
 
     private static final String ACTIVE = "ACTIVE";
     /**
