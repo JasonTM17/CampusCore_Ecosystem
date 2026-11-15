@@ -87,6 +87,16 @@ security:
   csrf-header: ${CSRF_HEADER:X-CSRF-Token}
   cookie-secure: ${COOKIE_SECURE:false}
 
+# Bursar service integration: before a new enrollment is persisted the
+# registrar can ask bursar-api whether the student carries an active financial
+# hold. enforcement=true turns the check on (409 TUITION_HOLD); the call is
+# fail-open on transport errors so a bursar outage cannot stall registration.
+bursar:
+  enforcement: ${BURSAR_ENFORCEMENT:false}
+  base-url: ${BURSAR_BASE_URL:}
+  internal-token: ${BURSAR_INTERNAL_TOKEN:}
+  timeout-ms: ${BURSAR_TIMEOUT_MS:2000}
+
 # Identity authority (docs/ecosystem/identity-contract.md). Flag matrix:
 # enabled=false removes the whole /oauth2 + discovery surface; authorize-paused
 # returns 503 on authorize only. Default OFF — schema expand ships first.

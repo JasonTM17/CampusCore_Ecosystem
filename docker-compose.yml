@@ -198,6 +198,56 @@ services:
         aliases:
           - sis-core
 
+  # Registrar office — the dedicated enrollment slice of the same image
+  # (precedent: rag-service). The `enrollment` profile narrows the route
+  # surface to /me/registration, /me/enrollments and /admin/registration via
+  # EnrollmentSliceFilter; registration itself is gated by the bursar's
+  # financial-hold check (BURSAR_ENFORCEMENT=true -> 409 TUITION_HOLD).
+  enrollment-api:
+    build:
+      context: .
+      dockerfile: java-services/restful-api/Dockerfile
+    image: student-management-ute-enrollment-api:local
+    environment:
+      SPRING_PROFILES_ACTIVE: persistence,enrollment
+      SERVER_PORT: 4013
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?Set ASSISTANT_DB_PASSWORD}
+      DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-2000}
+      DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-1000}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?Set HEALTH_READINESS_KEY}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      FLYWAY_ENABLED: "false"
+      DEMO_ACCOUNTS_ENABLED: "false"
+      # Financial-hold enforcement: asks bursar-api before persisting a new
+      # enrollment; fail-open on transport errors (see BursarHoldGate).
+      BURSAR_ENFORCEMENT: ${BURSAR_ENFORCEMENT:-true}
+      BURSAR_BASE_URL: http://bursar-api:4012
+      BURSAR_INTERNAL_TOKEN: ${BURSAR_INTERNAL_TOKEN:?Set BURSAR_INTERNAL_TOKEN}
+      BURSAR_TIMEOUT_MS: ${BURSAR_TIMEOUT_MS:-2000}
+    ports:
+      - "127.0.0.1:${ENROLLMENT_API_HOST_PORT:-4013}:4013"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      assistant-db-provisioner:
+        condition: service_completed_successfully
+      bursar-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: $${HEALTH_READINESS_KEY}\" -O- http://localhost:4013/api/v1/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+    restart: unless-stopped
+
   # Bursar service — the tuition/billing office in the university topology.
   # Owns the `bursar` schema (invoices, payments, financial holds) and exposes
   # /api/v1/me/bursar/* to students plus /internal/bursar/* for service calls.
@@ -265,6 +315,8 @@ services:
       - ./ops/edge/Caddyfile.local:/etc/caddy/Caddyfile:ro
     depends_on:
       restful-api:
+        condition: service_healthy
+      enrollment-api:
         condition: service_healthy
       bursar-api:
         condition: service_healthy

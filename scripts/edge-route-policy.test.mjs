@@ -31,6 +31,7 @@ test('service prefixes point at their dedicated upstreams', () => {
   assert.match(text, /@registrar \{[^}]*path \/api\/v1\/me\/registration\*/s, 'registrar must match /me/registration*');
   assert.match(text, /me\/enrollments\*/, 'registrar must match /me/enrollments*');
   assert.match(text, /@bursar \{[^}]*me\/bursar\*/s, 'bursar must match /me/bursar*');
+  assert.match(text, /reverse_proxy @registrar enrollment-api:4013/, 'registrar upstream must be enrollment-api:4013');
   assert.match(text, /reverse_proxy @bursar bursar-api:4012/, 'bursar upstream must be bursar-api:4012');
 });
 
