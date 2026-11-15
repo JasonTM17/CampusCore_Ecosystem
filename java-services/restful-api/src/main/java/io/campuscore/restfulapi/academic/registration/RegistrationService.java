@@ -376,11 +376,8 @@ public class RegistrationService {
             catalog.removeIf(section -> !wanted.equals(section.departmentId()));
         }
         if (search != null && !search.isBlank()) {
-            String needle = search.trim().toLowerCase(Locale.ROOT);
-            catalog.removeIf(section -> !containsIgnoreCase(section.courseCode(), needle)
-                    && !containsIgnoreCase(section.courseName(), needle)
-                    && !containsIgnoreCase(section.courseNameEn(), needle)
-                    && !containsIgnoreCase(section.courseNameVi(), needle));
+            String[] needles = normalizeSearchText(search).split("\\s+");
+            catalog.removeIf(section -> !matchesSearchTokens(section, needles));
         }
         if ("all".equals(mode)) {
             return catalog;
@@ -394,16 +391,24 @@ public class RegistrationService {
         Set<String> passedCourseIds = new LinkedHashSet<>();
         Set<String> retakeableCourseIds = new LinkedHashSet<>();
         for (Map<String, Object> row : jdbc.queryForList(
-                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade, \"status\" AS enrollment_status"
+                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade, \"status\" AS enrollment_status,"
+                        + " \"gradeStatus\" AS grade_status"
                         + " FROM " + ENROLLMENT + " WHERE \"studentId\" = :studentId",
                 new MapSqlParameterSource("studentId", studentId))) {
             String courseId = String.valueOf(row.get("course_id"));
             String letter = row.get("letter_grade") == null ? null : String.valueOf(row.get("letter_grade"));
             String status = String.valueOf(row.get("enrollment_status"));
-            if (letter != null && !"F".equalsIgnoreCase(letter) && !"W".equalsIgnoreCase(letter)) {
+            // Draft letters are not published results: they must not drive
+            // remaining/retake classification (same gate as the roadmap).
+            String gradeStatus = String.valueOf(row.get("grade_status"));
+            boolean finalResult = Set.of("PUBLISHED", "APPEALED").contains(gradeStatus)
+                    || "COMPLETED".equals(status);
+            if (letter != null && finalResult
+                    && !"F".equalsIgnoreCase(letter) && !"W".equalsIgnoreCase(letter)) {
                 passedCourseIds.add(courseId);
             }
-            if ((letter != null && ("F".equalsIgnoreCase(letter) || "W".equalsIgnoreCase(letter)))
+            if ((letter != null && finalResult
+                    && ("F".equalsIgnoreCase(letter) || "W".equalsIgnoreCase(letter)))
                     || "DROPPED".equals(status)) {
                 retakeableCourseIds.add(courseId);
             }
@@ -418,8 +423,35 @@ public class RegistrationService {
         return catalog;
     }
 
-    private static boolean containsIgnoreCase(String haystack, String needleLower) {
-        return haystack != null && haystack.toLowerCase(Locale.ROOT).contains(needleLower);
+    /**
+     * Accent-insensitive token search matching the client's
+     * normalizeVietnameseText: strip diacritics, lowercase, then every
+     * whitespace token must appear in the combined code + names haystack.
+     */
+    private static String normalizeSearchText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private static boolean matchesSearchTokens(CatalogSectionResponse section, String[] needles) {
+        String haystack = normalizeSearchText(
+                String.join(" ",
+                        section.courseCode() == null ? "" : section.courseCode(),
+                        section.courseName() == null ? "" : section.courseName(),
+                        section.courseNameEn() == null ? "" : section.courseNameEn(),
+                        section.courseNameVi() == null ? "" : section.courseNameVi()));
+        for (String needle : needles) {
+            if (!needle.isEmpty() && !haystack.contains(needle)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -462,6 +494,9 @@ public class RegistrationService {
         Map<String, String> bestLetterByCourse = new LinkedHashMap<>();
         Set<String> inProgressCourseIds = new LinkedHashSet<>();
         Map<String, java.math.BigDecimal> finalGradeByCourse = new LinkedHashMap<>();
+        // {letter, finalGrade} of the best passing attempt, kept atomic so the
+        // pair never mixes attempts.
+        Map<String, Object[]> bestAttemptByCourse = new LinkedHashMap<>();
         for (Map<String, Object> row : jdbc.queryForList(
                 "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade, \"status\" AS enrollment_status,"
                         + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade"
@@ -479,10 +514,29 @@ public class RegistrationService {
                     && !"F".equalsIgnoreCase(letter) && !"W".equalsIgnoreCase(letter)
                     && (Set.of("PUBLISHED", "APPEALED").contains(gradeStatus) || "COMPLETED".equals(status));
             if (passing && satisfiesLetterFloor(List.of(letter), null)) {
-                bestLetterByCourse.merge(courseId, letter,
-                        (a, b) -> LETTER_RANK.getOrDefault(b, -1) > LETTER_RANK.getOrDefault(a, -1) ? b : a);
-                finalGradeByCourse.put(courseId, (java.math.BigDecimal) row.get("final_grade"));
+                // Letter and numeric grade must come from the SAME best
+                // attempt — merging them independently can pair a letter from
+                // one attempt with the numeric grade of another.
+                bestAttemptByCourse.merge(courseId,
+                        new Object[] { letter, (java.math.BigDecimal) row.get("final_grade") },
+                        (a, b) -> {
+                            int ra = LETTER_RANK.getOrDefault((String) a[0], -1);
+                            int rb = LETTER_RANK.getOrDefault((String) b[0], -1);
+                            if (ra != rb) {
+                                return rb > ra ? b : a;
+                            }
+                            java.math.BigDecimal ga = (java.math.BigDecimal) a[1];
+                            java.math.BigDecimal gb = (java.math.BigDecimal) b[1];
+                            if (ga != null && gb != null) {
+                                return gb.compareTo(ga) > 0 ? b : a;
+                            }
+                            return gb != null ? b : a;
+                        });
             }
+        }
+        for (Map.Entry<String, Object[]> entry : bestAttemptByCourse.entrySet()) {
+            bestLetterByCourse.put(entry.getKey(), (String) entry.getValue()[0]);
+            finalGradeByCourse.put(entry.getKey(), (java.math.BigDecimal) entry.getValue()[1]);
         }
 
         List<Map<String, Object>> requirements = planCourseIds.isEmpty()
@@ -505,7 +559,7 @@ public class RegistrationService {
         Map<String, Integer> openSectionCounts = new LinkedHashMap<>();
         for (Map<String, Object> row : jdbc.queryForList(
                 "SELECT \"courseId\" AS course_id, COUNT(*) AS section_count FROM " + SECTION
-                        + " WHERE \"semesterId\" = :semesterId GROUP BY \"courseId\"",
+                        + " WHERE \"semesterId\" = :semesterId AND \"status\" = 'OPEN' GROUP BY \"courseId\"",
                 new MapSqlParameterSource("semesterId", targetSemester))) {
             openSectionCounts.put(String.valueOf(row.get("course_id")),
                     ((Number) row.get("section_count")).intValue());
@@ -597,7 +651,7 @@ public class RegistrationService {
         Map<String, Integer> openSectionCounts = new LinkedHashMap<>();
         for (Map<String, Object> row : jdbc.queryForList(
                 "SELECT \"courseId\" AS course_id, COUNT(*) AS section_count FROM " + SECTION
-                        + " WHERE \"semesterId\" = :semesterId GROUP BY \"courseId\"",
+                        + " WHERE \"semesterId\" = :semesterId AND \"status\" = 'OPEN' GROUP BY \"courseId\"",
                 new MapSqlParameterSource("semesterId", targetSemester))) {
             openSectionCounts.put(String.valueOf(row.get("course_id")),
                     ((Number) row.get("section_count")).intValue());
