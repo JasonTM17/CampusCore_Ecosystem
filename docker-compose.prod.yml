@@ -61,7 +61,7 @@ services:
     command:
       - sh
       - -c
-      - exec env ASSISTANT_DB_PASSWORD=$$(cat /run/secrets/assistant_db_password) node /provision/provision-assistant-runtime.mjs
+      - "exec env ASSISTANT_DB_PASSWORD=\"$$(cat /run/secrets/assistant_db_password)\" node /provision/provision-assistant-runtime.mjs"
     networks: [data]
     depends_on: !override
       postgres:
