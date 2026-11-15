@@ -40,14 +40,22 @@ function errorCode(error: unknown): string {
     ?? '');
 }
 
-function fieldErrors(error: unknown): Record<string, string> {
+function fieldErrors(error: unknown): [string, string][] {
   const errors = (error as { response?: { data?: { fieldErrors?: unknown } } })
     ?.response?.data?.fieldErrors;
-  if (!errors || typeof errors !== 'object' || Array.isArray(errors)) return {};
-  return Object.fromEntries(
-    Object.entries(errors as Record<string, unknown>)
-      .map(([field, message]) => [field, String(message)]),
-  );
+  // Backend sends an array of { field, message }; tolerate a plain map too.
+  if (Array.isArray(errors)) {
+    return errors.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const item = entry as { field?: unknown; message?: unknown };
+      return item.field != null && item.message != null
+        ? [[String(item.field), String(item.message)] as [string, string]]
+        : [];
+    });
+  }
+  if (!errors || typeof errors !== 'object') return [];
+  return Object.entries(errors as Record<string, unknown>)
+    .map(([field, message]) => [field, String(message)] as [string, string]);
 }
 
 function friendlyError(copy: Copy, error: unknown): string {
@@ -61,7 +69,7 @@ function friendlyError(copy: Copy, error: unknown): string {
       essay: copy.essay,
       cycle: copy.cycle,
     };
-    const details = Object.entries(fieldErrors(error))
+    const details = fieldErrors(error)
       .map(([field, message]) => `${labels[field] ?? field}: ${message}`)
       .join('; ');
     return details ? `${copy.validationFailed} ${details}` : copy.failed;
