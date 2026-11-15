@@ -97,19 +97,21 @@ for (const relative of files) {
       }
     }
   }
-  const absolute = path.join(root, relative);
-  let text;
-  try {
-    text = readFileSync(absolute, 'utf8');
-  } catch {
-    continue;
-  }
-  const lines = text.split(/\r?\n/);
-  lines.forEach((line, index) => {
-    for (const [kind, pattern] of contentPatterns) {
-      if (pattern.test(line)) findings.push({ file: relative, line: index + 1, kind });
+  if (!allowedPaths.has(relative)) {
+    const absolute = path.join(root, relative);
+    let text;
+    try {
+      text = readFileSync(absolute, 'utf8');
+    } catch {
+      continue;
     }
-  });
+    const lines = text.split(/\r?\n/);
+    lines.forEach((line, index) => {
+      for (const [kind, pattern] of contentPatterns) {
+        if (pattern.test(line)) findings.push({ file: relative, line: index + 1, kind });
+      }
+    });
+  }
 }
 
 if (findings.length > 0) {
