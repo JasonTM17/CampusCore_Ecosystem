@@ -495,7 +495,10 @@ test('demo polish: feedback surfaces stay scannable on registration and schedule
   await search.fill('SE101');
   await expect(page.getByRole('region', { name: 'SE101 Software Engineering' })).toBeVisible();
   await expect(page.getByRole('region', { name: /AI201/ })).toHaveCount(0);
-  await expect(page.getByText('2 classes').filter({ visible: true }).first()).toBeVisible();
+  // Each course group header carries its visible "{count} classes" tally.
+  await expect(
+    page.getByRole('region', { name: 'SE101 Software Engineering' }).getByText(/\d+ classes?/).first(),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Drop course' }).first()).toBeVisible();
   await noOverflow(page);
 
