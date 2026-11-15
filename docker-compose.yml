@@ -169,6 +169,13 @@ services:
       ASSISTANT_RETENTION_DAYS: ${ASSISTANT_RETENTION_DAYS:-90}
       ASSISTANT_LEXICAL_FAST_PATH: ${ASSISTANT_LEXICAL_FAST_PATH:-true}
       ASSISTANT_LEXICAL_CONFIDENT_SCORE: ${ASSISTANT_LEXICAL_CONFIDENT_SCORE:-11}
+      # Financial-hold enforcement must also run here: the Next.js same-origin
+      # proxy (JAVA_API_ORIGIN) and the legacy /api/v1/enrollments/* routes
+      # reach this service directly, bypassing the edge's enrollment slice.
+      BURSAR_ENFORCEMENT: ${BURSAR_ENFORCEMENT:-true}
+      BURSAR_BASE_URL: http://bursar-api:4012
+      BURSAR_INTERNAL_TOKEN: ${BURSAR_INTERNAL_TOKEN:?Set BURSAR_INTERNAL_TOKEN}
+      BURSAR_TIMEOUT_MS: ${BURSAR_TIMEOUT_MS:-2000}
     ports:
       - "127.0.0.1:${RESTFUL_API_HOST_PORT:-4010}:4010"
     volumes:
@@ -238,6 +245,10 @@ services:
       assistant-db-provisioner:
         condition: service_completed_successfully
       bursar-api:
+        condition: service_healthy
+      # sis-core runs Flyway; on a fresh stack the schema must exist before
+      # this replica's boot gates (DemoAccountGate) read the auth tables.
+      restful-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: $${HEALTH_READINESS_KEY}\" -O- http://localhost:4013/api/v1/health/readiness >/dev/null"]
