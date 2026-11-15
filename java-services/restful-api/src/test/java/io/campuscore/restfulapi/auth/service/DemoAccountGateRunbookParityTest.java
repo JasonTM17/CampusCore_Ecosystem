@@ -37,6 +37,10 @@ class DemoAccountGateRunbookParityTest {
             Path.of("src/main/resources/db/migration/V125__revoke_reconciled_demo_sessions.sql");
     private static final Path V145 =
             Path.of("src/main/resources/db/migration/V145__lock_applicant_demo_accounts.sql");
+    private static final Path V164 =
+            Path.of("src/main/resources/db/migration/V164__seed_events_staff_demo_account.sql");
+    private static final Path V165 =
+            Path.of("src/main/resources/db/migration/V165__activate_debt_student_demo_account.sql");
     private static final Pattern EMAIL = Pattern.compile("'([A-Za-z0-9._-]+@campuscore\\.(?:demo|edu))'");
 
     @Test
@@ -93,6 +97,20 @@ class DemoAccountGateRunbookParityTest {
         assertThat(locked).containsExactlyInAnyOrder(
                 "applicant@campuscore.edu", "applicant2@campuscore.edu");
         assertThat(locked).allMatch(DemoAccountGate.DEMO_EMAILS::contains);
+    }
+
+    @Test
+    void gateCoversTheEventsStaffAccountV164Seeds() throws Exception {
+        assertThat(quotedEmails(V164)).containsExactly("events.staff@campuscore.demo");
+        assertThat(quotedEmails(V164)).allMatch(DemoAccountGate.DEMO_EMAILS::contains);
+    }
+
+    @Test
+    void gateCoversTheDebtShowcaseAccountV165Activates() throws Exception {
+        // The financial-hold walkthrough needs this student login-able on demo
+        // hosts and locked everywhere else — exactly what the gate enforces.
+        assertThat(quotedEmails(V165)).containsExactly("phuong.ttm@campuscore.demo");
+        assertThat(quotedEmails(V165)).allMatch(DemoAccountGate.DEMO_EMAILS::contains);
     }
 
     private static Set<String> quotedEmails(Path migration) throws Exception {
