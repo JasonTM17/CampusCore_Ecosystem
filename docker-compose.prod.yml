@@ -86,6 +86,9 @@ services:
       SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
       HEALTH_READINESS_KEY_FILE: /run/secrets/readiness_key
       ASSISTANT_RAG_SERVICE_TOKEN_FILE: /run/secrets/rag_service_token
+      # Signs owner assertions on remote RAG calls; >=32 chars and distinct
+      # from the service token, else AssistantOwnerAssertion disables signing.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
       ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/campuscore_restful}
       ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
       ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
@@ -154,6 +157,9 @@ services:
       HEALTH_READINESS_KEY_FILE: /run/secrets/readiness_key
       ASSISTANT_RAG_BASE_URL: http://rag-service:4011/internal/rag/assistant
       ASSISTANT_RAG_SERVICE_TOKEN_FILE: /run/secrets/rag_service_token
+      # Same signing secret as rag-service; remote conversation and knowledge
+      # calls return 503 without it.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
       ASSISTANT_KNOWLEDGE_AUTHORITY_MODE: "remote"
       ASSISTANT_RETENTION_ENABLED: "true"
       COOKIE_SECURE: "true"
