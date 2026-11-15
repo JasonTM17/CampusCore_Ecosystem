@@ -986,6 +986,31 @@
       "note": "hub chọn desk theo grant STAFF:<domain>; từng desk đã có lane mobile riêng",
       "decision": "approved",
       "handoff": "web-same-path"
+    },
+    {
+      "id": 78,
+      "web": "/dang-ky-hoc-phan",
+      "native": "/registration",
+      "actor": "S",
+      "mode": "NATIVE-FULL",
+      "laneGated": false,
+      "tier": "MVP",
+      "phase": "P16",
+      "note": "trang đăng ký học phần chuyên dụng (roadmap CTĐT, catalog theo khoa, wishlist); mobile dùng /registration hiện hữu",
+      "decision": "approved",
+      "handoff": null
+    },
+    {
+      "id": 79,
+      "web": "/hoc-phi",
+      "actor": "S",
+      "mode": "WEB-ONLY",
+      "laneGated": false,
+      "tier": "NEXT",
+      "phase": "P16",
+      "note": "học phí/công nợ/hold/thanh toán demo qua bursar-api; chưa có màn mobile",
+      "decision": "approved",
+      "handoff": "web-same-path"
     }
   ]
 }

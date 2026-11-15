@@ -49,7 +49,10 @@ public final class RegistrationDtos {
             boolean scheduleConflict,
             boolean alreadyEnrolled,
             List<SectionScheduleView> schedules,
-            CurriculumRelevance curriculumRelevance) {
+            CurriculumRelevance curriculumRelevance,
+            String departmentId,
+            String departmentCode,
+            String departmentName) {
     }
 
     /**
@@ -102,5 +105,77 @@ public final class RegistrationDtos {
     public record DropResponse(
             @Schema(description = "Thông báo kết quả hủy đăng ký", example = "Enrollment dropped successfully")
             String message) {
+    }
+
+    /** Study-program roadmap for the dedicated registration page. */
+    @Schema(description = "Lộ trình chương trình đào tạo của sinh viên phục vụ đăng ký học phần")
+    public record RoadmapResponse(
+            RoadmapCurriculum curriculum,
+            @Schema(description = "Học kỳ đích mà cờ openSectionCount được tính theo")
+            String semesterId,
+            List<RoadmapCourse> courses) {
+    }
+
+    public record RoadmapCurriculum(
+            String id,
+            String code,
+            String name,
+            String nameEn,
+            String nameVi,
+            int totalCredits) {
+    }
+
+    /**
+     * One course in the student's study program with completion status and
+     * whether it can be taken now (prerequisites met, sections offered).
+     */
+    public record RoadmapCourse(
+            String courseId,
+            String code,
+            String name,
+            String nameEn,
+            String nameVi,
+            int credits,
+            int year,
+            int semester,
+            boolean isMandatory,
+            @Schema(description = "COMPLETED | IN_PROGRESS | NOT_STARTED")
+            String status,
+            java.math.BigDecimal finalGrade,
+            String letterGrade,
+            List<RoadmapPrerequisite> prerequisites,
+            boolean prerequisitesSatisfied,
+            @Schema(description = "Số nhóm lớp mở trong học kỳ đích")
+            int openSectionCount) {
+    }
+
+    /** One requirement row (PREREQ or COREQ) annotated with satisfaction. */
+    public record RoadmapPrerequisite(
+            String courseId,
+            String code,
+            String kind,
+            String minLetterGrade,
+            boolean satisfied) {
+    }
+
+    /** Student-declared intent to take a course (đăng ký nguyện vọng). */
+    public record WishResponse(
+            String id,
+            String courseId,
+            String courseCode,
+            String courseName,
+            String courseNameVi,
+            int credits,
+            String semesterId,
+            int openSectionCount,
+            boolean alreadyEnrolled,
+            Instant createdAt) {
+    }
+
+    public record WishRequest(
+            @Schema(description = "Mã học phần mong muốn đăng ký")
+            String courseId,
+            @Schema(description = "Học kỳ đích")
+            String semesterId) {
     }
 }

@@ -78,16 +78,16 @@ test('thesis repository and announcement placeholders remain concise in both loc
 });
 
 test('dashboard register page preserves vertical spacing between cards and filter inputs', () => {
-  const registerPage = read('src/app/dashboard/register/page.tsx');
+  const registerPage = read('src/app/dang-ky-hoc-phan/page.tsx');
   assert.match(
     registerPage,
-    /grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12/,
-    'register catalog grid must maintain gap-6 vertical spacing between policy card and search card',
+    /grid gap-5 lg:grid-cols-\[300px_minmax\(0,1fr\)_340px\]/,
+    'register workspace grid must preserve the three-column layout spacing',
   );
   assert.match(
     registerPage,
-    /className="space-y-6"/,
-    'register catalog panel must preserve space-y-6 container rhythm',
+    /className="[^"]*space-y-4/,
+    'register catalog panel must preserve the space-y container rhythm',
   );
 });
 

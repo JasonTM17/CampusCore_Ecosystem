@@ -1437,6 +1437,13 @@ class AcademicEnrollmentMutationPersistenceTest {
                 )
                 """);
         jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS "academic"."Department" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "name" VARCHAR(200) NOT NULL,
+                    "code" VARCHAR(40)
+                )
+                """);
+        jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS "academic"."Course" (
                     "id" VARCHAR(120) PRIMARY KEY,
                     "code" VARCHAR(40) NOT NULL,

@@ -140,7 +140,7 @@ test('admin user search commits one query per submit instead of per keystroke', 
 });
 
 test('feedback polish: registration groups classes, filters browse-first, and keeps drop nearby', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
   const messages = read('src/i18n/messages.ts');
 
   // 2026-09 redesign: one unified search box (code OR name, diacritics-insensitive)
@@ -149,14 +149,13 @@ test('feedback polish: registration groups classes, filters browse-first, and ke
   assert.match(page, /matchesSectionSearch/);
   assert.match(page, /curriculumFilter/);
   assert.match(page, /aria-pressed/);
-  // The current registration layout intentionally starts its balanced 8/4
-  // catalog/rail split at lg; all three grid participants use the same breakpoint.
-  assert.match(page, /courseGroups/);
-  assert.match(page, /grid-cols-1 gap-6 lg:grid-cols-12/);
-  assert.match(page, /lg:col-span-8/);
-  assert.match(page, /lg:col-span-4/);
-  assert.match(page, /lg:col-span-12/);
-  assert.doesNotMatch(page, /lg:col-span-[39]/);
+  // The P4 registration workspace uses a three-column layout at lg: curriculum
+  // roadmap rail | grouped catalog | cart + timetable rail. Sections stay
+  // grouped by course inside department buckets.
+  assert.match(page, /courses\.map/);
+  assert.match(page, /grid gap-5 lg:grid-cols-\[300px_minmax\(0,1fr\)_340px\]/);
+  assert.match(page, /<aside className="space-y-3">/);
+  assert.match(page, /<aside className="space-y-4">/);
   assert.match(page, /registered\.map\(\(item\) =>/);
   assert.match(page, /onClick=\{\(\) => void drop\(item\)\}/);
   assert.match(messages, /searchLabel/);
@@ -365,7 +364,7 @@ test('thesis lecturer-student multi-role flow provides group approval, rejection
 
 test('dogfood audit: registration conflicts surface the specific backend code', () => {
   const libSource = read('src/lib/campus-error.ts');
-  const registerPage = read('src/app/dashboard/register/page.tsx');
+  const registerPage = read('src/app/dang-ky-hoc-phan/page.tsx');
   const messagesSource = read('src/i18n/messages.ts');
 
   assert.match(libSource, /export function campusCodeMessage/);
@@ -380,7 +379,7 @@ test('dogfood audit: registration conflicts surface the specific backend code', 
 });
 
 test('registration seat badges keep contrast on selected course rows', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
 
   assert.match(page, /bg-status-success\/10 text-status-success-foreground/);
   assert.doesNotMatch(page, /bg-primary\/10 text-status-success/);
@@ -580,7 +579,7 @@ test('announcements banner names the live semester instead of a hardcoded term',
 });
 
 test('registration picks only rounds whose admission window still covers today', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
 
   // The demo seed once kept an OPEN round whose windowEnd had passed; picking
   // "first OPEN" then failed eligibility with WINDOW_CLOSED and rendered the
