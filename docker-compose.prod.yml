@@ -13,10 +13,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-campuscore}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB:-campuscore_restful}
+      # Feeds the initdb bootstrap below: creates the postgres role plus the
+      # isolated assistant provisioner login before Flyway runs (V84 needs it).
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
     ports: !override []
     volumes: !override
       - campuscore_production_postgres_data:/var/lib/postgresql/data
       - ./ops/secrets/postgres_password:/run/secrets/postgres_password:ro
+      - ./ops/assistant/bootstrap-provisioner.sql:/docker-entrypoint-initdb.d/20-assistant-provisioner.sql:ro
     networks: [data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -25,7 +29,8 @@ services:
       retries: 12
       start_period: 20s
     security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
+    # No cap_drop here: the stock postgres entrypoint starts as root and needs
+    # CHOWN/SETUID/SETGID to prepare the data volume and gosu to postgres.
     deploy:
       resources:
         limits:
@@ -37,6 +42,35 @@ services:
         max-size: 10m
         max-file: "5"
     restart: unless-stopped
+
+  # The owner bootstrap mounted into postgres above creates the isolated roles
+  # and provisioner function during initdb. This one-shot hands the runtime
+  # login its password; it never receives POSTGRES_PASSWORD. Assistant
+  # endpoints answer 503 until it completes (degraded, by design).
+  assistant-db-provisioner:
+    image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+    working_dir: /provision
+    volumes: !override
+      - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
+      - ./ops/secrets/assistant_db_password:/run/secrets/assistant_db_password:ro
+    environment: !override
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      # Private compose network; TLS is not available on the database image.
+      PGSSLMODE: disable
+    command:
+      - sh
+      - -c
+      - exec env ASSISTANT_DB_PASSWORD=$$(cat /run/secrets/assistant_db_password) node /provision/provision-assistant-runtime.mjs
+    networks: [data]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
   rag-service:
     image: ghcr.io/jasontm17/student-management-ute-rag-service:${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}
