@@ -1,7 +1,7 @@
 # Observability contract — correlation id, metrics, log redaction, SLOs & alerts
 
-> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
-> Phần cold-start/hosted-platform và severity runbook là **chuẩn bị cho go-live tương lai**;
+> **Status: live — mặt bằng production đã được khôi phục (Vercel + Render + Neon).**
+> Phần cold-start/hosted-platform và severity runbook áp dụng cho deployment thật;
 > local quick start: [README.md](../../README.md#quick-start-local).
 
 Pha: P03 step 3 · Owner: controller · Review: Kongming + tester contract

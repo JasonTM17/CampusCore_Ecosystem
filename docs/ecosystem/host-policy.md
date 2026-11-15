@@ -1,7 +1,7 @@
 # Host policy — Browser BFF, host isolation và SSO xuyên miền (P05)
 
-> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
-> Các host `*.campusute.io.vn` dưới đây là **thiết kế host đích tương lai**; local quick start:
+> **Status: live — mặt bằng production đã được khôi phục (Vercel + Render + Neon).**
+> Các host `*.campusute.io.vn` dưới đây là host production đang chạy; local quick start:
 > [README.md](../../README.md#quick-start-local).
 
 Contract implementation của ADR-B phần browser surface (selected-design §ADR-B,

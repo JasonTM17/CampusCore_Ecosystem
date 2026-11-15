@@ -1,7 +1,7 @@
 # Release runbook — local demo candidate → future go-live → rollback
 
-> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
-> Runbook này mô tả quy trình release/go-live **tương lai**; local quick start nằm ở
+> **Status: live — mặt bằng production đã được khôi phục (Vercel + Render + Neon).**
+> Runbook này mô tả quy trình release/go-live của deployment thật; local quick start nằm ở
 > [README.md](../../README.md#quick-start-local).
 
 C2 P14: một release hội tụ D0–D10 (synthetic demo, chưa pilot). Mọi bước
