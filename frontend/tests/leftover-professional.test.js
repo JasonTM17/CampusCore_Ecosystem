@@ -58,7 +58,7 @@ test('leftover sources do not add new locale === vi UI dictionaries', () => {
 });
 
 test('register dashboard uses bilingual messages and local gold CTA', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
   const api = read('src/lib/api.ts');
   assert.doesNotMatch(page, /locale === 'vi'/);
   assert.doesNotMatch(page, /\.catch\(\s*\(\)\s*=>\s*\[\]\s*\)/);

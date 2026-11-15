@@ -10,6 +10,7 @@ import {
   Bookmark,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   CircleDashed,
   ClipboardList,
   CreditCard,
@@ -17,6 +18,7 @@ import {
   GraduationCap,
   Lock,
   Search,
+  ShieldCheck,
   Star,
   Trash2,
   Wallet,
@@ -59,10 +61,12 @@ import {
 } from '@/components/schedule/weekly-grid';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
+import { getLocalizedName } from '@/lib/academic-content';
 import { countLabel } from '@/lib/plural';
 import { toast } from 'sonner';
 
 const ACTIVE_ENROLLMENT_STATUSES = new Set(['ENROLLED', 'CONFIRMED', 'PENDING']);
+const ROUND_UNAVAILABLE_CODES = new Set(['WINDOW_CLOSED', 'COHORT_INELIGIBLE', 'ROUND_NOT_FOUND']);
 const SORT_MODES: SectionSortMode[] = ['code', 'credits', 'seats'];
 const CATALOG_MODES: RegistrationCatalogMode[] = ['all', 'curriculum', 'remaining', 'retake'];
 
@@ -122,10 +126,11 @@ export default function CourseRegistrationPage() {
   const nowBucket = Math.floor(Date.now() / 60_000);
   const currentRound = useMemo(() => {
     const rounds = roundsQuery.data ?? [];
+    const now = Date.now();
     const withinWindow = (round: { status: string; windowStart: string; windowEnd: string }) =>
       round.status === 'OPEN'
-      && new Date(round.windowStart).getTime() <= Date.now()
-      && Date.now() <= new Date(round.windowEnd).getTime();
+      && new Date(round.windowStart).getTime() <= now
+      && now <= new Date(round.windowEnd).getTime();
     const live = rounds.filter(withinWindow);
     return live.find((round) => round.kind === 'REGISTRATION') ?? live[0] ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,7 +152,8 @@ export default function CourseRegistrationPage() {
   );
 
   // ---- catalog filters (server-side params + client refinements) ----
-  const [mode, setMode] = useState<RegistrationCatalogMode>('curriculum');
+  const [curriculumFilter, setCurriculumFilter] = useState<RegistrationCatalogMode>('curriculum');
+  const [policyOpen, setPolicyOpen] = useState(false);
   const [departmentId, setDepartmentId] = useState<string>('');
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -181,12 +187,12 @@ export default function CourseRegistrationPage() {
   );
 
   const sectionsQuery = useApiQuery(
-    ['registration', 'sections', roundId ?? '', mode, departmentId, debouncedSearch],
+    ['registration', 'sections', roundId ?? '', curriculumFilter, departmentId, debouncedSearch],
     () =>
       registrationApi.sections({
         semesterId,
         roundId,
-        mode,
+        mode: curriculumFilter,
         departmentId: departmentId || undefined,
         search: debouncedSearch || undefined,
       }),
@@ -452,10 +458,20 @@ export default function CourseRegistrationPage() {
       toast.error(message);
       return;
     }
+    // Soft policy warnings stack in one banner: an outside-curriculum class
+    // and a schedule-less class each warn, but neither blocks the confirm.
+    const warnings: string[] = [];
+    if (section.curriculumRelevance === 'OUTSIDE') {
+      warnings.push(copy.outsideWarningBanner);
+    }
+    if ((section.schedules ?? []).length === 0) {
+      warnings.push(copy.scheduleNoneWarning);
+    }
     const ok = await confirm({
       title: copy.confirmRegister,
       message: copy.confirmRegisterMessage.replace('{section}', sectionLabel(section, sectionId)),
       confirmText: copy.register,
+      warning: warnings.length > 0 ? warnings.join(' ') : undefined,
     });
     if (!ok) return;
     setPending(sectionId);
@@ -493,7 +509,7 @@ export default function CourseRegistrationPage() {
 
   const focusCourse = (courseCode: string) => {
     setDepartmentId('');
-    setMode('all');
+    setCurriculumFilter('all');
     setSearchText(courseCode);
     setDebouncedSearch(courseCode);
   };
@@ -515,7 +531,17 @@ export default function CourseRegistrationPage() {
     return <WorkspaceForbiddenState signedIn={Boolean(user)} />;
   }
 
-  const roundOpen = Boolean(roundId) && !eligibilityQuery.isError;
+  const eligibilityErrorCode = eligibilityQuery.error ? campusErrorCode(eligibilityQuery.error) : undefined;
+  // A cohort rejection is about this student, not about the round's window:
+  // keep it out of the "no round is open" answer and say why registration is
+  // blocked.
+  const eligibilityBlocked =
+    eligibilityErrorCode === 'COHORT_INELIGIBLE'
+    || eligibilityQuery.data?.eligible === false;
+  const roundOpen =
+    Boolean(roundId)
+    && !(eligibilityQuery.isError && ROUND_UNAVAILABLE_CODES.has(eligibilityErrorCode ?? ''))
+    && !eligibilityBlocked;
 
   return (
     <div className="min-h-screen bg-background">
@@ -539,7 +565,7 @@ export default function CourseRegistrationPage() {
 
         <PageHeader
           eyebrow={<SectionEyebrow>{pro.eyebrow}</SectionEyebrow>}
-          title={pro.title}
+          title={copy.title}
           description={pro.description}
         />
 
@@ -567,15 +593,19 @@ export default function CourseRegistrationPage() {
         )}
 
         {actionError && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-status-danger/40 bg-status-danger/10 px-4 py-2.5 text-sm text-status-danger-foreground">
+          <div role="alert" aria-live="polite" className="mt-4 flex items-center gap-2 rounded-lg border border-status-danger/40 bg-status-danger/10 px-4 py-2.5 text-sm text-status-danger-foreground">
             <AlertCircle className="h-4 w-4" />
             {actionError}
           </div>
         )}
 
-        {!roundOpen && !roundsQuery.isPending && (
+        {(!roundOpen || eligibilityBlocked) && (
           <div className="mt-6">
-            <EmptyState title={copy.roundUnavailable} description={copy.roundUnavailableDescription} />
+            {roundsQuery.isPending ? (null) : eligibilityBlocked ? (
+              <EmptyState title={copy.errorCodes.cohortIneligible} description={copy.cohortIneligibleDescription} />
+            ) : (
+              <EmptyState title={copy.roundUnavailable} description={copy.roundUnavailableDescription} />
+            )}
           </div>
         )}
 
@@ -673,9 +703,7 @@ export default function CourseRegistrationPage() {
                                         </span>
                                       </span>
                                       <span className="block truncate text-[10px] text-muted-foreground">
-                                        {locale === 'vi'
-                                          ? course.nameVi || course.name
-                                          : course.nameEn || course.name}
+                                        {getLocalizedName(locale, course)}
                                       </span>
                                     </span>
                                   </button>
@@ -707,6 +735,59 @@ export default function CourseRegistrationPage() {
 
             {/* ------- Center: catalog ------- */}
             <section className="min-w-0 space-y-4">
+              <Card className="min-w-0 overflow-hidden border-primary/20 bg-gradient-to-br from-primary/[0.06] via-card to-card" data-testid="credit-limit-policy">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 border-b border-primary/10 px-4 py-3 text-left"
+                  aria-expanded={policyOpen}
+                  onClick={() => setPolicyOpen((open) => !open)}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="text-base font-semibold text-foreground">{copy.limitPolicyTitle}</span>
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${policyOpen ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+                {policyOpen ? (
+                  <CardContent className="space-y-4 p-4">
+                    <p className="text-xs leading-5 text-muted-foreground sm:text-sm">
+                      {copy.limitPolicyDescription}
+                    </p>
+                    <div className="rounded-xl border border-border/70 bg-card/80 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        {copy.termCreditLimitLabel}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-foreground">
+                        {creditLimit === null ? (
+                          <span className="text-muted-foreground">{copy.creditLimitUnavailable}</span>
+                        ) : (
+                          <>
+                            {formatNumber(creditLimit)}{' '}
+                            <span className="text-sm font-medium text-muted-foreground">{copy.creditsUnit}</span>
+                          </>
+                        )}
+                      </p>
+                      {creditLimit !== null && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {totalRegisteredCredits > creditLimit
+                            ? copy.creditLimitExceeded.replace('{limit}', formatNumber(creditLimit))
+                            : totalRegisteredCredits === creditLimit
+                              ? copy.creditLimitReached.replace('{limit}', formatNumber(creditLimit))
+                              : countLabel(
+                                  creditLimit - totalRegisteredCredits,
+                                  copy.creditLimitRemainingOne,
+                                  copy.creditLimitRemaining,
+                                ).replace('{count}', formatNumber(creditLimit - totalRegisteredCredits))}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                ) : null}
+              </Card>
+
               <Card>
                 <CardContent className="flex flex-wrap items-end gap-3 p-4">
                   <div className="min-w-[220px] flex-1">
@@ -726,13 +807,17 @@ export default function CourseRegistrationPage() {
                       {pro.modeLabel}
                     </label>
                     <div className="flex flex-wrap gap-1">
+                      <span className="sr-only" aria-live="polite">
+                        {countLabel(filteredSections.length, copy.sectionCountSingular, copy.sectionCount)}
+                      </span>
                       {CATALOG_MODES.map((option) => (
                         <button
                           key={option}
                           type="button"
-                          onClick={() => setMode(option)}
+                          onClick={() => setCurriculumFilter(option)}
+                          aria-pressed={curriculumFilter === option}
                           className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            mode === option
+                            curriculumFilter === option
                               ? 'border-primary bg-primary/10 text-primary'
                               : 'border-border bg-card text-muted-foreground hover:bg-accent'
                           }`}
@@ -876,6 +961,7 @@ export default function CourseRegistrationPage() {
                           {group.sections.map((section) => {
                             const enrolled = enrollmentBySection.get(section.id);
                             const tier = seatTier(section);
+                            const schedules = section.schedules ?? [];
                             return (
                               <li
                                 key={section.id}
@@ -908,12 +994,12 @@ export default function CourseRegistrationPage() {
                                   </p>
                                 </div>
                                 <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-                                  {(section.schedules ?? []).length === 0 && (
+                                  {schedules.length === 0 ? (
                                     <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                                       {copy.scheduleNone}
                                     </span>
-                                  )}
-                                  {(section.schedules ?? []).map(
+                                  ) : null}
+                                  {schedules.map(
                                     (schedule: RegistrationSectionSchedule, index: number) => (
                                       <span
                                         key={index}
@@ -947,12 +1033,13 @@ export default function CourseRegistrationPage() {
                                       {pending === enrolled.id ? copy.working : copy.drop}
                                     </Button>
                                   ) : section.alreadyEnrolled ? (
-                                    <span className="inline-flex items-center gap-1 rounded-md bg-status-success/10 px-2.5 py-1.5 text-xs font-medium text-status-success-foreground">
+                                    <span title={copy.duplicateCourseTooltip} className="inline-flex items-center gap-1 rounded-md bg-status-success/10 text-status-success-foreground px-2.5 py-1.5 text-xs font-medium">
                                       <CheckCircle2 className="h-3.5 w-3.5" />
                                       {copy.registered}
                                     </span>
                                   ) : (
                                     <Button
+                                      variant="registration"
                                       size="sm"
                                       disabled={
                                         pending === section.id
@@ -1044,7 +1131,7 @@ export default function CourseRegistrationPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">
                           {wish.courseCode} —{' '}
-                          {locale === 'vi' ? wish.courseNameVi || wish.courseName : wish.courseName}
+                          {getLocalizedName(locale, { name: wish.courseName, nameEn: wish.courseName, nameVi: wish.courseNameVi })}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {formatNumber(wish.credits)} {copy.creditsUnit}

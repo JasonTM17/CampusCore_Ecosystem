@@ -83,7 +83,7 @@ test('lecturer geofence checkin panel omits redundant open hint', () => {
 });
 
 test('course registration policy accordion keeps button header concise and avoids layout overflow', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
   const buttonHeaderStart = page.indexOf('<button');
   const buttonHeaderEnd = page.indexOf('</button>', buttonHeaderStart);
   const buttonContent = page.slice(buttonHeaderStart, buttonHeaderEnd);

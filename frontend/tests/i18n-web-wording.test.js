@@ -158,7 +158,7 @@ test('English count copy inflects while Vietnamese count copy stays unchanged', 
   assert.equal(vi.curriculum.creditLabel, vi.curriculum.creditsLabel);
   assert.equal(vi.lecturerAttendance.savedSuccessSingular, vi.lecturerAttendance.savedSuccess);
 
-  assert.match(read('src/app/dashboard/register/page.tsx'), /countLabel\(/);
+  assert.match(read('src/app/dang-ky-hoc-phan/page.tsx'), /countLabel\(/);
   assert.match(read('src/app/dashboard/curriculum/page.tsx'), /countLabel\(/);
   assert.match(read('src/app/dashboard/lecturer/attendance/page.tsx'), /countLabel\(/);
 });

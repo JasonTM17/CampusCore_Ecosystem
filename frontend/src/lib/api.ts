@@ -1358,7 +1358,7 @@ export const registrationApi = {
     const response = await api.post<RegistrationWish>(
       '/me/registration/wishes',
       { courseId, semesterId },
-      { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+      { headers: { 'Idempotency-Key': createRequestId() } },
     );
     return response.data;
   },

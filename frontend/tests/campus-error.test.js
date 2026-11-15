@@ -57,7 +57,7 @@ test('general-user page and message sources ban technical internals', () => {
 
 test('student and lecturer pages map failures instead of backend envelope fields', () => {
   const dashboard = walk('src/app/dashboard').map(read).join('\n');
-  const register = read('src/app/dashboard/register/page.tsx');
+  const register = read('src/app/dang-ky-hoc-phan/page.tsx');
   const enrollments = read('src/app/dashboard/enrollments/page.tsx');
   const profile = read('src/app/dashboard/profile/page.tsx');
   const lecturerGrades = read('src/app/dashboard/lecturer/grades/[id]/page.tsx');
