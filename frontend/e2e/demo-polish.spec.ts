@@ -327,6 +327,31 @@ async function mockStudent(page: Page, singleTerm = false, overrides: Record<str
         enrollmentIds: ['meeting-0'],
       },
       '/api/v1/me/registration/credit-limit-application': null,
+      // The dedicated registrar workspace also loads the curriculum roadmap,
+      // the wishlist, and the bursar account card on mount.
+      '/api/v1/me/registration/roadmap': {
+        curriculum: {
+          id: 'curriculum-demo', code: 'SE-DEMO', name: 'Demo curriculum',
+          nameEn: 'Demo curriculum', nameVi: 'Chương trình mô phỏng', totalCredits: 9,
+        },
+        semesterId: 'term-2',
+        courses: [
+          {
+            courseId: 'course-se101', code: 'SE101', name: 'Software Engineering',
+            nameEn: 'Software Engineering', nameVi: 'Kỹ thuật phần mềm', credits: 3,
+            year: 1, semester: 1, isMandatory: true, status: 'IN_PROGRESS',
+            prerequisites: [], prerequisitesSatisfied: true, openSectionCount: 2,
+          },
+          {
+            courseId: 'course-ai201', code: 'AI201', name: 'Applied AI',
+            nameEn: 'Applied AI', nameVi: 'AI ứng dụng', credits: 3,
+            year: 1, semester: 2, isMandatory: true, status: 'ELIGIBLE',
+            prerequisites: [], prerequisitesSatisfied: true, openSectionCount: 1,
+          },
+        ],
+      },
+      '/api/v1/me/registration/wishes': [],
+      '/api/bursar/account': { accountId: 'acct-demo', balance: 0, currency: 'VND', holds: [] },
       '/api/v1/me/registration/sections': [
         {
           id: 'section-se101-01', sectionNumber: '01', courseId: 'course-se101',
@@ -495,7 +520,10 @@ test('demo polish: feedback surfaces stay scannable on registration and schedule
   await search.fill('SE101');
   await expect(page.getByRole('region', { name: 'SE101 Software Engineering' })).toBeVisible();
   await expect(page.getByRole('region', { name: /AI201/ })).toHaveCount(0);
-  await expect(page.getByText('2 classes').filter({ visible: true }).first()).toBeVisible();
+  // Each course group header carries its visible "{count} classes" tally.
+  await expect(
+    page.getByRole('region', { name: 'SE101 Software Engineering' }).getByText(/\d+ classes?/).first(),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Drop course' }).first()).toBeVisible();
   await noOverflow(page);
 

@@ -37,9 +37,9 @@ function loadTypeScriptModule(relativePath) {
 test('the retained portal surfaces are present', () => {
   for (const relativePath of [
     'src/app/login/page.tsx',
-    'src/app/dashboard/register/page.tsx',
+    'src/app/dang-ky-hoc-phan/page.tsx',
     'src/app/dashboard/page.tsx',
-    'src/app/dashboard/register/page.tsx',
+    'src/app/dang-ky-hoc-phan/page.tsx',
     'src/app/dashboard/announcements/page.tsx',
     'src/app/dashboard/notifications/page.tsx',
     'src/app/dashboard/thesis/page.tsx',

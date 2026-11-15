@@ -215,7 +215,7 @@ test('lane routes cover exactly the lane-gated rows of the parity manifest', () 
   const manifest = JSON.parse(
     fs.readFileSync(path.join(repoRoot, 'contracts/ecosystem/mobile-parity.json'), 'utf8'),
   );
-  assert.equal(manifest.routes.length, 77);
+  assert.equal(manifest.routes.length, 79);
   // Dynamic web segments (`[param]`) collapse to the lane's static path.
   const gated = manifest.routes
     .filter((route) => route.laneGated)

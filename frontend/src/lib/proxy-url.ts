@@ -64,6 +64,14 @@ export function resolveJavaApiOrigin(env: JavaApiEnvironment = process.env): str
   return (configuredOrigin || DEFAULT_JAVA_API_ORIGIN).replace(/\/+$/, '');
 }
 
+const DEFAULT_BURSAR_API_ORIGIN = 'http://127.0.0.1:4012';
+
+/** Origin of the dedicated tuition service the /api/bursar proxy targets. */
+export function resolveBursarApiOrigin(env: JavaApiEnvironment = process.env): string {
+  const configuredOrigin = env.BURSAR_API_ORIGIN?.trim();
+  return (configuredOrigin || DEFAULT_BURSAR_API_ORIGIN).replace(/\/+$/, '');
+}
+
 export function buildApiProxyUrl(
   origin: string,
   path: readonly string[],

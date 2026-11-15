@@ -164,7 +164,7 @@ test('student and lecturer mobile nav reserves an assistant slot below md', () =
 test('wrong-role and unsigned access surfaces ForbiddenState instead of a spinner', () => {
   const auth = read('src/context/AuthContext.tsx');
   const route = read('src/components/ProtectedRoute.tsx');
-  const register = read('src/app/dashboard/register/page.tsx');
+  const register = read('src/app/dang-ky-hoc-phan/page.tsx');
 
   assert.match(auth, /isForbidden/);
   assert.match(route, /ForbiddenState/);
@@ -177,7 +177,7 @@ test('wrong-role and unsigned access surfaces ForbiddenState instead of a spinne
 });
 
 test('registration drop actions only bind active enrollments, not completed history', () => {
-  const register = read('src/app/dashboard/register/page.tsx');
+  const register = read('src/app/dang-ky-hoc-phan/page.tsx');
 
   assert.match(register, /ACTIVE_ENROLLMENT_STATUSES/);
   assert.match(

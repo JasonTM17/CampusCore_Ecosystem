@@ -164,7 +164,7 @@ test('the public signup route explains the Academic Office issuance policy', () 
 });
 
 test('the course registration page surfaces failures inline, not only as toasts', () => {
-  const source = readSource('src/app/dashboard/register/page.tsx');
+  const source = readSource('src/app/dang-ky-hoc-phan/page.tsx');
   assert.ok(source.includes('aria-live'), 'inline errors must live-announce');
   assert.ok(source.includes('actionError'), 'enrollment failures set the inline region');
 });
@@ -202,7 +202,7 @@ test('the CI gate derives the expected schema boundary from the migrations', () 
 // ---------- Item 1: browse-first catalog (2026-09 registration redesign) ----------
 
 test('the course registration page renders the full catalog immediately, browse-first', () => {
-  const source = readSource('src/app/dashboard/register/page.tsx');
+  const source = readSource('src/app/dang-ky-hoc-phan/page.tsx');
   // The old search-gate empty state is gone: the catalog renders unconditionally
   // behind one unified search box plus filter chips with live counts.
   assert.ok(!source.includes('hasSearchQuery'), 'the search gate must stay removed');
@@ -210,7 +210,7 @@ test('the course registration page renders the full catalog immediately, browse-
   assert.ok(source.includes('matchesSectionSearch(section, searchText)'), 'one unified search filters code and name');
   assert.ok(source.includes('curriculumFilter'), 'curriculum chips filter the catalog');
   assert.ok(source.includes('copy.sectionCount'), 'the live result count is always rendered');
-  assert.ok(source.includes('courseGroups.map'), 'sections stay grouped by course');
+  assert.ok(source.includes('courses.map'), 'sections stay grouped by course');
 });
 
 test('the thesis topic catalog is search-first and loads no topics before a query', () => {

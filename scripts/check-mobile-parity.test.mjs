@@ -215,7 +215,7 @@ test('route count inflation still fails', () =>
     async (run) => {
       const result = await run();
       assert.ok(
-        result.errors.some((e) => /77/.test(e)),
+        result.errors.some((e) => /79/.test(e)),
         JSON.stringify(result.errors),
       );
     },

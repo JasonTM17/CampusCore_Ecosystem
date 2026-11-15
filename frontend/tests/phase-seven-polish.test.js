@@ -16,7 +16,7 @@ function localeHalves(messagesSource) {
 }
 
 test('register page disabled-button tooltips and rail label are dictionary driven', () => {
-  const page = read('src/app/dashboard/register/page.tsx');
+  const page = read('src/app/dang-ky-hoc-phan/page.tsx');
 
   assert.match(page, /copy\.scheduleConflictTooltip/);
   assert.match(page, /copy\.duplicateCourseTooltip/);

@@ -15,7 +15,7 @@ const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const MODES = new Set(['NATIVE-FULL', 'NATIVE-READ', 'NATIVE-LITE', 'WEB-ONLY']);
 const DECISIONS = new Set(['approved', 'approved-flag-gated']);
 const HANDOFFS = new Set(['web-same-path', null]);
-const EXPECTED_ROUTES = 77;
+const EXPECTED_ROUTES = 79;
 
 /**
  * Manifest actor → the UI role its declared native surface must accept.

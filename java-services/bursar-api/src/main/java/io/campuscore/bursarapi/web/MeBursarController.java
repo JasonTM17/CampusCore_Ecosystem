@@ -58,14 +58,14 @@ public class MeBursarController {
     public List<Map<String, Object>> invoices(@AuthenticationPrincipal Jwt jwt) {
         String studentId = studentIdOf(jwt);
         return bursar.invoicesFor(studentId).stream()
-                .map(i -> invoiceDto(i, i.getItems())).toList();
+                .map(i -> invoiceDto(i, i.getItems(), bursar.paidAmountFor(i.getId()))).toList();
     }
 
     @GetMapping("/invoices/{invoiceId}")
     public Map<String, Object> invoice(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String invoiceId) {
         Invoice invoice = bursar.invoiceFor(studentIdOf(jwt), invoiceId);
-        return invoiceDto(invoice, invoice.getItems());
+        return invoiceDto(invoice, invoice.getItems(), bursar.paidAmountFor(invoice.getId()));
     }
 
     @GetMapping("/holds")
@@ -91,7 +91,7 @@ public class MeBursarController {
                 "paidAt", payment.getPaidAt().toString()));
     }
 
-    static Map<String, Object> invoiceDto(Invoice invoice, List<InvoiceItem> items) {
+    static Map<String, Object> invoiceDto(Invoice invoice, List<InvoiceItem> items, long paidAmount) {
         var itemDtos = (items == null ? List.<InvoiceItem>of() : items).stream()
                 .map(it -> Map.<String, Object>of(
                         "id", it.getId(),
@@ -101,16 +101,19 @@ public class MeBursarController {
                         "unitPrice", it.getUnitPrice(),
                         "amount", it.getAmount()))
                 .toList();
-        return Map.of(
-                "id", invoice.getId(),
-                "studentId", invoice.getStudentId(),
-                "term", invoice.getTerm(),
-                "status", invoice.getStatus(),
-                "total", invoice.getTotal(),
-                "issuedAt", invoice.getIssuedAt().toString(),
-                "dueAt", invoice.getDueAt() == null ? "" : invoice.getDueAt().toString(),
-                "paidAt", invoice.getPaidAt() == null ? "" : invoice.getPaidAt().toString(),
-                "items", itemDtos);
+        java.util.Map<String, Object> dto = new java.util.LinkedHashMap<>();
+        dto.put("id", invoice.getId());
+        dto.put("studentId", invoice.getStudentId());
+        dto.put("term", invoice.getTerm());
+        dto.put("status", invoice.getStatus());
+        dto.put("total", invoice.getTotal());
+        dto.put("paidAmount", paidAmount);
+        dto.put("remaining", Math.max(0, invoice.getTotal() - paidAmount));
+        dto.put("issuedAt", invoice.getIssuedAt().toString());
+        dto.put("dueAt", invoice.getDueAt() == null ? "" : invoice.getDueAt().toString());
+        dto.put("paidAt", invoice.getPaidAt() == null ? "" : invoice.getPaidAt().toString());
+        dto.put("items", itemDtos);
+        return dto;
     }
 
     static Map<String, Object> holdDto(FinancialHold hold) {
