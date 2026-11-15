@@ -31,21 +31,21 @@ function executeDeclaration(file, name, dependencies) {
 }
 
 test('registration separates cohort ineligibility from a closed round', () => {
-  const source = read('src/app/dashboard/register/page.tsx');
+  const source = read('src/app/dang-ky-hoc-phan/page.tsx');
   const copy = read('src/i18n/messages.ts');
 
   const blockedForCohort = executeDeclaration(
-    'app/dashboard/register/page.tsx',
+    'app/dang-ky-hoc-phan/page.tsx',
     'eligibilityBlocked',
     { eligibilityErrorCode: 'COHORT_INELIGIBLE', eligibilityQuery: { data: undefined } },
   );
   const blockedForFlag = executeDeclaration(
-    'app/dashboard/register/page.tsx',
+    'app/dang-ky-hoc-phan/page.tsx',
     'eligibilityBlocked',
     { eligibilityErrorCode: undefined, eligibilityQuery: { data: { eligible: false } } },
   );
   const openForEveryoneElse = executeDeclaration(
-    'app/dashboard/register/page.tsx',
+    'app/dang-ky-hoc-phan/page.tsx',
     'eligibilityBlocked',
     { eligibilityErrorCode: 'WINDOW_CLOSED', eligibilityQuery: { data: { eligible: true } } },
   );

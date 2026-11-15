@@ -65,6 +65,10 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required by base Compose; generated per checkout by `local-dev` |
 | `METRICS_SCRAPE_KEY` | Bearer key for `X-Metrics-Key` header on `GET /actuator/prometheus` | secret | when metrics scraping is enabled | safe default `""` (endpoint fails closed with 403 when unset; boots cleanly) |
 | `INTERNAL_SERVICE_TOKEN` | Reserved name set by `docker-compose.e2e.yml`; no service reads it (the internal lane authenticates with `ASSISTANT_RAG_SERVICE_TOKEN`) | secret | — | unused; setting it has no effect |
+| `BURSAR_ENFORCEMENT` | Enable the enrollment financial-hold gate (`BursarHoldGate`) in the registrar slice | config | enrollment-api | safe default `false`; Compose pins `true` |
+| `BURSAR_BASE_URL` | Internal bursar-api base URL used by the hold gate | config | enrollment-api | safe default empty (gate inactive without it); Compose sets `http://bursar-api:4012` |
+| `BURSAR_INTERNAL_TOKEN` | Shared secret on `X-Bursar-Service-Token` for `/internal/bursar/**` | secret | bursar-api, enrollment-api | required for the hold gate; `local-dev` generates it |
+| `BURSAR_TIMEOUT_MS` | Connect/read timeout for the hold gate HTTP call | config | enrollment-api | safe default `2000` |
 
 ## 3. Databases & pools
 

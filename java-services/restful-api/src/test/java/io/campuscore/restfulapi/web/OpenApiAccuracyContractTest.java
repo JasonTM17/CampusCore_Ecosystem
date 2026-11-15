@@ -80,7 +80,8 @@ class OpenApiAccuracyContractTest {
             "POST /api/v1/library/requests",
             "POST /api/v1/library/requests/{requestId}/cancel",
             "POST /api/v1/me/enrollments",
-            "POST /api/v1/me/enrollments/{id}/drop");
+            "POST /api/v1/me/enrollments/{id}/drop",
+            "POST /api/v1/me/registration/wishes");
 
     @Autowired
     private MockMvc mvc;

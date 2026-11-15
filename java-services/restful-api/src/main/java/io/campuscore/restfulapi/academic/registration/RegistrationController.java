@@ -4,9 +4,12 @@ import io.campuscore.restfulapi.academic.registration.RegistrationDtos.CatalogSe
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.CurriculumRelevance;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.DropResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.EligibilityResponse;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoadmapResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoundResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.SectionScheduleView;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.SummaryResponse;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.WishRequest;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.WishResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationService.SlipPayload;
 import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos.CreateRequest;
 import io.campuscore.restfulapi.academic.registration.CreditLimitApplicationDtos.Response;
@@ -26,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -98,8 +102,65 @@ public class RegistrationController {
     public List<CatalogSectionResponse> sections(
             @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "Mã định danh học kỳ (UUID)") @RequestParam(required = false) String semesterId,
-            @Parameter(description = "Mã định danh đợt đăng ký (UUID)") @RequestParam(required = false) String roundId) {
-        return registration.catalog(jwt.getClaimAsString("studentId"), semesterId, roundId);
+            @Parameter(description = "Mã định danh đợt đăng ký (UUID)") @RequestParam(required = false) String roundId,
+            @Parameter(description = "Chế độ lọc: all (mặc định), curriculum (trong CTĐT), remaining (chưa học trong CTĐT), retake (học lại)")
+            @RequestParam(required = false) String mode,
+            @Parameter(description = "Lọc theo khoa (Department ID)") @RequestParam(required = false) String departmentId,
+            @Parameter(description = "Tìm kiếm theo mã hoặc tên học phần") @RequestParam(required = false) String search) {
+        return registration.catalog(jwt.getClaimAsString("studentId"), semesterId, roundId, mode, departmentId, search);
+    }
+
+    @Operation(summary = "Lộ trình CTĐT phục vụ đăng ký", description = "Cây chương trình đào tạo Năm → Kỳ → Môn với trạng thái hoàn thành, tiên quyết thỏa mãn và số nhóm mở trong học kỳ đích — nguồn dữ liệu cho trang đăng ký học phần chuyên dụng.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Lộ trình CTĐT"),
+        @ApiResponse(responseCode = "404", description = "Sinh viên chưa được gán CTĐT", content = @Content)
+    })
+    @GetMapping("me/registration/roadmap")
+    @PreAuthorize("hasRole('STUDENT')")
+    public RoadmapResponse roadmap(
+            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "Học kỳ đích tính cờ nhóm mở; mặc định học kỳ của đợt đăng ký đang mở") @RequestParam(required = false) String semesterId) {
+        return registration.roadmap(jwt.getClaimAsString("studentId"), semesterId);
+    }
+
+    @Operation(summary = "Danh sách nguyện vọng đăng ký", description = "Các học phần sinh viên lưu lại để theo dõi (đăng ký nguyện vọng) cho một học kỳ.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Danh sách nguyện vọng")
+    })
+    @GetMapping("me/registration/wishes")
+    @PreAuthorize("hasRole('STUDENT')")
+    public List<WishResponse> wishes(
+            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "Học kỳ đích; mặc định học kỳ của đợt đăng ký đang mở") @RequestParam(required = false) String semesterId) {
+        return registration.wishes(jwt.getClaimAsString("studentId"), semesterId);
+    }
+
+    @Operation(summary = "Thêm học phần vào nguyện vọng", description = "Lưu học phần sinh viên muốn theo dõi/đăng ký sau. Idempotent theo (sinh viên, học phần, học kỳ).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Nguyện vọng đã lưu"),
+        @ApiResponse(responseCode = "409", description = "Đã có trong nguyện vọng hoặc đã đăng ký học phần này", content = @Content)
+    })
+    @PostMapping("me/registration/wishes")
+    @PreAuthorize("hasRole('STUDENT')")
+    public WishResponse addWish(
+            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "Khóa chống trùng lặp Idempotency") @RequestHeader(value = "Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody WishRequest request) {
+        return registration.addWish(jwt.getClaimAsString("studentId"), request.courseId(), request.semesterId(), idempotencyKey);
+    }
+
+    @Operation(summary = "Xoá học phần khỏi nguyện vọng", description = "Gỡ một học phần đã lưu khỏi danh sách nguyện vọng của sinh viên.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Đã xoá"),
+        @ApiResponse(responseCode = "404", description = "Không tìm thấy nguyện vọng", content = @Content)
+    })
+    @DeleteMapping("me/registration/wishes/{id}")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Void> removeWish(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id) {
+        registration.removeWish(jwt.getClaimAsString("studentId"), id);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Tổng kết trạng thái đăng ký và số tín chỉ của sinh viên", description = "Lấy tổng số tín chỉ đã đăng ký, giới hạn tín chỉ và danh sách lớp đã chọn trong học kỳ")

@@ -46,7 +46,7 @@ async function freeCourseForRegister(page: Page) {
   // Wait for the section card to mount before probing the drop button — the
   // catalog streams in after navigation, and an early isVisible() probe reads
   // "absent" while the list is still loading.
-  const sectionCard = page.locator('article').filter({ hasText: /SE402-01/ });
+  const sectionCard = page.getByRole('region').filter({ hasText: /SE402-01/ });
   await expect(sectionCard).toBeVisible({ timeout: 20_000 });
   const dropButton = sectionCard.getByRole('button', { name: /^drop course$|^hủy đăng ký$/i });
   if (await dropButton.isVisible().catch(() => false)) {
@@ -219,7 +219,7 @@ test.describe('student workspace', () => {
       page.getByText(/enrollment updated|đã cập nhật đăng ký/i).first(),
     ).toBeVisible({ timeout: 15_000 });
     await dismissMobileSidebar(page);
-    const dropButton = page.locator('article').filter({ hasText: /SE402-01/ })
+    const dropButton = page.getByRole('region').filter({ hasText: /SE402-01/ })
       .getByRole('button', { name: /^drop course$|^hủy đăng ký$/i });
     await expect(dropButton).toBeVisible({ timeout: 15_000 });
     await page.screenshot({

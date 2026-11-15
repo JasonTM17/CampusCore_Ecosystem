@@ -197,7 +197,7 @@ test('registration error codes map to the dedicated copy with an idempotency fal
 });
 
 test('the shipped page keeps the shared day mapping and error fallback wiring', () => {
-  const page = fs.readFileSync(path.join(root, 'src/app/dashboard/register/page.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'src/app/dang-ky-hoc-phan/page.tsx'), 'utf8');
   const grid = fs.readFileSync(path.join(root, 'src/components/schedule/weekly-grid.tsx'), 'utf8');
   // The register page and the timetable grid must agree on day labels: both go
   // through shortDayLabel, and no forked day-label table exists on the page.
@@ -211,7 +211,7 @@ test('the shipped page keeps the shared day mapping and error fallback wiring', 
 });
 
 test('schedule-less sections show the chip and a soft (non-blocking) enroll warning', () => {
-  const page = fs.readFileSync(path.join(root, 'src/app/dashboard/register/page.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'src/app/dang-ky-hoc-phan/page.tsx'), 'utf8');
   const messages = fs.readFileSync(path.join(root, 'src/i18n/messages.ts'), 'utf8');
 
   // The "Chưa có lịch" chip exists for sections with an empty schedule list.

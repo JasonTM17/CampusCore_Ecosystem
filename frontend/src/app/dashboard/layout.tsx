@@ -41,6 +41,7 @@ import {
   type LucideIcon,
   User,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -74,6 +75,7 @@ import { subscribeNotificationsChanged } from '@/lib/notification-sync';
 type DashboardMenuLabelKey =
   | 'dashboard'
   | 'courseRegistration'
+  | 'tuition'
   | 'myCourses'
   | 'curriculum'
   | 'schedule'
@@ -117,7 +119,8 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
   {
     sectionKey: 'academic',
     items: [
-      { href: '/dashboard/register', icon: ClipboardList, labelKey: 'courseRegistration' },
+      { href: '/dang-ky-hoc-phan', icon: ClipboardList, labelKey: 'courseRegistration' },
+      { href: '/hoc-phi', icon: Wallet, labelKey: 'tuition' },
       { href: '/dashboard/enrollments', icon: BookOpen, labelKey: 'myCourses' },
       { href: '/dashboard/learn', icon: ClipboardList, labelKey: 'learning' },
       { href: '/dashboard/curriculum', icon: GraduationCap, labelKey: 'curriculum' },

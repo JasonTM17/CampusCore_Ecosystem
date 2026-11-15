@@ -64,24 +64,41 @@ test('course-demo copy excludes retired finance and monitoring language', () => 
   // messages.ts legitimately carries thesis report copy since the course-brief
   // remediation (nộp báo cáo đề tài is a required R5 feature), so top-level
   // thesis blocks are excluded from this finance/monitoring sweep instead of
-  // weakening the banned-word list itself.
+  // weakening the banned-word list itself. The bursar/tuition workspace added
+  // later has the same exemption: its copy must name invoices and payments.
+  // The tuition-hold copy that the registration workspace surfaces (holdBanner*
+  // and errorCodes.tuitionHold) must likewise name fees and the bursar office —
+  // it is the hold explanation itself, not retired dashboard language.
   const messagesLines = read('src/i18n/messages.ts').split('\n');
   const filtered = [];
   let thesisDepth = 0;
+  let tuitionDepth = 0;
   for (const line of messagesLines) {
     if (/^  thesis: \{/.test(line)) {
       thesisDepth += 1;
+      continue;
+    }
+    if (/^  tuitionPage: \{/.test(line)) {
+      tuitionDepth += 1;
+      continue;
+    }
+    if (/holdBanner(Title|Description|Cta)\s*:|tuitionHold\s*:/.test(line)) {
       continue;
     }
     if (thesisDepth > 0 && /^  \},$/.test(line)) {
       thesisDepth -= 1;
       continue;
     }
-    if (thesisDepth === 0) {
+    if (tuitionDepth > 0 && /^  \},$/.test(line)) {
+      tuitionDepth -= 1;
+      continue;
+    }
+    if (thesisDepth === 0 && tuitionDepth === 0) {
       filtered.push(line);
     }
   }
   assert.ok(thesisDepth === 0, 'thesis block scanning must stay balanced');
+  assert.ok(tuitionDepth === 0, 'tuitionPage block scanning must stay balanced');
 
   const copy = [
     filtered.join('\n'),

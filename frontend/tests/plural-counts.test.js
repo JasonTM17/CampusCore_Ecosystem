@@ -108,7 +108,7 @@ const CASES = [
     placeholder: '{count}',
     singular: '1 credit remains available this term.',
     plural: '2 credits remain available this term.',
-    files: ['src/app/dashboard/register/page.tsx'],
+    files: ['src/app/dang-ky-hoc-phan/page.tsx'],
   },
   {
     id: 'courseRegistration.groupSectionCount',
@@ -119,7 +119,7 @@ const CASES = [
     singular: '1 class',
     plural: '2 classes',
     files: [
-      'src/app/dashboard/register/page.tsx',
+      'src/app/dang-ky-hoc-phan/page.tsx',
       'src/components/registration/registered-courses-panel.tsx',
     ],
   },
@@ -131,7 +131,7 @@ const CASES = [
     placeholder: '{count}',
     singular: '1 seat open',
     plural: '2 seats open',
-    files: ['src/app/dashboard/register/page.tsx'],
+    files: ['src/app/dang-ky-hoc-phan/page.tsx'],
   },
   {
     id: 'curriculum.openSections',
