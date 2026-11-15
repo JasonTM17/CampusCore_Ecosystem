@@ -1,0 +1,61 @@
+{
+    admin off
+    auto_https off
+}
+
+# Local development edge for the multi-service topology. Service-specific API
+# prefixes are matched before the /api/v1 catch-all so dedicated containers can
+# take over their registrarial domains without touching client code.
+:80 {
+    log {
+        output stdout
+        format json
+    }
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        -Server
+    }
+
+    # Streaming assistant responses must not be buffered or compressed into a
+    # delayed batch. Mirrors ops/caddy/Caddyfile.
+    @assistant_stream {
+        path /api/v1/assistant/chat/stream /api/v1/thesis/assistant/chat/stream
+    }
+    reverse_proxy @assistant_stream sis-core:4010 {
+        flush_interval -1
+        header_down Cache-Control "no-cache"
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+
+    # Registrar domain: course registration + enrollments. Until the dedicated
+    # enrollment-api container ships (P3), sis-core still serves the slice.
+    @registrar {
+        path /api/v1/me/registration* /api/v1/me/enrollments* /api/v1/admin/registration*
+    }
+    reverse_proxy @registrar sis-core:4010 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Edge-Domain "enrollment"
+    }
+
+    # Bursar domain: tuition accounts, invoices, payments, holds (P2).
+    @bursar {
+        path /api/v1/me/bursar* /api/v1/internal/bursar* /api/v1/admin/bursar*
+    }
+    reverse_proxy @bursar bursar-api:4012 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+
+    @api path /api/v1/*
+    reverse_proxy @api sis-core:4010 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+
+    # Only the browser-facing Next.js app is reachable for non-API paths.
+    reverse_proxy web:3000
+}
