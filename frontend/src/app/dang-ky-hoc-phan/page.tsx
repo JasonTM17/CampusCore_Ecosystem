@@ -627,6 +627,7 @@ export default function CourseRegistrationPage() {
                                 .join(', ');
                               const canWish =
                                 status !== 'completed'
+                                && status !== 'inProgress'
                                 && !wishedCourseIds.has(course.courseId)
                                 && course.openSectionCount === 0;
                               return (
