@@ -21,11 +21,14 @@ public class SecurityConfig {
 
     private final InternalTokenFilter internalTokenFilter;
     private final CookieOrBearerTokenResolver tokenResolver;
+    private final CsrfCookieFilter csrfCookieFilter;
 
     public SecurityConfig(InternalTokenFilter internalTokenFilter,
-            CookieOrBearerTokenResolver tokenResolver) {
+            CookieOrBearerTokenResolver tokenResolver,
+            CsrfCookieFilter csrfCookieFilter) {
         this.internalTokenFilter = internalTokenFilter;
         this.tokenResolver = tokenResolver;
+        this.csrfCookieFilter = csrfCookieFilter;
     }
 
     @Bean
@@ -47,7 +50,8 @@ public class SecurityConfig {
             .oauth2ResourceServer(oauth -> oauth
                 .bearerTokenResolver(tokenResolver)
                 .jwt(jwt -> {}))
-            .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(csrfCookieFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
