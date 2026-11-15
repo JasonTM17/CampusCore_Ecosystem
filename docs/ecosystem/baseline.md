@@ -1,8 +1,8 @@
 # Ecosystem baseline — CampusUTE C2
 
-> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
-> Baseline là bản ghi kế hoạch/lịch sử; host go-live và artefact production nêu trong bảng là
-> mục tiêu tương lai, không phải trạng thái hiện tại. Local quick start:
+> **Status: live — mặt bằng production đã được khôi phục (Vercel + Render + Neon).**
+> Baseline là bản ghi kế hoạch/lịch sử; host go-live và artefact production nêu trong bảng
+> phản ánh deployment thật trong [docs/deployment.md](../deployment.md). Local quick start:
 > [README.md](../../README.md#quick-start-local).
 
 Ngày ghi: 2026-10-21 · Pha: P01 step 1 · Active plan: `plans/261021-2123-campusute-ecosystem/plan.md`
