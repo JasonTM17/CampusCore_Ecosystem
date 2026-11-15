@@ -89,7 +89,7 @@ services:
       # Signs owner assertions on remote RAG calls; >=32 chars and distinct
       # from the service token, else AssistantOwnerAssertion disables signing.
       ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
-      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/campuscore_restful}
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}}
       ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
       ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
       ASSISTANT_RAG_SERVICE_MODE: "true"
@@ -172,7 +172,7 @@ services:
       # The Assistant runtime pool uses its own credentials, provisioned via
       # the ops/secrets/assistant_db_password file; leaving them unset degrades
       # /api/v1/assistant/* to 503 ASSISTANT_RLS_UNAVAILABLE by design.
-      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/campuscore_restful}
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}}
       ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
       ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
       # Public origin embedded in outbound mail links (password reset, 2FA).
