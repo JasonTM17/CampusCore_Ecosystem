@@ -1,0 +1,330 @@
+name: campuscore-production
+
+# Production topology can run standalone or as the reviewed override of the
+# course stack.  The !override tags are deliberate: when both files are passed
+# to Compose they remove localhost ports, Mailpit, plaintext secrets and local
+# volumes instead of silently merging them into the production graph.
+services:
+  postgres:
+    # Immutable GHCR tag published by .github/workflows/publish-ghcr.yml; the
+    # Docker Hub mirror carries the same full-commit-SHA tag. Never `latest`.
+    image: ghcr.io/jasontm17/student-management-ute-database:${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}
+    environment: !override
+      POSTGRES_USER: ${POSTGRES_USER:-campuscore}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-campuscore_restful}
+      # Feeds the initdb bootstrap below: creates the postgres role plus the
+      # isolated assistant provisioner login before Flyway runs (V84 needs it).
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
+    ports: !override []
+    volumes: !override
+      - campuscore_production_postgres_data:/var/lib/postgresql/data
+      - ./ops/secrets/postgres_password:/run/secrets/postgres_password:ro
+      - ./ops/assistant/bootstrap-provisioner.sql:/docker-entrypoint-initdb.d/20-assistant-provisioner.sql:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt: ["no-new-privileges:true"]
+    # No cap_drop here: the stock postgres entrypoint starts as root and needs
+    # CHOWN/SETUID/SETGID to prepare the data volume and gosu to postgres.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+    logging: &production_logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    restart: unless-stopped
+
+  # The owner bootstrap mounted into postgres above creates the isolated roles
+  # and provisioner function during initdb. This one-shot hands the runtime
+  # login its password; it never receives POSTGRES_PASSWORD. Assistant
+  # endpoints answer 503 until it completes (degraded, by design).
+  assistant-db-provisioner:
+    image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+    working_dir: /provision
+    volumes: !override
+      - ./scripts/provision-assistant-runtime.mjs:/provision/provision-assistant-runtime.mjs:ro
+      - ./ops/secrets/assistant_db_password:/run/secrets/assistant_db_password:ro
+    environment: !override
+      ASSISTANT_DB_PROVISIONER_PASSWORD: ${ASSISTANT_DB_PROVISIONER_PASSWORD:?Set ASSISTANT_DB_PROVISIONER_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      # Private compose network; TLS is not available on the database image.
+      PGSSLMODE: disable
+    command:
+      - sh
+      - -c
+      - "exec env ASSISTANT_DB_PASSWORD=\"$$(cat /run/secrets/assistant_db_password)\" node /provision/provision-assistant-runtime.mjs"
+    networks: [data]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  rag-service:
+    image: ghcr.io/jasontm17/student-management-ute-rag-service:${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}
+    environment: !override
+      SPRING_PROFILES_ACTIVE: persistence
+      SERVER_PORT: 4011
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
+      SPRING_DATASOURCE_PASSWORD_FILE: /run/secrets/postgres_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_REFRESH_SECRET_FILE: /run/secrets/jwt_refresh_secret
+      # Refuse to boot when a signing secret published in this repository is used.
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
+      HEALTH_READINESS_KEY_FILE: /run/secrets/readiness_key
+      ASSISTANT_RAG_SERVICE_TOKEN_FILE: /run/secrets/rag_service_token
+      # Signs owner assertions on remote RAG calls; >=32 chars and distinct
+      # from the service token, else AssistantOwnerAssertion disables signing.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}}
+      ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
+      ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
+      ASSISTANT_RAG_SERVICE_MODE: "true"
+      ASSISTANT_KNOWLEDGE_AUTHORITY_MODE: "supabase"
+      FLYWAY_ENABLED: "true"
+      ASSISTANT_SUPABASE_ENABLED: ${ASSISTANT_SUPABASE_ENABLED:-true}
+      SUPABASE_URL: ${SUPABASE_URL:?Set SUPABASE_URL for the production knowledge authority}
+      SUPABASE_SERVICE_ROLE_KEY_FILE: /run/secrets/supabase_service_role_key
+      SUPABASE_SCHEMA: ${SUPABASE_SCHEMA:-assistant}
+      DEEPSEEK_ENABLED: ${DEEPSEEK_ENABLED:-false}
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_TIMEOUT_MS: ${DEEPSEEK_TIMEOUT_MS:-8000}
+      DEEPSEEK_MAX_OUTPUT_TOKENS: ${DEEPSEEK_MAX_OUTPUT_TOKENS:-800}
+      ASSISTANT_MAX_MESSAGE_CHARS: ${ASSISTANT_MAX_MESSAGE_CHARS:-2000}
+      ASSISTANT_MAX_CONTEXT_CHARS: ${ASSISTANT_MAX_CONTEXT_CHARS:-6000}
+      ASSISTANT_USER_DAILY_QUOTA: ${ASSISTANT_USER_DAILY_QUOTA:-20}
+      ASSISTANT_GLOBAL_DAILY_QUOTA: ${ASSISTANT_GLOBAL_DAILY_QUOTA:-200}
+      ASSISTANT_RETENTION_DAYS: ${ASSISTANT_RETENTION_DAYS:-90}
+    volumes: !override
+      - ./ops/secrets/postgres_password:/run/secrets/postgres_password:ro
+      - ./ops/secrets/jwt_secret:/run/secrets/jwt_secret:ro
+      - ./ops/secrets/jwt_refresh_secret:/run/secrets/jwt_refresh_secret:ro
+      - ./ops/secrets/readiness_key:/run/secrets/readiness_key:ro
+      - ./ops/secrets/rag_service_token:/run/secrets/rag_service_token:ro
+      - ./ops/secrets/assistant_db_password:/run/secrets/assistant_db_password:ro
+      - ./ops/secrets/deepseek_api_key:/run/secrets/deepseek_api_key:ro
+      - ./ops/secrets/supabase_service_role_key:/run/secrets/supabase_service_role_key:ro
+    networks: [app, data]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: $$(cat /run/secrets/readiness_key)\" -O- http://127.0.0.1:4011/api/v1/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1G
+    logging: *production_logging
+    restart: unless-stopped
+
+  restful-api:
+    image: ghcr.io/jasontm17/student-management-ute-restful-api:${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}
+    environment: !override
+      SPRING_PROFILES_ACTIVE: persistence
+      SERVER_PORT: 4010
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
+      SPRING_DATASOURCE_PASSWORD_FILE: /run/secrets/postgres_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_REFRESH_SECRET_FILE: /run/secrets/jwt_refresh_secret
+      # Refuse to boot when a signing secret published in this repository is used.
+      SECURITY_JWT_REJECT_KNOWN_DEFAULTS: "true"
+      HEALTH_READINESS_KEY_FILE: /run/secrets/readiness_key
+      ASSISTANT_RAG_BASE_URL: http://rag-service:4011/internal/rag/assistant
+      ASSISTANT_RAG_SERVICE_TOKEN_FILE: /run/secrets/rag_service_token
+      # Same signing secret as rag-service; remote conversation and knowledge
+      # calls return 503 without it.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
+      ASSISTANT_KNOWLEDGE_AUTHORITY_MODE: "remote"
+      ASSISTANT_RETENTION_ENABLED: "true"
+      COOKIE_SECURE: "true"
+      # Caddy overwrites forwarded headers, so per-client rate limiting is
+      # safe here; the local compose keeps proxy trust off because its API
+      # port is published directly.
+      RATE_LIMIT_TRUST_PROXY_HEADERS: "true"
+      # rag-service is the single Flyway owner for the shared runtime DB.
+      FLYWAY_ENABLED: "false"
+      # The Assistant runtime pool uses its own credentials, provisioned via
+      # the ops/secrets/assistant_db_password file; leaving them unset degrades
+      # /api/v1/assistant/* to 503 ASSISTANT_RLS_UNAVAILABLE by design.
+      ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}}
+      ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
+      ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
+      # Public origin embedded in outbound mail links (password reset, 2FA).
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:?Set APP_PUBLIC_BASE_URL to the public https origin}
+      # Mail is opt-in: MAIL_ENABLED=true plus the spring_mail_password secret
+      # turns on 2FA and password-reset delivery; the default keeps it off.
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD_FILE: /run/secrets/spring_mail_password
+      DEEPSEEK_ENABLED: ${DEEPSEEK_ENABLED:-false}
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      # Thesis report uploads. The local provider writes under
+      # /var/lib/campuscore/thesis-reports, which is a named volume below
+      # because the container root filesystem is read-only. Set
+      # THESIS_REPORT_STORAGE_PROVIDER=supabase plus SUPABASE_URL and a raw
+      # SUPABASE_SERVICE_ROLE_KEY environment value only on an environment
+      # that deliberately stores reports off-box.
+      THESIS_REPORT_STORAGE_PROVIDER: ${THESIS_REPORT_STORAGE_PROVIDER:-local}
+      THESIS_REPORT_STORAGE_BUCKET: ${THESIS_REPORT_STORAGE_BUCKET:-thesis-reports}
+      THESIS_REPORT_STORAGE_LOCAL_ROOT: /var/lib/campuscore/thesis-reports
+      THESIS_REPORT_STORAGE_TIMEOUT_MS: ${THESIS_REPORT_STORAGE_TIMEOUT_MS:-10000}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      ASSISTANT_MAX_MESSAGE_CHARS: ${ASSISTANT_MAX_MESSAGE_CHARS:-2000}
+      ASSISTANT_MAX_CONTEXT_CHARS: ${ASSISTANT_MAX_CONTEXT_CHARS:-6000}
+      ASSISTANT_USER_DAILY_QUOTA: ${ASSISTANT_USER_DAILY_QUOTA:-20}
+      ASSISTANT_GLOBAL_DAILY_QUOTA: ${ASSISTANT_GLOBAL_DAILY_QUOTA:-200}
+      ASSISTANT_RETENTION_DAYS: ${ASSISTANT_RETENTION_DAYS:-90}
+    volumes: !override
+      - ./ops/secrets/postgres_password:/run/secrets/postgres_password:ro
+      - ./ops/secrets/jwt_secret:/run/secrets/jwt_secret:ro
+      - ./ops/secrets/jwt_refresh_secret:/run/secrets/jwt_refresh_secret:ro
+      - ./ops/secrets/readiness_key:/run/secrets/readiness_key:ro
+      - ./ops/secrets/rag_service_token:/run/secrets/rag_service_token:ro
+      - ./ops/secrets/assistant_db_password:/run/secrets/assistant_db_password:ro
+      - ./ops/secrets/spring_mail_password:/run/secrets/spring_mail_password:ro
+      - ./ops/secrets/deepseek_api_key:/run/secrets/deepseek_api_key:ro
+      - campuscore_production_thesis_report_storage:/var/lib/campuscore/thesis-reports
+    ports: !override []
+    networks: [app, data]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      rag-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: $$(cat /run/secrets/readiness_key)\" -O- http://127.0.0.1:4010/api/v1/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1.5G
+    logging: *production_logging
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/jasontm17/student-management-ute-frontend:${CAMPUSCORE_IMAGE_TAG:?Set CAMPUSCORE_IMAGE_TAG to a reviewed full commit SHA}
+    environment: !override
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      JAVA_API_ORIGIN: http://restful-api:4010
+      NEXT_PUBLIC_API_URL: /api/v1
+    ports: !override []
+    networks: [app]
+    depends_on: !override
+      restful-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O- http://127.0.0.1:3000/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+    logging: *production_logging
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    environment:
+      CAMPUSCORE_DOMAIN: ${CAMPUSCORE_DOMAIN:?Set CAMPUSCORE_DOMAIN to the real DNS name}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL for certificate recovery}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - campuscore_caddy_data:/data
+      - campuscore_caddy_config:/config
+      - campuscore_caddy_logs:/var/log/caddy
+    networks: [edge, app]
+    depends_on:
+      web:
+        condition: service_healthy
+      restful-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O- http://127.0.0.1:2019/config/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    logging: *production_logging
+    restart: unless-stopped
+
+  # The local course file includes Mailpit for development. It is explicitly
+  # profiled out of this production graph, including when files are merged.
+  mailpit:
+    profiles: [local-only]
+
+networks:
+  edge:
+    driver: bridge
+  # Not internal: rag-service and restful-api only ride app+data, and they
+  # need outbound egress for Supabase, DeepSeek, SMTP and external databases.
+  app:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true
+
+volumes:
+  campuscore_production_postgres_data:
+  campuscore_production_thesis_report_storage:
+  campuscore_caddy_data:
+  campuscore_caddy_config:
+  campuscore_caddy_logs:

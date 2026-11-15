@@ -1,8 +1,8 @@
 # Runtime environment variables (operator reference)
 
-> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
-> The `prod` / `render` / `vercel` columns and hosted-platform notes below are **future targets**;
-> local quick start: [README.md](../../README.md#quick-start-local).
+> **Status: live — the production surface is restored (Vercel frontend, Render backend, Neon database).**
+> The `prod` / `render` / `vercel` columns and hosted-platform notes below describe the live
+> deployment in [docs/deployment.md](../deployment.md); local quick start: [README.md](../../README.md#quick-start-local).
 
 Single inventory of every runtime variable referenced by
 `java-services/restful-api/src/main/resources/application.yml` (117 `${...}`

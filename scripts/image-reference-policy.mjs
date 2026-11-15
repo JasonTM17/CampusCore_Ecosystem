@@ -197,7 +197,7 @@ function isApprovedLocalBuild(reference) {
 
 function isApprovedVariable(reference) {
   const component = GHCR_COMPONENTS.find(({ service }) => service === reference.service)?.component;
-  return reference.file === 'docker-compose.rag.override.yml'
+  return (reference.file === 'docker-compose.rag.override.yml' || reference.file === 'docker-compose.prod.yml')
     && Boolean(component)
     && reference.reference === `ghcr.io/jasontm17/student-management-ute-${component}:${GHCR_TAG_CONTRACT}`;
 }

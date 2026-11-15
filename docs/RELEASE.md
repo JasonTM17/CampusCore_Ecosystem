@@ -10,10 +10,11 @@ authorize production deployment.
 - Confirm no legacy backend, K8s, monitoring or retired image reference
   remains. The internal `rag-service` sidecar is an intentional course-runtime
   component and is addressed only through its token-protected
-  `/internal/rag/**` contract. This repository does not contain an image
-  publishing workflow: the local compose stack builds from the working tree,
-  and any registry-published image is an optional external artefact pinned by
-  full commit SHA (never `latest`).
+  `/internal/rag/**` contract. The local compose stack builds from the working
+  tree, and the restored `publish-ghcr.yml` workflow publishes the four course
+  images to both GHCR (`ghcr.io/jasontm17/student-management-ute-*`)
+  and Docker Hub (`docker.io/nguyenson1710/student-management-ute-*`) from the
+  same reviewed commit, each image pinned by full commit SHA (never `latest`).
 
 ## API and database
 
