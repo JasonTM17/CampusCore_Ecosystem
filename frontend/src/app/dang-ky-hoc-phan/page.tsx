@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -154,6 +154,7 @@ export default function CourseRegistrationPage() {
   // ---- catalog filters (server-side params + client refinements) ----
   const [curriculumFilter, setCurriculumFilter] = useState<RegistrationCatalogMode>('curriculum');
   const [policyOpen, setPolicyOpen] = useState(false);
+  const actionErrorRef = useRef<HTMLDivElement | null>(null);
   const [departmentId, setDepartmentId] = useState<string>('');
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -173,6 +174,10 @@ export default function CourseRegistrationPage() {
   const [pendingWish, setPendingWish] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    actionErrorRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [actionError]);
 
   /** Maps backend codes to registration-specific copy, then shared campus errors. */
   const actionMessage = useCallback(
@@ -593,7 +598,7 @@ export default function CourseRegistrationPage() {
         )}
 
         {actionError && (
-          <div role="alert" aria-live="polite" className="mt-4 flex items-center gap-2 rounded-lg border border-status-danger/40 bg-status-danger/10 px-4 py-2.5 text-sm text-status-danger-foreground">
+          <div data-testid="registration-action-error" ref={actionErrorRef} role="alert" aria-live="polite" className="mt-4 flex items-center gap-2 rounded-lg border border-status-danger/40 bg-status-danger/10 px-4 py-2.5 text-sm text-status-danger-foreground">
             <AlertCircle className="h-4 w-4" />
             {actionError}
           </div>
@@ -796,6 +801,7 @@ export default function CourseRegistrationPage() {
                       {pro.searchLabel}
                     </label>
                     <Input
+                      aria-label={copy.searchLabel}
                       value={searchText}
                       onChange={(event) => submitSearch(event.target.value)}
                       placeholder={pro.searchPlaceholder}
@@ -930,7 +936,12 @@ export default function CourseRegistrationPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {dept.courses.map((group) => (
-                      <div key={group.courseId} className="rounded-lg border border-border">
+                      <div
+                        key={group.courseId}
+                        role="region"
+                        aria-label={`${group.courseCode} ${group.courseName}`}
+                        className="rounded-lg border border-border"
+                      >
                         <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/40 px-3 py-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-foreground">
@@ -1079,7 +1090,14 @@ export default function CourseRegistrationPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {registered.length === 0 && (
+                  {enrollmentsQuery.isError && (
+                    <ErrorState
+                      title={copy.registeredLoadFailed}
+                      description={copy.registeredLoadFailedDescription}
+                      onRetry={() => void enrollmentsQuery.refetch()}
+                    />
+                  )}
+                  {registered.length === 0 && !enrollmentsQuery.isError && (
                     <p className="text-sm text-muted-foreground">{pro.cartEmpty}</p>
                   )}
                   {registered.map((item) => (
@@ -1171,7 +1189,7 @@ export default function CourseRegistrationPage() {
               </Card>
 
               {(timetableItems.length > 0 || previewTimetable.length > 0) && (
-                <Card>
+                <Card data-testid="registered-timetable">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{copy.miniTimetableTitle}</CardTitle>
                   </CardHeader>
