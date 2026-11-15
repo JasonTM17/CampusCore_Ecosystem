@@ -39,6 +39,7 @@ test('fills only missing secrets with independent values and preserves custom vo
     'JWT_SECRET',
     'ASSISTANT_RAG_SERVICE_TOKEN',
     'ASSISTANT_RAG_OWNER_ASSERTION_SECRET',
+    'BURSAR_INTERNAL_TOKEN',
     'INTERNAL_SERVICE_TOKEN',
     'SSO_PREVIEW_PROXY_TOKEN',
     'IDENTITY_TOKEN_ENCRYPTION_KEY',
