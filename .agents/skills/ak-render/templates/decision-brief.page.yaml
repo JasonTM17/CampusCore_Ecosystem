@@ -1,0 +1,60 @@
+# AK Render template: brainstorm / decision brief (AgentKit /ak:render --decision)
+# Evidence: brainstorm or advise output, constraints the user stated, scout findings.
+# Replace every <<...>> with real evidence; delete any block you cannot fill.
+version: 1
+meta:
+  title: <<Decision question>>
+  description: <<Context in one sentence>>
+  locale: vi # language tag of the page text, e.g. vi or en
+theme:
+  preset: executive-report
+blocks:
+  - type: hero
+    id: hero
+    eyebrow: Decision brief
+    title: <<Decision question>>
+    description: <<Recommended option in one line>>
+
+  - type: callout
+    id: recommendation
+    tone: success
+    title: Recommendation
+    text: <<Option and the deciding reason>>
+
+  - type: section
+    id: options
+    title: Options
+    blocks:
+      - type: table
+        id: option-table
+        columns: [Option, Cost, Risk, Reversible]
+        rows:
+          - ["<<option A>>", "<<cost>>", "<<risk>>", "<<yes or no>>"]
+          - ["<<option B>>", "<<cost>>", "<<risk>>", "<<yes or no>>"]
+
+      - type: comparison
+        id: tradeoffs
+        left:
+          label: <<option A>>
+          items:
+            - <<strength or weakness>>
+        right:
+          label: <<option B>>
+          items:
+            - <<strength or weakness>>
+
+  - type: risk-matrix
+    id: risks
+    title: Risks of the recommendation
+    items:
+      - area: <<risk>>
+        impact: medium
+        likelihood: medium
+        note: <<mitigation>>
+
+  - type: checklist
+    id: questions
+    title: Questions for you
+    items:
+      - text: <<question the user must answer>>
+        done: false

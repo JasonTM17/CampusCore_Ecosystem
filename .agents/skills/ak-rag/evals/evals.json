@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Manual same-task skill comparison; prompts are fictional and contain no private corpus.",
+  "providerExecutionStatus": "NOT_RUN",
+  "cases": [
+    {
+      "id": "RAG-EVAL-01",
+      "prompt": "Design a tenant-aware internal helpdesk RAG service. Team A and Team B documents share one search index. A grant can be revoked while an answer is being generated. The corpus owner and provider permission are not yet confirmed. State the smallest safe implementation and acceptance evidence.",
+      "requiredSignals": ["corpus owner and provider authority remain unconfirmed", "per-source ACL and tenant checks before model context", "final publication authorization and zero-output revocation case", "source/chunk revision citations", "unrun provider gate is NOT_RUN"],
+      "forbiddenClaims": ["tenant filter alone proves isolation", "synthetic fixture proves production security"]
+    },
+    {
+      "id": "RAG-EVAL-02",
+      "prompt": "A reindex worker staged half of document revision 2, crashed, then revision 3 deleted the document. The old worker retries, and an operator wants to roll back the index to yesterday. Give an implementation and a deterministic fault test.",
+      "requiredSignals": ["versioned stable chunk identity", "staged manifest and atomic active snapshot", "tombstone/high-water check prevents old replay", "rollback still enforces current source authority", "assert no partial, duplicate or resurrected content"],
+      "forbiddenClaims": ["old snapshot may restore deleted content", "index outage simulation proves replay safety"]
+    },
+    {
+      "id": "RAG-EVAL-03",
+      "prompt": "A RAG prototype has three example questions and only a local synthetic ACL fixture. The team claims its answer quality and citations are production ready. Design a baseline/candidate evaluation and state exactly what can be reported now.",
+      "requiredSignals": ["versioned case set and same oracle for both versions", "separate retrieval, grounding, citation, access, freshness, latency and cost results", "forged citation and unsupported claim cases", "synthetic evidence distinguished from model/provider execution", "provider quality remains NOT_RUN"],
+      "forbiddenClaims": ["three examples establish production quality", "agent self-report is evaluation proof"]
+    }
+  ]
+}

@@ -120,8 +120,11 @@ scratch/
 .zcodeignore
 .zcode/
 
-# Devin agent runtime config (local-only)
-.devin/
+# Devin agent runtime config (local-only) — except the AgentKit adapter
+# profiles/skills, which are shared project assets.
+.devin/*
+!.devin/agents/
+!.devin/skills/
 /.playwright-mcp/
 
 # Local-only scratch captures and non-CampusCore reference artifacts

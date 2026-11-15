@@ -1,0 +1,66 @@
+# AK Render template: verification / handoff report (AgentKit /ak:render --verify)
+# Evidence: the exact commands run in this session and their exit codes. Never mark PASS without output.
+# Replace every <<...>> with real evidence; delete any block you cannot fill.
+version: 1
+meta:
+  title: <<Change>> verification
+  description: <<What was verified and against which snapshot>>
+  locale: vi # language tag of the page text, e.g. vi or en
+theme:
+  preset: swiss-clean
+datasets:
+  gates:
+    - gate: <<check name>>
+      command: <<exact command>>
+      status: "<<PASS, FAIL, BLOCKED or NOT_RUN from observed output>>"
+      note: <<exit code or key output line>>
+blocks:
+  - type: hero
+    id: hero
+    eyebrow: Verification
+    title: <<Change>> verification
+    description: "<<Snapshot as branch, commit or working tree>>"
+
+  - type: stats
+    id: totals
+    title: Gates
+    items:
+      - label: PASS
+        value: "<<count>>"
+      - label: FAIL
+        value: "<<count>>"
+      - label: NOT_RUN
+        value: "<<count>>"
+
+  - type: data-table
+    id: gate-table
+    title: Gate results
+    dataRef: gates
+    columns:
+      - key: gate
+        label: Gate
+      - key: command
+        label: Command
+      - key: status
+        label: Status
+        type: badge
+        tones:
+          PASS: success
+          FAIL: danger
+          BLOCKED: warning
+          NOT_RUN: neutral
+      - key: note
+        label: Evidence
+
+  - type: file-tree
+    id: changed
+    title: Changed paths
+    items:
+      - path: <<path>>
+        status: added
+
+  - type: callout
+    id: residual-risk
+    tone: warning
+    title: Remaining risk
+    text: <<every FAIL, BLOCKED or NOT_RUN and the exact unrun check>>

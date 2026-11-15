@@ -1,0 +1,58 @@
+# AK Render template: project recap (AgentKit /ak:render --recap)
+# Evidence: git log --since, git status --short, plans/*/plan.md status, journal entries.
+# Replace every <<...>> with real evidence; delete any block you cannot fill.
+# The commit count and the timeline come from the same git log window and must agree.
+# Translate English labels to meta.locale; keep Vietnamese diacritics.
+version: 1
+meta:
+  title: <<Project>> recap
+  description: <<Time window, e.g. last 2 weeks>>
+  locale: vi # language tag of the page text, e.g. vi or en
+theme:
+  preset: editorial
+blocks:
+  - type: hero
+    id: hero
+    eyebrow: Recap
+    title: <<Project>> recap
+    description: <<One-line state of the project>>
+
+  - type: stats
+    id: activity
+    title: Activity
+    items:
+      - label: Commits
+        value: "<<git rev-list --count>>"
+      - label: Plans completed
+        value: "<<count>>"
+      - label: Open work
+        value: "<<count of dirty files or open plans>>"
+
+  - type: timeline
+    id: history
+    title: What happened
+    items:
+      - when: <<YYYY-MM-DD>>
+        title: <<commit or milestone subject>>
+        text: <<why it matters>>
+
+  - type: table
+    id: decisions
+    title: Decisions
+    columns: [Decision, Reason, Source]
+    rows:
+      - ["<<decision>>", "<<reason>>", "<<plan, journal or commit>>"]
+
+  - type: checklist
+    id: state
+    title: Current state
+    items:
+      - text: <<item>>
+        done: true
+
+  - type: list
+    id: next
+    title: Next steps
+    items:
+      - text: <<next safe action>>
+        badge: next

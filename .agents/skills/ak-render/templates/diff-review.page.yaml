@@ -1,0 +1,68 @@
+# AK Render template: diff / code review (AgentKit /ak:render --diff)
+# Evidence: git diff --numstat <base>...HEAD, git diff --name-status, review notes, test output.
+# Replace every <<...>> with real evidence; delete any block you cannot fill.
+version: 1
+meta:
+  title: <<Review title, e.g. Diff review main...feature/x>>
+  description: <<One sentence on what changed>>
+  locale: vi # language tag of the page text, e.g. vi or en
+theme:
+  preset: data-console
+blocks:
+  - type: hero
+    id: hero
+    eyebrow: Diff review
+    title: <<Review title>>
+    description: "<<Scope as base ref, head ref and commit count>>"
+
+  - type: kpi
+    id: diff-kpi
+    items:
+      - label: Files changed
+        value: "<<n from git diff --numstat>>"
+      - label: Lines added
+        value: "<<sum of additions>>"
+        good: up
+      - label: Lines removed
+        value: "<<sum of deletions>>"
+        good: down
+
+  - type: section
+    id: changes
+    title: Changed files
+    blocks:
+      - type: diff-summary
+        id: files
+        items:
+          # add additions/deletions (numbers) from git diff --numstat; omit them for binary files
+          - path: <<path>>
+            status: modified
+
+  - type: section
+    id: findings
+    title: Findings
+    blocks:
+      - type: code-review
+        id: review
+        items:
+          - kind: good
+            title: <<what is solid>>
+            text: <<evidence at `path:line`>>
+          - kind: concern
+            title: <<risk>>
+            text: <<evidence at `path:line` and the failure scenario>>
+
+  - type: test-results
+    id: tests
+    title: Checks run
+    suites:
+      - name: <<suite or command>>
+        cases:
+          - name: <<case>>
+            status: pass
+
+  - type: callout
+    id: verdict
+    tone: info
+    title: Verdict
+    text: <<ACCEPT / CHANGES REQUESTED and the reason; list NOT_RUN checks>>

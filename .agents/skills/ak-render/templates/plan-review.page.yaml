@@ -1,0 +1,94 @@
+# AK Render template: plan review (AgentKit /ak:render --plan-review)
+# Evidence: plan.md + phase-*.md of the active plan, files they reference.
+# Replace every <<...>> with real evidence; delete any block you cannot fill.
+version: 1
+meta:
+  title: <<Plan title>>
+  description: <<One sentence on what the plan delivers>>
+  locale: vi # language tag of the page text, e.g. vi or en
+theme:
+  preset: blueprint
+blocks:
+  - type: hero
+    id: hero
+    eyebrow: Plan review
+    title: <<Plan title>>
+    description: <<Outcome and success signal from plan.md>>
+
+  - type: stats
+    id: scope-stats
+    title: Scope
+    items:
+      - label: Phases
+        value: "<<count of phase files>>"
+      - label: Files touched
+        value: "<<count of files the plan names>>"
+      - label: Status
+        value: "<<plan.md frontmatter status>>"
+
+  - type: section
+    id: outcome
+    title: Outcome contract
+    blocks:
+      - type: key-value
+        id: contract
+        items:
+          - key: Outcome
+            value: "<<outcome>>"
+          - key: Non-goals
+            value: "<<non-goals>>"
+          - key: Authority
+            value: "<<what the plan may change>>"
+
+  - type: section
+    id: phases
+    title: Phases
+    blocks:
+      - type: steps
+        id: phase-steps
+        items:
+          - title: <<Phase 01 title>>
+            text: <<exit criterion of phase 01>>
+          - title: <<Phase 02 title>>
+            text: <<exit criterion of phase 02>>
+
+  - type: section
+    id: impact
+    title: Blast radius
+    blocks:
+      - type: file-tree
+        id: impact-files
+        items:
+          - path: <<path/from/plan.ext>>
+            status: modified
+            note: <<why it changes>>
+
+  - type: risk-matrix
+    id: risks
+    title: Risks
+    items:
+      - area: <<risk area>>
+        impact: medium
+        likelihood: low
+        note: <<mitigation or rollback>>
+
+  - type: code-review
+    id: review-findings
+    title: Review findings
+    items:
+      - kind: concern
+        title: <<finding title>>
+        text: "<<evidence as file and line, or the command>>"
+
+  - type: checklist
+    id: acceptance
+    title: Acceptance criteria
+    items:
+      - text: <<criterion with its verification command>>
+        done: false
+
+  - type: callout
+    id: open-questions
+    tone: warning
+    title: Open decisions
+    text: <<decisions the user must make before cook; remove if none>>

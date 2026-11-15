@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "WF-01",
+      "slug": "multi-level-approval",
+      "group": "Business process",
+      "title": "Multi-level approval",
+      "owner": "business-analyst + implementation owner",
+      "inputs": "request, actor roles, policy revision",
+      "ruleId": "BR-01",
+      "rule": "Only distinct authorized approvers may advance their own ordered level.",
+      "invariant": "level order and one decision per level",
+      "contention": "parallel approvals",
+      "caseIds": {
+        "success": "WF-01-SUCCESS",
+        "denied": "WF-01-DENIED",
+        "recovery": "WF-01-RECOVERY",
+        "contention": "WF-01-CONTENTION"
+      },
+      "source": "references/workflows/multi-level-approval.md"
+    },
+    {
+      "id": "WF-02",
+      "slug": "authorized-exception",
+      "group": "Business process",
+      "title": "Authorized exception",
+      "owner": "business-analyst + authority owner",
+      "inputs": "exception request, reason, approver scope, expiry",
+      "ruleId": "BR-02",
+      "rule": "An exception requires a scoped approver, recorded reason and active validity.",
+      "invariant": "no privilege from an expired/revoked exception",
+      "contention": "revocation during approval",
+      "caseIds": {
+        "success": "WF-02-SUCCESS",
+        "denied": "WF-02-DENIED",
+        "recovery": "WF-02-RECOVERY",
+        "contention": "WF-02-CONTENTION"
+      },
+      "source": "references/workflows/authorized-exception.md"
+    },
+    {
+      "id": "WF-03",
+      "slug": "partial-refund",
+      "group": "Transactions",
+      "title": "Payment and partial refund",
+      "owner": "integration owner + data integrity reviewer",
+      "inputs": "capture ID, amount, refund key, tenant",
+      "ruleId": "BR-03",
+      "rule": "Captured value bounds all refunds; a key replays only its original amount.",
+      "invariant": "sum of refunds never exceeds capture",
+      "contention": "concurrent refund requests",
+      "caseIds": {
+        "success": "WF-03-SUCCESS",
+        "denied": "WF-03-DENIED",
+        "recovery": "WF-03-RECOVERY",
+        "contention": "WF-03-CONTENTION"
+      },
+      "source": "references/workflows/partial-refund.md"
+    },
+    {
+      "id": "WF-04",
+      "slug": "inventory-reservation",
+      "group": "Transactions",
+      "title": "Competing inventory reservation",
+      "owner": "inventory owner + data integrity reviewer",
+      "inputs": "stock, hold TTL, tenant, request ID",
+      "ruleId": "BR-04",
+      "rule": "A committed hold consumes one available unit and expiry returns it once.",
+      "invariant": "stock plus active holds is conserved",
+      "contention": "competing holds",
+      "caseIds": {
+        "success": "WF-04-SUCCESS",
+        "denied": "WF-04-DENIED",
+        "recovery": "WF-04-RECOVERY",
+        "contention": "WF-04-CONTENTION"
+      },
+      "source": "references/workflows/inventory-reservation.md"
+    },
+    {
+      "id": "WF-05",
+      "slug": "tenant-revocation",
+      "group": "Authorization and limits",
+      "title": "Tenant isolation and revocation",
+      "owner": "auth owner + security reviewer",
+      "inputs": "tenant, grant version, principal",
+      "ruleId": "BR-05",
+      "rule": "A request must match tenant and a current grant version.",
+      "invariant": "revoked access never succeeds",
+      "contention": "revocation during request",
+      "caseIds": {
+        "success": "WF-05-SUCCESS",
+        "denied": "WF-05-DENIED",
+        "recovery": "WF-05-RECOVERY",
+        "contention": "WF-05-CONTENTION"
+      },
+      "source": "references/workflows/tenant-revocation.md"
+    },
+    {
+      "id": "WF-06",
+      "slug": "subscription-quota",
+      "group": "Authorization and limits",
+      "title": "Subscription quota accounting",
+      "owner": "billing owner + data integrity reviewer",
+      "inputs": "period, plan limit, usage key",
+      "ruleId": "BR-06",
+      "rule": "Usage is idempotent and must not exceed the period limit.",
+      "invariant": "used units never exceed limit",
+      "contention": "competing usage",
+      "caseIds": {
+        "success": "WF-06-SUCCESS",
+        "denied": "WF-06-DENIED",
+        "recovery": "WF-06-RECOVERY",
+        "contention": "WF-06-CONTENTION"
+      },
+      "source": "references/workflows/subscription-quota.md"
+    },
+    {
+      "id": "WF-07",
+      "slug": "webhook-ordering",
+      "group": "Integration and data",
+      "title": "Duplicate and out-of-order webhook",
+      "owner": "integration owner",
+      "inputs": "signature, event ID, aggregate version",
+      "ruleId": "BR-07",
+      "rule": "Apply authenticated unique events in version order; duplicates are no-ops.",
+      "invariant": "one effect per event ID and monotonic version",
+      "contention": "duplicate delivery",
+      "caseIds": {
+        "success": "WF-07-SUCCESS",
+        "denied": "WF-07-DENIED",
+        "recovery": "WF-07-RECOVERY",
+        "contention": "WF-07-CONTENTION"
+      },
+      "source": "references/workflows/webhook-ordering.md"
+    },
+    {
+      "id": "WF-08",
+      "slug": "import-recovery",
+      "group": "Integration and data",
+      "title": "Import and migration recovery",
+      "owner": "data owner + data integrity reviewer",
+      "inputs": "source revision, row IDs, checkpoint",
+      "ruleId": "BR-08",
+      "rule": "A resumed import applies each valid row once from a durable checkpoint.",
+      "invariant": "no duplicate row and checkpoint monotonic",
+      "contention": "competing workers",
+      "caseIds": {
+        "success": "WF-08-SUCCESS",
+        "denied": "WF-08-DENIED",
+        "recovery": "WF-08-RECOVERY",
+        "contention": "WF-08-CONTENTION"
+      },
+      "source": "references/workflows/import-recovery.md"
+    },
+    {
+      "id": "WF-09",
+      "slug": "offline-sync",
+      "group": "Mobile and desktop",
+      "title": "Offline sync conflict",
+      "owner": "mobile owner",
+      "inputs": "local edit, remote revision, tenant",
+      "ruleId": "BR-09",
+      "rule": "Conflicting offline edits require explicit resolution and current access.",
+      "invariant": "no silent overwrite of newer remote data",
+      "contention": "interrupted sync",
+      "caseIds": {
+        "success": "WF-09-SUCCESS",
+        "denied": "WF-09-DENIED",
+        "recovery": "WF-09-RECOVERY",
+        "contention": "WF-09-CONTENTION"
+      },
+      "source": "references/workflows/offline-sync.md"
+    },
+    {
+      "id": "WF-10",
+      "slug": "desktop-file-resume",
+      "group": "Mobile and desktop",
+      "title": "Interrupted desktop file task",
+      "owner": "desktop owner",
+      "inputs": "target path, content digest, journal ID",
+      "ruleId": "BR-10",
+      "rule": "Only owned paths may be atomically published after a verified write.",
+      "invariant": "published file matches committed digest",
+      "contention": "competing resume",
+      "caseIds": {
+        "success": "WF-10-SUCCESS",
+        "denied": "WF-10-DENIED",
+        "recovery": "WF-10-RECOVERY",
+        "contention": "WF-10-CONTENTION"
+      },
+      "source": "references/workflows/desktop-file-resume.md"
+    },
+    {
+      "id": "WF-11",
+      "slug": "rag-source-access",
+      "group": "AI",
+      "title": "RAG source and access",
+      "owner": "AI owner + security reviewer",
+      "inputs": "query, tenant, source ACL, index revision",
+      "ruleId": "BR-11",
+      "rule": "Only authorized cited sources may support an answer at response time.",
+      "invariant": "no cross-tenant source in answer",
+      "contention": "revocation during retrieval",
+      "caseIds": {
+        "success": "WF-11-SUCCESS",
+        "denied": "WF-11-DENIED",
+        "recovery": "WF-11-RECOVERY",
+        "contention": "WF-11-CONTENTION"
+      },
+      "source": "references/workflows/rag-source-access.md"
+    },
+    {
+      "id": "WF-12",
+      "slug": "agent-tool-effect",
+      "group": "AI",
+      "title": "Agent tool with side effects",
+      "owner": "AI owner + tool authority reviewer",
+      "inputs": "tool grant, action key, tenant",
+      "ruleId": "BR-12",
+      "rule": "A side effect needs current scope and one durable idempotency key.",
+      "invariant": "at most one effect per action key",
+      "contention": "concurrent tool calls",
+      "caseIds": {
+        "success": "WF-12-SUCCESS",
+        "denied": "WF-12-DENIED",
+        "recovery": "WF-12-RECOVERY",
+        "contention": "WF-12-CONTENTION"
+      },
+      "source": "references/workflows/agent-tool-effect.md"
+    }
+  ]
+}
