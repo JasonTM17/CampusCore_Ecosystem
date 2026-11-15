@@ -177,6 +177,7 @@ services:
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD_FILE: /run/secrets/spring_mail_password
       DEEPSEEK_ENABLED: ${DEEPSEEK_ENABLED:-false}
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
       # Thesis report uploads. The local provider writes under
       # /var/lib/campuscore/thesis-reports, which is a named volume below
       # because the container root filesystem is read-only. Set
@@ -202,6 +203,7 @@ services:
       - ./ops/secrets/rag_service_token:/run/secrets/rag_service_token:ro
       - ./ops/secrets/assistant_db_password:/run/secrets/assistant_db_password:ro
       - ./ops/secrets/spring_mail_password:/run/secrets/spring_mail_password:ro
+      - ./ops/secrets/deepseek_api_key:/run/secrets/deepseek_api_key:ro
       - campuscore_production_thesis_report_storage:/var/lib/campuscore/thesis-reports
     ports: !override []
     networks: [app, data]
