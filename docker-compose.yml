@@ -279,6 +279,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # rag-service is the stack's Flyway migrator; bursar seeds reference
+      # academic."Student", so the core schema must exist before V2 runs.
+      rag-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O- http://localhost:4012/api/v1/health/liveness >/dev/null"]
       interval: 10s
