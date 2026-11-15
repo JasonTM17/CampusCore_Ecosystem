@@ -151,6 +151,7 @@ jobs:
             scripts/ecosystem-devices-verify.test.mjs \
             scripts/ecosystem-doc-index.test.mjs \
             scripts/ecosystem-verify-shared.test.mjs \
+            scripts/edge-route-policy.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
             scripts/image-reference-policy.test.mjs \
             scripts/local-dev.test.mjs \
@@ -715,8 +716,6 @@ jobs:
         run: node scripts/caddy-validate.mjs
       - name: Validate local edge Caddyfile
         run: node scripts/caddy-validate.mjs --caddyfile ops/edge/Caddyfile.local --container-name campuscore-caddy-validate-local
-      - name: Edge route policy tests
-        run: node --test scripts/edge-route-policy.test.mjs
       - name: Supabase content tooling tests
         shell: bash
         run: |
