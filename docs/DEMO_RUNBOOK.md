@@ -92,6 +92,7 @@ node scripts/demo-rehearsal.mjs
 | **Quản trị viên 2** | `admin002@campuscore.demo` | `password123` | Dùng để thực hiện nguyên tắc Four-Eyes duyệt bản nháp tri thức của Admin 1 |
 | **Thí sinh xét tuyển** | `applicant@campuscore.edu` | `password123` | Tài khoản applicant (seed `V140`, khoá `V145`) — cổng `/apply`: soạn/nộp/rút hồ sơ xét tuyển mô phỏng bằng capability `admissions:self`, không chạm quyền học vụ |
 | **Thí sinh 2** | `applicant2@campuscore.edu` | `password123` | Tài khoản applicant thứ hai — kiểm thử cô lập hồ sơ giữa hai thí sinh |
+| **Nhân viên sự kiện** | `events.staff@campuscore.demo` | `password123` | Giảng viên Khoa CNTT kèm grant `STAFF:events` (seed `V164`) — mở `/staff` thấy bàn làm việc Sự kiện: tạo/duyệt/mở đăng ký sự kiện, xem roster |
 
 *Danh bạ giảng viên phụ `lecturer002@campuscore.demo` đến `lecturer012@campuscore.demo` cũng được seed sẵn để lịch dạy và hội đồng phản ánh quy mô trường thực tế.*
 
