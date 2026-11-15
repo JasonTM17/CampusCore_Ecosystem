@@ -34,6 +34,16 @@ services:
         sync: false
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
+      # Dedicated assistant RLS runtime pool (role provisioned per
+      # ops/assistant/bootstrap-provisioner.sql). Left empty, the API boots
+      # but /api/v1/assistant/* answers 503 ASSISTANT_RLS_UNAVAILABLE — fill
+      # these in the dashboard after the first deploy.
+      - key: ASSISTANT_DB_URL
+        sync: false
+      - key: ASSISTANT_DB_USERNAME
+        sync: false
+      - key: ASSISTANT_DB_PASSWORD
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
