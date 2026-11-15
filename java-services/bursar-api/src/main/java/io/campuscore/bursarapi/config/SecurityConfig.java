@@ -20,9 +20,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final InternalTokenFilter internalTokenFilter;
+    private final CookieOrBearerTokenResolver tokenResolver;
 
-    public SecurityConfig(InternalTokenFilter internalTokenFilter) {
+    public SecurityConfig(InternalTokenFilter internalTokenFilter,
+            CookieOrBearerTokenResolver tokenResolver) {
         this.internalTokenFilter = internalTokenFilter;
+        this.tokenResolver = tokenResolver;
     }
 
     @Bean
@@ -41,7 +44,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/me/bursar/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/me/bursar/**").authenticated()
                 .anyRequest().denyAll())
-            .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {}))
+            .oauth2ResourceServer(oauth -> oauth
+                .bearerTokenResolver(tokenResolver)
+                .jwt(jwt -> {}))
             .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
