@@ -3,9 +3,14 @@ package io.campuscore.restfulapi.academic.registration;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.CatalogSectionResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.CurriculumRelevance;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.EligibilityResponse;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoadmapCourse;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoadmapCurriculum;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoadmapPrerequisite;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoadmapResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.RoundResponse;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.SectionScheduleView;
 import io.campuscore.restfulapi.academic.registration.RegistrationDtos.SummaryResponse;
+import io.campuscore.restfulapi.academic.registration.RegistrationDtos.WishResponse;
 import io.campuscore.restfulapi.academic.service.AcademicEnrollmentReadService;
 import io.campuscore.restfulapi.academic.web.AcademicEnrollmentReadDtos.EnrollmentResponse;
 import io.campuscore.restfulapi.web.DomainException;
@@ -64,6 +69,9 @@ public class RegistrationService {
     /** Display names live on the auth profile; same join convention as AcademicEnrollmentReadRepository. */
     private static final String AUTH_USER = "campuscore_auth.\"User\"";
     private static final String CURRICULUM_COURSE = "academic.\"CurriculumCourse\"";
+    private static final String CURRICULUM = "academic.\"Curriculum\"";
+    private static final String DEPARTMENT = "academic.\"Department\"";
+    private static final String WISH = "academic.\"RegistrationWish\"";
     private static final int STANDARD_CREDIT_LIMIT = CreditLimitApplicationService.STANDARD_LIMIT;
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
@@ -159,6 +167,21 @@ public class RegistrationService {
      */
     @Transactional
     public List<CatalogSectionResponse> catalog(String studentId, String semesterId, String roundId) {
+        return catalog(studentId, semesterId, roundId, null, null, null);
+    }
+
+    /**
+     * Catalog filters applied after the fan-out grouping — the query budget
+     * stays constant: mode=remaining/retake add ONE attempt-history query,
+     * departmentId/search filter the already-fetched rows in memory.
+     */
+    public List<CatalogSectionResponse> catalog(String studentId, String semesterId, String roundId,
+            String mode, String departmentId, String search) {
+        String normalizedMode = mode == null || mode.isBlank() ? "all" : mode.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("all", "curriculum", "remaining", "retake").contains(normalizedMode)) {
+            throw problem(HttpStatus.BAD_REQUEST, "CATALOG_MODE_INVALID",
+                    "mode must be one of all, curriculum, remaining, retake");
+        }
         Map<String, Object> student = requireStudent(studentId);
         Map<String, Object> round = roundId == null || roundId.isBlank()
                 ? openReadRound(semesterId)
@@ -184,9 +207,12 @@ public class RegistrationService {
                         + " lecturer_user.\"firstName\" AS lecturer_first_name, lecturer_user.\"lastName\" AS lecturer_last_name,"
                         + " (SELECT cc.\"isMandatory\" FROM " + CURRICULUM_COURSE + " cc"
                         + "  WHERE cc.\"curriculumId\" = :curriculumId AND cc.\"courseId\" = section.\"courseId\" LIMIT 1)"
-                        + "   AS curriculum_mandatory"
+                        + "   AS curriculum_mandatory,"
+                        + " course.\"departmentId\" AS department_id,"
+                        + " department.\"code\" AS department_code, department.\"name\" AS department_name"
                         + " FROM " + SECTION + " section"
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
+                        + " LEFT JOIN " + DEPARTMENT + " department ON department.\"id\" = course.\"departmentId\""
                         + " LEFT JOIN " + SCHEDULE + " schedule ON schedule.\"sectionId\" = section.\"id\""
                         + " LEFT JOIN " + CLASSROOM + " classroom ON classroom.\"id\" = schedule.\"classroomId\""
                         + " LEFT JOIN " + LECTURER + " lecturer ON lecturer.\"id\" = section.\"lecturerId\""
@@ -226,7 +252,10 @@ public class RegistrationService {
                             schedule,
                             room,
                             lecturer,
-                            relevance);
+                            relevance,
+                            rs.getString("department_id"),
+                            rs.getString("department_code"),
+                            rs.getString("department_name"));
                 });
 
         // Group the fan-out back to one response per section and compute the
@@ -261,7 +290,10 @@ public class RegistrationService {
                                         row.schedule().end(),
                                         row.room(),
                                         row.lecturer())),
-                        row.relevance()));
+                        row.relevance(),
+                        row.departmentId(),
+                        row.departmentCode(),
+                        row.departmentName()));
                 continue;
             }
             if (row.schedule() == null) {
@@ -290,7 +322,10 @@ public class RegistrationService {
                     false,
                     assembled.alreadyEnrolled(),
                     List.copyOf(schedules),
-                    assembled.curriculumRelevance()));
+                    assembled.curriculumRelevance(),
+                    assembled.departmentId(),
+                    assembled.departmentCode(),
+                    assembled.departmentName()));
         }
 
         List<TimeRange> busy = new ArrayList<>();
@@ -325,10 +360,333 @@ public class RegistrationService {
                         true,
                         current.alreadyEnrolled(),
                         current.schedules(),
-                        current.curriculumRelevance()));
+                        current.curriculumRelevance(),
+                        current.departmentId(),
+                        current.departmentCode(),
+                        current.departmentName()));
             }
         }
+        return filterCatalog(catalog, normalizedMode, departmentId, search, studentId);
+    }
+
+    private List<CatalogSectionResponse> filterCatalog(List<CatalogSectionResponse> catalog,
+            String mode, String departmentId, String search, String studentId) {
+        if (departmentId != null && !departmentId.isBlank()) {
+            String wanted = departmentId.trim();
+            catalog.removeIf(section -> !wanted.equals(section.departmentId()));
+        }
+        if (search != null && !search.isBlank()) {
+            String needle = search.trim().toLowerCase(Locale.ROOT);
+            catalog.removeIf(section -> !containsIgnoreCase(section.courseCode(), needle)
+                    && !containsIgnoreCase(section.courseName(), needle)
+                    && !containsIgnoreCase(section.courseNameEn(), needle)
+                    && !containsIgnoreCase(section.courseNameVi(), needle));
+        }
+        if ("all".equals(mode)) {
+            return catalog;
+        }
+        if ("curriculum".equals(mode)) {
+            catalog.removeIf(section -> section.curriculumRelevance() == CurriculumRelevance.OUTSIDE);
+            return catalog;
+        }
+        // Attempt history drives both remaining (not yet passed) and retake
+        // (failed or dropped before). One extra constant query per catalog call.
+        Set<String> passedCourseIds = new LinkedHashSet<>();
+        Set<String> retakeableCourseIds = new LinkedHashSet<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade, \"status\" AS enrollment_status"
+                        + " FROM " + ENROLLMENT + " WHERE \"studentId\" = :studentId",
+                new MapSqlParameterSource("studentId", studentId))) {
+            String courseId = String.valueOf(row.get("course_id"));
+            String letter = row.get("letter_grade") == null ? null : String.valueOf(row.get("letter_grade"));
+            String status = String.valueOf(row.get("enrollment_status"));
+            if (letter != null && !"F".equalsIgnoreCase(letter) && !"W".equalsIgnoreCase(letter)) {
+                passedCourseIds.add(courseId);
+            }
+            if ((letter != null && ("F".equalsIgnoreCase(letter) || "W".equalsIgnoreCase(letter)))
+                    || "DROPPED".equals(status)) {
+                retakeableCourseIds.add(courseId);
+            }
+        }
+        if ("remaining".equals(mode)) {
+            catalog.removeIf(section -> section.curriculumRelevance() == CurriculumRelevance.OUTSIDE
+                    || section.alreadyEnrolled()
+                    || passedCourseIds.contains(section.courseId()));
+        } else if ("retake".equals(mode)) {
+            catalog.removeIf(section -> !retakeableCourseIds.contains(section.courseId()));
+        }
         return catalog;
+    }
+
+    private static boolean containsIgnoreCase(String haystack, String needleLower) {
+        return haystack != null && haystack.toLowerCase(Locale.ROOT).contains(needleLower);
+    }
+
+    /**
+     * Registration roadmap: the student's study program with per-course
+     * completion status, prerequisite satisfaction, and how many sections are
+     * offered in the target semester. Fixed query budget: student (1),
+     * curriculum (1), plan (1), attempt history (1), requirements (1),
+     * section counts (1) — independent of plan size.
+     */
+    @Transactional(readOnly = true)
+    public RoadmapResponse roadmap(String studentId, String semesterId) {
+        Map<String, Object> student = requireStudent(studentId);
+        String targetSemester = resolveTargetSemester(semesterId);
+        String curriculumId = String.valueOf(student.get("curriculum_id"));
+        Map<String, Object> curriculum;
+        try {
+            curriculum = jdbc.queryForMap(
+                    "SELECT \"id\", \"code\", \"name\", \"nameEn\", \"nameVi\", \"totalCredits\" FROM " + CURRICULUM
+                            + " WHERE \"id\" = :id",
+                    new MapSqlParameterSource("id", curriculumId));
+        } catch (EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "CURRICULUM_NOT_FOUND", "No study program is assigned to this student");
+        }
+        List<Map<String, Object>> plan = jdbc.queryForList(
+                "SELECT cc.\"courseId\" AS course_id, cc.\"year\" AS plan_year, cc.\"semester\" AS plan_semester,"
+                        + " cc.\"isMandatory\" AS is_mandatory,"
+                        + " course.\"code\", course.\"name\", course.\"nameEn\", course.\"nameVi\", course.\"credits\""
+                        + " FROM " + CURRICULUM_COURSE + " cc"
+                        + " JOIN " + COURSE + " course ON course.\"id\" = cc.\"courseId\""
+                        + " WHERE cc.\"curriculumId\" = :curriculumId"
+                        + " ORDER BY cc.\"year\", cc.\"semester\", course.\"code\"",
+                new MapSqlParameterSource("curriculumId", curriculumId));
+        List<String> planCourseIds = plan.stream()
+                .map(row -> String.valueOf(row.get("course_id")))
+                .toList();
+
+        // One attempt-history query feeds both completion status and prereq
+        // satisfaction; passing letters reuse the same F/W exclusion rule as
+        // completedLetters().
+        Map<String, String> bestLetterByCourse = new LinkedHashMap<>();
+        Set<String> inProgressCourseIds = new LinkedHashSet<>();
+        Map<String, java.math.BigDecimal> finalGradeByCourse = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade, \"status\" AS enrollment_status,"
+                        + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade"
+                        + " FROM " + ENROLLMENT + " WHERE \"studentId\" = :studentId",
+                new MapSqlParameterSource("studentId", studentId))) {
+            String courseId = String.valueOf(row.get("course_id"));
+            String status = String.valueOf(row.get("enrollment_status"));
+            if (Set.of("ENROLLED", "PENDING", "CONFIRMED").contains(status)
+                    && targetSemester.equals(String.valueOf(row.get("semester_id")))) {
+                inProgressCourseIds.add(courseId);
+            }
+            String letter = row.get("letter_grade") == null ? null : String.valueOf(row.get("letter_grade"));
+            String gradeStatus = String.valueOf(row.get("grade_status"));
+            boolean passing = letter != null
+                    && !"F".equalsIgnoreCase(letter) && !"W".equalsIgnoreCase(letter)
+                    && (Set.of("PUBLISHED", "APPEALED").contains(gradeStatus) || "COMPLETED".equals(status));
+            if (passing && satisfiesLetterFloor(List.of(letter), null)) {
+                bestLetterByCourse.merge(courseId, letter,
+                        (a, b) -> LETTER_RANK.getOrDefault(b, -1) > LETTER_RANK.getOrDefault(a, -1) ? b : a);
+                finalGradeByCourse.put(courseId, (java.math.BigDecimal) row.get("final_grade"));
+            }
+        }
+
+        List<Map<String, Object>> requirements = planCourseIds.isEmpty()
+                ? List.of()
+                : jdbc.queryForList(
+                        "SELECT requirement.\"courseId\" AS course_id, requirement.\"requiredCourseId\" AS required_id,"
+                                + " requirement.\"kind\", requirement.\"minLetterGrade\" AS min_letter_grade,"
+                                + " required.\"code\" AS required_code"
+                                + " FROM " + REQUIREMENT + " requirement"
+                                + " JOIN " + COURSE + " required ON required.\"id\" = requirement.\"requiredCourseId\""
+                                + " WHERE requirement.\"courseId\" IN (:courseIds)",
+                        new MapSqlParameterSource("courseIds", planCourseIds));
+        Map<String, List<Map<String, Object>>> requirementsByCourse = new LinkedHashMap<>();
+        for (Map<String, Object> requirement : requirements) {
+            requirementsByCourse
+                    .computeIfAbsent(String.valueOf(requirement.get("course_id")), key -> new ArrayList<>())
+                    .add(requirement);
+        }
+
+        Map<String, Integer> openSectionCounts = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, COUNT(*) AS section_count FROM " + SECTION
+                        + " WHERE \"semesterId\" = :semesterId GROUP BY \"courseId\"",
+                new MapSqlParameterSource("semesterId", targetSemester))) {
+            openSectionCounts.put(String.valueOf(row.get("course_id")),
+                    ((Number) row.get("section_count")).intValue());
+        }
+
+        List<RoadmapCourse> courses = new ArrayList<>();
+        for (Map<String, Object> item : plan) {
+            String courseId = String.valueOf(item.get("course_id"));
+            String status = bestLetterByCourse.containsKey(courseId)
+                    ? "COMPLETED"
+                    : inProgressCourseIds.contains(courseId) ? "IN_PROGRESS" : "NOT_STARTED";
+            List<RoadmapPrerequisite> prerequisites = new ArrayList<>();
+            boolean prerequisitesSatisfied = true;
+            for (Map<String, Object> requirement : requirementsByCourse.getOrDefault(courseId, List.of())) {
+                String requiredId = String.valueOf(requirement.get("required_id"));
+                String kind = String.valueOf(requirement.get("kind"));
+                String minLetter = requirement.get("min_letter_grade") == null
+                        ? null : String.valueOf(requirement.get("min_letter_grade"));
+                boolean satisfied = "PREREQ".equals(kind)
+                        ? satisfiesLetterFloor(
+                                bestLetterByCourse.containsKey(requiredId)
+                                        ? List.of(bestLetterByCourse.get(requiredId)) : List.of(),
+                                minLetter)
+                        : bestLetterByCourse.containsKey(requiredId) || inProgressCourseIds.contains(requiredId);
+                prerequisites.add(new RoadmapPrerequisite(
+                        requiredId, String.valueOf(requirement.get("required_code")),
+                        kind, minLetter, satisfied));
+                if ("PREREQ".equals(kind) && !satisfied) {
+                    prerequisitesSatisfied = false;
+                }
+            }
+            courses.add(new RoadmapCourse(
+                    courseId,
+                    String.valueOf(item.get("code")),
+                    String.valueOf(item.get("name")),
+                    (String) item.get("nameEn"),
+                    (String) item.get("nameVi"),
+                    ((Number) item.get("credits")).intValue(),
+                    ((Number) item.get("plan_year")).intValue(),
+                    ((Number) item.get("plan_semester")).intValue(),
+                    (Boolean) item.get("is_mandatory"),
+                    status,
+                    finalGradeByCourse.get(courseId),
+                    bestLetterByCourse.get(courseId),
+                    List.copyOf(prerequisites),
+                    prerequisitesSatisfied,
+                    openSectionCounts.getOrDefault(courseId, 0)));
+        }
+        return new RoadmapResponse(
+                new RoadmapCurriculum(
+                        String.valueOf(curriculum.get("id")),
+                        String.valueOf(curriculum.get("code")),
+                        String.valueOf(curriculum.get("name")),
+                        (String) curriculum.get("nameEn"),
+                        (String) curriculum.get("nameVi"),
+                        ((Number) curriculum.get("totalCredits")).intValue()),
+                targetSemester,
+                List.copyOf(courses));
+    }
+
+    /** Target semester for roadmap/wishlist screens: explicit param, else the open round's, else latest by start date. */
+    private String resolveTargetSemester(String semesterId) {
+        if (semesterId != null && !semesterId.isBlank()) {
+            return semesterId;
+        }
+        try {
+            return String.valueOf(openReadRound(null).get("semester_id"));
+        } catch (DomainException exception) {
+            // No open round — the roadmap is still useful for planning; fall
+            // back to the most recent semester.
+        }
+        List<String> latest = jdbc.queryForList(
+                "SELECT \"id\" FROM " + SEMESTER + " ORDER BY \"startDate\" DESC NULLS LAST LIMIT 1",
+                new MapSqlParameterSource(), String.class);
+        if (latest.isEmpty()) {
+            throw problem(HttpStatus.NOT_FOUND, "SEMESTER_NOT_FOUND", "No semester is available");
+        }
+        return latest.getFirst();
+    }
+
+    /** Student's declared wishes (đăng ký nguyện vọng) for a semester. */
+    @Transactional(readOnly = true)
+    public List<WishResponse> wishes(String studentId, String semesterId) {
+        requireStudent(studentId);
+        String targetSemester = resolveTargetSemester(semesterId);
+        Set<String> enrolledCourseIds = activeEnrollments(studentId, targetSemester).stream()
+                .map(row -> String.valueOf(row.get("course_id")))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, Integer> openSectionCounts = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, COUNT(*) AS section_count FROM " + SECTION
+                        + " WHERE \"semesterId\" = :semesterId GROUP BY \"courseId\"",
+                new MapSqlParameterSource("semesterId", targetSemester))) {
+            openSectionCounts.put(String.valueOf(row.get("course_id")),
+                    ((Number) row.get("section_count")).intValue());
+        }
+        List<WishResponse> wishes = new ArrayList<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT wish.\"id\", wish.\"courseId\" AS course_id, wish.\"createdAt\" AS created_at,"
+                        + " course.\"code\", course.\"name\", course.\"nameVi\", course.\"credits\""
+                        + " FROM " + WISH + " wish"
+                        + " JOIN " + COURSE + " course ON course.\"id\" = wish.\"courseId\""
+                        + " WHERE wish.\"studentId\" = :studentId AND wish.\"semesterId\" = :semesterId"
+                        + " ORDER BY course.\"code\"",
+                new MapSqlParameterSource()
+                        .addValue("studentId", studentId)
+                        .addValue("semesterId", targetSemester))) {
+            String courseId = String.valueOf(row.get("course_id"));
+            wishes.add(new WishResponse(
+                    String.valueOf(row.get("id")),
+                    courseId,
+                    String.valueOf(row.get("code")),
+                    String.valueOf(row.get("name")),
+                    (String) row.get("nameVi"),
+                    ((Number) row.get("credits")).intValue(),
+                    targetSemester,
+                    openSectionCounts.getOrDefault(courseId, 0),
+                    enrolledCourseIds.contains(courseId),
+                    timestamp((Timestamp) row.get("created_at"))));
+        }
+        return wishes;
+    }
+
+    /**
+     * Declare intent to take a course (nguyện vọng — PTIT-style wishlist for
+     * courses the student cannot or does not yet register for). Idempotent on
+     * (student, course, semester); rejected when already enrolled that term.
+     */
+    @Transactional
+    public WishResponse addWish(String studentId, String courseId, String semesterId, String idempotencyKey) {
+        requireKey(idempotencyKey);
+        requireStudent(studentId);
+        if (courseId == null || courseId.isBlank() || semesterId == null || semesterId.isBlank()) {
+            throw problem(HttpStatus.BAD_REQUEST, "WISH_INVALID", "courseId and semesterId are required");
+        }
+        try {
+            jdbc.queryForMap("SELECT \"id\" FROM " + COURSE + " WHERE \"id\" = :id AND \"isActive\" = true",
+                    new MapSqlParameterSource("id", courseId));
+        } catch (EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "COURSE_NOT_FOUND", "Course not found");
+        }
+        try {
+            jdbc.queryForMap("SELECT \"id\" FROM " + SEMESTER + " WHERE \"id\" = :id",
+                    new MapSqlParameterSource("id", semesterId));
+        } catch (EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "SEMESTER_NOT_FOUND", "Semester not found");
+        }
+        if (!activeCourseIds(studentId, semesterId, List.of(courseId)).isEmpty()) {
+            throw problem(HttpStatus.CONFLICT, "ALREADY_ENROLLED", "Already enrolled in this course");
+        }
+        String wishId = "wish-" + UUID.randomUUID();
+        try {
+            jdbc.update(
+                    "INSERT INTO " + WISH + " (\"id\", \"studentId\", \"courseId\", \"semesterId\")"
+                            + " VALUES (:id, :studentId, :courseId, :semesterId)",
+                    new MapSqlParameterSource()
+                            .addValue("id", wishId)
+                            .addValue("studentId", studentId)
+                            .addValue("courseId", courseId)
+                            .addValue("semesterId", semesterId));
+        } catch (DataIntegrityViolationException exception) {
+            throw problem(HttpStatus.CONFLICT, "WISH_DUPLICATE", "This course is already on the wishlist");
+        }
+        return wishes(studentId, semesterId).stream()
+                .filter(wish -> wish.id().equals(wishId))
+                .findFirst()
+                .orElseThrow(() -> problem(HttpStatus.INTERNAL_SERVER_ERROR, "WISH_READBACK_FAILED",
+                        "Wish could not be reloaded"));
+    }
+
+    @Transactional
+    public void removeWish(String studentId, String wishId) {
+        requireStudent(studentId);
+        int removed = jdbc.update(
+                "DELETE FROM " + WISH + " WHERE \"id\" = :id AND \"studentId\" = :studentId",
+                new MapSqlParameterSource()
+                        .addValue("id", wishId)
+                        .addValue("studentId", studentId));
+        if (removed == 0) {
+            throw problem(HttpStatus.NOT_FOUND, "WISH_NOT_FOUND", "Wishlist entry not found");
+        }
     }
 
     @Transactional
@@ -1387,7 +1745,10 @@ public class RegistrationService {
             TimeRange schedule,
             String room,
             String lecturer,
-            CurriculumRelevance relevance) {
+            CurriculumRelevance relevance,
+            String departmentId,
+            String departmentCode,
+            String departmentName) {
     }
 
     private static String displayName(String firstName, String lastName) {
