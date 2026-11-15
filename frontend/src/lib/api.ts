@@ -1242,6 +1242,64 @@ export interface RegistrationSection {
   curriculumRelevance?: RegistrationCurriculumRelevance;
   /** Class meetings; may be empty for sections not yet timetabled. */
   schedules?: RegistrationSectionSchedule[];
+  /** Owning department (Khoa) — present since the registrar slice API. */
+  departmentId?: string | null;
+  departmentCode?: string | null;
+  departmentName?: string | null;
+}
+
+export type RegistrationCatalogMode = 'all' | 'curriculum' | 'remaining' | 'retake';
+
+export interface RegistrationRoadmap {
+  curriculum: {
+    id: string;
+    code: string;
+    name: string;
+    nameEn?: string | null;
+    nameVi?: string | null;
+    totalCredits: number;
+  };
+  semesterId: string;
+  courses: RegistrationRoadmapCourse[];
+}
+
+export interface RegistrationRoadmapCourse {
+  courseId: string;
+  code: string;
+  name: string;
+  nameEn?: string | null;
+  nameVi?: string | null;
+  credits: number;
+  year: number;
+  semester: number;
+  isMandatory: boolean;
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'NOT_STARTED' | string;
+  finalGrade?: number | null;
+  letterGrade?: string | null;
+  prerequisites: RegistrationRoadmapPrereq[];
+  prerequisitesSatisfied: boolean;
+  openSectionCount: number;
+}
+
+export interface RegistrationRoadmapPrereq {
+  courseId: string;
+  code: string;
+  kind: string;
+  minLetterGrade?: string | null;
+  satisfied: boolean;
+}
+
+export interface RegistrationWish {
+  id: string;
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  courseNameVi?: string | null;
+  credits: number;
+  semesterId: string;
+  openSectionCount: number;
+  alreadyEnrolled: boolean;
+  createdAt: string;
 }
 
 export interface RegistrationRound {
@@ -1274,9 +1332,38 @@ export const registrationApi = {
     }>('/me/registration/eligibility', { params });
     return response.data;
   },
-  sections: async (params?: { semesterId?: string; roundId?: string }): Promise<RegistrationSection[]> => {
+  sections: async (params?: {
+    semesterId?: string;
+    roundId?: string;
+    mode?: RegistrationCatalogMode;
+    departmentId?: string;
+    search?: string;
+  }): Promise<RegistrationSection[]> => {
     const response = await api.get<RegistrationSection[]>('/me/registration/sections', { params });
     return response.data;
+  },
+  roadmap: async (semesterId?: string): Promise<RegistrationRoadmap> => {
+    const response = await api.get<RegistrationRoadmap>('/me/registration/roadmap', {
+      params: { semesterId },
+    });
+    return response.data;
+  },
+  wishes: async (semesterId?: string): Promise<RegistrationWish[]> => {
+    const response = await api.get<RegistrationWish[]>('/me/registration/wishes', {
+      params: { semesterId },
+    });
+    return response.data;
+  },
+  addWish: async (courseId: string, semesterId: string): Promise<RegistrationWish> => {
+    const response = await api.post<RegistrationWish>(
+      '/me/registration/wishes',
+      { courseId, semesterId },
+      { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+    );
+    return response.data;
+  },
+  removeWish: async (wishId: string): Promise<void> => {
+    await api.delete(`/me/registration/wishes/${wishId}`);
   },
   summary: async (semesterId?: string) => {
     const response = await api.get<{
@@ -1323,6 +1410,86 @@ export const registrationApi = {
       }
       throw error;
     }
+  },
+};
+
+/* ---------- Bursar (tuition) service — dedicated service behind /api/bursar ---------- */
+
+export interface BursarHold {
+  id: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface BursarAccount {
+  studentId: string;
+  balance: number;
+  currency: string;
+  holds: BursarHold[];
+}
+
+export interface BursarInvoiceItem {
+  id: string;
+  label: string;
+  courseCode: string;
+  credits: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface BursarInvoice {
+  id: string;
+  studentId: string;
+  term: string;
+  status: string;
+  total: number;
+  issuedAt: string;
+  dueAt: string;
+  paidAt: string;
+  items: BursarInvoiceItem[];
+}
+
+export interface BursarPayment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  method: string;
+  reference: string;
+  status: string;
+  paidAt: string;
+}
+
+const BURSAR_BASE = '/api/bursar';
+
+export const bursarApi = {
+  account: async (): Promise<BursarAccount> => {
+    const response = await api.get<BursarAccount>('/account', { baseURL: BURSAR_BASE });
+    return response.data;
+  },
+  holds: async (): Promise<BursarHold[]> => {
+    const response = await api.get<BursarHold[]>('/holds', { baseURL: BURSAR_BASE });
+    return response.data;
+  },
+  invoices: async (): Promise<BursarInvoice[]> => {
+    const response = await api.get<BursarInvoice[]>('/invoices', { baseURL: BURSAR_BASE });
+    return response.data;
+  },
+  invoice: async (invoiceId: string): Promise<BursarInvoice> => {
+    const response = await api.get<BursarInvoice>(`/invoices/${invoiceId}`, {
+      baseURL: BURSAR_BASE,
+    });
+    return response.data;
+  },
+  pay: async (
+    invoiceId: string,
+    payload: { amount: number; method: string; reference?: string },
+  ): Promise<BursarPayment> => {
+    const response = await api.post<BursarPayment>(`/invoices/${invoiceId}/payments`, payload, {
+      baseURL: BURSAR_BASE,
+      headers: { 'Idempotency-Key': createRequestId() },
+    });
+    return response.data;
   },
 };
 

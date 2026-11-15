@@ -306,6 +306,7 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       JAVA_API_ORIGIN: ${JAVA_API_ORIGIN:-http://restful-api:4010}
+      BURSAR_API_ORIGIN: ${BURSAR_API_ORIGIN:-http://bursar-api:4012}
       NEXT_PUBLIC_API_URL: /api/v1
       CAMPUSCORE_PROXY_TOKEN: ${CAMPUSCORE_PROXY_TOKEN:-}
     ports:
