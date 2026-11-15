@@ -1327,9 +1327,15 @@ public class ThesisAssistantService {
      * "viên" and the "sinh viên" alias to all look strong inside such a title
      * — the round-3 E2E false positive where a "bảo lưu kết quả học tập"
      * question was served the DevOps document.
+     *
+     * Entries are stored in folded form and membership is tested on
+     * {@link #foldForMatching(String)} output: the retrieval scorer is
+     * diacritic-insensitive, so an unaccented keyboard query ("sinh vien")
+     * corroborates the accented corpus title ("sinh viên") the same way —
+     * the audience check must fold too or that spelling slips past it.
      */
     private static final java.util.Set<String> NON_TOPIC_TERMS = java.util.Set.of(
-            "sinh", "viên", "vien", "sinh viên", "student", "students");
+            "sinh", "vien", "sinh vien", "student", "students");
 
     private static boolean hasTermCorroboration(
             ThesisAssistantKnowledgeRepository.KnowledgeDocument document, List<String> terms) {
@@ -1339,7 +1345,7 @@ public class ThesisAssistantService {
             if (ThesisAssistantKnowledgeRepository.termContribution(
                     document.title(), document.content(), term) >= 6) {
                 strong++;
-                if (NON_TOPIC_TERMS.contains(term)) continue;
+                if (NON_TOPIC_TERMS.contains(foldForMatching(term))) continue;
                 topicStrong++;
                 if (term.indexOf(' ') >= 0 || term.indexOf('/') >= 0 || term.length() >= 7) {
                     return true;

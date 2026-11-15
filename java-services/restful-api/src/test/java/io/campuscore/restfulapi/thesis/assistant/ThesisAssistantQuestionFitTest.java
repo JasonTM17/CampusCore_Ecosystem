@@ -85,6 +85,22 @@ class ThesisAssistantQuestionFitTest {
     }
 
     @Test
+    void anUnaccentedRepetitiveQuestionCannotCorroborateOnTheAudiencePhraseEither() {
+        // Round-4 E2E regression: the same repeated question typed on a
+        // keyboard without diacritics still mis-served the DevOps doc — the
+        // folded bigram "sinh vien" corroborates the accented title "sinh
+        // viên" but was not recognised as an audience term.
+        String question = ("dieu kien bao luu ket qua hoc tap cua sinh vien la gi "
+                + "va noi dung quy dinh ra sao").repeat(19);
+        var response = service(
+                "## DevOps\n- **Container hoá**: Dockerfile đa giai đoạn; sinh artifact bản dựng có thể tái lập.\n- **CI/CD**: lint → unit test → build; chặn merge khi đỏ.",
+                "DevOps cho sinh viên: Docker, CI/CD và hạ tầng chạy thử nghiệm lặp lại được")
+                .groundedFallback(question, "vi", false, "specialized");
+        assertEquals("NO_MATCH", response.reasonCode());
+        assertTrue(response.citations().isEmpty());
+    }
+
+    @Test
     void fullTurnWithoutProviderCannotBypassQuestionFitAndCiteArchitecture() throws Exception {
         assertFullTurn("vi", "disabled", false);
     }
