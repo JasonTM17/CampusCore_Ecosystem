@@ -27,11 +27,13 @@ only during owner bootstrap, and the one-shot provisioner uses it instead of
 the database bootstrap credential. It is distinct from
 `ASSISTANT_DB_PASSWORD`, which is the Assistant runtime password.
 
-## Deferred — future deployment work
+## Production Compose secret files
 
-The file-mounted secret set below belonged to the retired production Compose
-project. No Compose file in this repository mounts these paths today; the list
-is retained only as a contract for a future hosted target.
+`docker-compose.prod.yml` mounts the set below at `/run/secrets/<name>`.
+Create each file next to this README on the deploy host (never commit real
+values). One exception: `ASSISTANT_DB_PROVISIONER_PASSWORD` travels as a
+Compose environment variable, not a file, because the initdb bootstrap
+(`ops/assistant/bootstrap-provisioner.sql`) reads it via `\getenv`.
 
 - `postgres_password`
 - `jwt_secret`

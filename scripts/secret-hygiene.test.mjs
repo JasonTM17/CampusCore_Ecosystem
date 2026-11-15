@@ -61,6 +61,7 @@ test('gitignore covers credential stores and dump destinations, keeps examples',
   }
   const trackedExamples = [
     '.env.example',
+    '.env.production.example',
     'frontend/.env.example',
     'mobile/.env.example',
   ];

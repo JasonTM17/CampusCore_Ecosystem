@@ -160,6 +160,7 @@ jobs:
             scripts/platform-load.test.mjs \
             scripts/platform-verify.test.mjs \
             scripts/provision-assistant-runtime.test.mjs \
+            scripts/release-promotion-policy.test.mjs \
             scripts/runtime-env-inventory.test.mjs \
             scripts/secret-hygiene.test.mjs \
             scripts/seed-script-guard.test.mjs \
