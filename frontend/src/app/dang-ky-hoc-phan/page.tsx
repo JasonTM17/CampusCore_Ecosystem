@@ -814,7 +814,7 @@ export default function CourseRegistrationPage() {
                     </label>
                     <div className="flex flex-wrap gap-1">
                       <span className="sr-only" aria-live="polite">
-                        {countLabel(filteredSections.length, copy.sectionCountSingular, copy.sectionCount)}
+                        {countLabel(filteredSections.length, copy.sectionCountSingular, copy.sectionCount).replace('{count}', formatNumber(filteredSections.length))}
                       </span>
                       {CATALOG_MODES.map((option) => (
                         <button
@@ -930,7 +930,7 @@ export default function CourseRegistrationPage() {
                         {dept.departmentName ? ` — ${dept.departmentName}` : ''}
                       </span>
                       <span className="text-xs font-normal text-muted-foreground">
-                        {countLabel(dept.courses.length, pro.sectionsInDept, pro.sectionsInDeptPlural)}
+                        {countLabel(dept.courses.length, pro.sectionsInDept, pro.sectionsInDeptPlural).replace('{count}', formatNumber(dept.courses.length))}
                       </span>
                     </CardTitle>
                   </CardHeader>
@@ -949,7 +949,7 @@ export default function CourseRegistrationPage() {
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {formatNumber(group.credits)} {copy.creditsUnit} ·{' '}
-                              {countLabel(group.sections.length, copy.groupSectionCountOne, copy.groupSectionCount)}
+                              {countLabel(group.sections.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(group.sections.length))}
                             </p>
                           </div>
                           {!wishedCourseIds.has(group.courseId) && (
@@ -1000,7 +1000,7 @@ export default function CourseRegistrationPage() {
                                           section.remainingSeats,
                                           copy.seatsOpenOne,
                                           copy.seatsOpen,
-                                        )
+                                        ).replace('{count}', formatNumber(section.remainingSeats))
                                       : copy.full}
                                   </p>
                                 </div>
@@ -1156,7 +1156,7 @@ export default function CourseRegistrationPage() {
                           {wish.alreadyEnrolled
                             ? ` · ${pro.wishlistEnrolled}`
                             : wish.openSectionCount > 0
-                              ? ` · ${countLabel(wish.openSectionCount, pro.openSections, pro.openSectionsPlural)}`
+                              ? ` · ${countLabel(wish.openSectionCount, pro.openSections, pro.openSectionsPlural).replace('{count}', formatNumber(wish.openSectionCount))}`
                               : ` · ${pro.wishlistNoSections}`}
                         </p>
                       </div>
