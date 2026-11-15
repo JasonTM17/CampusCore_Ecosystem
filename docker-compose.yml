@@ -190,6 +190,13 @@ services:
       start_period: 20s
     mem_limit: 512m
     restart: unless-stopped
+    networks:
+      default:
+        # SIS core alias: the edge gateway routes the general API surface here;
+        # dedicated registrarial containers (enrollment, bursar) get their own
+        # upstreams so clients only ever see one public API origin.
+        aliases:
+          - sis-core
 
   web:
     build:
@@ -216,6 +223,28 @@ services:
     depends_on:
       restful-api:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Single API origin for the multi-service topology: registrar and bursar
+  # prefixes fan out to their own containers (ops/edge/Caddyfile.local), the
+  # rest of /api/v1 goes to the SIS core, and everything else serves the web.
+  edge:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    ports:
+      - "127.0.0.1:${EDGE_HOST_PORT:-8080}:80"
+    volumes:
+      - ./ops/edge/Caddyfile.local:/etc/caddy/Caddyfile:ro
+    depends_on:
+      restful-api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O- http://127.0.0.1:2019/config/ >/dev/null 2>&1 || wget --no-verbose --tries=1 -O- http://127.0.0.1/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
     restart: unless-stopped
 
 volumes:

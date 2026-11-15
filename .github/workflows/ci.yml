@@ -713,6 +713,10 @@ jobs:
         run: docker compose -f docker-compose.yml config -q
       - name: Validate Caddyfile
         run: node scripts/caddy-validate.mjs
+      - name: Validate local edge Caddyfile
+        run: node scripts/caddy-validate.mjs --caddyfile ops/edge/Caddyfile.local --container-name campuscore-caddy-validate-local
+      - name: Edge route policy tests
+        run: node --test scripts/edge-route-policy.test.mjs
       - name: Supabase content tooling tests
         shell: bash
         run: |
