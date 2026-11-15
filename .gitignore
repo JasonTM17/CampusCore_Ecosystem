@@ -122,6 +122,9 @@ scratch/
 
 # Devin agent runtime config (local-only)
 .devin/
+
+# AgentKit agent runtime assets (local-only, owner-provided kit — never committed)
+.agents/
 /.playwright-mcp/
 
 # Local-only scratch captures and non-CampusCore reference artifacts
