@@ -29,11 +29,39 @@ function rejected(status: number, body: Record<string, string>): Response {
 const BODY_CAP_JSON = 1024 * 1024;
 
 async function readRequestBody(request: NextRequest, cap: number): Promise<ArrayBuffer> {
-  const buffer = await request.arrayBuffer();
-  if (buffer.byteLength > cap) {
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > cap) {
     throw new Error('REQUEST_BODY_TOO_LARGE');
   }
-  return buffer;
+  const reader = request.body?.getReader();
+  if (!reader) {
+    const buffer = await request.arrayBuffer();
+    if (buffer.byteLength > cap) {
+      throw new Error('REQUEST_BODY_TOO_LARGE');
+    }
+    return buffer;
+  }
+  // Stream-and-cap: abort as soon as the cap is exceeded so oversized
+  // payloads never sit fully buffered in the web process.
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      throw new Error('REQUEST_BODY_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+  const buffer = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return buffer.buffer;
 }
 
 /**

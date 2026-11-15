@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -151,6 +151,15 @@ export default function CourseRegistrationPage() {
   const [departmentId, setDepartmentId] = useState<string>('');
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Seed the catalog search from ?q= (legacy /dashboard/register?q= links).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) {
+      setSearchText(q);
+      setDebouncedSearch(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sortMode, setSortMode] = useState<SectionSortMode>('code');
   const [seatsOnly, setSeatsOnly] = useState(false);
   const [noConflictOnly, setNoConflictOnly] = useState(false);
@@ -616,8 +625,12 @@ export default function CourseRegistrationPage() {
                                 .filter((req) => !req.satisfied)
                                 .map((req) => req.code)
                                 .join(', ');
+                              const canWish =
+                                status !== 'completed'
+                                && !wishedCourseIds.has(course.courseId)
+                                && course.openSectionCount === 0;
                               return (
-                                <li key={course.courseId}>
+                                <li key={course.courseId} className="flex items-start gap-1">
                                   <button
                                     type="button"
                                     onClick={() => focusCourse(course.code)}
@@ -665,6 +678,20 @@ export default function CourseRegistrationPage() {
                                       </span>
                                     </span>
                                   </button>
+                                  {canWish && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPendingWish(course.courseId);
+                                        wishMutation.mutate(course.courseId);
+                                      }}
+                                      disabled={pendingWish === course.courseId}
+                                      title={pro.wishlistAdd}
+                                      className="mt-1 shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-primary disabled:opacity-50"
+                                    >
+                                      <Star className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
                                 </li>
                               );
                             })}
