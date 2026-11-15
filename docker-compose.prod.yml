@@ -175,6 +175,8 @@ services:
       ASSISTANT_DB_URL: ${ASSISTANT_DB_URL:-jdbc:postgresql://postgres:5432/campuscore_restful}
       ASSISTANT_DB_USERNAME: ${ASSISTANT_DB_USERNAME:-campuscore_assistant_runtime}
       ASSISTANT_DB_PASSWORD_FILE: /run/secrets/assistant_db_password
+      # Public origin embedded in outbound mail links (password reset, 2FA).
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:?Set APP_PUBLIC_BASE_URL to the public https origin}
       # Mail is opt-in: MAIL_ENABLED=true plus the spring_mail_password secret
       # turns on 2FA and password-reset delivery; the default keeps it off.
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
