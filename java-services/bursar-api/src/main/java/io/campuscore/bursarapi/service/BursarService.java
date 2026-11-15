@@ -58,7 +58,9 @@ public class BursarService {
             long amount, String method, String reference) {
         // Ownership first: replaying a key must never disclose another
         // student's payment for an invoice path the caller does not own.
-        Invoice invoice = invoiceFor(studentId, invoiceId);
+        // ForUpdate: serialize concurrent pays on this invoice inside the tx.
+        Invoice invoice = invoices.findForUpdateByIdAndStudentId(invoiceId, studentId)
+                .orElseThrow(() -> new BursarNotFoundException("invoice not found"));
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             var existing = payments.findByIdempotencyKey(idempotencyKey);
             if (existing.isPresent()) {
