@@ -198,6 +198,35 @@ services:
         aliases:
           - sis-core
 
+  # Bursar service — the tuition/billing office in the university topology.
+  # Owns the `bursar` schema (invoices, payments, financial holds) and exposes
+  # /api/v1/me/bursar/* to students plus /internal/bursar/* for service calls.
+  bursar-api:
+    build:
+      context: .
+      dockerfile: java-services/bursar-api/Dockerfile
+    image: student-management-ute-bursar-api:local
+    environment:
+      SERVER_PORT: 4012
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-campuscore_restful}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-campuscore}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      BURSAR_INTERNAL_TOKEN: ${BURSAR_INTERNAL_TOKEN:?Set BURSAR_INTERNAL_TOKEN}
+    ports:
+      - "127.0.0.1:${BURSAR_API_HOST_PORT:-4012}:4012"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O- http://localhost:4012/api/v1/health/liveness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 512m
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -236,6 +265,8 @@ services:
       - ./ops/edge/Caddyfile.local:/etc/caddy/Caddyfile:ro
     depends_on:
       restful-api:
+        condition: service_healthy
+      bursar-api:
         condition: service_healthy
       web:
         condition: service_started

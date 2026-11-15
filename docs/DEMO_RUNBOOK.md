@@ -57,7 +57,8 @@ node scripts/demo-rehearsal.mjs
 ## 2. Thông tin Địa chỉ & Danh sách Tài khoản Demo
 
 ### A. Địa chỉ cổng dịch vụ (mặc định local)
-- **Edge gateway (điểm vào đa dịch vụ)**: `http://127.0.0.1:8080` — route `/api/v1/me/registration*` + `/me/enrollments*` (hiện qua `sis-core`, sẽ sang `enrollment-api`), `/api/v1/me/bursar*` sang `bursar-api`, phần còn lại của `/api/v1` sang `sis-core` (restful-api), web về `web:3000`. Cấu hình: `ops/edge/Caddyfile.local`.
+- **Edge gateway (điểm vào đa dịch vụ)**: `http://127.0.0.1:8080` — route `/api/v1/me/registration*` + `/me/enrollments*` (hiện qua `sis-core`, sẽ sang `enrollment-api`), `/api/v1/me/bursar*` + `/internal/bursar*` sang `bursar-api:4012` (phòng tài chính — hoá đơn học phí, thanh toán, financial hold), phần còn lại của `/api/v1` sang `sis-core` (restful-api), web về `web:3000`. Cấu hình: `ops/edge/Caddyfile.local`.
+- **Bursar API (phòng tài chính)**: `http://127.0.0.1:4012` — service riêng sở hữu schema `bursar` (fee_rate, student_account, invoice, invoice_item, payment, financial_hold). `/api/v1/me/bursar/{account,invoices,invoices/{id},holds}` xác thực JWT chung; `POST /api/v1/me/bursar/invoices/{id}/payments` idempotent theo `Idempotency-Key`; `/internal/bursar/holds/{studentId}` nội bộ, gate bằng `X-Bursar-Service-Token`. Demo: `student@campuscore.edu` có hoá đơn PAID; `phuong.ttm@campuscore.demo` có hoá đơn PARTIAL + hold ACTIVE.
 - **Cổng Web Portal Sinh viên & Giảng viên**: `http://127.0.0.1:3000`
 - **Swagger / OpenAPI Specification**: `http://127.0.0.1:4010/v3/api-docs`
 - **Hộp thư thử nghiệm Mailpit**: `http://127.0.0.1:8025`
