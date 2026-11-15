@@ -274,7 +274,7 @@ test('requires Test pass before Review', () => {
 
 test('rejects absolute artifact paths and secret-bearing fields', () => {
   const workflow = validWorkflow();
-  workflow.stages[2].produced_files = ['C:\\Users\\Admin\\secret.json'];
+  workflow.stages[2].produced_files = ['C:\\Users\\user\\secret.json'];
   workflow.stages[2].api_key = 'should-not-be-here';
   const errors = validate(workflow).errors.join('\n');
   assert.match(errors, /portable relative|secret-bearing/);
