@@ -4,6 +4,8 @@ WORKDIR /workspace
 
 COPY java-services/pom.xml java-services/pom.xml
 COPY java-services/restful-api/pom.xml java-services/restful-api/pom.xml
+# The parent reactor lists every module; -pl still needs each sibling POM.
+COPY java-services/bursar-api/pom.xml java-services/bursar-api/pom.xml
 
 
 COPY java-services/restful-api/src java-services/restful-api/src

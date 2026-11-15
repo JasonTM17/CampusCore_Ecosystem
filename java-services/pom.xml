@@ -30,5 +30,6 @@
 
     <modules>
         <module>restful-api</module>
+        <module>bursar-api</module>
     </modules>
 </project>
