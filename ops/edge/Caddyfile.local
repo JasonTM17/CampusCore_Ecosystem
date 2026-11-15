@@ -30,12 +30,12 @@
         header_up X-Forwarded-For {remote_host}
     }
 
-    # Registrar domain: course registration + enrollments. Until the dedicated
-    # enrollment-api container ships (P3), sis-core still serves the slice.
+    # Registrar domain: course registration + enrollments, served by the
+    # dedicated enrollment-api container (P3 slice of the same image).
     @registrar {
         path /api/v1/me/registration* /api/v1/me/enrollments* /api/v1/admin/registration*
     }
-    reverse_proxy @registrar sis-core:4010 {
+    reverse_proxy @registrar enrollment-api:4013 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Edge-Domain "enrollment"
