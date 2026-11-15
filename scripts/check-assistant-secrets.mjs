@@ -35,7 +35,13 @@ const credentialStoreDirectories = new Set([
   '.ngrok2',
 ]);
 const allowedNameSuffixes = ['.example', '.sample', '.template', '.pub'];
-const allowedPaths = new Set([]);
+const allowedPaths = new Set([
+  // Vendored AgentKit documentation/test fixtures that deliberately contain
+  // example credential patterns (they document what a leak looks like).
+  '.agents/skills/ak-git/references/safety-protocols.md',
+  '.agents/skills/ak-skill-creator/references/plugin-marketplace-hosting.md',
+  '.agents/skills/ak-wukong/scripts/wukong-contract.test.cjs',
+]);
 const namePatterns = [
   ['dotenv-file', /^\.env(\..+)?$/],
   ['dotenv-file', /^\.envrc$/],
