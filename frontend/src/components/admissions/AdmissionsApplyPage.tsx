@@ -40,8 +40,32 @@ function errorCode(error: unknown): string {
     ?? '');
 }
 
+function fieldErrors(error: unknown): Record<string, string> {
+  const errors = (error as { response?: { data?: { fieldErrors?: unknown } } })
+    ?.response?.data?.fieldErrors;
+  if (!errors || typeof errors !== 'object' || Array.isArray(errors)) return {};
+  return Object.fromEntries(
+    Object.entries(errors as Record<string, unknown>)
+      .map(([field, message]) => [field, String(message)]),
+  );
+}
+
 function friendlyError(copy: Copy, error: unknown): string {
   const code = errorCode(error);
+  if (code === 'VALIDATION_ERROR') {
+    const labels: Record<string, string> = {
+      fullName: copy.fullName,
+      dateOfBirth: copy.dateOfBirth,
+      schoolName: copy.schoolName,
+      intendedMajor: copy.intendedMajor,
+      essay: copy.essay,
+      cycle: copy.cycle,
+    };
+    const details = Object.entries(fieldErrors(error))
+      .map(([field, message]) => `${labels[field] ?? field}: ${message}`)
+      .join('; ');
+    return details ? `${copy.validationFailed} ${details}` : copy.failed;
+  }
   if (code === 'UPLOAD_TOO_LARGE') return copy.uploadTooLarge;
   if (code === 'UPLOAD_TYPE_UNSUPPORTED') return copy.uploadTypeUnsupported;
   if (code === 'APPLICATION_CYCLE_ACTIVE') return copy.cycleActive;
