@@ -1,7 +1,7 @@
 import api from '@/lib/api';
 import { campusErrorKind } from '@/lib/campus-error';
 
-export type StaffDeskKey = 'admissions' | 'careers' | 'library';
+export type StaffDeskKey = 'admissions' | 'careers' | 'library' | 'events';
 
 export interface StaffDesk {
   key: StaffDeskKey;
@@ -14,12 +14,24 @@ export interface StaffDesk {
    * the status, not the payload.
    */
   grantsPath: string;
+  /**
+   * Full-admin twin of `href`: the dashboard layout bounces admins out of
+   * /dashboard, so their desk card must point at the /admin surface that
+   * hosts the same console (e.g. /admin/events mirrors /dashboard/events).
+   */
+  adminHref?: string;
 }
 
 export const STAFF_DESKS: readonly StaffDesk[] = [
   { key: 'admissions', href: '/apply/review', grantsPath: '/admissions/staff/grants' },
   { key: 'careers', href: '/careers/desk', grantsPath: '/careers/staff/grants' },
   { key: 'library', href: '/library/desk', grantsPath: '/library/staff/grants' },
+  {
+    key: 'events',
+    href: '/dashboard/events',
+    grantsPath: '/events/staff/grants',
+    adminHref: '/admin/events',
+  },
 ];
 
 export type DeskProbeOutcome = 'granted' | 'denied' | 'failed';

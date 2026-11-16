@@ -3,7 +3,7 @@ import { FlatList, Platform, StyleSheet, View, type FlatListProps } from 'react-
 
 import { tokens } from '../../design/tokens';
 import { ASSISTANT_FAB_SCROLL_INSET } from '../assistant-fab-insets';
-import { AssistantScrollSpacer } from '../Ui';
+import { AssistantScrollSpacer } from '../assistant-scroll-spacer';
 
 export interface PerformanceListProps<T> extends Omit<FlatListProps<T>, 'ListHeaderComponent' | 'ListFooterComponent' | 'ListEmptyComponent' | 'data' | 'renderItem' | 'keyExtractor'> {
   data: readonly T[];

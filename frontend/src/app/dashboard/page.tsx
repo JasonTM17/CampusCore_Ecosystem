@@ -187,7 +187,13 @@ export default function DashboardPage() {
         }
         throw error;
       }),
-    { enabled: canLoad && Boolean(currentSemester), staleTime: 5 * 60_000 },
+    // Fire early only while the session role is still resolving; a resolved
+    // non-student (e.g. a lecturer landing here by mistake) must not fire the
+    // student-scoped summary endpoint, which 403s into the console.
+    {
+      enabled: canLoad && (authLoading || hasAccess) && Boolean(currentSemester),
+      staleTime: 5 * 60_000,
+    },
   );
 
   const enrollments = (enrollmentsQuery.data ?? []) as Enrollment[];
