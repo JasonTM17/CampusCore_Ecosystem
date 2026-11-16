@@ -40,7 +40,8 @@ let mockSession = { kind: 'preview', role: 'student', capabilities: [] as string
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => mockSession,
 }));
-jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn() }));
+jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn(), signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()) }));
+
 jest.mock('../../src/auth/mobile-session-store', () => ({ sessionStore: {} }));
 jest.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: true }) }));
 

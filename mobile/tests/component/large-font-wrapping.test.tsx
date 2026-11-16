@@ -90,7 +90,8 @@ jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'signedOut', role: 'student', capabilities: [], bootStatus: 'ready' }),
   useOptionalSession: () => null,
 }));
-jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })) }));
+jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })), signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()) }));
+
 jest.mock('../../src/auth/mobile-session-store', () => ({
   sessionStore: {
     issuer: 'http://issuer.test',

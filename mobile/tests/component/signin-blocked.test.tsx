@@ -37,7 +37,8 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => mockSession,
 }));
-jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: () => mockSignIn() }));
+jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: () => mockSignIn(), signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()) }));
+
 jest.mock('../../src/auth/mobile-session-store', () => ({
   sessionStore: {
     issuer: 'http://issuer.test',

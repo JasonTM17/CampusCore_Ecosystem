@@ -190,6 +190,7 @@ const ERROR_KEYS: Record<string, string> = {
   COREQUISITE_UNMET: 'corequisiteUnmet',
   WINDOW_CLOSED: 'windowClosed',
   COHORT_INELIGIBLE: 'cohortIneligible',
+  TUITION_HOLD: 'tuitionHold',
 };
 
 export function registrationErrorKey(code: string | null | undefined): string | null {
