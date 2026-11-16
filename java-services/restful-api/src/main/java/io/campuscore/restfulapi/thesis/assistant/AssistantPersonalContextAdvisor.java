@@ -290,6 +290,20 @@ public class AssistantPersonalContextAdvisor {
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
 
     /** Personal academic-grades questions (bảng điểm, GPA, kết quả học tập). */
+    private static final Pattern TUITION_NOUN = Pattern.compile(
+            "học\\s*phí|hoc\\s*phi|tuition|fees?|khoản\\s*thu|khoan\\s*thu"
+                    + "|hoá\\s*đơn|hóa\\s*đơn|hoa\\s*don|invoice"
+                    + "|nợ\\s*học|no\\s*hoc|dư\\s*nợ|du\\s*no|số\\s*dư|so\\s*du|outstanding|balance"
+                    + "|còn\\s*nợ|con\\s*no|đóng\\s*tiền|dong\\s*tien|thanh\\s*toán|thanh\\s*toan",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
+
+    /** Institutional tuition wording — unit price, waiver policy — stays on the knowledge path. */
+    private static final Pattern TUITION_INSTITUTIONAL = Pattern.compile(
+            "miễn\\s*giảm|mien\\s*giam|chính\\s*sách|chinh\\s*sach|đơn\\s*giá|don\\s*gia"
+                    + "|biểu\\s*phí|bieu\\s*phi|khung\\s*(?:học\\s*phí|hoc\\s*phi|phí|phi)"
+                    + "|(?:mỗi|moi|một|mot|1|per)\\s*tín\\s*chỉ|(?:mỗi|moi|một|mot|1|per)\\s*tin\\s*chi",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
+
     private static final Pattern GRADES_INTENT = Pattern.compile(
             "bảng\\s*điểm|bang\\s*diem|học\\s*bạ|hoc\\s*ba"
                     + "|kết\\s*quả\\s*học\\s*tập|ket\\s*qua\\s*hoc\\s*tap"
@@ -1441,6 +1455,19 @@ public class AssistantPersonalContextAdvisor {
                 && SECTION_DETAIL_HINT.matcher(message).find();
     }
 
+    /**
+     * First-person tuition/fee question ("tôi còn nợ học phí bao nhiêu",
+     * "hoc phi cua toi", "my invoice"). Institutional wording (unit price,
+     * waiver policy) stays on the knowledge path like every other intent.
+     */
+    private static boolean isTuitionPersonalIntent(String message) {
+        if (!StringUtils.hasText(message)) return false;
+        if (WORDING_POLICY_INTENT.matcher(message).find()) return false;
+        if (TUITION_INSTITUTIONAL.matcher(message).find()) return false;
+        return FIRST_PERSON_PRONOUN.matcher(message).find()
+                && TUITION_NOUN.matcher(message).find();
+    }
+
     /** Grades intent requires a first-person marker so policy questions stay on the knowledge path. */
     private static boolean isGradesIntent(String message) {
         if (!StringUtils.hasText(message)) return false;
@@ -1553,6 +1580,7 @@ public class AssistantPersonalContextAdvisor {
     private final AcademicConductService conductService;
     private final RegistrationService registrationService;
     private final AcademicAttendanceReadService academicAttendance;
+    private final BursarAssistantGateway bursarGateway;
     private final NamedParameterJdbcTemplate jdbc;
 
     public AssistantPersonalContextAdvisor(
@@ -1579,7 +1607,20 @@ public class AssistantPersonalContextAdvisor {
             NamedParameterJdbcTemplate jdbc,
             AcademicConductService conductService,
             RegistrationService registrationService) {
-        this(enrollments, sections, lecturerWorkload, jdbc, conductService, registrationService, null);
+        this(enrollments, sections, lecturerWorkload, jdbc, conductService, registrationService, null, null);
+    }
+
+    /** Compatibility constructor retained for focused advisor tests. */
+    public AssistantPersonalContextAdvisor(
+            AcademicEnrollmentReadService enrollments,
+            AcademicSectionReadService sections,
+            ThesisLecturerWorkloadService lecturerWorkload,
+            NamedParameterJdbcTemplate jdbc,
+            AcademicConductService conductService,
+            RegistrationService registrationService,
+            AcademicAttendanceReadService academicAttendance) {
+        this(enrollments, sections, lecturerWorkload, jdbc, conductService, registrationService,
+                academicAttendance, null);
     }
 
     @Autowired
@@ -1590,7 +1631,8 @@ public class AssistantPersonalContextAdvisor {
             @Autowired(required = false) NamedParameterJdbcTemplate jdbc,
             @Autowired(required = false) AcademicConductService conductService,
             @Autowired(required = false) RegistrationService registrationService,
-            @Autowired(required = false) AcademicAttendanceReadService academicAttendance) {
+            @Autowired(required = false) AcademicAttendanceReadService academicAttendance,
+            @Autowired(required = false) BursarAssistantGateway bursarGateway) {
         this.enrollments = enrollments;
         this.sections = sections;
         this.lecturerWorkload = lecturerWorkload;
@@ -1598,6 +1640,7 @@ public class AssistantPersonalContextAdvisor {
         this.conductService = conductService;
         this.registrationService = registrationService;
         this.academicAttendance = academicAttendance;
+        this.bursarGateway = bursarGateway;
     }
 
     /**
@@ -1666,6 +1709,7 @@ public class AssistantPersonalContextAdvisor {
                 || isConductIntent(message)
                 || isGradesIntent(message)
                 || isEnrollmentListIntent(message)
+                || isTuitionPersonalIntent(message)
                 || isGraduationCreditsIntent(message)
                 || isCreditsRemainingIntent(message)
                 || isCreditsAccumulatedIntent(message)
@@ -1832,6 +1876,16 @@ public class AssistantPersonalContextAdvisor {
                 return noPersonalContextMessage(locale);
             }
             return conductService == null ? null : conductAnswer(studentId, locale);
+        }
+        if (isTuitionPersonalIntent(message)) {
+            // Personal tuition balance/invoice state — student-owned; the
+            // snapshot comes from bursar-api via the internal account
+            // endpoint, so a bursar outage degrades to the knowledge path
+            // rather than an error.
+            if (!StringUtils.hasText(studentId)) {
+                return noPersonalContextMessage(locale);
+            }
+            return bursarGateway == null ? null : tuitionAnswer(studentId, locale);
         }
         if (isCreditsRemainingIntent(message)) {
             // The registration budget is student-owned; without a profile
@@ -2231,6 +2285,71 @@ public class AssistantPersonalContextAdvisor {
     }
 
     /** Personal conduct (ĐRL) answer from the student's real semester evaluations. */
+    /**
+     * Tuition answer composed from the bursar-api account snapshot: balance
+     * plus the newest unpaid invoice and any active hold, with a pointer to
+     * the tuition page for the full ledger. Returns null when the service
+     * gave no snapshot (fail-open) so the knowledge path can try.
+     */
+    private String tuitionAnswer(String studentId, String locale) {
+        java.util.Optional<BursarAssistantGateway.BursarAccountView> view =
+                bursarGateway.accountFor(studentId);
+        if (view.isEmpty()) {
+            return null;
+        }
+        BursarAssistantGateway.BursarAccountView account = view.get();
+        boolean vi = !"en".equals(locale);
+        String cur = account.currency() == null || account.currency().isBlank()
+                ? "VND" : account.currency();
+        StringBuilder sb = new StringBuilder();
+        if (vi) {
+            sb.append(account.balance() > 0
+                    ? "Bạn đang còn dư nợ học phí " + formatMoney(account.balance()) + " " + cur + "."
+                    : "Bạn không còn dư nợ học phí (số dư 0 " + cur + ").");
+        } else {
+            sb.append(account.balance() > 0
+                    ? "Your outstanding tuition balance is " + formatMoney(account.balance()) + " " + cur + "."
+                    : "You have no outstanding tuition balance (0 " + cur + ").");
+        }
+        // Newest invoice with an open remainder — the "due soon" line that
+        // answers what to pay next.
+        Map<String, Object> open = account.invoices().stream()
+                .filter(i -> !"PAID".equalsIgnoreCase(String.valueOf(i.get("status"))))
+                .filter(i -> numberValue(i.get("remaining")) > 0)
+                .findFirst().orElse(null);
+        if (open != null) {
+            long remaining = numberValue(open.get("remaining"));
+            String term = String.valueOf(open.get("term"));
+            String due = String.valueOf(open.get("dueAt"));
+            if (vi) {
+                sb.append(" Hoá đơn kỳ ").append(term)
+                        .append(" còn thiếu ").append(formatMoney(remaining)).append(" ").append(cur);
+                if (!due.isBlank()) sb.append(", hạn ").append(due);
+                sb.append(".");
+            } else {
+                sb.append(" The ").append(term).append(" invoice still owes ")
+                        .append(formatMoney(remaining)).append(" ").append(cur);
+                if (!due.isBlank()) sb.append(", due ").append(due);
+                sb.append(".");
+            }
+        }
+        if (account.blocked()) {
+            sb.append(vi
+                    ? " Tài khoản đang bị giữ học vụ — đăng ký học phần sẽ bị chặn cho tới khi thanh toán."
+                    : " A financial hold is active — course registration stays blocked until it clears.");
+        }
+        sb.append(vi ? " Xem chi tiết tại trang Học phí." : " See details on the Tuition page.");
+        return sb.toString();
+    }
+
+    private static long numberValue(Object value) {
+        return value instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private static String formatMoney(long amount) {
+        return String.format(java.util.Locale.US, "%,d", amount);
+    }
+
     private String conductAnswer(String studentId, String locale) {
         boolean vi = "vi".equals(locale);
         StudentConductSummaryDto summary;
