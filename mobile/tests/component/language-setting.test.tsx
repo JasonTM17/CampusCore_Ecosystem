@@ -8,7 +8,7 @@ import { auditTree } from '../a11y/audit';
 
 describe('LanguageSetting', () => {
   test('switches the locale, persists it and relabels itself', async () => {
-    const storage = { getItem: jest.fn(async () => null), setItem: jest.fn(async () => undefined) };
+    const storage = { getItem: jest.fn(async () => null), setItem: jest.fn(async (_key: string, _value: string) => undefined) };
     await render(
       <ThemeProvider forcedScheme="light">
         <LocaleProvider storage={storage}>

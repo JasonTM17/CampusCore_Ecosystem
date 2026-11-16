@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { StyleProp, ViewInstance, ViewStyle } from 'react-native';
 
 export interface KeyboardSafeViewProps {
   children: ReactNode;
@@ -18,7 +18,7 @@ export interface KeyboardSafeViewProps {
  * adds nothing, so the two mechanisms never double-compensate.
  */
 export function KeyboardSafeView({ children, style }: KeyboardSafeViewProps) {
-  const frame = useRef<View>(null);
+  const frame = useRef<ViewInstance>(null);
   const [offset, setOffset] = useState(0);
   const [overlap, setOverlap] = useState(0);
 

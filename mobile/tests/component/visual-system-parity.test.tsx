@@ -29,7 +29,7 @@ function wrap(ui: ReactElement) {
 }
 
 const flat = (style: unknown) =>
-  (StyleSheet.flatten(typeof style === 'function' ? (style as (state: { pressed: boolean }) => unknown)({ pressed: false }) : style as never) ?? {}) as Record<string, any>;
+  (StyleSheet.flatten((typeof style === 'function' ? (style as (state: { pressed: boolean }) => unknown)({ pressed: false }) : style) as never) ?? {}) as Record<string, any>;
 
 describe('status pill', () => {
   test('renders the excused tone as a navy rectangle with medium meta text', async () => {

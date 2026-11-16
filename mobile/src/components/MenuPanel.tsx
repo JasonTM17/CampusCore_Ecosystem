@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, BackHandler, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import type { ViewInstance } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { minTapTarget, tokens } from '../design/tokens';
@@ -52,11 +53,11 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
   const firstMenuItem = sections
     .flatMap((section) => section.screens)
     .find((screen) => canAccessScreen(role, screen) && !PARAMETERISED_SCREENS.has(screen));
-  const firstMenuItemRef = useRef<View | null>(null);
+  const firstMenuItemRef = useRef<ViewInstance | null>(null);
 
   useEffect(() => {
     const target = findNodeHandle(firstMenuItemRef.current);
-    if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+    if (target != null) AccessibilityInfo.setAccessibilityFocus(target);
   }, []);
 
   useEffect(() => {

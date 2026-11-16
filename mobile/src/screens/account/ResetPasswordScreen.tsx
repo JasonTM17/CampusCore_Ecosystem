@@ -1,5 +1,6 @@
 import { useReducer, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 import { Button, Card, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
@@ -33,7 +34,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
-  const confirmRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInputInstance>(null);
   const submitting = state.phase === 'submitting';
 
   const submit = async () => {

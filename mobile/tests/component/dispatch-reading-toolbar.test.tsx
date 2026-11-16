@@ -100,7 +100,7 @@ describe('dispatch reader reading toolbar & progress bar', () => {
   test('tapping share action triggers React Native Share API with title and web URL', async () => {
     const shareSpy = jest
       .spyOn(Share, 'share')
-      .mockResolvedValue({ action: 'sharedAction' });
+      .mockResolvedValue({ action: 'sharedAction', activityType: undefined });
 
     await renderThemed(
       <DispatchReaderSheet item={mockNotice} visible={true} onClose={jest.fn()} />,
