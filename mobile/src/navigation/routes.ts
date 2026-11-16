@@ -24,6 +24,7 @@ export type ScreenName =
   | 'transcript'
   | 'curriculum'
   | 'enrollments'
+  | 'bursar'
   | 'attendance'
   | 'registration'
   | 'events'
@@ -137,6 +138,7 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'transcript', title: 'Transcript', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'curriculum', title: 'Curriculum', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
   { name: 'enrollments', title: 'Enrollments', family: 'student', roles: studentRoles, icon: 'clipboard-list-outline' },
+  { name: 'bursar', title: 'Tuition', family: 'student', roles: studentRoles, icon: 'cash-multiple' },
   { name: 'attendance', title: 'Attendance', family: 'student', roles: studentRoles, icon: 'clipboard-check-outline' },
   { name: 'registration', title: 'Registration', family: 'student', roles: studentRoles, icon: 'book-plus-outline' },
   { name: 'events', title: 'Events', family: 'student', roles: studentRoles, icon: 'calendar-star' },
@@ -279,6 +281,7 @@ const studentMenuSections: readonly MenuSectionDefinition[] = [
     screens: [
       'registration',
       'enrollments',
+      'bursar',
       'learning',
       'curriculum',
       'schedule',

@@ -66,6 +66,7 @@ const pathByScreen: Record<ScreenName, string> = {
   transcript: '/transcript',
   curriculum: '/curriculum',
   enrollments: '/enrollments',
+  bursar: '/hoc-phi',
   attendance: '/attendance',
   registration: '/registration',
   events: '/events',
