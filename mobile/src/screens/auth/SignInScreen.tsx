@@ -75,7 +75,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       sessionStore.bumpEpoch();
       const epoch = sessionStore.sessionEpoch();
       try {
-        await sessionStore.saveRefresh(outcome.refreshToken);
+        await sessionStore.saveRefresh(outcome.refreshToken, outcome.idToken);
       } catch {
         setError(copy.signIn.storage);
         return;

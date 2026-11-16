@@ -4,11 +4,14 @@
  * SecureStore binding (mobile-session-store.ts) or an in-memory test mirror.
  * Owns ALL persistent session I/O and the refresh/revoke calls to the
  * issuer host — `apiClient` never sees a refresh token. Access tokens live
- * in this module's memory only. Disk whitelist: `cu.refresh` + `cu.install`
- * (secure KV) and `installMarker` (sandbox KV).
+ * in this module's memory only. Disk whitelist: `cu.refresh` + `cu.idtoken`
+ * + `cu.install` (secure KV) and `installMarker` (sandbox KV). `cu.idtoken`
+ * holds the sign-in id_token so the RP-initiated logout leg can still hint
+ * the OP after a cold restart — it is wiped everywhere `cu.refresh` is.
  */
 
 const REFRESH_KEY = 'cu.refresh';
+const IDTOKEN_KEY = 'cu.idtoken';
 const INSTALL_KEY = 'cu.install';
 const MARKER_KEY = 'installMarker';
 const DEFAULT_CLIENT_ID = 'cu-mobile';
@@ -60,8 +63,14 @@ export interface SessionStore {
   readonly issuer: string;
   /** Marker check → returns surviving refresh token or null (KM-17 boot step). */
   loadBootstrap(): Promise<BootstrapResult>;
-  /** Persist a refresh token from the OIDC code exchange — the ONLY writer. */
-  saveRefresh(token: string): Promise<void>;
+  /**
+   * Persist a refresh token from the OIDC code exchange — the ONLY writer.
+   * The id_token from the same exchange is stored beside it so the
+   * RP-initiated logout leg can still hint the OP after a cold restart.
+   */
+  saveRefresh(token: string, idToken?: string): Promise<void>;
+  /** Stored id_token hint for RP-initiated logout — null when wiped/never signed in. */
+  readIdToken(): Promise<string | null>;
   clearRefresh(): Promise<void>;
   /**
    * grant_type=refresh_token against {issuer}/oauth2/token (client_id only —
@@ -72,7 +81,8 @@ export interface SessionStore {
   refreshAccessToken(): Promise<RefreshResult>;
   /**
    * Logout ordering: epoch++ → clear memory → persist signed-out markers →
-   * best-effort wipe cu.refresh → best-effort POST {issuer}/oauth2/revoke.
+   * best-effort wipe cu.refresh + cu.idtoken → best-effort POST
+   * {issuer}/oauth2/revoke.
    * Never throws.
    */
   signOut(): Promise<void>;
@@ -287,6 +297,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
           // Reinstall or sandbox wipe: surviving credentials belong to the old
           // identity. Wipe before any request and regenerate both marker layers.
           await secure.deleteItemAsync(REFRESH_KEY);
+          await secure.deleteItemAsync(IDTOKEN_KEY);
           const appInstanceId = newId();
           await secure.setItemAsync(
             INSTALL_KEY,
@@ -308,11 +319,14 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       });
     },
 
-    saveRefresh(token) {
+    saveRefresh(token, idToken) {
       const epoch = sessionEpoch;
       return mutate(async () => {
         if (epoch !== sessionEpoch) throw new Error('Session changed before credential storage.');
         await secure.setItemAsync(REFRESH_KEY, token);
+        if (idToken) {
+          await secure.setItemAsync(IDTOKEN_KEY, idToken);
+        }
         if (epoch !== sessionEpoch) throw new Error('Session changed during credential storage.');
         if (secureSignedOutMarker) {
           const install = parseJson(await secure.getItemAsync(INSTALL_KEY));
@@ -332,8 +346,15 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       });
     },
 
+    readIdToken() {
+      return mutate(() => secure.getItemAsync(IDTOKEN_KEY));
+    },
+
     clearRefresh() {
-      return mutate(() => secure.deleteItemAsync(REFRESH_KEY));
+      return mutate(async () => {
+        await secure.deleteItemAsync(REFRESH_KEY);
+        await secure.deleteItemAsync(IDTOKEN_KEY);
+      });
     },
 
     refreshAccessToken() {
@@ -370,6 +391,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
         }
         const stored = await secure.getItemAsync(REFRESH_KEY).catch(() => null);
         await secure.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
+        await secure.deleteItemAsync(IDTOKEN_KEY).catch(() => undefined);
         return stored;
       });
       if (!credential || !issuer) {

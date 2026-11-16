@@ -21,6 +21,9 @@ services:
       IDENTITY_CLIENTS_0_CLIENTID: cu-mobile
       IDENTITY_CLIENTS_0_PUBLICCLIENT: "true"
       IDENTITY_CLIENTS_0_REDIRECTURIS_0: campuscore://auth/callback
+      # RP-initiated logout: app sign-out opens /connect/logout in the
+      # system browser so the IdP SSO cookie ends too — registered URI is required.
+      IDENTITY_CLIENTS_0_POSTLOGOUTREDIRECTURIS_0: campuscore://auth/logged-out
       IDENTITY_CLIENTS_0_SCOPES_0: openid
       IDENTITY_CLIENTS_0_SCOPES_1: profile
       IDENTITY_CLIENTS_0_SCOPES_2: email

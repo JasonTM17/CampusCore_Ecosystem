@@ -127,7 +127,7 @@ test('mobile role navigation rejects unauthorized routes and uses role-specific 
   assert.match(navigator, /if \(route !== 'auth\.signIn' \|\| apiClient\.mode !== 'live'\)/);
   assert.match(navigator, /setSessionKind\('authenticated'\)/);
   assert.match(navigator, /if \(apiClient\.mode === 'live'\) \{/);
-  assert.match(navigator, /void sessionStore\.signOut\(\)/);
+  assert.match(navigator, /void signOutWithOidcSession\(sessionStore\)/);
   assert.match(navigationTypes, /enterPreview\(\): void/);
   assert.match(navigationTypes, /completeSignIn\(role: UserRole, accountId\?: string \| null\): void/);
 });
@@ -190,7 +190,7 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   assert.match(signIn, /copy\.signIn\.signIn/);
   assert.match(signIn, /navigation\.enterPreview\(\)/);
   assert.match(signIn, /signInWithOidc\(/);
-  assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
+  assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken, outcome\.idToken\)/);
   assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
   assert.match(signIn, /if \(outcome\.code === 'no_mobile_surface'\) \{\s*setError\(copy\.signIn\.noMobileSurface\);/);
   assert.match(signIn, /session\.markBlocked\(outcome\.code === 'password_change_required'/);

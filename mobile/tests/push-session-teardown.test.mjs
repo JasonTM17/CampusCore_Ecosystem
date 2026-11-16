@@ -101,6 +101,7 @@ function sessionDeps(overrides = {}) {
       bumpEpoch: () => {},
       signOut: async () => {},
     },
+    signOutWithOidcSession: async () => {},
     clearQueryCache: () => {},
     selectThesisRound: () => {},
     stateRef: { current: { kind: 'authenticated' } },
