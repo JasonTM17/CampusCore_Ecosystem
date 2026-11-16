@@ -4,19 +4,20 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
   Briefcase,
+  CalendarDays,
   ClipboardList,
   Library,
   type LucideIcon,
 } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { LocalizedLink } from '@/components/LocalizedLink';
-import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { PageHeader } from '@/components/ui/page-header';
-import { ErrorState, LoadingState } from '@/components/ui/state-block';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
 import type { Locale } from '@/i18n/config';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { careerMessages } from '@/i18n/careers-messages';
+import { eventsMessages } from '@/i18n/events-messages';
 import { libraryMessages } from '@/i18n/library-messages';
 import { staffMessages } from '@/i18n/staff-messages';
 import {
@@ -29,6 +30,7 @@ const DESK_ICONS: Record<StaffDeskKey, LucideIcon> = {
   admissions: ClipboardList,
   careers: Briefcase,
   library: Library,
+  events: CalendarDays,
 };
 
 function deskCopy(key: StaffDeskKey, locale: Locale) {
@@ -39,6 +41,10 @@ function deskCopy(key: StaffDeskKey, locale: Locale) {
   if (key === 'careers') {
     const copy = careerMessages[locale];
     return { title: copy.deskTitle, description: copy.deskDescription };
+  }
+  if (key === 'events') {
+    const copy = eventsMessages[locale];
+    return { title: copy.title, description: copy.description };
   }
   const copy = libraryMessages[locale];
   return { title: copy.deskTitle, description: copy.deskDescription };
@@ -90,9 +96,15 @@ export function StaffDesksPage() {
     );
   }
 
-  // Same access-denied surface the desks render for a non-grantee.
+  // An authoritative "no grants" answer is an empty state, not an error:
+  // the viewer simply holds no staff grants (e.g. a plain student).
   if (desks.length === 0) {
-    return <WorkspaceForbiddenState />;
+    return (
+      <div className="space-y-8" data-testid="staff-desks-page">
+        <PageHeader title={copy.title} />
+        <EmptyState title={copy.empty} description={copy.emptyHint} />
+      </div>
+    );
   }
 
   return (

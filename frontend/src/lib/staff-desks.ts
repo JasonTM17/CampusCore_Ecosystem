@@ -1,7 +1,7 @@
 import api from '@/lib/api';
 import { campusErrorKind } from '@/lib/campus-error';
 
-export type StaffDeskKey = 'admissions' | 'careers' | 'library';
+export type StaffDeskKey = 'admissions' | 'careers' | 'library' | 'events';
 
 export interface StaffDesk {
   key: StaffDeskKey;
@@ -20,6 +20,7 @@ export const STAFF_DESKS: readonly StaffDesk[] = [
   { key: 'admissions', href: '/apply/review', grantsPath: '/admissions/staff/grants' },
   { key: 'careers', href: '/careers/desk', grantsPath: '/careers/staff/grants' },
   { key: 'library', href: '/library/desk', grantsPath: '/library/staff/grants' },
+  { key: 'events', href: '/dashboard/events', grantsPath: '/events/staff/grants' },
 ];
 
 export type DeskProbeOutcome = 'granted' | 'denied' | 'failed';

@@ -28,6 +28,7 @@ import { ResponsiveContent } from './ui/ResponsiveContent';
 import { IconChip, StatusPill } from './ui/institutional';
 import type { StatusTone } from './ui/institutional';
 import { ASSISTANT_FAB_SCROLL_INSET } from './assistant-fab-insets';
+import { AssistantScrollSpacer } from './assistant-scroll-spacer';
 
 export { UiText } from './ui/UiText';
 export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
@@ -137,9 +138,7 @@ export interface ScreenShellProps {
   refreshControl?: ReactElement<RefreshControlProps>;
 }
 
-export function AssistantScrollSpacer() {
-  return <View testID="assistant-scroll-spacer" style={{ height: ASSISTANT_FAB_SCROLL_INSET }} />;
-}
+export { AssistantScrollSpacer } from './assistant-scroll-spacer';
 
 export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false, refreshControl }: ScreenShellProps) {
   const styles = useUiStyles();

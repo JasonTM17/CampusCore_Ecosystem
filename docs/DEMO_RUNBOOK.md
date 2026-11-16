@@ -256,6 +256,19 @@ và `restful-api` chạy với `FLYWAY_ENABLED=false` để tránh hai service c
 Sau khi thêm migration mới, build/recreate `rag-service`; không áp dụng psql thủ
 công trừ khi đang làm một repair có bằng chứng riêng.
 
+*Cùng một Dockerfile*: `rag-service` build từ `java-services/restful-api/Dockerfile`
+giống hệt `restful-api` (và `enrollment-api`/`bursar-api` cũng vậy) nhưng thành image
+riêng (`student-management-ute-rag-service:local`). Khi sửa bất kỳ code Java nào —
+đặc biệt logic assistant/guard — phải rebuild **tất cả** image dùng chung Dockerfile:
+
+```bash
+docker compose -p campusute build restful-api rag-service enrollment-api bursar-api
+docker compose -p campusute up -d restful-api rag-service enrollment-api bursar-api
+```
+
+Rebuild chỉ `restful-api` mà quên `rag-service` khiến sidecar chạy jar cũ — đã từng
+sinh bug chatbot trả lời sai dù code đã fix.
+
 ---
 
 ## 6. Hướng Dẫn Xử Lý Tình Huống Sự Cố (Troubleshooting)
