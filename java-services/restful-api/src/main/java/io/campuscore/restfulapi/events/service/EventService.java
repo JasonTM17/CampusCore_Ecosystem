@@ -195,7 +195,7 @@ public class EventService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
+        if (!isAdmin(roles)) {
             throw problem(HttpStatus.FORBIDDEN, "EVENTS_ADMIN_REQUIRED",
                     "Grant administration requires an administrator role");
         }
@@ -551,16 +551,30 @@ public class EventService {
 
     public ListPaging.Result<EventResponse> listStaffEvents(String actorId,
             ListPaging.Window window) {
-        requireStaffGrant(actorId);
+        return listStaffEvents(actorId, List.of(), window);
+    }
+
+    /**
+     * Staffers see their own event queue; ADMIN/SUPER_ADMIN read the whole
+     * pipeline for oversight (writes still require the staff grant — the
+     * grant row stays the sole authority to operate, contract §1.1).
+     */
+    public ListPaging.Result<EventResponse> listStaffEvents(String actorId,
+            List<String> actorRoles, ListPaging.Window window) {
+        boolean admin = isAdmin(actorRoles);
+        if (!admin) {
+            requireStaffGrant(actorId);
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("studentId", null).addValue("ownerId", actorId);
+        String ownerFilter = admin ? "" : " WHERE e.\"ownerId\" = :ownerId";
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + EVENT + " e WHERE e.\"ownerId\" = :ownerId",
+                    "SELECT COUNT(*) FROM " + EVENT + " e" + ownerFilter,
                     params, Long.class);
         }
-        String sql = eventSelect(null) + " WHERE e.\"ownerId\" = :ownerId"
+        String sql = eventSelect(null) + ownerFilter
                 + " ORDER BY e.\"startsAt\" DESC";
         if (window != null) {
             sql += ", e.\"id\" LIMIT :limit OFFSET :offset";
@@ -571,10 +585,23 @@ public class EventService {
     }
 
     public EventResponse staffEvent(String actorId, String eventId) {
-        requireStaffGrant(actorId);
+        return staffEvent(actorId, List.of(), eventId);
+    }
+
+    public EventResponse staffEvent(String actorId, List<String> actorRoles, String eventId) {
+        boolean admin = isAdmin(actorRoles);
+        if (!admin) {
+            requireStaffGrant(actorId);
+        }
         EventResponse event = findEvent(eventId, null);
-        requireEventOwner(actorId, event.ownerId());
+        if (!admin) {
+            requireEventOwner(actorId, event.ownerId());
+        }
         return event;
+    }
+
+    private static boolean isAdmin(List<String> roles) {
+        return roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
     }
 
     // ------------------------------------------------------------------

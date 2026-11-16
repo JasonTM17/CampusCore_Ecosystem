@@ -821,9 +821,10 @@ class EventContractPersistenceTest {
     void adminWithoutGrantCannotRunStaffOperations() throws Exception {
         RequestPostProcessor ungrantedAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-no-grant", "ADMIN");
         String eventId = openEventId();
+        // Read-side oversight: an admin without a staff grant sees the whole
+        // event pipeline (writes stay grant-gated below).
         mvc.perform(get("/api/v1/events/staff").with(ungrantedAdmin))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+                .andExpect(status().isOk());
         mvc.perform(get("/api/v1/events/staff/" + eventId + "/roster").with(ungrantedAdmin))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));

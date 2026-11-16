@@ -68,7 +68,7 @@ public class EventStaffController {
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
         ListPaging.Window window = ListPaging.Window.of(page, limit, request);
-        return ListPaging.respond(events.listStaffEvents(subject(jwt), window));
+        return ListPaging.respond(events.listStaffEvents(subject(jwt), roles(jwt), window));
     }
 
     @Operation(summary = "Tạo sự kiện nháp")
@@ -87,7 +87,7 @@ public class EventStaffController {
     public EventResponse detail(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String eventId) {
-        return events.staffEvent(subject(jwt), eventId);
+        return events.staffEvent(subject(jwt), roles(jwt), eventId);
     }
 
     @Operation(summary = "Sửa sự kiện nháp")

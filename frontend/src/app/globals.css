@@ -510,26 +510,28 @@
     }
   }
 
+  /* The status tint alone is translucent — layered over the solid card
+     color so toast text never collides with content behind it. */
   [data-sonner-toast][data-type='success'] {
-    background: hsl(var(--status-success) / 0.12);
+    background: linear-gradient(hsl(var(--status-success) / 0.12), hsl(var(--status-success) / 0.12)), hsl(var(--card));
     border-color: hsl(var(--status-success) / 0.35);
     color: hsl(var(--status-success-foreground));
   }
 
   [data-sonner-toast][data-type='error'] {
-    background: hsl(var(--status-danger) / 0.12);
+    background: linear-gradient(hsl(var(--status-danger) / 0.12), hsl(var(--status-danger) / 0.12)), hsl(var(--card));
     border-color: hsl(var(--status-danger) / 0.35);
     color: hsl(var(--status-danger-foreground));
   }
 
   [data-sonner-toast][data-type='warning'] {
-    background: hsl(var(--status-warning) / 0.12);
+    background: linear-gradient(hsl(var(--status-warning) / 0.12), hsl(var(--status-warning) / 0.12)), hsl(var(--card));
     border-color: hsl(var(--status-warning) / 0.35);
     color: hsl(var(--status-warning-foreground));
   }
 
   [data-sonner-toast][data-type='info'] {
-    background: hsl(var(--status-info) / 0.12);
+    background: linear-gradient(hsl(var(--status-info) / 0.12), hsl(var(--status-info) / 0.12)), hsl(var(--card));
     border-color: hsl(var(--status-info) / 0.35);
     color: hsl(var(--status-info-foreground));
   }
