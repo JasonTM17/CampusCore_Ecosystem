@@ -2690,5 +2690,77 @@ class AssistantPersonalContextAdvisorTest {
         assertTrue(events.stream().anyMatch(event -> event instanceof ThesisAssistantService.StreamDone done
                 && "PRIVACY_REFUSAL".equals(done.reasonCode())
                 && "REJECTED".equals(done.terminalStatus())));
+
+
+    }
+
+    // ---- Personal tuition intent (bursar-api account snapshot) ----
+
+    @Test
+    void tuitionPersonalQuestionsClaimTheAdvisor() {
+        assertTrue(advisor.handles("Tôi còn nợ học phí bao nhiêu?"));
+        assertTrue(advisor.handles("hoc phi cua toi la bao nhieu"));
+        assertTrue(advisor.handles("Tôi muốn xem hoá đơn học phí kỳ này"));
+        assertTrue(advisor.handles("how much is my tuition fee?"));
+        assertTrue(advisor.handles("show my invoice"));
+        assertTrue(advisor.handles("số dư học phí của mình"));
+
+        // No first-person marker -> institutional question stays on the KB path.
+        assertFalse(advisor.handles("Học phí kỳ này bao nhiêu?"));
+        // Institutional wording -> policy/regulation knowledge, not an account lookup.
+        assertFalse(advisor.handles("Chính sách miễn giảm học phí của tôi thế nào?"));
+        assertFalse(advisor.handles("học phí mỗi tín chỉ của tôi là bao nhiêu"));
+        assertFalse(advisor.handles("quy định học phí của tôi tối đa bao nhiêu"));
+    }
+
+    @Test
+    void tuitionAnswerComposesBalanceInvoiceAndHold() {
+        BursarAssistantGateway gateway = new BursarAssistantGateway("", "", 0) {
+            @Override
+            public java.util.Optional<BursarAccountView> accountFor(String studentId) {
+                return java.util.Optional.of(new BursarAccountView(
+                        14_620_000L, "VND", true,
+                        java.util.List.of(java.util.Map.of("id", "h1", "reason", "OVERDUE_TUITION")),
+                        java.util.List.of(java.util.Map.of(
+                                "id", "inv-1", "term", "2026HK1", "status", "OPEN",
+                                "total", 18_620_000L, "paidAmount", 4_000_000L,
+                                "remaining", 14_620_000L, "dueAt", "2026-09-15T00:00:00Z"))));
+            }
+        };
+        AssistantPersonalContextAdvisor tuitionAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, null, null, null, null, gateway);
+
+        ChatResponse response = tuitionAdvisor.answer(
+                chatRequest("vi", "Tôi còn nợ học phí bao nhiêu?"), jwtStudent());
+        String answer = response.answer();
+        assertTrue(answer.contains("14,620,000"), answer);
+        assertTrue(answer.contains("2026HK1"), answer);
+        assertTrue(answer.contains("giữ học vụ"), answer);
+        assertTrue(answer.contains("Học phí"), answer);
+
+        ChatResponse en = tuitionAdvisor.answer(
+                chatRequest("en", "how much is my tuition balance?"), jwtStudent());
+        assertTrue(en.answer().contains("14,620,000"), en.answer());
+        assertTrue(en.answer().contains("financial hold"), en.answer());
+    }
+
+    @Test
+    void tuitionAnswerFallsBackWhenBursarUnreachable() {
+        BursarAssistantGateway gateway = BursarAssistantGateway.disabled();
+        AssistantPersonalContextAdvisor tuitionAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, null, null, null, null, gateway);
+
+        ChatResponse response = tuitionAdvisor.answer(
+                chatRequest("vi", "Tôi còn nợ học phí bao nhiêu?"), jwtStudent());
+        // Fail-open: no account snapshot -> advisor yields to the knowledge path.
+        assertNull(response);
+    }
+
+    @Test
+    void tuitionIntentWithoutStudentClaimIsHonest() {
+        ChatResponse response = advisor.answer(
+                chatRequest("vi", "Tôi còn nợ học phí bao nhiêu?"), jwtLecturer());
+        assertTrue(response.answer().contains("không gắn với hồ sơ sinh viên")
+                || response.answer().contains("hồ sơ"), response.answer());
     }
 }
