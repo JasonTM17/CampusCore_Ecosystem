@@ -61,7 +61,7 @@ export const campusApi = { tag: 'campus-api-stub' };`,
     return 'install-1';
   },
 };`,
-  oidcSession: `export { decodeJwtPayload, roleFromClaims } from ${JSON.stringify(url('oidc-core'))};`,
+  oidcSession: `export { decodeJwtPayload, roleFromClaims } from ${JSON.stringify(url('oidc-core'))};\n  export async function signOutWithOidcSession(store) { await store.signOut(); }`,
   store: `export const sessionStore = new Proxy({}, {
   get: (_target, key) => (...args) => globalThis.__sessionStoreStub[key](...args),
 });`,

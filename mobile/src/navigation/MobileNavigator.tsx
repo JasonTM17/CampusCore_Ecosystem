@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { apiClient } from '../api/client';
 import { sessionStore } from '../auth/mobile-session-store';
+import { signOutWithOidcSession } from '../auth/oidc-session';
 import { clearQueryCache } from '../hooks/query-cache';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -103,7 +104,9 @@ export function MobileNavigator() {
     },
     signOut() {
       if (apiClient.mode === 'live') {
-        void sessionStore.signOut();
+        // Includes the OP leg: RP-initiated logout in the system browser so
+        // the IdP SSO cookie ends too (best-effort, fire-and-forget).
+        void signOutWithOidcSession(sessionStore);
       } else {
         apiClient.clearAccessToken();
       }

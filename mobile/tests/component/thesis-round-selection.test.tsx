@@ -45,7 +45,10 @@ jest.mock('../../src/screens/thesis/thesis-api', () => ({
   thesisApi: new Proxy({}, { get: (_target, key: string) => (...args: unknown[]) => mockApi[key](...args) }),
 }));
 jest.mock('../../src/auth/mobile-session-store', () => ({ get sessionStore() { return mockStore; } }));
-jest.mock('../../src/auth/oidc-session', () => jest.requireActual('../../src/auth/oidc-core'));
+jest.mock('../../src/auth/oidc-session', () => ({
+  ...(jest.requireActual('../../src/auth/oidc-core') as object),
+  signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()),
+}));
 jest.mock('../../src/config/lane-flags', () => ({ LANE_FLAGS: {} }));
 jest.mock('expo-router', () => ({ useFocusEffect: jest.fn() }));
 jest.mock('expo-network', () => ({ getNetworkStateAsync: jest.fn(async () => ({ isConnected: true })) }));

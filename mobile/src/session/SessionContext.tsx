@@ -20,7 +20,7 @@ import {
   resolveCapabilities,
   type CapabilitySet,
 } from '../auth/capabilities';
-import { decodeJwtPayload, roleFromClaims } from '../auth/oidc-session';
+import { decodeJwtPayload, roleFromClaims, signOutWithOidcSession } from '../auth/oidc-session';
 import { sessionStore } from '../auth/mobile-session-store';
 import type { RefreshResult } from '../auth/session-store';
 import { LANE_FLAGS } from '../config/lane-flags';
@@ -367,7 +367,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     stateRef.current = signedOutState;
     setState(signedOutState);
     // No post-await state write: a new sign-in may complete during the disk wipe.
-    await sessionStore.signOut();
+    // signOutWithOidcSession adds the OP leg: it reads the stored id_token
+    // hint before the wipe, then opens RP-initiated logout in the system
+    // browser so the IdP SSO cookie ends too (else the next authorize call
+    // silently re-authenticates the same account — account switching was
+    // impossible).
+    await signOutWithOidcSession(sessionStore);
   }, [updateBootStatus]);
 
   const value = useMemo<SessionValue>(() => ({

@@ -269,6 +269,12 @@ docker compose -p campusute up -d restful-api rag-service enrollment-api bursar-
 Rebuild chỉ `restful-api` mà quên `rag-service` khiến sidecar chạy jar cũ — đã từng
 sinh bug chatbot trả lời sai dù code đã fix.
 
+*Overlay mobile*: nếu đang chạy app mobile trên emulator, **mọi** lệnh `up`/recreate
+`restful-api` phải kèm `-f docker-compose.mobile-local.yml` (hoặc dùng
+`node scripts/local-dev.mjs up --mobile`). Thiếu overlay này `IDENTITY_OIDC_ENABLED`
+tắt → đăng nhập SSO trên app chết hoàn toàn, Custom Tab chỉ hiện JSON
+`401 UNAUTHENTICATED` thay vì trang đăng nhập.
+
 ---
 
 ## 6. Hướng Dẫn Xử Lý Tình Huống Sự Cố (Troubleshooting)
@@ -279,6 +285,8 @@ sinh bug chatbot trả lời sai dù code đã fix.
 | **API trả về lỗi kết nối Database** | PostgreSQL chưa hoàn tất khởi động | Kiểm tra `node scripts/local-dev.mjs logs postgres`; kiểm tra port `5432` |
 | **Trợ lý AI trả lời chậm** | Đang bật `DEEPSEEK_ENABLED=true` nhưng không có internet | Tắt `DEEPSEEK_ENABLED=false` trong `.env` để chuyển sang chế độ Lexical RAG cục bộ (< 50ms, không cần mạng) |
 | **Quên tài khoản đăng nhập** | Nhập sai mật khẩu | Sử dụng các tài khoản mặc định `student@campuscore.edu` / `password123` hoặc `admin@campuscore.edu` / `password123` |
+| **App mobile báo lỗi đăng nhập, Custom Tab chỉ hiện JSON 401** | `restful-api` bị recreate thiếu overlay `docker-compose.mobile-local.yml` | Chạy lại `node scripts/local-dev.mjs up --mobile` (overlay bật `IDENTITY_OIDC_ENABLED` + issuer `http://10.0.2.2:4010` cho emulator) |
+| **App mobile chạy code cũ dù đã pull/sửa code** | Metro đang phục vụ bundle cache cũ | Restart Metro với `npx expo start --clear` trước khi kết luận bug trên thiết bị |
 
 ---
 

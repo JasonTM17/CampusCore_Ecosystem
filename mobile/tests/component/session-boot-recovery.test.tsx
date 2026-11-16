@@ -18,7 +18,10 @@ const mockApi = {
 };
 jest.mock('../../src/api/client', () => ({ get apiClient() { return mockApi; }, campusApi: {} }));
 jest.mock('../../src/auth/mobile-session-store', () => ({ get sessionStore() { return mockStore; } }));
-jest.mock('../../src/auth/oidc-session', () => jest.requireActual('../../src/auth/oidc-core'));
+jest.mock('../../src/auth/oidc-session', () => ({
+  ...(jest.requireActual('../../src/auth/oidc-core') as object),
+  signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()),
+}));
 jest.mock('../../src/hooks/query-cache', () => ({ clearQueryCache: jest.fn(), queryCacheIdentity: jest.fn(), syncQueryCacheIdentity: jest.fn() }));
 jest.mock('../../src/config/lane-flags', () => ({ LANE_FLAGS: {} }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({ useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, errorStatus: null, reload: jest.fn(), setData: jest.fn() }) }));

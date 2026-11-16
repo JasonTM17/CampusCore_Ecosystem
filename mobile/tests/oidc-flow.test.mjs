@@ -19,9 +19,11 @@ const { outputText } = ts.transpileModule(src, {
 fs.writeFileSync(path.join(tmp, 'oidc-core.mjs'), outputText);
 const {
   OIDC_CLIENT_ID,
+  OIDC_LOGOUT_REDIRECT_URI,
   OIDC_REDIRECT_URI,
   OIDC_SCOPES,
   buildAuthorizeUrl,
+  buildEndSessionUrl,
   buildTokenRequestBody,
   decodeJwtPayload,
   parseCallbackUrl,
@@ -56,6 +58,17 @@ test('authorize URL carries the exact contract shape (§3/§7.6)', () => {
   assert.equal(parsed.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(parsed.searchParams.get('state'), 'STATE');
   assert.equal(parsed.searchParams.get('nonce'), 'NONCE');
+});
+
+test('end-session URL carries the RP-initiated logout shape', () => {
+  const url = buildEndSessionUrl({ issuer: `${ISSUER}/`, idToken: 'ID.TOKEN.HINT' });
+  const parsed = new URL(url);
+  assert.equal(parsed.origin, ISSUER);
+  assert.equal(parsed.pathname, '/connect/logout');
+  assert.equal(parsed.searchParams.get('id_token_hint'), 'ID.TOKEN.HINT');
+  assert.equal(parsed.searchParams.get('client_id'), OIDC_CLIENT_ID);
+  assert.equal(parsed.searchParams.get('post_logout_redirect_uri'), OIDC_LOGOUT_REDIRECT_URI);
+  assert.equal(OIDC_LOGOUT_REDIRECT_URI, 'campuscore://auth/logged-out');
 });
 
 test('callback parsing: state verified before code is accepted', () => {

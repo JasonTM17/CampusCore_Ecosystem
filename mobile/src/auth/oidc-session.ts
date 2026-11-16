@@ -8,8 +8,10 @@ import * as WebBrowser from 'expo-web-browser';
 import type { UserRole } from '../navigation/routes';
 import { APPLICANT_UI_ROLE, capabilityClaimsFromPayload } from './capabilities';
 import {
+  OIDC_LOGOUT_REDIRECT_URI,
   OIDC_REDIRECT_URI,
   buildAuthorizeUrl,
+  buildEndSessionUrl,
   buildTokenRequestBody,
   decodeJwtPayload,
   parseCallbackUrl,
@@ -29,7 +31,7 @@ import {
 export type OidcBlockedCode = 'no_mobile_surface' | 'password_change_required';
 
 export type OidcOutcome =
-  | { kind: 'signedIn'; accessToken: string; refreshToken: string; accountId: string; role: UserRole }
+  | { kind: 'signedIn'; accessToken: string; refreshToken: string; idToken: string; accountId: string; role: UserRole }
   | { kind: 'unavailable'; code: 'issuer_not_configured' }
   | { kind: 'blocked'; reason: string; code?: OidcBlockedCode }
   | { kind: 'cancelled' };
@@ -139,7 +141,8 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     return { kind: 'blocked', reason: `Token exchange failed: ${detail}` };
   }
 
-  const idCheck = verifyIdToken(body?.id_token, { nonce, issuer, nowSeconds });
+  const idToken = body?.id_token;
+  const idCheck = verifyIdToken(idToken, { nonce, issuer, nowSeconds });
   if ('error' in idCheck) {
     return { kind: 'blocked', reason: idCheck.error };
   }
@@ -167,10 +170,51 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     kind: 'signedIn',
     accessToken,
     refreshToken,
+    // Persisted beside the refresh credential: it is the id_token_hint the
+    // RP-initiated logout leg needs to end the OP browser session too.
+    // verifyIdToken above only passes when this is a string.
+    idToken: idToken as string,
     accountId: idCheck.accountId,
     // An applicant session has no UI role; it renders the least-privileged
     // surface selector while the `applicant.surface` capability — derived
     // from this same token — restricts it to the admissions routes.
     role: entry.kind === 'role' ? entry.role : APPLICANT_UI_ROLE,
   };
+}
+
+export interface SignOutSessionStore {
+  readonly issuer: string;
+  readIdToken(): Promise<string | null>;
+  signOut(): Promise<void>;
+}
+
+/**
+ * Full sign-out including the OP leg (mobile-policy §3): the stored id_token
+ * is read BEFORE the local wipe — after it there is nothing left to hint
+ * with — then local credentials are wiped exactly as before, and finally the
+ * RP-initiated logout page is opened in the system browser so the IdP's SSO
+ * cookie ends too. The browser leg is fire-and-forget like the /oauth2/revoke
+ * call: a hanging Custom Tab must never hold the already-committed local
+ * sign-out. Without an idToken (pre-upgrade installs) the OP leg is skipped
+ * and behaviour matches the previous release.
+ */
+export async function signOutWithOidcSession(
+  store: SignOutSessionStore,
+  openSession?: OidcDeps['openSession'],
+): Promise<void> {
+  let idToken: string | null = null;
+  try {
+    idToken = await store.readIdToken();
+  } catch {
+    idToken = null;
+  }
+  await store.signOut();
+  if (!idToken) return;
+  const open = openSession ?? WebBrowser.openAuthSessionAsync;
+  void open(
+    buildEndSessionUrl({ issuer: store.issuer, idToken }),
+    OIDC_LOGOUT_REDIRECT_URI,
+  ).catch(() => {
+    // OP-session cleanup is best-effort — local sign-out already committed.
+  });
 }

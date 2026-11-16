@@ -363,15 +363,38 @@ test('post-sign-out refresh cannot resurrect the session', async () => {
 test('saveRefresh/clearRefresh touch only the whitelisted keys', async () => {
   const { store, secure, sandbox } = makeStore();
   await store.loadBootstrap();
-  await store.saveRefresh('rt-x');
+  await store.saveRefresh('rt-x', 'id-token-x');
   assert.equal(secure.map.get('cu.refresh'), 'rt-x');
+  assert.equal(secure.map.get('cu.idtoken'), 'id-token-x');
+  assert.equal(await store.readIdToken(), 'id-token-x');
   await store.clearRefresh();
   assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(secure.map.has('cu.idtoken'), false);
+  assert.equal(await store.readIdToken(), null);
   assert.deepEqual(
     [...secure.map.keys()].sort(),
     ['cu.install'],
   );
   assert.deepEqual([...sandbox.map.keys()], ['installMarker']);
+});
+
+test('signOut wipes the stored id_token hint together with the refresh credential', async () => {
+  const { store, secure } = makeStore();
+  await store.loadBootstrap();
+  await store.saveRefresh('rt-x', 'id-token-x');
+  await store.signOut();
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(secure.map.has('cu.idtoken'), false);
+  assert.equal(await store.readIdToken(), null);
+});
+
+test('a reinstall wipe clears a surviving id_token hint too', async () => {
+  const restarted = makeStore();
+  restarted.secure.map.set('cu.install', JSON.stringify({ appInstanceId: 'a1', createdAt: 'x' }));
+  restarted.secure.map.set('cu.idtoken', 'id-token-stale');
+  restarted.sandbox.map.set('installMarker', JSON.stringify({ appInstanceId: 'other' }));
+  await restarted.store.loadBootstrap();
+  assert.equal(restarted.secure.map.has('cu.idtoken'), false);
 });
 
 test('fifty concurrent refresh callers share one issuer request', async () => {
@@ -702,7 +725,7 @@ test('a sign-out tombstone prevents a retained refresh token from returning afte
 
   await store.signOut();
 
-  assert.deepEqual(order, ['tombstone', 'secure-delete']);
+  assert.deepEqual(order, ['tombstone', 'secure-delete', 'secure-delete']);
   assert.equal(JSON.parse(sandbox.map.get('installMarker')).signedOut, true);
   assert.equal(JSON.parse(secure.map.get('cu.install')).signedOut, undefined);
   const restarted = createSessionStore({ secure, sandbox, issuer: ISSUER });

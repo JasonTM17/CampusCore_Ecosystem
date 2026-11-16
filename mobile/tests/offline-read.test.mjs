@@ -82,7 +82,7 @@ test('screen query passes scope and age, and session expiry purges memory cache'
   assert.deepEqual(readQueryCache('account-a:grades'), ['memory-only']);
   clearQueryCache();
   assert.equal(readQueryCache('account-a:grades'), undefined);
-  assert.match(context, /clearQueryCache\(\);[\s\S]*?await sessionStore\.signOut\(\);/);
+  assert.match(context, /clearQueryCache\(\);[\s\S]*?await signOutWithOidcSession\(sessionStore\);/);
 });
 
 test('cache implementation has no disk-backed academic or assistant storage path', () => {

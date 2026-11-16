@@ -11,7 +11,8 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' }, campusApi: {} }));
 jest.mock('../../src/session/SessionContext', () => ({ useSession: () => ({ kind: 'signedOut' }) }));
-jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn() }));
+jest.mock('../../src/auth/oidc-session', () => ({ signInWithOidc: jest.fn(), signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()) }));
+
 jest.mock('../../src/auth/mobile-session-store', () => ({ sessionStore: {} }));
 jest.mock('../../src/screens/content/use-paged-list', () => ({
   usePagedList: () => ({ items: [], loading: false, error: null, warning: null }),

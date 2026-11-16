@@ -64,6 +64,7 @@ jest.mock('../../src/session/SessionContext', () => ({
 
 jest.mock('../../src/auth/oidc-session', () => ({
   signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })),
+  signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()),
 }));
 
 jest.mock('../../src/auth/mobile-session-store', () => ({

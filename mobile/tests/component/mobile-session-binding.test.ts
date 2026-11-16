@@ -119,7 +119,7 @@ test('native binding uses the default connectivity probe before consuming a save
   expect(store.getAccessToken()).toBe('memory-access');
 });
 
-test('code, verifier and ID token stay inside the exchange while only refresh survives restart', async () => {
+test('code and verifier stay inside the exchange; refresh and the id_token hint survive restart', async () => {
   const store = binding('https://issuer.test');
   await store.loadBootstrap();
   const jwt = (claims: object) => `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.synthetic`;
@@ -140,15 +140,16 @@ test('code, verifier and ID token stay inside the exchange while only refresh su
     openSession: async () => ({ type: 'success', url: 'campuscore://auth/callback?code=memory-code&state=state' }),
   });
   expect(outcome.kind).toBe('signedIn');
-  expect(outcome).not.toHaveProperty('idToken');
-  expect(outcome).not.toHaveProperty('id_token');
+  // The id_token is now surfaced deliberately: the session store persists it
+  // as cu.idtoken so the RP-initiated logout leg can end the OP SSO session.
+  expect(outcome).toHaveProperty('idToken', idToken);
   expect(outcome).not.toHaveProperty('codeVerifier');
   if (outcome.kind !== 'signedIn') throw new Error('sign-in did not complete');
-  await store.saveRefresh(outcome.refreshToken);
-  expect([...mockSecure.keys()].sort()).toEqual(['cu.install', 'cu.refresh']);
+  await store.saveRefresh(outcome.refreshToken, outcome.idToken);
+  expect([...mockSecure.keys()].sort()).toEqual(['cu.idtoken', 'cu.install', 'cu.refresh']);
   expect([...mockSandbox.keys()]).toEqual(['installMarker']);
   const persisted = JSON.stringify([...mockSecure.entries(), ...mockSandbox.entries()]);
-  for (const transient of ['memory-code', 'memory-verifier', idToken, outcome.accessToken]) {
+  for (const transient of ['memory-code', 'memory-verifier', outcome.accessToken]) {
     expect(persisted).not.toContain(transient);
   }
 });

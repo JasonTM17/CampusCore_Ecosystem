@@ -206,7 +206,7 @@ export const { jsx, jsxs, Fragment } = J;`,
   client: `export const apiClient = { mode: 'live', setOnSessionExpired() {} };
 export const campusApi = {};`,
   push: 'export async function unregisterPushBestEffort() {}',
-  oidcSession: `export { decodeJwtPayload, roleFromClaims } from ${JSON.stringify(url('oidc-core'))};`,
+  oidcSession: `export { decodeJwtPayload, roleFromClaims } from ${JSON.stringify(url('oidc-core'))};\n  export async function signOutWithOidcSession(store) { await store.signOut(); }`,
   store: `export const sessionStore = new Proxy({}, {
   get: (_target, key) => (...args) => globalThis.__sessionStoreStub[key](...args),
 });`,

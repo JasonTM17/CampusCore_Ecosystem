@@ -13,6 +13,7 @@ import type { UserRole } from '../navigation/routes';
 
 export const OIDC_CLIENT_ID = 'cu-mobile';
 export const OIDC_REDIRECT_URI = 'campuscore://auth/callback';
+export const OIDC_LOGOUT_REDIRECT_URI = 'campuscore://auth/logged-out';
 export const OIDC_SCOPES = 'openid profile email offline_access';
 
 const BASE64_ALPHABET =
@@ -137,6 +138,30 @@ export function buildAuthorizeUrl(request: AuthorizeRequest): string {
     `&code_challenge_method=S256` +
     `&state=${request.state}` +
     `&nonce=${request.nonce}`
+  );
+}
+
+export interface EndSessionRequest {
+  issuer: string;
+  /** id_token captured at sign-in — the RP-initiated logout hint. */
+  idToken: string;
+  postLogoutRedirectUri?: string;
+}
+
+/**
+ * RP-initiated logout URL (contract §3): `/connect/logout` revokes this
+ * client's grants AND clears the OP browser session cookie — without it the
+ * next authorize call silently re-authenticates the same account. The
+ * redirect URI must be registered on the client (SAS validates it).
+ */
+export function buildEndSessionUrl(request: EndSessionRequest): string {
+  const issuer = request.issuer.replace(/\/+$/, '');
+  const redirect = request.postLogoutRedirectUri ?? OIDC_LOGOUT_REDIRECT_URI;
+  return (
+    `${issuer}/connect/logout` +
+    `?id_token_hint=${encodeURIComponent(request.idToken)}` +
+    `&client_id=${OIDC_CLIENT_ID}` +
+    `&post_logout_redirect_uri=${encodeURIComponent(redirect)}`
   );
 }
 

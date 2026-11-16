@@ -127,7 +127,7 @@ function harness() {
     acceptBootRoute: () => { route.current = roleHomePath(stateRef.current.role); },
     resolveOidc: () => oidc.resolve({
       kind: 'signedIn', role: 'lecturer', accountId: 'account-B',
-      accessToken: accessB, refreshToken: 'synthetic-refresh-B',
+      accessToken: accessB, refreshToken: 'synthetic-refresh-B', idToken: 'synthetic-id-B',
     }),
   };
 }
@@ -167,7 +167,10 @@ test('normal OIDC sign-in without a boot commit persists B and navigates to B', 
   view.resolveOidc();
   await pendingB;
 
-  assert.deepEqual(view.writes, [['cu.refresh', 'synthetic-refresh-B']]);
+  assert.deepEqual(view.writes, [
+    ['cu.refresh', 'synthetic-refresh-B'],
+    ['cu.idtoken', 'synthetic-id-B'],
+  ]);
   assert.equal(view.secure.get('cu.refresh'), 'synthetic-refresh-B');
   assert.equal(view.sessionStore.getAccessToken(), view.accessB);
   assert.equal(view.stateRef.current.kind, 'authenticated');
