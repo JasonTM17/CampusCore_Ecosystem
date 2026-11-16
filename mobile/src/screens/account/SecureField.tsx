@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import type { Ref } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -18,7 +19,7 @@ export interface SecureFieldProps {
   editable?: boolean;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
-  inputRef?: Ref<TextInput>;
+  inputRef?: Ref<TextInputInstance>;
   testID?: string;
 }
 

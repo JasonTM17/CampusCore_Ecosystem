@@ -482,7 +482,7 @@ describe('student dashboard live mode', () => {
     expect(tiles.map((tile) => tile.props.accessibilityLabel)).toEqual(labels);
 
     const quickAccess = within(screen.getByTestId('quick-access'));
-    const targets = ['registration', 'schedule', 'grades', 'transcript', 'thesis.topics', 'announcements'];
+    const targets = ['registration', 'schedule', 'grades', 'transcript', 'thesis.topics', 'announcements'] as const;
     for (let index = 0; index < labels.length; index += 1) {
       await fireEvent.press(quickAccess.getByRole('button', { name: labels[index] }));
       expect(navigation.navigate).toHaveBeenLastCalledWith(targets[index]);

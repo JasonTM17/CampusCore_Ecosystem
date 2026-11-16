@@ -7,9 +7,9 @@ test('shared list exposes native header/empty/footer/refresh/paging/key contract
   const wrapper = read('src/components/perf/performance-list.tsx');
   assert.match(wrapper, /extends Omit<FlatListProps<T>/);
   for (const slot of ['header', 'footer', 'empty']) assert.match(wrapper, new RegExp(slot + '\\?: ReactElement'));
-  assert.match(wrapper, /ListHeaderComponent=\{header\}/);
+  assert.match(wrapper, /ListHeaderComponent=\{header \?\? undefined\}/);
   assert.match(wrapper, /ListFooterComponent=\{<>\{footer\}<AssistantScrollSpacer \/><\/>\}/);
-  assert.match(wrapper, /ListEmptyComponent=\{empty\}/);
+  assert.match(wrapper, /ListEmptyComponent=\{empty \?\? undefined\}/);
   assert.match(wrapper, /\.\.\.props/);
   assert.match(wrapper, /bottomNavigationHeight/);
   const list = read('src/components/ui/data-list.tsx');

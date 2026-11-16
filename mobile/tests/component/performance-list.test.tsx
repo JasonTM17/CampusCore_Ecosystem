@@ -1,6 +1,7 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 import { Dimensions, FlatList, RefreshControl, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { FlatListInstance } from 'react-native';
 import { createRef } from 'react';
 import type { ReactElement } from 'react';
 
@@ -36,7 +37,7 @@ test('screen scroll content keeps normal gutters and enough bottom clearance at 
 test('performance-list content keeps normal gutters and enough bottom clearance at supported widths and scales', async () => {
   const getDimensions = jest.spyOn(Dimensions, 'get');
   const data = ['row'];
-  const listRef = createRef<FlatList<string>>();
+  const listRef = createRef<FlatListInstance>();
 
   for (const width of [360, 390, 411, 1000]) {
     for (const fontScale of [1, 2]) {
@@ -56,7 +57,7 @@ test('performance-list content keeps normal gutters and enough bottom clearance 
 
 test('rendered performance cards span the viewport minus two normal gutters at compact widths', async () => {
   const getDimensions = jest.spyOn(Dimensions, 'get');
-  const listRef = createRef<FlatList<string>>();
+  const listRef = createRef<FlatListInstance>();
 
   for (const width of [360, 393]) {
     getDimensions.mockReturnValue({ width, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
@@ -82,8 +83,8 @@ test('rendered performance cards span the viewport minus two normal gutters at c
 });
 
 test('header, empty, footer, refresh and paging retain the native list contract', async () => {
-  const refresh = jest.fn(), page = jest.fn();
-  const ref = createRef<FlatList<string>>();
+  const refresh = jest.fn(() => {}), page = jest.fn(() => {});
+  const ref = createRef<FlatListInstance>();
   const view = await render(<PerformanceList<string>
     listRef={ref}
     data={[]} keyExtractor={(item) => item} renderItem={({ item }) => <Text>{item}</Text>}
@@ -105,7 +106,7 @@ test('200 variable-height rows mount a bounded initial window with stable IDs', 
   const rows = Array.from({ length: 200 }, (_, i) => ({ id: `row-${i}`, text: 'row '.repeat(i % 6 + 1) }));
   function Row({ text }: { text: string }) { mounted++; return <Text>{text}</Text>; }
   const key = (item: typeof rows[number]) => item.id;
-  const ref = createRef<FlatList<typeof rows[number]>>();
+  const ref = createRef<FlatListInstance>();
   await render(<PerformanceList listRef={ref} data={rows} keyExtractor={key} renderItem={({ item }) => <Row text={item.text} />} />);
   expect(mounted).toBeGreaterThan(0);
   expect(mounted).toBeLessThanOrEqual(8);

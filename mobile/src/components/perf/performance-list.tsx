@@ -33,9 +33,9 @@ export function PerformanceList<T>({ header, footer, empty, listRef, gutters = t
       showsVerticalScrollIndicator={false}
       {...props}
       contentContainerStyle={contentStyle}
-      ListHeaderComponent={header}
+      ListHeaderComponent={header ?? undefined}
       ListFooterComponent={<>{footer}<AssistantScrollSpacer /></>}
-      ListEmptyComponent={empty}
+      ListEmptyComponent={empty ?? undefined}
     />
   );
 }

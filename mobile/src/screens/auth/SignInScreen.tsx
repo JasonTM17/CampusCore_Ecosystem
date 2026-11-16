@@ -97,7 +97,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
 
   return (
     <View style={[styles.screen, { paddingLeft: insets?.left ?? 0, paddingRight: insets?.right ?? 0 }]}>
-      <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
+      <StatusBar barStyle="light-content" />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: tokens.spacing.xl + (insets?.bottom ?? 0) }]}
         keyboardShouldPersistTaps="handled"

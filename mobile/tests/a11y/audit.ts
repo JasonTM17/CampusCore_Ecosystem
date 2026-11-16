@@ -45,7 +45,7 @@ function hiddenOnPurpose(node: JsonNode): boolean {
 }
 
 function flatSize(node: JsonNode): { h?: number; w?: number } {
-  const flat = (StyleSheet.flatten(node.props?.style) ?? {}) as {
+  const flat = (StyleSheet.flatten(node.props?.style as never) ?? {}) as {
     flex?: number;
     minHeight?: number;
     height?: number;
