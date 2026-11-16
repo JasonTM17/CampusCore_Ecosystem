@@ -98,7 +98,7 @@ src/designs/
 /.contract-check-*/
 
 # Local-only planning and Grok workflow artifacts
-/plans/260901-1809-campuscore-production-readiness-and-professional-ux/
+/plans/
 /.grok/workflows/
 /ORIGINAL_REQUEST.md
 /PROJECT.md

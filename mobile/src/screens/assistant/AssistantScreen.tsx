@@ -48,6 +48,32 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <KeyboardSafeView>
         <ResponsiveContent style={styles.contentWrap}>
+          {/* Fixed chrome: title, scope switch and thread actions stay visible
+              while the thread scrolls — they are controls, not content. */}
+          <View style={styles.fixedHeader}>
+            <View style={styles.titleRow}>
+              <View style={styles.titleColumn}>
+                <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{specialized ? copy.specializedTitle : copy.title}</UiText>
+                {specialized ? <UiText variant="bodySmall" tone="muted">{copy.specializedTagline}</UiText> : null}
+              </View>
+            </View>
+            <View style={styles.toolbar}>
+              <View style={styles.scope}>
+                <SegmentedControl
+                  accessibilityLabel={copy.scopeLabel}
+                  value={chat.scope}
+                  onChange={(value) => chat.changeScope(value === 'specialized' ? 'specialized' : 'academic')}
+                  options={[{ value: 'academic', label: copy.scopeAcademic }, { value: 'specialized', label: copy.scopeSpecialized }]}
+                />
+              </View>
+              {!chat.isPreview ? <Button label={copy.history} onPress={() => chat.setHistoryOpen(true)} variant="secondary" /> : null}
+              <Button label={copy.newChat} onPress={chat.newChat} variant="text" />
+            </View>
+            {chat.isPreview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
+            <View style={styles.gap}>
+              <Notice tone="info" message={copy.guardTechnical} />
+            </View>
+          </View>
           <PerformanceList
             listRef={scroll}
             testID="assistant-thread"
@@ -64,29 +90,6 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
             showsVerticalScrollIndicator={false}
             header={<>
-          <View style={styles.titleRow}>
-            <View style={styles.titleColumn}>
-              <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{specialized ? copy.specializedTitle : copy.title}</UiText>
-              {specialized ? <UiText variant="bodySmall" tone="muted">{copy.specializedTagline}</UiText> : null}
-            </View>
-          </View>
-          <View style={styles.toolbar}>
-            <View style={styles.scope}>
-              <SegmentedControl
-                accessibilityLabel={copy.scopeLabel}
-                value={chat.scope}
-                onChange={(value) => chat.changeScope(value === 'specialized' ? 'specialized' : 'academic')}
-                options={[{ value: 'academic', label: copy.scopeAcademic }, { value: 'specialized', label: copy.scopeSpecialized }]}
-              />
-            </View>
-            {!chat.isPreview ? <Button label={copy.history} onPress={() => chat.setHistoryOpen(true)} variant="secondary" /> : null}
-            <Button label={copy.newChat} onPress={chat.newChat} variant="text" />
-          </View>
-          {chat.isPreview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
-          <View style={styles.gap}>
-            <Notice tone="info" message={copy.guardTechnical} />
-          </View>
-
           {chat.earlierCursor ? (
             <View style={styles.gap}>
               <Button
@@ -174,7 +177,8 @@ const messageKey = (message: ChatMessage) => message.id;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   contentWrap: { flex: 1 },
-  content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md, paddingBottom: tokens.spacing.md },
+  fixedHeader: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md },
+  content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.sm, paddingBottom: tokens.spacing.md },
   titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
   titleColumn: { flexShrink: 1 },
   title: { flexShrink: 1 },
