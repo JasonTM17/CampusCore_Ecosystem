@@ -57,6 +57,7 @@ function deskCopy(key: StaffDeskKey, locale: Locale) {
  */
 export function StaffDesksPage() {
   const { user, isLoading: authLoading } = useRequireAuth();
+  const fullAdmin = user?.roles?.includes('ADMIN') || user?.roles?.includes('SUPER_ADMIN');
   const { locale, messages } = useI18n();
   const copy = staffMessages[locale];
   const [desks, setDesks] = useState<StaffDeskKey[]>([]);
@@ -128,7 +129,7 @@ export function StaffDesksPage() {
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{lane.description}</p>
               <LocalizedLink
-                href={desk.href}
+                href={fullAdmin && desk.adminHref ? desk.adminHref : desk.href}
                 className="group mt-auto inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {messages.content.hub.open}

@@ -84,6 +84,12 @@ test('the desk registry covers exactly the four existing desk routes', () => {
     const shim = path.join(root, 'src/app/[locale]', desk.href.slice(1), 'page.tsx');
     assert.ok(fs.existsSync(canonical), `${desk.href} page must exist`);
     assert.ok(fs.existsSync(shim), `${desk.href} locale shim must exist`);
+    if (desk.adminHref) {
+      const adminCanonical = path.join(root, 'src/app', desk.adminHref.slice(1), 'page.tsx');
+      const adminShim = path.join(root, 'src/app/[locale]', desk.adminHref.slice(1), 'page.tsx');
+      assert.ok(fs.existsSync(adminCanonical), `${desk.adminHref} page must exist`);
+      assert.ok(fs.existsSync(adminShim), `${desk.adminHref} locale shim must exist`);
+    }
   }
 });
 
