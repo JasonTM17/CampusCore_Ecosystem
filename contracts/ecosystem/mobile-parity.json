@@ -1004,13 +1004,14 @@
       "id": 79,
       "web": "/hoc-phi",
       "actor": "S",
-      "mode": "WEB-ONLY",
+      "mode": "NATIVE-FULL",
       "laneGated": false,
       "tier": "NEXT",
       "phase": "P16",
-      "note": "học phí/công nợ/hold/thanh toán demo qua bursar-api; chưa có màn mobile",
+      "note": "học phí/công nợ/hold/thanh toán demo qua bursar-api; màn bursar native",
       "decision": "approved",
-      "handoff": "web-same-path"
+      "handoff": "web-same-path",
+      "native": "/hoc-phi"
     }
   ]
 }
