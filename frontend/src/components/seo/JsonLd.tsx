@@ -6,6 +6,12 @@ interface JsonLdProps {
   nonce?: string;
 }
 
+// JSON.stringify does not escape `<`, so a literal `</script>` or `<!--` in
+// schema text would break out of the inline script tag. Escape it to \u003c.
+function serializeJsonLd(schema: object): string {
+  return JSON.stringify(schema).replace(/</g, '\\u003c');
+}
+
 export function JsonLd({ locale = 'vi', nonce }: JsonLdProps) {
   const siteUrl = getSiteUrl();
   const copy = getMessages(locale === 'vi' ? 'vi' : 'en').meta.jsonLd;
@@ -70,19 +76,19 @@ export function JsonLd({ locale = 'vi', nonce }: JsonLdProps) {
         type="application/ld+json"
         nonce={nonce}
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationSchema) }}
       />
       <script
         type="application/ld+json"
         nonce={nonce}
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(webAppSchema) }}
       />
       <script
         type="application/ld+json"
         nonce={nonce}
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(webSiteSchema) }}
       />
     </>
   );
