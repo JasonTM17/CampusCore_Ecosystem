@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   StatusBar,
   StyleSheet,
   View,
@@ -39,7 +40,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
   const chrome = chromeFor(scheme);
   const { locale } = useLocale();
   const insets = useContext(SafeAreaInsetsContext);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const portalSubtitle = accountMessages[locale].signIn.portal;
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingLeft: insets?.left ?? 0, paddingRight: insets?.right ?? 0 }]}>
-      <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
+      <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}

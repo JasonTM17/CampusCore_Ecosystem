@@ -21,7 +21,7 @@ function streamedReport(overrides: Partial<ApiDownload> = {}): ApiDownload {
 }
 
 test('the report download asks the transport for the streamed file lane', async () => {
-  const download = jest.fn(async () => streamedReport());
+  const download = jest.fn(async (_path: string, _init?: unknown) => streamedReport());
   const api = createThesisApi({ download } as unknown as ApiClient);
 
   await api.downloadReportFile('group-1');

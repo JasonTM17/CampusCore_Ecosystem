@@ -54,7 +54,7 @@ type Node = { type: string; props?: Record<string, unknown>; children?: (Node | 
 function normalize(node: Node | string | null | undefined): unknown {
   if (node === null || node === undefined) return null;
   if (typeof node === 'string') return node;
-  const flat = (StyleSheet.flatten(node.props?.style) ?? {}) as Record<string, unknown>;
+  const flat = (StyleSheet.flatten(node.props?.style as never) ?? {}) as Record<string, unknown>;
   const contentBottomInset = (StyleSheet.flatten(node.props?.contentContainerStyle as never) as Record<string, unknown> | undefined)?.paddingBottom;
   const style: Record<string, unknown> = {};
   for (const k of STYLE_KEYS) if (flat[k] !== undefined) style[k] = flat[k];

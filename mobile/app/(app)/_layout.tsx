@@ -1,5 +1,6 @@
 import { Redirect, Slot, usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import type { ViewInstance } from 'react-native';
 import { AccessibilityInfo, findNodeHandle, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,7 +46,7 @@ export default function AppGroupLayout() {
   useDashboardPrefetch(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const menuButtonRef = useRef<View | null>(null);
+  const menuButtonRef = useRef<ViewInstance | null>(null);
   const previousMenuOpen = useRef(false);
   const applicant = hasApplicantSurface(session.capabilities ?? NO_CAPABILITIES);
   const unread = useContentQuery<number>(
@@ -65,7 +66,7 @@ export default function AppGroupLayout() {
   useEffect(() => {
     if (previousMenuOpen.current && !menuOpen) {
       const target = findNodeHandle(menuButtonRef.current);
-      if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+      if (target != null) AccessibilityInfo.setAccessibilityFocus(target);
     }
     previousMenuOpen.current = menuOpen;
   }, [menuOpen]);

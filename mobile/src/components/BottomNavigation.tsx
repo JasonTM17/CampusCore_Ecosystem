@@ -1,6 +1,6 @@
 import type { Ref } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { View as NativeView } from 'react-native';
+import type { ViewInstance as NativeView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';

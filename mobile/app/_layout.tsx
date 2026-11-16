@@ -90,7 +90,6 @@ function ThemedStatusBar() {
   return (
     <StatusBar
       barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
-      backgroundColor={colors.background}
     />
   );
 }

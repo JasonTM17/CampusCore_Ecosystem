@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ViewInstance } from 'react-native';
 import { AccessibilityInfo, findNodeHandle, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,7 +29,7 @@ export function MobileNavigator() {
   const [sessionKind, setSessionKind] = useState<SessionKind>('signedOut');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedThesisTopicId, setSelectedThesisTopicId] = useState<string | null>(null);
-  const menuButtonRef = useRef<View | null>(null);
+  const menuButtonRef = useRef<ViewInstance | null>(null);
   const previousMenuOpen = useRef(false);
   const previousRoute = useRef(route);
   const { screenTitle } = useShellCopy();
@@ -45,7 +46,7 @@ export function MobileNavigator() {
   useEffect(() => {
     if (previousMenuOpen.current && !menuOpen) {
       const target = findNodeHandle(menuButtonRef.current);
-      if (target !== null) AccessibilityInfo.setAccessibilityFocus(target);
+      if (target != null) AccessibilityInfo.setAccessibilityFocus(target);
     }
     previousMenuOpen.current = menuOpen;
   }, [menuOpen]);
@@ -132,7 +133,7 @@ export function MobileNavigator() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.background} />
+      <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
         <View
           importantForAccessibility={menuOpen ? 'no-hide-descendants' : 'auto'}

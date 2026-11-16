@@ -62,7 +62,7 @@ export function AppBar({ role, avatar, applicant = false, unreadCount = 0, onNot
       testID="app-bar"
       style={[styles.bar, { backgroundColor: chrome.surface, paddingTop: insets?.top ?? 0, borderBottomColor: chrome.overlay }]}
     >
-      <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
+      <StatusBar barStyle="light-content" />
       <View style={styles.row}>
         <View style={styles.mark}>
           <Image

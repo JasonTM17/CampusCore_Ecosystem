@@ -57,7 +57,7 @@ test('renders every supported block and inline tag', async () => {
 });
 
 test('opens a safe link through the platform handler', async () => {
-  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await renderRich('<p><a href="https://example.test/story">Liên kết</a></p>');
 
   await fireEvent.press(screen.getByRole('link', { name: 'Liên kết' }));
@@ -65,7 +65,7 @@ test('opens a safe link through the platform handler', async () => {
 });
 
 test('opens an internal document link on its canonical web page', async () => {
-  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await renderRich('<p><a href="/docs/quy-che-dao-tao">Quy chế</a></p>');
 
   await fireEvent.press(screen.getByRole('link', { name: 'Quy chế' }));
@@ -101,7 +101,7 @@ test('keeps text from malformed and unclosed markup', async () => {
 });
 
 test('opens an attachment at its absolute URL and prefixes only relative paths', async () => {
-  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await renderAttachments([
     { name: 'Thư từ hiệu trưởng', url: 'https://cdn.example.com/letter.pdf', type: 'pdf' },
     { name: 'Quy chế đào tạo', url: '/docs/quy-che-dao-tao.pdf', type: 'pdf' },
@@ -114,7 +114,7 @@ test('opens an attachment at its absolute URL and prefixes only relative paths',
 });
 
 test('does not open a javascript link from a body', async () => {
-  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   open.mockClear();
   await renderRich('<p><a href="javascript:alert(1)">bấm</a></p>');
 
