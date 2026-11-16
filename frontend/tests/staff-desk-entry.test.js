@@ -64,7 +64,7 @@ function scriptedGet(script) {
   return { get, calls };
 }
 
-test('the desk registry covers exactly the three existing desk routes', () => {
+test('the desk registry covers exactly the four existing desk routes', () => {
   const { STAFF_DESKS } = loadStaffDesks(async () => ({ status: 200 }));
 
   assert.deepEqual(
@@ -73,6 +73,7 @@ test('the desk registry covers exactly the three existing desk routes', () => {
       ['admissions', '/apply/review', '/admissions/staff/grants'],
       ['careers', '/careers/desk', '/careers/staff/grants'],
       ['library', '/library/desk', '/library/staff/grants'],
+      ['events', '/dashboard/events', '/events/staff/grants'],
     ],
   );
 
@@ -83,6 +84,12 @@ test('the desk registry covers exactly the three existing desk routes', () => {
     const shim = path.join(root, 'src/app/[locale]', desk.href.slice(1), 'page.tsx');
     assert.ok(fs.existsSync(canonical), `${desk.href} page must exist`);
     assert.ok(fs.existsSync(shim), `${desk.href} locale shim must exist`);
+    if (desk.adminHref) {
+      const adminCanonical = path.join(root, 'src/app', desk.adminHref.slice(1), 'page.tsx');
+      const adminShim = path.join(root, 'src/app/[locale]', desk.adminHref.slice(1), 'page.tsx');
+      assert.ok(fs.existsSync(adminCanonical), `${desk.adminHref} page must exist`);
+      assert.ok(fs.existsSync(adminShim), `${desk.adminHref} locale shim must exist`);
+    }
   }
 });
 
@@ -102,12 +109,13 @@ test('every grant combination resolves to exactly its permitted desks', async ()
     admissions: '/admissions/staff/grants',
     careers: '/careers/staff/grants',
     library: '/library/staff/grants',
+    events: '/events/staff/grants',
   };
 
-  for (let mask = 0; mask < 8; mask += 1) {
+  for (let mask = 0; mask < 16; mask += 1) {
     const script = {};
     const expected = [];
-    ['admissions', 'careers', 'library'].forEach((key, index) => {
+    ['admissions', 'careers', 'library', 'events'].forEach((key, index) => {
       const granted = (mask & (1 << index)) !== 0;
       script[paths[key]] = granted
         ? { status: 200 }
@@ -124,10 +132,10 @@ test('every grant combination resolves to exactly its permitted desks', async ()
     assert.deepEqual(
       access.desks,
       expected,
-      `grant mask ${mask.toString(2).padStart(3, '0')} must surface exactly ${expected.join(',') || '(none)'}`,
+      `grant mask ${mask.toString(2).padStart(4, '0')} must surface exactly ${expected.join(',') || '(none)'}`,
     );
     assert.equal(access.probeFailed, false, `mask ${mask} answered authoritatively`);
-    assert.equal(calls.length, 3, 'every desk is probed once');
+    assert.equal(calls.length, 4, 'every desk is probed once');
   }
 });
 
@@ -136,6 +144,7 @@ test('a session with no desk grant resolves to an empty desk list, not an error'
     '/admissions/staff/grants': { rejects: deniedError(403, 'ADMISSIONS_STAFF_REQUIRED') },
     '/careers/staff/grants': { rejects: deniedError(403, 'CAREERS_STAFF_REQUIRED') },
     '/library/staff/grants': { rejects: deniedError(403, 'LIBRARY_STAFF_REQUIRED') },
+    '/events/staff/grants': { rejects: deniedError(403, 'EVENTS_STAFF_REQUIRED') },
   });
   const { probeStaffDesks } = loadStaffDesks(get);
   const access = await probeStaffDesks();
@@ -149,6 +158,7 @@ test('expired-session answers deny desks; transport failures fail closed as prob
     '/admissions/staff/grants': { status: 200 },
     '/careers/staff/grants': { rejects: deniedError(401) },
     '/library/staff/grants': { rejects: new Error('Network Error') },
+    '/events/staff/grants': { rejects: deniedError(403, 'EVENTS_STAFF_REQUIRED') },
   });
   const { probeStaffDesks } = loadStaffDesks(get);
   const access = await probeStaffDesks();
@@ -185,9 +195,10 @@ test('the staff route exists with its locale shim and the shared denied surface'
   assert.match(page, /StaffDesksPage/);
   assert.match(shim, /export\s*\{\s*default\s*\}\s*from\s*'\.\.\/\.\.\/staff\/page'/);
 
-  // The page requires a session and reuses the desk access-denied behavior.
+  // The page requires a session and renders a friendly empty state when the
+  // viewer holds no desk grants.
   assert.match(component, /useRequireAuth\(\)/);
-  assert.match(component, /WorkspaceForbiddenState/);
+  assert.match(component, /EmptyState/);
   assert.match(component, /LocalizedLink/);
   assert.match(component, /probeStaffDesks/);
 

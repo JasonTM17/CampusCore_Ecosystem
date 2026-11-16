@@ -402,7 +402,7 @@ Uses the Node.js built-in test runner (`node:test`):
 node --test scripts/flyway-lineage-check.test.mjs
 ```
 The test suite verifies:
-- Production migration directory passes with 163 files, V1..V166, and gaps `[56, 91, 119]`.
+- Production migration directory passes with 164 files, V1..V167, and gaps `[56, 91, 119]`.
 - Duplicate version detection catches conflicts.
 - Gap detection identifies unapproved gaps outside the allow-list.
 - Filename and non-positive version syntax errors are reported.

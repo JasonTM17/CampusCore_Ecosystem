@@ -136,6 +136,12 @@ services:
       ASSISTANT_RAG_SERVICE_TOKEN: ${ASSISTANT_RAG_SERVICE_TOKEN:?Set ASSISTANT_RAG_SERVICE_TOKEN}
       ASSISTANT_RAG_OWNER_ASSERTION_SECRET: "${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:?Set ASSISTANT_RAG_OWNER_ASSERTION_SECRET to a generated key}"
       ASSISTANT_RETENTION_ENABLED: "false"
+      # Self-heal the denormalized section seat counter: the hourly reconcile
+      # job repairs drifted enrolledCount instead of only logging a WARN
+      # (demo seeds intentionally leave a few sections drifted). Repair runs
+      # on sis-core only — enrollment-api stays warn-only so there is exactly
+      # one writer.
+      ACADEMIC_ENROLLEDCOUNT_REPAIR: ${ACADEMIC_ENROLLEDCOUNT_REPAIR:-true}
       # Mail is opt-in. Enable it only with a real SMTP password file; the
       # local Mailpit container remains available for an explicit opt-in.
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
