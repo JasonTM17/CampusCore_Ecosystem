@@ -31,6 +31,7 @@ jest.mock('../../src/session/SessionContext', () => ({
 // Native auth surfaces are out of scope here — the sign-in screen never touches OIDC until pressed.
 jest.mock('../../src/auth/oidc-session', () => ({
   signInWithOidc: jest.fn(async () => ({ kind: 'cancelled' })),
+  signOutWithOidcSession: jest.fn(async (store: { signOut(): Promise<void> }) => store.signOut()),
 }));
 jest.mock('../../src/auth/mobile-session-store', () => ({
   sessionStore: {
