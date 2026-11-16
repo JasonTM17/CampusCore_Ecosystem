@@ -15,6 +15,26 @@ export function isLocalCleartextUrl(value: string): boolean {
   }
 }
 
+/**
+ * Bursar (tuition) origin. Production keeps one API origin — the edge routes
+ * `/api/v1/me/bursar*` to bursar-api — so non-dev builds reuse `apiBaseUrl`.
+ * Local dev points at the container's published port because the default
+ * mobile base (`:4010`, sis-core) does not serve bursar routes.
+ */
+export function resolveBursarBaseUrl(
+  configured: string | undefined,
+  development: boolean,
+  apiBaseUrl: string,
+  platform: string = Platform.OS,
+): string | undefined {
+  const candidate = configured?.trim();
+  if (candidate) return resolveApiBaseUrl(candidate, development, platform, true);
+  if (!development) return apiBaseUrl || undefined;
+  return platform === 'android'
+    ? 'http://10.0.2.2:4012/api/v1'
+    : 'http://127.0.0.1:4012/api/v1';
+}
+
 export function resolveApiBaseUrl(
   configured: string | undefined,
   development: boolean,

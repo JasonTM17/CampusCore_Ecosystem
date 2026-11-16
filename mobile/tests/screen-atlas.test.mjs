@@ -28,7 +28,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ].map((match) => match[1] ?? match[2]);
   const screenCount = registeredRoutes.length;
 
-  assert.equal(screenCount, 37);
+  assert.equal(screenCount, 38);
   assert.equal(new Set(registeredRoutes).size, screenCount);
   assert.deepEqual(componentRoutes.sort(), [...registeredRoutes].sort());
   for (const requiredRoute of [

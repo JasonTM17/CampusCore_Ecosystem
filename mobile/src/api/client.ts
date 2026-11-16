@@ -764,6 +764,12 @@ export type ApiAuthPolicy = 'protected' | 'public' | 'snapshot';
 
 export interface ApiRequestInit extends RequestInit {
   auth?: ApiAuthPolicy;
+  /**
+   * Alternate resolved base URL for services outside the SIS core origin
+   * (e.g. bursar-api). Auth, refresh, epoch and idempotency handling are
+   * identical — only the URL join changes.
+   */
+  baseUrl?: string;
 }
 
 export interface ApiTransferInit extends Omit<ApiRequestInit, 'body' | 'method'> {
@@ -1137,7 +1143,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   async function dispatch(path: string, init: ApiRequestInit, mode: TransferMode, transferOptions: ApiTransferInit = {}) {
     const requestId = createRequestId();
     const startedAt = Date.now();
-    const { auth = 'protected', ...fetchInit } = init;
+    const { auth = 'protected', baseUrl: requestBaseUrl, ...fetchInit } = init;
     const method = (init.method ?? 'GET').toUpperCase();
     const requestEpoch = options.sessionEpoch?.();
     if (apiMode !== 'live') {
@@ -1148,7 +1154,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         'MOBILE_API_PREVIEW',
       );
     }
-    if (!resolvedBaseUrl) {
+    const effectiveBaseUrl = requestBaseUrl ?? resolvedBaseUrl;
+    if (!effectiveBaseUrl) {
       throw new ApiClientError(
         'The mobile API is not configured for this build',
         0,
@@ -1173,7 +1180,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const url = `${resolvedBaseUrl}${normalizePath(path)}`;
+    const url = `${effectiveBaseUrl}${normalizePath(path)}`;
     let diskDownload: DiskDownload | undefined;
     const readBody = async (response: Response): Promise<unknown> => {
       if (mode !== 'download' || !response.ok) return readResponseBody(response);

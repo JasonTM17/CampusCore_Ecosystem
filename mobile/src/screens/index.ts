@@ -4,6 +4,7 @@ import { SignInScreen } from './auth/SignInScreen';
 import { ForgotPasswordScreen, LoggedOutScreen } from './account';
 import { CurriculumScreen } from './academic/CurriculumScreen';
 import { EnrollmentsScreen } from './academic/EnrollmentsScreen';
+import { BursarScreen } from './student/BursarScreen';
 import { TranscriptScreen } from './academic/TranscriptScreen';
 import ResetPasswordRoute from './account/ResetPasswordRoute';
 import { AssistantChatScreen } from './assistant/AssistantScreen';
@@ -55,6 +56,7 @@ export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProp
   transcript: TranscriptScreen,
   curriculum: CurriculumScreen,
   enrollments: EnrollmentsScreen,
+  bursar: BursarScreen,
   attendance: AttendanceScreen,
   registration: RegistrationScreen,
   events: EventsScreen,

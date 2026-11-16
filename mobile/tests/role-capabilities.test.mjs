@@ -301,7 +301,7 @@ test('menu entries follow the capability set and nothing else', () => {
 });
 
 test('the always-on registry and role homes are unchanged by the lanes', () => {
-  assert.equal(routes.screenRegistry.length, 37);
+  assert.equal(routes.screenRegistry.length, 38);
   for (const role of ['student', 'lecturer', 'admin']) {
     assert.equal(routes.getBottomNavigation(role).length, 4);
   }

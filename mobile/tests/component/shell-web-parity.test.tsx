@@ -63,6 +63,7 @@ describe('web-aligned menu', () => {
       'Tổng quan',
       'Đăng ký học phần',
       'Môn học của tôi',
+      'Học phí',
       'Học liệu & bài tập',
       'Chương trình đào tạo',
       'Thời khóa biểu',
